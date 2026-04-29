@@ -1,0 +1,56 @@
+import { pgTable, uuid, varchar, text, doublePrecision, timestamp, integer } from 'drizzle-orm/pg-core'
+import { relations } from 'drizzle-orm'
+import { users } from './users'
+import { projects } from './projects'
+import { statuses } from './statuses'
+import { taskLabels } from './task-labels'
+import { comments } from './comments'
+import { activityLogs } from './activity-logs'
+
+export const tasks = pgTable('tasks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  statusId: uuid('status_id').notNull().references(() => statuses.id, { onDelete: 'cascade' }),
+  assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  reporterId: uuid('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 500 }).notNull(),
+  description: text('description'),
+  position: doublePrecision('position').notNull().default(0),
+  priority: varchar('priority', { length: 10 }).notNull().default('none'),
+  parentTaskId: uuid('parent_task_id').references((): typeof tasks.id => tasks.id, { onDelete: 'cascade' }),
+  dueDate: timestamp('due_date'),
+  estimate: integer('estimate'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
+})
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [tasks.projectId],
+    references: [projects.id],
+  }),
+  status: one(statuses, {
+    fields: [tasks.statusId],
+    references: [statuses.id],
+  }),
+  assignee: one(users, {
+    fields: [tasks.assigneeId],
+    references: [users.id],
+  }),
+  reporter: one(users, {
+    fields: [tasks.reporterId],
+    references: [users.id],
+  }),
+  parentTask: one(tasks, {
+    fields: [tasks.parentTaskId],
+    references: [tasks.id],
+    relationName: 'subtasks',
+  }),
+  subtasks: many(tasks, { relationName: 'subtasks' }),
+  taskLabels: many(taskLabels),
+  comments: many(comments),
+  activityLogs: many(activityLogs),
+}))
+
+export type Task = typeof tasks.$inferSelect
+export type NewTask = typeof tasks.$inferInsert

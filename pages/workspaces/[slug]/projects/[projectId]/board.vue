@@ -1,0 +1,94 @@
+<template>
+  <div class="h-full flex flex-col">
+    <UiLoadingState v-if="loading" text="Loading board..." />
+
+    <template v-else-if="project">
+      <KanbanBoard
+        :statuses="statuses"
+        :tasks="tasks"
+        @create-task="handleCreateTask"
+        @update-task="handleUpdateTask"
+        @open-task="handleOpenTask"
+      />
+    </template>
+
+    <!-- Task side panel -->
+    <KanbanTaskSidePanel
+      v-if="showTaskSidePanel && selectedTask"
+      :task-id="selectedTask.id"
+      :project-id="project?.id || ''"
+      :statuses="statuses"
+      :labels="labels"
+      @close="closeTaskDetail"
+      @updated="handleTaskUpdated"
+      @deleted="handleTaskDeleted"
+    />
+
+    <!-- Create task modal -->
+    <KanbanTaskCreateModal
+      v-if="showCreateModal"
+      :statuses="statuses"
+      :labels="labels"
+      :project-id="project?.id || ''"
+      @close="showCreateModal = false"
+      @created="handleTaskCreated"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { Task, Status, Label } from '~/types'
+
+definePageMeta({
+  layout: 'default',
+})
+
+const route = useRoute()
+const projectId = computed(() => route.params.projectId as string)
+
+const { tasks, loading, fetchTasks, createTask, updateTask } = useTask()
+const { fetchProjectDetail, projectStatuses, projectLabels } = useProject()
+const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
+
+const project = ref<any>(null)
+const statuses = ref<Status[]>([])
+const labels = ref<Label[]>([])
+const showCreateModal = ref(false)
+
+onMounted(async () => {
+  const data = await fetchProjectDetail(projectId.value)
+  project.value = data
+  statuses.value = data.statuses || []
+  labels.value = data.labels || []
+  if (statuses.value.length > 0) {
+    await fetchTasks(projectId.value)
+  }
+})
+
+function handleCreateTask() {
+  showCreateModal.value = true
+}
+
+async function handleTaskCreated(task: Task) {
+  showCreateModal.value = false
+  tasks.value.push(task)
+}
+
+async function handleUpdateTask(data: { id: string; statusId?: string; position?: number; [key: string]: any }) {
+  await updateTask(data.id, data)
+}
+
+function handleOpenTask(task: Task) {
+  openTaskDetail(task)
+}
+
+function handleTaskUpdated(task: Task) {
+  const idx = tasks.value.findIndex((t) => t.id === task.id)
+  if (idx !== -1) tasks.value[idx] = task
+}
+
+function handleTaskDeleted(taskId: string) {
+  tasks.value = tasks.value.filter((t) => t.id !== taskId)
+  closeTaskDetail()
+}
+</script>

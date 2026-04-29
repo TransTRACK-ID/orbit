@@ -1,0 +1,48 @@
+{
+  "name": "orbit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@iconify-json/ph": "^1.2.2",
+    "@sidebase/nuxt-auth": "^0.7.0",
+    "@tiptap/extension-placeholder": "^2.6.0",
+    "@tiptap/starter-kit": "^2.6.0",
+    "@tiptap/vue-3": "^2.6.0",
+    "@transtrack/ui": "^1.0.0",
+    "@vueuse/core": "^11.0.0",
+    "@vueuse/integrations": "^11.0.0",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.33.0",
+    "flowbite": "^4.0.1",
+    "nuxt": "^3.13.0",
+    "nuxt-icon": "^0.6.0",
+    "pg": "^8.12.0",
+    "sortablejs": "^1.15.0",
+    "uuid": "^10.0.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.24.0",
+    "@types/pg": "^8.11.0",
+    "@types/sortablejs": "^1.15.0",
+    "@types/bcryptjs": "^2.4.0",
+    "@types/uuid": "^10.0.0",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "typescript": "^5.5.0"
+  }
+}

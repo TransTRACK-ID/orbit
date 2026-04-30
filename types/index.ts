@@ -125,6 +125,45 @@ export interface KanbanColumn {
   tasks: Task[]
 }
 
+// ─── Agent ───
+export type AgentStatus = 'idle' | 'busy' | 'offline'
+
+export interface Agent {
+  id: string
+  name: string
+  initials: string
+  role: string
+  color: string
+  status: AgentStatus
+  runtime: string
+  purpose: string
+  tasks: number
+  projectName?: string
+  wsName?: string
+}
+
+export interface RuntimeInfo {
+  name: string
+  icon: string
+  color: string
+  desc: string
+}
+
+// ─── Activity Log Entry (local) ───
+export interface ActivityLogEntry {
+  time: number
+  agent: string
+  msg: string
+}
+
+// ─── Queue Item (unassigned tasks) ───
+export interface QueueItem {
+  id: string
+  title: string
+  type: string
+  priority: string
+}
+
 // ─── API Response ───
 export interface ApiResponse<T> {
   data: T

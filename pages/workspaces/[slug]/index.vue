@@ -1,20 +1,20 @@
 <template>
-  <div class="page-container">
+  <div class="flex-1 overflow-y-auto py-7 px-8">
     <div v-if="workspace">
-      <div class="flex items-center justify-between mb-8">
+      <div class="flex items-center justify-between mb-6">
         <div>
-          <h1 class="text-2xl font-bold text-surface-900">{{ workspace.name }}</h1>
-          <p v-if="workspace.description" class="text-surface-500 mt-1">{{ workspace.description }}</p>
+          <h1 class="text-xl font-bold text-surface-900">{{ workspace.name }}</h1>
+          <p v-if="workspace.description" class="text-xs text-surface-400 mt-1">{{ workspace.description }}</p>
         </div>
         <div class="flex items-center gap-3">
           <NuxtLink :to="`/workspaces/${workspace.slug}/settings`">
             <OutlinedButton>
-              <Settings class="w-4 h-4" />
+              <Icon name="lucide:settings" class="w-3.5 h-3.5" />
               Settings
             </OutlinedButton>
           </NuxtLink>
           <Button @click="showCreateProject = true">
-            <Plus class="w-4 h-4" />
+            <Icon name="lucide:plus" class="w-3.5 h-3.5" />
             New Project
           </Button>
         </div>
@@ -31,19 +31,44 @@
         icon="ph:projector-screen-chart"
       >
         <Button @click="showCreateProject = true">
-          <Plus class="w-4 h-4" />
+          <Icon name="lucide:plus" class="w-3.5 h-3.5" />
           Create Project
         </Button>
       </UiEmptyState>
 
-      <!-- Project grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <ProjectCard
+      <!-- Project grid (prototype style) -->
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div
           v-for="project in projects"
           :key="project.id"
-          :project="project"
-          @click="router.push(`/workspaces/${workspace.slug}/projects/${project.id}/board`)"
-        />
+          class="bg-white border border-surface-200 rounded-xl p-[18px] cursor-pointer hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150"
+          @click="navigateTo(`/workspaces/${workspace.slug}/projects/${project.id}/board`)"
+        >
+          <div
+            class="w-[36px] h-[36px] rounded-lg flex items-center justify-center text-xs text-white mb-3"
+            :style="{ background: project.color }"
+          >
+            <span class="text-[10px] font-bold">{{ projectInitials(project.name) }}</span>
+          </div>
+          <h3 class="text-sm font-semibold mb-1">{{ project.name }}</h3>
+          <p v-if="project.description" class="text-[11px] text-surface-400 leading-snug mb-3 line-clamp-2">
+            {{ project.description }}
+          </p>
+          <div class="flex gap-4 text-[10px] text-surface-400">
+            <span class="flex items-center gap-1">
+              <Icon name="lucide:inbox" class="w-3 h-3 text-accent" />
+              {{ project._count?.tasks || 0 }} open
+            </span>
+            <span class="flex items-center gap-1">
+              <Icon name="lucide:check-circle" class="w-3 h-3 text-green-500" />
+              {{ 0 }} done
+            </span>
+            <span class="flex items-center gap-1">
+              <Icon name="lucide:users" class="w-3 h-3" />
+              {{ project._count?.members || 0 }} members
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -85,5 +110,9 @@ onMounted(async () => {
 function onProjectCreated(project: Project) {
   showCreateProject.value = false
   router.push(`/workspaces/${workspace.value?.slug}/projects/${project.id}/board`)
+}
+
+function projectInitials(name: string) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 </script>

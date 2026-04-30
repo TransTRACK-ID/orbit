@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script>(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanvas — Agent Workflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F6F6F7;--surface:#fff;--fg:#1C1C1E;--muted:#8E8E93;
+  --border:#E5E5EA;--accent:#CF513D;--accent-hover:#b84330;
+  --accent-soft:oklch(62% 0.22 27 / 0.08);
+  --radius:8px;--shadow:0 1px 3px rgba(0,0,0,0.04),0 1px 2px rgba(0,0,0,0.06);
+  --shadow-lg:0 4px 16px rgba(0,0,0,0.08);
+  --sidebar-w:240px;--header-h:52px;--drawer-w:440px;
+}
+html{font-size:14px}
+body{
+  font-family:'Montserrat',system-ui,sans-serif;
+  background:var(--bg);color:var(--fg);height:100vh;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+button{border:none;background:none;cursor:pointer;font:inherit;color:inherit}
+input,textarea{border:none;outline:none;font:inherit;color:inherit}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ─── Header ─── */
+.header{
+  height:var(--header-h);display:flex;align-items:center;gap:10px;
+  padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;z-index:30;
+}
+.header-left{display:flex;align-items:center;gap:10px}
+.brand{font-weight:700;font-size:1.1rem;color:var(--fg);letter-spacing:-0.02em;display:flex;align-items:center;gap:7px}
+.brand i{color:var(--accent);font-size:1.15rem}
+.breadcrumb{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem}
+.breadcrumb span{cursor:pointer;transition:.1s;padding:2px 6px;border-radius:4px}
+.breadcrumb span:hover{color:var(--fg);background:var(--bg)}
+.breadcrumb span.current{color:var(--fg);font-weight:600;cursor:default}
+.breadcrumb i{font-size:.6rem;color:var(--border)}
+.header-center{flex:1;min-width:0;max-width:320px;position:relative}
+.header-search{
+  width:100%;max-width:280px;position:relative;
+}
+.header-search input{
+  width:100%;padding:7px 12px 7px 34px;border-radius:var(--radius);
+  background:var(--bg);border:1px solid transparent;transition:.15s;
+  font-size:.78rem;
+}
+.header-search input:focus{border-color:var(--accent);background:var(--surface)}
+.header-search i{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.8rem}
+.header-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.header-actions button{
+  padding:6px 12px;border-radius:var(--radius);font-size:.75rem;font-weight:600;
+  border:1px solid var(--border);transition:.1s;display:flex;align-items:center;gap:6px;
+}
+.header-actions button:hover{background:var(--bg)}
+.header-actions button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.header-actions button.primary:hover{background:var(--accent-hover)}
+.user-badge{
+  display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;
+  border-radius:999px;border:1px solid var(--border);cursor:pointer;transition:.1s;
+}
+.user-badge:hover{background:var(--bg)}
+.user-avatar{
+  width:28px;height:28px;border-radius:50%;background:var(--accent);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;font-weight:700;flex-shrink:0;
+}
+.user-name{font-size:.75rem;font-weight:600;white-space:nowrap}
+
+/* ─── Layout ─── */
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* ─── Sidebar ─── */
+.sidebar{
+  width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;
+}
+.sidebar-scroll{flex:1;overflow-y:auto;padding:12px 0}
+.sidebar-group{margin-bottom:4px}
+.sidebar-group-header{
+  display:flex;align-items:center;gap:8px;padding:6px 16px;
+  font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.05em;cursor:pointer;transition:.1s;
+}
+.sidebar-group-header:hover{color:var(--fg)}
+.sidebar-group-header i{font-size:.55rem;width:12px;transition:transform .15s}
+.sidebar-group-header i.collapsed{transform:rotate(-90deg)}
+.sidebar-item{
+  display:flex;align-items:center;gap:10px;padding:7px 16px 7px 28px;
+  font-size:.8rem;border-radius:0;cursor:pointer;transition:.1s;
+  border-left:3px solid transparent;
+}
+.sidebar-item:hover{background:var(--bg)}
+.sidebar-item.active{
+  background:var(--accent-soft);border-left-color:var(--accent);font-weight:600;
+}
+.sidebar-item .icon{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff;flex-shrink:0}
+.sidebar-item .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-item .count{font-size:.7rem;color:var(--muted);background:var(--bg);padding:1px 7px;border-radius:999px;font-weight:600}
+
+/* ─── Main ─── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ─── Workspace Overview ─── */
+.workspace-view{flex:1;overflow-y:auto;padding:28px 32px}
+.workspace-view h1{font-size:1.35rem;font-weight:700;margin-bottom:4px}
+.workspace-view .subtitle{font-size:.85rem;color:var(--muted);margin-bottom:28px}
+.workspace-section{margin-bottom:36px}
+.workspace-section-header{
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;
+}
+.workspace-section-header h2{font-size:1rem;font-weight:600}
+.workspace-section-header .ws-count{
+  font-size:.7rem;color:var(--muted);background:var(--border);
+  padding:1px 8px;border-radius:999px;font-weight:600;
+}
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.project-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:18px;cursor:pointer;transition:.15s;position:relative;
+}
+.project-card:hover{border-color:var(--accent);box-shadow:var(--shadow-lg);transform:translateY(-1px)}
+.project-card-icon{
+  width:36px;height:36px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:.85rem;color:#fff;margin-bottom:12px;
+}
+.project-card h3{font-size:.88rem;font-weight:600;margin-bottom:4px}
+.project-card p{font-size:.75rem;color:var(--muted);line-height:1.4;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.project-card-stats{display:flex;gap:16px;font-size:.68rem;color:var(--muted)}
+.project-card-stats span{display:flex;align-items:center;gap:4px}
+.project-card-stats .open{color:var(--accent);font-weight:600}
+.project-card-stats .done{color:#22C55E;font-weight:600}
+
+/* ─── Board Header ─── */
+.board-header{
+  padding:14px 20px;display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);
+}
+.board-header-left{display:flex;align-items:center;gap:10px}
+.board-header h2{font-size:.95rem;font-weight:600}
+.board-header .count{
+  font-size:.72rem;color:var(--muted);background:var(--bg);
+  padding:2px 10px;border-radius:999px;
+}
+.board-header-actions{margin-left:auto;display:flex;gap:6px}
+.board-header-actions button{
+  padding:6px 12px;border-radius:var(--radius);font-size:.72rem;font-weight:600;
+  border:1px solid var(--border);transition:.1s;display:flex;align-items:center;gap:6px;
+}
+.board-header-actions button:hover{background:var(--bg)}
+.board-header-actions button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.board-header-actions button.primary:hover{background:var(--accent-hover)}
+
+/* ─── Board Columns ─── */
+.board{flex:1;overflow-x:auto;overflow-y:hidden;padding:16px 20px}
+.columns{display:flex;gap:14px;height:100%;min-width:0}
+.column{
+  flex:1;min-width:220px;max-width:330px;display:flex;flex-direction:column;
+  background:var(--bg);border-radius:var(--radius);border:1px solid var(--border);
+}
+.column-header{
+  padding:11px 14px;display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.column-dot{width:8px;height:8px;border-radius:50%}
+.column-title{font-size:.76rem;font-weight:600}
+.column-count{
+  margin-left:auto;font-size:.68rem;color:var(--muted);background:var(--surface);
+  padding:0 8px;border-radius:999px;font-weight:600;
+}
+.column-body{
+  flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:7px;
+  min-height:180px;
+}
+.column-body.drag-over{background:var(--accent-soft);border-radius:4px}
+
+/* ─── Cards ─── */
+.card{
+  background:var(--surface);border-radius:var(--radius);padding:12px;
+  border:1px solid var(--border);cursor:pointer;transition:.12s;
+  box-shadow:var(--shadow);
+}
+.card:hover{border-color:var(--accent);box-shadow:var(--shadow-lg)}
+.card.dragging{opacity:.4}
+.card-priority{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:.6rem;font-weight:600;text-transform:uppercase;
+  padding:2px 8px;border-radius:999px;margin-bottom:7px;
+}
+.card-priority.critical{background:#FEE2E2;color:#DC2626}
+.card-priority.high{background:#FEF3C7;color:#D97706}
+.card-priority.medium{background:#DBEAFE;color:#2563EB}
+.card-priority.low{background:#F3F4F6;color:#6B7280}
+.card-title{font-size:.8rem;font-weight:600;line-height:1.35;margin-bottom:3px}
+.card-desc{font-size:.7rem;color:var(--muted);line-height:1.35;margin-bottom:9px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-footer{display:flex;align-items:center;gap:8px;font-size:.66rem;color:var(--muted)}
+.card-type{
+  padding:2px 8px;border-radius:999px;font-size:.58rem;font-weight:600;
+}
+.card-type.feature{background:#EDE9FE;color:#7C3AED}
+.card-type.fix{background:#FEE2E2;color:#DC2626}
+.card-type.review{background:#DBEAFE;color:#2563EB}
+.card-agent{
+  width:20px;height:20px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:.52rem;font-weight:700;color:#fff;margin-left:auto;
+}
+.card-comments{margin-left:6px;display:flex;align-items:center;gap:3px}
+.card-comments i{font-size:.6rem}
+.card-labels{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.card-label{font-size:.56rem;padding:1px 6px;border-radius:4px;font-weight:500}
+.empty-state{text-align:center;padding:20px 10px;color:var(--muted);font-size:.73rem}
+
+/* ─── Drawer ─── */
+.drawer-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.25);z-index:100;
+  opacity:0;pointer-events:none;transition:.2s;
+}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:var(--drawer-w);max-width:100vw;
+  background:var(--surface);z-index:101;box-shadow:-4px 0 24px rgba(0,0,0,0.1);
+  transform:translateX(100%);transition:transform .25s cubic-bezier(.22,1,.36,1);
+  display:flex;flex-direction:column;
+}
+.drawer.open{transform:translateX(0)}
+.drawer-header{
+  display:flex;align-items:center;gap:12px;padding:14px 20px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.drawer-header h3{font-size:.95rem;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer-close{
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;transition:.1s;flex-shrink:0;
+}
+.drawer-close:hover{background:var(--bg)}
+.drawer-body{flex:1;overflow-y:auto;padding:20px}
+.drawer-section{margin-bottom:18px}
+.drawer-section h4{
+  font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted);margin-bottom:7px;font-weight:600;
+}
+.drawer-field{padding:8px 12px;background:var(--bg);border-radius:var(--radius);font-size:.8rem;margin-bottom:7px}
+.drawer-field textarea{width:100%;background:transparent;resize:vertical;font-size:.8rem;min-height:56px}
+.activity-item{
+  display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);
+}
+.activity-item:last-child{border:none}
+.activity-icon{
+  width:26px;height:26px;border-radius:50%;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.65rem;color:var(--muted);
+}
+.activity-content{flex:1;min-width:0}
+.activity-text{font-size:.73rem;line-height:1.4}
+.activity-time{font-size:.62rem;color:var(--muted);margin-top:2px}
+
+/* ─── Agent Panel (right sidebar) ─── */
+.agent-panel-toggle{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:20px;height:48px;border-radius:4px 0 0 4px;background:var(--surface);
+  border:1px solid var(--border);border-right:none;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;font-size:.65rem;color:var(--muted);z-index:10;
+}
+.agent-panel{
+  width:0;overflow:hidden;background:var(--surface);border-left:1px solid var(--border);
+  transition:width .2s;display:flex;flex-direction:column;flex-shrink:0;
+}
+.agent-panel.open{width:220px}
+.agent-panel-header{
+  padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:8px;
+}
+.agent-panel-header h4{font-size:.72rem;font-weight:600}
+.agent-panel-body{flex:1;overflow-y:auto;padding:8px}
+.agent-item{
+  display:flex;align-items:center;gap:8px;padding:7px 8px;
+  border-radius:var(--radius);transition:.1s;cursor:pointer;font-size:.75rem;
+}
+.agent-item:hover{background:var(--bg)}
+.agent-item.active{background:var(--accent-soft)}
+.agent-avatar{
+  width:24px;height:24px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:700;color:#fff;position:relative;
+}
+.agent-status{
+  width:7px;height:7px;border-radius:50%;position:absolute;
+  bottom:-1px;right:-1px;border:2px solid var(--surface);
+}
+.agent-status.idle{background:#22C55E}
+.agent-status.busy{background:var(--accent)}
+.agent-status.offline{background:var(--muted)}
+.agent-name{font-size:.75rem;font-weight:600}
+.agent-role{font-size:.65rem;color:var(--muted)}
+
+/* ─── Queue ─── */
+.queue-list{display:flex;flex-direction:column;gap:5px;padding:8px}
+.queue-item{
+  padding:7px 10px;border-radius:var(--radius);font-size:.73rem;
+  background:var(--bg);border-left:3px solid var(--accent);
+  cursor:pointer;transition:.1s;
+}
+.queue-item:hover{box-shadow:var(--shadow)}
+.queue-item .meta{font-size:.62rem;color:var(--muted);margin-top:2px}
+
+/* ─── Log Panel ─── */
+.log-panel{
+  position:fixed;bottom:0;left:0;right:0;height:0;
+  background:var(--surface);border-top:1px solid var(--border);
+  z-index:50;transition:height .2s;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.log-panel.open{height:200px}
+.log-panel-header{
+  display:flex;align-items:center;gap:10px;padding:7px 16px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.log-panel-header h4{font-size:.75rem;font-weight:600}
+.log-panel-header .ws-label{font-size:.65rem;color:var(--muted);margin-left:auto}
+.log-panel-body{flex:1;overflow-y:auto;padding:6px 16px}
+.log-entry{
+  padding:3px 0;display:flex;gap:8px;font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.68rem;
+}
+.log-time{color:var(--muted);flex-shrink:0;width:55px}
+.log-agent{color:var(--accent);flex-shrink:0;width:72px;font-weight:600}
+.log-msg{color:var(--fg)}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* ─── Animations ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}
+.card{animation:fadeUp .2s ease-out}
+.project-card{animation:fadeUp .25s ease-out}
+.slide-in{animation:slideIn .2s ease-out}
+
+/* ─── Responsive ─── */
+@media(max-width:900px){
+  .sidebar{position:fixed;left:-100%;top:var(--header-h);bottom:0;z-index:40;transition:left .2s;box-shadow:var(--shadow-lg)}
+  .sidebar.open{left:0}
+  .agent-panel{position:fixed;right:-100%;top:var(--header-h);bottom:0;z-index:40;transition:right .2s;box-shadow:var(--shadow-lg)}
+  .agent-panel.open{right:0;width:220px}
+  .log-panel{left:0}
+  .project-grid{grid-template-columns:1fr}
+  .workspace-view{padding:20px}
+  :root{--drawer-w:calc(100vw - 40px)}
+}
+@media(max-width:600px){
+  .header{padding:0 10px;gap:6px}
+  .breadcrumb{font-size:.72rem}
+  .board-header{padding:10px 12px;flex-wrap:wrap}
+  .board{padding:12px}
+  .columns{gap:10px}
+  .column{min-width:180px}
+  .board-header-actions button span.label{display:none}
+  .workspace-view{padding:16px}
+}
+.mobile-toggle{
+  display:none;width:30px;height:30px;border-radius:var(--radius);
+  align-items:center;justify-content:center;font-size:.9rem;
+  border:1px solid var(--border);
+}
+@media(max-width:900px){.mobile-toggle{display:flex;margin-right:4px}}
+
+/* ─── Modal ─── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;
+  opacity:0;pointer-events:none;transition:.2s;display:flex;
+  align-items:center;justify-content:center;
+}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{
+  background:var(--surface);border-radius:12px;width:440px;max-width:calc(100vw - 40px);
+  box-shadow:0 8px 32px rgba(0,0,0,0.12);transform:translateY(12px);transition:transform .2s;
+  max-height:90vh;overflow-y:auto;
+}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-header{
+  display:flex;align-items:center;gap:12px;padding:16px 20px;
+  border-bottom:1px solid var(--border);
+}
+.modal-header h3{font-size:.95rem;font-weight:600;flex:1}
+.modal-close{
+  width:28px;height:28px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;transition:.1s;
+}
+.modal-close:hover{background:var(--bg)}
+.modal-body{padding:20px}
+.modal-field{margin-bottom:16px}
+.modal-field label{
+  display:block;font-size:.72rem;font-weight:600;color:var(--muted);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em;
+}
+.modal-field input,.modal-field select,.modal-field textarea{
+  width:100%;padding:9px 12px;border-radius:var(--radius);
+  border:1px solid var(--border);background:var(--bg);
+  font-size:.8rem;transition:.15s;outline:none;color:var(--fg);
+}
+.modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{border-color:var(--accent);background:var(--surface)}
+.modal-field textarea{resize:vertical;min-height:60px;font-family:inherit}
+.color-grid{display:flex;gap:8px;flex-wrap:wrap}
+.color-swatch{
+  width:32px;height:32px;border-radius:50%;cursor:pointer;
+  border:3px solid transparent;transition:.1s;
+}
+.color-swatch:hover{transform:scale(1.15)}
+.color-swatch.selected{border-color:var(--fg)}
+.icon-grid{display:flex;gap:6px;flex-wrap:wrap}
+.icon-option{
+  width:36px;height:36px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:1rem;cursor:pointer;
+  border:2px solid var(--border);transition:.1s;
+}
+.icon-option:hover{border-color:var(--accent);background:var(--accent-soft)}
+.icon-option.selected{border-color:var(--accent);background:var(--accent-soft)}
+.modal-footer{
+  display:flex;gap:8px;padding:14px 20px;
+  border-top:1px solid var(--border);justify-content:flex-end;
+}
+.modal-footer button{
+  padding:8px 18px;border-radius:var(--radius);font-size:.78rem;font-weight:600;
+  border:1px solid var(--border);transition:.1s;
+}
+.modal-footer button:hover{background:var(--bg)}
+.modal-footer button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.modal-footer button.primary:hover{background:var(--accent-hover)}
+
+/* ─── Agents View ─── */
+.agents-view{flex:1;overflow-y:auto;padding:28px 32px}
+.agents-view h1{font-size:1.35rem;font-weight:700;margin-bottom:4px}
+.agents-view .subtitle{font-size:.85rem;color:var(--muted);margin-bottom:24px}
+.agents-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.agent-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:18px;transition:.15s;position:relative;animation:fadeUp .25s ease-out;
+}
+.agent-card:hover{border-color:var(--accent);box-shadow:var(--shadow-lg);transform:translateY(-1px)}
+.agent-card-header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.agent-card-avatar{
+  width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0;position:relative;
+}
+.agent-card-avatar .status-dot{
+  width:10px;height:10px;border-radius:50%;position:absolute;bottom:0;right:0;
+  border:2px solid var(--surface);
+}
+.agent-card-names{flex:1;min-width:0}
+.agent-card-name{font-size:.88rem;font-weight:600}
+.agent-card-role{font-size:.7rem;color:var(--muted);margin-top:1px}
+.agent-card-project{font-size:.66rem;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.agent-card-project i{font-size:.58rem;width:14px;color:var(--accent)}
+.agent-card-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.agent-card-runtime{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+  border-radius:999px;font-size:.64rem;font-weight:600;
+  background:var(--bg);border:1px solid var(--border);
+}
+.agent-card-runtime i{font-size:.55rem;color:var(--accent)}
+.agent-card-status{
+  font-size:.64rem;font-weight:600;display:flex;align-items:center;gap:4px;
+}
+.agent-card-status .s-dot{width:6px;height:6px;border-radius:50%}
+.agent-card-purpose{
+  padding:8px 10px;background:var(--bg);border-radius:6px;
+  font-size:.7rem;color:var(--muted);line-height:1.45;
+  border-left:3px solid var(--accent);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.agent-card-purpose strong{color:var(--fg);font-weight:600}
+.agent-card-actions{
+  display:flex;gap:6px;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--border);
+}
+.agent-card-actions button{
+  padding:5px 10px;border-radius:5px;font-size:.66rem;font-weight:600;
+  border:1px solid var(--border);transition:.1s;display:flex;align-items:center;gap:4px;
+}
+.agent-card-actions button:hover{background:var(--bg)}
+.agent-card-actions button.danger{color:var(--accent);border-color:var(--accent)}
+.agent-card-actions button.danger:hover{background:#FEE2E2}
+.agents-stats-bar{
+  display:flex;gap:20px;margin-bottom:24px;padding:14px 20px;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;
+}
+.agent-stat{display:flex;align-items:center;gap:8px}
+.agent-stat-dot{width:9px;height:9px;border-radius:50%}
+.agent-stat-value{font-weight:700;font-size:1rem}
+.agent-stat-label{font-size:.72rem;color:var(--muted)}
+.agent-empty{
+  text-align:center;padding:60px 20px;color:var(--muted);
+}
+.agent-empty i{font-size:2rem;margin-bottom:12px;display:block}
+.agent-empty p{font-size:.85rem;margin-bottom:16px}
+@media(max-width:600px){
+  .agents-view{padding:16px}.agents-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Header ─── -->
+<header class="header">
+  <div class="header-left">
+    <button class="mobile-toggle" id="mobile-toggle" onclick="APP.toggleSidebar()"><i class="fas fa-bars"></i></button>
+    <div class="brand"><i class="fas fa-bolt"></i> Kanvas</div>
+    <div class="breadcrumb" id="breadcrumb">
+      <span onclick="APP.navToWorkspaces()" id="bc-workspaces">Workspaces</span>
+      <i class="fas fa-chevron-right" id="bc-arrow1" style="display:none"></i>
+      <span id="bc-ws-name" style="display:none"></span>
+      <i class="fas fa-chevron-right" id="bc-arrow2" style="display:none"></i>
+      <span id="bc-project-name" style="display:none"></span>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="header-search">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="Search tasks..." oninput="APP.search(this.value)">
+    </div>
+  </div>
+  <div class="header-actions" id="header-actions">
+    <button onclick="APP.navToAgents()"><i class="fas fa-robot"></i> <span class="label">Agents</span> <span id="agents-total-badge" style="background:var(--accent);color:#fff;padding:0 6px;border-radius:999px;font-size:.6rem;font-weight:700;line-height:16px">0</span></button>
+    <button onclick="APP.toggleLog()"><i class="fas fa-terminal"></i> <span class="label">Logs</span></button>
+    <div class="user-badge" id="user-badge">
+      <div class="user-avatar" id="user-avatar">AC</div>
+      <span class="user-name" id="user-name">Alex Chen</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ─── Sidebar ─── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-scroll" id="sidebar-nav"></div>
+  </aside>
+
+  <div class="main">
+    <!-- ─── Workspace Overview ─── -->
+    <div class="workspace-view" id="workspace-view">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <h1 style="margin-bottom:0">Workspaces</h1>
+        <button onclick="APP.openAddWorkspaceModal()" style="padding:5px 12px;border-radius:var(--radius);font-size:.72rem;font-weight:600;border:1px solid var(--border);display:flex;align-items:center;gap:5px;transition:.1s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><i class="fas fa-plus" style="font-size:.65rem"></i> Add Workspace</button>
+      </div>
+      <p class="subtitle" id="welcome-subtitle">Select a workspace and project to view its board</p>
+      <div id="workspace-grid"></div>
+    </div>
+
+    <!-- ─── Board View ─── -->
+    <div id="board-view" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+      <div class="board-header">
+        <div class="board-header-left">
+          <h2 id="board-title">Agent Board</h2>
+          <span class="count" id="total-count">0</span>
+        </div>
+        <div class="board-header-actions">
+          <button onclick="APP.openDrawer(null)"><i class="fas fa-plus"></i> <span class="label">New Task</span></button>
+          <button class="primary" onclick="APP.autoAssign()"><i class="fas fa-bolt"></i> <span class="label">Auto-Assign</span></button>
+          <button onclick="APP.toggleAgentPanel()" style="font-size:.75rem" title="Agents"><i class="fas fa-robot"></i></button>
+        </div>
+      </div>
+      <div class="board" id="board-area" style="position:relative">
+        <div class="columns" id="board-columns"></div>
+      </div>
+    </div>
+
+    <!-- ─── Agents View ─── -->
+    <div class="agents-view" id="agents-view" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <h1 style="margin-bottom:0">Agents</h1>
+        <button onclick="APP.openAddAgentModal()" style="padding:5px 12px;border-radius:var(--radius);font-size:.72rem;font-weight:600;border:1px solid var(--border);display:flex;align-items:center;gap:5px;transition:.1s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><i class="fas fa-plus" style="font-size:.65rem"></i> Add Agent</button>
+      </div>
+      <p class="subtitle" id="agents-subtitle">All agents across workspaces</p>
+      <div class="agents-stats-bar" id="agents-stats-bar"></div>
+      <div class="agents-grid" id="agents-grid"></div>
+    </div>
+  </div>
+
+  <!-- ─── Agent Panel ─── -->
+  <div class="agent-panel" id="agent-panel">
+    <div class="agent-panel-header">
+      <i class="fas fa-robot" style="color:var(--accent);font-size:.85rem"></i>
+      <h4>Agents</h4>
+      <button style="margin-left:auto;font-size:.7rem;padding:2px 6px;border-radius:4px" onclick="APP.toggleAgentPanel()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="agent-panel-body" id="agent-list"></div>
+    <div style="border-top:1px solid var(--border);padding:8px">
+      <div style="font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;font-weight:600">Queue</div>
+      <div class="queue-list" id="queue-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Log Panel ─── -->
+<div class="log-panel" id="log-panel">
+  <div class="log-panel-header">
+    <h4><i class="fas fa-terminal" style="color:var(--accent);font-size:.8rem"></i> Activity Log</h4>
+    <span class="ws-label" id="log-context-label"></span>
+    <button style="margin-left:auto;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;border:1px solid var(--border)" onclick="APP.toggleLog()">Close</button>
+  </div>
+  <div class="log-panel-body" id="log-body"></div>
+</div>
+
+<!-- ─── Modal ─── -->
+<div class="modal-overlay" id="modal-overlay" onclick="APP.closeModal(event)">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modal-title">New Workspace</h3>
+      <button class="modal-close" onclick="APP.closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button onclick="APP.closeModal()">Cancel</button>
+      <button class="primary" id="modal-submit" onclick="APP.submitModal()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Drawer ─── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="APP.closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <h3 id="drawer-title">Task Details</h3>
+    <button class="drawer-close" onclick="APP.closeDrawer()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA MODEL — User → Workspaces → Projects → Board
+// ═══════════════════════════════════════════════════════
+
+const APP = {
+  user: {
+    id: 'u1', name: 'Alex Chen', initials: 'AC',
+    email: 'alex@kanvas.dev', role: 'Engineering Lead'
+  },
+
+  workspaces: [
+    {
+      id: 'w1', name: 'Product Engineering', icon: 'fa-code', color: '#6366F1',
+      projects: [
+        { id: 'p1', name: 'Agent Workflows', icon: 'fa-robot',
+          desc: 'AI agent task orchestration and monitoring',
+          columns: [
+            { id:'backlog', title:'Backlog', color:'#6B7280' },
+            { id:'in-progress', title:'In Progress', color:'#2563EB' },
+            { id:'review', title:'Review', color:'#7C3AED' },
+            { id:'done', title:'Done', color:'#22C55E' }
+          ],
+          agents: [
+            { id:'a1', name:'Aria Codex', role:'Senior Agent', color:'#7C3AED', status:'idle', tasks:12, runtime:'claude-code', purpose:'Senior agent specialized in middleware refactoring, authentication chains, and embedding cache optimization' },
+            { id:'a2', name:'Nova Prime', role:'Review Agent', color:'#2563EB', status:'busy', tasks:8, runtime:'codex', purpose:'Review agent focused on PR validation, code quality gates, context window verification, and tool registry audits' },
+            { id:'a3', name:'Echo Shell', role:'Fix Agent', color:'#DC2626', status:'busy', tasks:15, runtime:'opencode', purpose:'Fix agent specialized in memory leak diagnosis, crash debugging, rate limiter edge cases, and state serialization bugs' },
+            { id:'a4', name:'Luna Fetch', role:'Junior Agent', color:'#D97706', status:'offline', tasks:4, runtime:'kimi-cli', purpose:'Junior agent learning observability patterns, heartbeat monitoring, analytics dashboards, and cache layer patterns' }
+          ],
+          cards: [
+            { id:'c1', title:'Refactor auth middleware', desc:'Replace Express middleware with custom chain for agent context injection', type:'feature', priority:'critical', status:'in-progress', agent:'a1', labels:['auth','middleware'], comments:3, created:Date.now()-7200000 },
+            { id:'c2', title:'Fix memory leak in stream handler', desc:'EventEmitter listeners not cleaned up on connection close', type:'fix', priority:'high', status:'in-progress', agent:'a3', labels:['bug','performance'], comments:5, created:Date.now()-14400000 },
+            { id:'c3', title:'Review PR #342 — tool registry', desc:'New agent tool registration system with validation', type:'review', priority:'high', status:'review', agent:'a2', labels:['review'], comments:2, created:Date.now()-3600000 },
+            { id:'c4', title:'Add rate limiting to agent API', desc:'Protect public endpoints from runaway agent loops', type:'feature', priority:'medium', status:'backlog', agent:null, labels:['security'], comments:0, created:Date.now()-86400000 },
+            { id:'c5', title:'Fix WebSocket reconnection logic', desc:'Exponential backoff not resetting after successful reconnect', type:'fix', priority:'critical', status:'backlog', agent:null, labels:['websocket','bug'], comments:8, created:Date.now()-172800000 },
+            { id:'c6', title:'Audit agent permission scopes', desc:'Review and tighten OAuth scope grants per agent role', type:'review', priority:'medium', status:'backlog', agent:null, labels:['security','audit'], comments:1, created:Date.now()-43200000 },
+            { id:'c7', title:'Implement agent heartbeat monitor', desc:'Track agent liveness with configurable timeout thresholds', type:'feature', priority:'low', status:'backlog', agent:null, labels:['observability'], comments:0, created:Date.now()-259200000 },
+            { id:'c8', title:'Optimize embedding cache layer', desc:'Add TTL-based LRU cache for vector embeddings', type:'feature', priority:'high', status:'in-progress', agent:'a1', labels:['performance','ai'], comments:4, created:Date.now()-21600000 },
+            { id:'c9', title:'Fix rate limiter off-by-one', desc:'Requests at exactly the limit are incorrectly rejected', type:'fix', priority:'high', status:'review', agent:'a3', labels:['bug'], comments:2, created:Date.now()-5400000 },
+            { id:'c10', title:'Review PR #356 — context window fix', desc:'Context truncation strategy for long-running sessions', type:'review', priority:'medium', status:'review', agent:'a2', labels:['review'], comments:3, created:Date.now()-1800000 },
+            { id:'c11', title:'Add tool usage analytics dashboard', desc:'Visualize which tools agents invoke most frequently', type:'feature', priority:'low', status:'done', agent:'a4', labels:['analytics'], comments:1, created:Date.now()-345600000 },
+            { id:'c12', title:'Fix agent state serialization bug', desc:'JSON circular reference crash on complex state objects', type:'fix', priority:'critical', status:'done', agent:'a3', labels:['bug'], comments:6, created:Date.now()-604800000 }
+          ],
+          logEntries: [
+            {time:Date.now()-120000,agent:'Aria Codex',msg:'Completed task "Refactor auth middleware" validation'},
+            {time:Date.now()-300000,agent:'Echo Shell',msg:'Started "Fix memory leak in stream handler"'},
+            {time:Date.now()-600000,agent:'Nova Prime',msg:'Approved PR #342 — tool registry'}
+          ]
+        },
+        { id: 'p2', name: 'API Platform', icon: 'fa-cloud',
+          desc: 'Public API gateway and rate limiting for agent services',
+          columns: [
+            { id:'backlog', title:'Backlog', color:'#6B7280' },
+            { id:'in-progress', title:'In Progress', color:'#2563EB' },
+            { id:'review', title:'Review', color:'#7C3AED' },
+            { id:'done', title:'Done', color:'#22C55E' }
+          ],
+          agents: [
+            { id:'b1', name:'Vector Prime', role:'API Agent', color:'#0891B2', status:'idle', tasks:6, runtime:'claude-code', purpose:'API gateway specialist focusing on rate limit headers, WebSocket throttling, and playground development' },
+            { id:'b2', name:'Sage Logic', role:'Gateway Agent', color:'#7C3AED', status:'idle', tasks:4, runtime:'codex', purpose:'Gateway agent managing OAuth refresh flows, CORS policy, and blue-green gateway deployments' }
+          ],
+          cards: [
+            { id:'c20', title:'Design rate limit headers spec', desc:'Define X-RateLimit-* headers for v2 API', type:'feature', priority:'high', status:'in-progress', agent:'b1', labels:['api','spec'], comments:4, created:Date.now()-3600000 },
+            { id:'c21', title:'Fix CORS preflight caching bug', desc:'Preflight responses not caching properly in Safari', type:'fix', priority:'critical', status:'in-progress', agent:'b2', labels:['bug','cors'], comments:6, created:Date.now()-7200000 },
+            { id:'c22', title:'Review PR #367 — OAuth2 refresh flow', desc:'Token refresh with rotation for agent APIs', type:'review', priority:'high', status:'review', agent:'b1', labels:['review','auth'], comments:2, created:Date.now()-1800000 },
+            { id:'c23', title:'Add WebSocket rate limiting', desc:'Apply rate limits to WS connections per API key', type:'feature', priority:'medium', status:'backlog', agent:null, labels:['websocket','api'], comments:0, created:Date.now()-86400000 },
+            { id:'c24', title:'Create API playground page', desc:'Interactive GraphQL explorer for developers', type:'feature', priority:'low', status:'backlog', agent:null, labels:['docs'], comments:1, created:Date.now()-172800000 },
+            { id:'c25', title:'Deploy staging gateway v2', desc:'Blue-green deployment of new gateway service', type:'feature', priority:'high', status:'done', agent:'b2', labels:['deploy'], comments:3, created:Date.now()-604800000 }
+          ],
+          logEntries: [
+            {time:Date.now()-240000,agent:'Vector Prime',msg:'Commenced work on "Design rate limit headers spec"'},
+            {time:Date.now()-600000,agent:'Sage Logic',msg:'Investigating CORS preflight bug in Safari'}
+          ]
+        },
+        { id: 'p3', name: 'Developer Tools', icon: 'fa-wrench',
+          desc: 'CLI, SDKs, and dev tooling for agent integration',
+          columns: [
+            { id:'backlog', title:'Backlog', color:'#6B7280' },
+            { id:'in-progress', title:'In Progress', color:'#2563EB' },
+            { id:'review', title:'Review', color:'#7C3AED' },
+            { id:'done', title:'Done', color:'#22C55E' }
+          ],
+          agents: [
+            { id:'d1', name:'Clippy Bot', role:'CLI Agent', color:'#16A34A', status:'idle', tasks:3, runtime:'opencode', purpose:'CLI scaffolding specialist for kanvas init commands, project presets, and developer tooling' },
+            { id:'d2', name:'Docs Sage', role:'Docs Agent', color:'#D97706', status:'offline', tasks:2, runtime:'droid', purpose:'Documentation agent for SDK type definitions, integration test harnesses, and API reference generation' }
+          ],
+          cards: [
+            { id:'c30', title:'Build agent CLI scaffold command', desc:'`kanvas init` — scaffold project with presets', type:'feature', priority:'high', status:'backlog', agent:null, labels:['cli','tooling'], comments:2, created:Date.now()-86400000 },
+            { id:'c31', title:'Fix npm package publish script', desc:'GitHub Actions publish step failing on version bump', type:'fix', priority:'critical', status:'backlog', agent:null, labels:['ci','bug'], comments:5, created:Date.now()-172800000 },
+            { id:'c32', title:'Review PR #372 — SDK type defs', desc:'TypeScript type definitions for agent SDK v2', type:'review', priority:'medium', status:'backlog', agent:null, labels:['review','typescript'], comments:0, created:Date.now()-43200000 },
+            { id:'c33', title:'Write integration test harness', desc:'Test framework for end-to-end agent workflows', type:'feature', priority:'medium', status:'done', agent:'d1', labels:['testing'], comments:3, created:Date.now()-345600000 }
+          ],
+          logEntries: []
+        }
+      ]
+    },
+    {
+      id: 'w2', name: 'Design Studio', icon: 'fa-palette', color: '#EC4899',
+      projects: [
+        { id: 'p4', name: 'Design System', icon: 'fa-layer-group',
+          desc: 'Component library, tokens, and brand guidelines',
+          columns: [
+            { id:'backlog', title:'Backlog', color:'#6B7280' },
+            { id:'in-progress', title:'In Progress', color:'#2563EB' },
+            { id:'review', title:'Review', color:'#7C3AED' },
+            { id:'done', title:'Done', color:'#22C55E' }
+          ],
+          agents: [
+            { id:'e1', name:'Pixel Warden', role:'Design Agent', color:'#EC4899', status:'idle', tasks:5, runtime:'kimi-cli', purpose:'Design token migration specialist for CSS custom properties, icon set generation, and component library management' },
+            { id:'e2', name:'Spec Weaver', role:'Review Agent', color:'#8B5CF6', status:'busy', tasks:3, runtime:'claude-code', purpose:'Design review agent ensuring WCAG AA compliance, component API docs, and spec completeness' }
+          ],
+          cards: [
+            { id:'c40', title:'Finalize color token migration', desc:'Move from SCSS vars to CSS custom properties', type:'feature', priority:'high', status:'in-progress', agent:'e1', labels:['design-tokens','css'], comments:4, created:Date.now()-7200000 },
+            { id:'c41', title:'Fix button component contrast', desc:'Primary button on dark mode fails WCAG AA', type:'fix', priority:'high', status:'in-progress', agent:'e2', labels:['a11y','bug'], comments:3, created:Date.now()-14400000 },
+            { id:'c42', title:'Review component API docs', desc:'Document prop interfaces for 12 core components', type:'review', priority:'medium', status:'review', agent:'e2', labels:['review','docs'], comments:1, created:Date.now()-3600000 },
+            { id:'c43', title:'Build icon set generator', desc:'Automated SVG sprite generation from Figma', type:'feature', priority:'low', status:'backlog', agent:null, labels:['tooling','icons'], comments:0, created:Date.now()-259200000 }
+          ],
+          logEntries: [
+            {time:Date.now()-180000,agent:'Pixel Warden',msg:'Updated color token migration PR'},
+            {time:Date.now()-900000,agent:'Spec Weaver',msg:'Flagged WCAG contrast issue in button'}
+          ]
+        }
+      ]
+    },
+    {
+      id: 'w3', name: 'Data Science', icon: 'fa-chart-line', color: '#22C55E',
+      projects: [
+        { id: 'p5', name: 'ML Pipeline', icon: 'fa-brain',
+          desc: 'Model training pipeline and feature store',
+          columns: [
+            { id:'backlog', title:'Backlog', color:'#6B7280' },
+            { id:'in-progress', title:'In Progress', color:'#2563EB' },
+            { id:'review', title:'Review', color:'#7C3AED' },
+            { id:'done', title:'Done', color:'#22C55E' }
+          ],
+          agents: [
+            { id:'f1', name:'Tensor Pilot', role:'ML Agent', color:'#22C55E', status:'idle', tasks:7, runtime:'codex', purpose:'ML pipeline specialist for embedding model fine-tuning, feature store backfills, and model evaluation metrics' }
+          ],
+          cards: [
+            { id:'c50', title:'Train embedding model v3', desc:'Fine-tune on agent interaction logs', type:'feature', priority:'high', status:'in-progress', agent:'f1', labels:['ml','ai'], comments:2, created:Date.now()-3600000 },
+            { id:'c51', title:'Fix feature store backfill bug', desc:'Historical data not indexed for date range queries', type:'fix', priority:'critical', status:'backlog', agent:null, labels:['bug','data'], comments:4, created:Date.now()-86400000 },
+            { id:'c52', title:'Review model eval results', desc:'Compare v2 vs v3 accuracy metrics', type:'review', priority:'medium', status:'backlog', agent:null, labels:['review','ml'], comments:0, created:Date.now()-43200000 }
+          ],
+          logEntries: []
+        }
+      ]
+    }
+  ],
+
+  // ─── State ───
+  state: {
+    view: 'workspaces',   // 'workspaces' | 'board'
+    wsId: 'w1',
+    projectId: 'p1',
+    selectedCard: null,
+    draggedCard: null,
+    nextCardId: 100,
+    nextWsId: 10,
+    nextProjectId: 20,
+    filterAgent: null,
+    agentPanelOpen: false,
+    modalMode: null,       // 'workspace' | 'project' | 'agent'
+    modalWsId: null,
+    nextAgentId: 50
+  },
+
+  // ─── Global sample agents pool ───
+  sampleAgents: [
+    { id:'ga1', name:'Aria Codex',   initials:'AC', runtime:'claude-code', purpose:'Senior agent specialized in middleware refactoring, authentication chains, and embedding cache optimization',  status:'idle',    color:'#7C3AED', role:'Senior Agent', tasks:12 },
+    { id:'ga2', name:'Nova Prime',   initials:'NP', runtime:'codex',       purpose:'Review agent focused on PR validation, code quality gates, context window verification, and tool registry audits', status:'busy',    color:'#2563EB', role:'Review Agent', tasks:8 },
+    { id:'ga3', name:'Echo Shell',   initials:'ES', runtime:'opencode',    purpose:'Fix agent specialized in memory leak diagnosis, crash debugging, rate limiter edge cases, and state serialization bugs', status:'busy',    color:'#DC2626', role:'Fix Agent', tasks:15 },
+    { id:'ga4', name:'Luna Fetch',   initials:'LF', runtime:'kimi-cli',    purpose:'Junior agent learning observability patterns, heartbeat monitoring, analytics dashboards, and cache layer patterns', status:'offline', color:'#D97706', role:'Junior Agent', tasks:4 },
+    { id:'ga5', name:'Vector Prime', initials:'VP', runtime:'claude-code', purpose:'API gateway specialist focusing on rate limit headers, WebSocket throttling, and playground development',            status:'idle',    color:'#0891B2', role:'API Agent', tasks:6 },
+    { id:'ga6', name:'Sage Logic',   initials:'SL', runtime:'codex',       purpose:'Gateway agent managing OAuth refresh flows, CORS policy, and blue-green gateway deployments',                         status:'idle',    color:'#7C3AED', role:'Gateway Agent', tasks:4 },
+    { id:'ga7', name:'Clippy Bot',   initials:'CB', runtime:'opencode',    purpose:'CLI scaffolding specialist for kanvas init commands, project presets, and developer tooling',                       status:'idle',    color:'#16A34A', role:'CLI Agent', tasks:3 },
+    { id:'ga8', name:'Docs Sage',    initials:'DS', runtime:'droid',       purpose:'Documentation agent for SDK type definitions, integration test harnesses, and API reference generation',            status:'offline', color:'#D97706', role:'Docs Agent', tasks:2 }
+  ],
+
+  runtimeInfo: {
+    'claude-code': { name:'Claude Code', icon:'fa-terminal', color:'#7C3AED', desc:'Anthropic CLI agent for code generation and analysis' },
+    'opencode':    { name:'OpenCode',    icon:'fa-code',     color:'#2563EB', desc:'Open-source coding agent with multi-file editing' },
+    'codex':       { name:'Codex',       icon:'fa-brain',    color:'#059669', desc:'OpenAI-powered agent for complex reasoning tasks' },
+    'kimi-cli':    { name:'Kimi CLI',    icon:'fa-terminal', color:'#D97706', desc:'Moonshot AI CLI for autonomous software engineering' },
+    'droid':       { name:'Droid',       icon:'fa-robot',    color:'#DC2626', desc:'Containerized agent sandbox with tool execution' },
+    'custom':      { name:'Custom CLI',  icon:'fa-cog',      color:'#6B7280', desc:'Bring your own runtime agent' }
+  },
+
+  // ─── Palette ───
+  wsColors: ['#6366F1','#EC4899','#22C55E','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#F97316'],
+  wsIcons: ['fa-code','fa-palette','fa-chart-line','fa-rocket','fa-cubes','fa-shield','fa-cloud','fa-gear','fa-database','fa-puzzle-piece'],
+  projIcons: ['fa-robot','fa-cloud','fa-wrench','fa-layer-group','fa-brain','fa-globe','fa-shield','fa-cog','fa-bolt','fa-compass','fa-gem','fa-pen-fancy','fa-truck','fa-chart-simple','fa-folder-tree'],
+  runtimes: [
+    { id:'claude-code', name:'Claude Code', icon:'fa-terminal', desc:'Anthropic CLI agent for code generation and analysis' },
+    { id:'opencode', name:'OpenCode', icon:'fa-code', desc:'Open-source coding agent with multi-file editing' },
+    { id:'codex', name:'Codex', icon:'fa-brain', desc:'OpenAI-powered agent for complex reasoning tasks' },
+    { id:'kimi-cli', name:'Kimi CLI', icon:'fa-terminal', desc:'Moonshot AI CLI for autonomous software engineering' },
+    { id:'droid', name:'Droid', icon:'fa-robot', desc:'Containerized agent sandbox with tool execution' },
+    { id:'custom', name:'Custom CLI', icon:'fa-cog', desc:'Bring your own runtime agent' }
+  ],
+
+  // ─── Modal ───
+
+  openAddWorkspaceModal: function() {
+    this.state.modalMode = 'workspace';
+    this.state.modalWsId = null;
+    document.getElementById('modal-title').textContent = 'New Workspace';
+    document.getElementById('modal-submit').textContent = 'Create Workspace';
+    this._selectedColor = this.wsColors[0];
+    this._selectedIcon = this.wsIcons[0];
+    document.getElementById('modal-body').innerHTML = `
+      <div class="modal-field">
+        <label>Name</label>
+        <input type="text" id="modal-input-name" placeholder="e.g. Platform Engineering" autofocus>
+      </div>
+      <div class="modal-field">
+        <label>Color</label>
+        <div class="color-grid">${this.wsColors.map(c =>
+          `<div class="color-swatch ${c===this._selectedColor?'selected':''}" style="background:${c}" onclick="APP.selectWsColor('${c}',this)"></div>`
+        ).join('')}</div>
+      </div>
+      <div class="modal-field">
+        <label>Icon</label>
+        <div class="icon-grid">${this.wsIcons.map(i =>
+          `<div class="icon-option ${i===this._selectedIcon?'selected':''}" onclick="APP.selectWsIcon('${i}',this)"><i class="fas ${i}"></i></div>`
+        ).join('')}</div>
+      </div>`;
+    document.getElementById('modal-overlay').classList.add('open');
+  },
+
+  openAddProjectModal: function(wsId) {
+    this.state.modalMode = 'project';
+    this.state.modalWsId = wsId;
+    document.getElementById('modal-title').textContent = 'New Project';
+    document.getElementById('modal-submit').textContent = 'Create Project';
+    this._selectedColor = null;
+    this._selectedIcon = this.projIcons[0];
+    const workspaces = this.workspaces;
+    const selectedWs = workspaces.find(w => w.id === wsId);
+    document.getElementById('modal-body').innerHTML = `
+      <div class="modal-field">
+        <label>Name</label>
+        <input type="text" id="modal-input-name" placeholder="e.g. Agent Orchestrator" autofocus>
+      </div>
+      <div class="modal-field">
+        <label>Description</label>
+        <textarea id="modal-input-desc" placeholder="What does this project focus on?"></textarea>
+      </div>
+      <div class="modal-field">
+        <label>Workspace</label>
+        <select id="modal-input-ws">
+          ${workspaces.map(w => `<option value="${w.id}" ${w.id===wsId?'selected':''}>${w.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Icon</label>
+        <div class="icon-grid">${this.projIcons.map(i =>
+          `<div class="icon-option ${i===this._selectedIcon?'selected':''}" onclick="APP.selectProjIcon('${i}',this)"><i class="fas ${i}"></i></div>`
+        ).join('')}</div>
+      </div>`;
+    document.getElementById('modal-overlay').classList.add('open');
+  },
+
+  closeModal: function(e) {
+    if (e && e.target !== document.getElementById('modal-overlay')) return;
+    document.getElementById('modal-overlay').classList.remove('open');
+    this.state.modalMode = null;
+    this.state.modalWsId = null;
+  },
+
+  selectWsColor: function(color, el) {
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    this._selectedColor = color;
+  },
+
+  selectWsIcon: function(icon, el) {
+    document.querySelectorAll('.icon-option').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    this._selectedIcon = icon;
+  },
+
+  selectProjIcon: function(icon, el) {
+    document.querySelectorAll('.icon-option').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    this._selectedIcon = icon;
+  },
+
+  submitModal: function() {
+    const mode = this.state.modalMode;
+    if (mode === 'workspace') return this._createWorkspace();
+    if (mode === 'project') return this._createProject();
+    if (mode === 'agent') return this._createAgent();
+  },
+
+  _createWorkspace: function() {
+    const name = document.getElementById('modal-input-name')?.value?.trim();
+    if (!name) return;
+    const id = 'w' + (this.state.nextWsId++);
+    this.workspaces.push({
+      id, name, icon: this._selectedIcon || 'fa-code',
+      color: this._selectedColor || '#6366F1', projects: []
+    });
+    this.addGlobalLog(`Created workspace "${name}"`);
+    this.closeModal();
+    this.renderWorkspaces();
+    this.renderSidebar();
+  },
+
+  _createProject: function() {
+    const name = document.getElementById('modal-input-name')?.value?.trim();
+    if (!name) return;
+    const desc = document.getElementById('modal-input-desc')?.value?.trim() || '';
+    const wsId = document.getElementById('modal-input-ws')?.value || this.state.modalWsId;
+    const ws = this.workspaces.find(w => w.id === wsId);
+    if (!ws) return;
+    const id = 'p' + (this.state.nextProjectId++);
+    ws.projects.push({
+      id, name, icon: this._selectedIcon || 'fa-robot', desc,
+      columns: [
+        { id:'backlog', title:'Backlog', color:'#6B7280' },
+        { id:'in-progress', title:'In Progress', color:'#2563EB' },
+        { id:'review', title:'Review', color:'#7C3AED' },
+        { id:'done', title:'Done', color:'#22C55E' }
+      ],
+      agents: [
+        { id:'n'+this.state.nextProjectId+'a1', name:'Alpha Agent', role:'Senior Agent', color:'#7C3AED', status:'idle', tasks:0 },
+        { id:'n'+this.state.nextProjectId+'a2', name:'Beta Agent', role:'Junior Agent', color:'#2563EB', status:'idle', tasks:0 }
+      ],
+      cards: [],
+      logEntries: []
+    });
+    this.addGlobalLog(`Created project "${name}" in ${ws.name}`);
+    this.closeModal();
+    this.renderWorkspaces();
+    this.renderSidebar();
+  },
+
+  getAllAgents: function() {
+    const all = [];
+    this.workspaces.forEach(ws => ws.projects.forEach(p => {
+      p.agents.forEach(a => {
+        all.push({ ...a, projectName: p.name, wsName: ws.name });
+      });
+    }));
+    return all;
+  },
+
+  getAgentCounts: function() {
+    const all = this.getAllAgents();
+    return {
+      total: all.length,
+      idle: all.filter(a => a.status === 'idle').length,
+      busy: all.filter(a => a.status === 'busy').length,
+      offline: all.filter(a => a.status === 'offline').length
+    };
+  },
+
+  addGlobalLog: function(msg) {
+    const firstProj = this.getCurrentProject();
+    if (firstProj) {
+      firstProj.logEntries.unshift({time:Date.now(), agent:'System', msg});
+      this.renderLog();
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+
+APP.navToWorkspaces = function() {
+  try { this.renderBreadcrumb(); } catch(e) { console.warn('breadcrumb',e); }
+  try { this.renderWorkspaces(); } catch(e) { console.warn('workspaces',e); }
+  try { this.renderSidebar(); } catch(e) { console.warn('sidebar',e); }
+  this.state.view = 'workspaces';
+  const ws = document.getElementById('workspace-view');
+  const bv = document.getElementById('board-view');
+  const av = document.getElementById('agents-view');
+  const ap = document.getElementById('agent-panel');
+  if (ws) ws.style.display = 'block';
+  if (bv) bv.style.display = 'none';
+  if (av) av.style.display = 'none';
+  if (ap) ap.classList.remove('open');
+};
+
+APP.navToProject = function(wsId, projectId) {
+  this.state.wsId = wsId;
+  this.state.projectId = projectId;
+  this.state.view = 'board';
+  this.state.filterAgent = null;
+
+  const ws = this.workspaces.find(w => w.id === wsId);
+  const project = ws.projects.find(p => p.id === projectId);
+  if (!project) return;
+
+  // Ensure project has required arrays
+  project.logEntries = project.logEntries || [];
+  project.agents = project.agents || project.agents;
+
+  try { this.renderBoard(); } catch(e) { console.warn('board',e); }
+  try { this.renderSidebar(); } catch(e) { console.warn('sidebar',e); }
+  try { this.renderBreadcrumb(); } catch(e) { console.warn('breadcrumb',e); }
+
+  const wv = document.getElementById('workspace-view');
+  const bv = document.getElementById('board-view');
+  const av = document.getElementById('agents-view');
+  const ap = document.getElementById('agent-panel');
+  if (wv) wv.style.display = 'none';
+  if (bv) bv.style.display = 'flex';
+  if (av) av.style.display = 'none';
+  if (ap) ap.classList.remove('open');
+};
+
+// Navigate to a specific workspace (expand in sidebar + show its projects)
+APP.navToWsExpand = function(wsId) {
+  this.state.wsId = wsId;
+  this.state.view = 'workspaces';
+  this.state.projectId = null;
+  try { this.renderWorkspaces(); } catch(e) { console.warn('workspaces',e); }
+  try { this.renderSidebar(); } catch(e) { console.warn('sidebar',e); }
+  try { this.renderBreadcrumb(); } catch(e) { console.warn('breadcrumb',e); }
+  const wv = document.getElementById('workspace-view');
+  const bv = document.getElementById('board-view');
+  const av = document.getElementById('agents-view');
+  const ap = document.getElementById('agent-panel');
+  if (wv) wv.style.display = 'block';
+  if (bv) bv.style.display = 'none';
+  if (av) av.style.display = 'none';
+  if (ap) ap.classList.remove('open');
+};
+
+APP.navToAgents = function() {
+  this.state.view = 'agents';
+  const wv = document.getElementById('workspace-view');
+  const bv = document.getElementById('board-view');
+  const av = document.getElementById('agents-view');
+  const ap = document.getElementById('agent-panel');
+  if (wv) wv.style.display = 'none';
+  if (bv) bv.style.display = 'none';
+  if (av) av.style.display = 'block';
+  if (ap) ap.classList.remove('open');
+  try { this.renderAgentsView(); } catch(e) { console.warn('agents',e); }
+  try { this.renderBreadcrumb(); } catch(e) { console.warn('breadcrumb',e); }
+  try { this.renderSidebar(); } catch(e) { console.warn('sidebar',e); }
+};
+
+APP.toggleSidebar = function() {
+  document.getElementById('sidebar').classList.toggle('open');
+};
+
+// ═══════════════════════════════════════════════════════
+// BREADCRUMB
+// ═══════════════════════════════════════════════════════
+
+APP.renderBreadcrumb = function() {
+  const arrow1 = document.getElementById('bc-arrow1');
+  const arrow2 = document.getElementById('bc-arrow2');
+  const wsName = document.getElementById('bc-ws-name');
+  const projName = document.getElementById('bc-project-name');
+
+  if (this.state.view === 'workspaces') {
+    arrow1.style.display = 'none';
+    arrow2.style.display = 'none';
+    wsName.style.display = 'none';
+    projName.style.display = 'none';
+    document.querySelector('#breadcrumb span').textContent = 'Workspaces';
+    return;
+  }
+
+  if (this.state.view === 'agents') {
+    arrow1.style.display = 'none';
+    arrow2.style.display = 'none';
+    wsName.style.display = 'none';
+    projName.style.display = 'none';
+    document.querySelector('#breadcrumb span').textContent = 'Agents';
+    return;
+  }
+
+  const ws = this.workspaces.find(w => w.id === this.state.wsId);
+  const project = ws?.projects.find(p => p.id === this.state.projectId);
+  if (!ws || !project) return;
+
+  arrow1.style.display = 'inline-block';
+  wsName.style.display = 'inline';
+  wsName.textContent = ws.name;
+  wsName.className = '';
+  wsName.onclick = () => this.navToWsExpand(ws.id);
+
+  arrow2.style.display = 'inline-block';
+  projName.style.display = 'inline';
+  projName.textContent = project.name;
+  projName.className = 'current';
+
+  document.querySelector('#breadcrumb span').textContent = 'Workspaces';
+  document.querySelector('#breadcrumb span').onclick = () => this.navToWorkspaces();
+};
+
+// ═══════════════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════════════
+
+APP.renderSidebar = function() {
+  const el = document.getElementById('sidebar-nav');
+  let html = '';
+  // Agents link at top of sidebar
+  const isAgentsView = this.state.view === 'agents';
+  html += `
+    <div class="sidebar-group">
+      <div class="sidebar-item ${isAgentsView ? 'active' : ''}" onclick="APP.navToAgents()" style="margin-bottom:4px">
+        <div class="icon" style="background:var(--accent);width:22px;height:22px;border-radius:6px;font-size:.58rem"><i class="fas fa-robot"></i></div>
+        <span class="name" style="font-weight:${isAgentsView ? '600' : '500'}">Agents</span>
+        <span class="count" id="sidebar-agent-count">${this.sampleAgents.length}</span>
+      </div>
+    </div>`;
+  this.workspaces.forEach(ws => {
+    const isActive = this.state.wsId === ws.id && this.state.view === 'board';
+    const wsExpanded = this.state.wsId === ws.id;
+    html += `
+      <div class="sidebar-group">
+        <div class="sidebar-group-header" onclick="APP.navToWsExpand('${ws.id}')">
+          <i class="fas fa-chevron-down ${wsExpanded ? '' : 'collapsed'}"></i>
+          <span>${ws.name}</span>
+        </div>`;
+    if (wsExpanded) {
+      ws.projects.forEach(proj => {
+        const isProjActive = this.state.projectId === proj.id && isActive;
+        const cardCount = proj.cards.filter(c => c.status !== 'done').length;
+        html += `
+          <div class="sidebar-item ${isProjActive ? 'active' : ''}" onclick="APP.navToProject('${ws.id}','${proj.id}')">
+            <div class="icon" style="background:${ws.color}"><i class="fas ${proj.icon}"></i></div>
+            <span class="name">${proj.name}</span>
+            <span class="count">${cardCount}</span>
+          </div>`;
+      });
+    }
+    html += `</div>`;
+  });
+  el.innerHTML = html;
+};
+
+// ═══════════════════════════════════════════════════════
+// WORKSPACE OVERVIEW
+// ═══════════════════════════════════════════════════════
+
+APP.renderWorkspaces = function() {
+  const grid = document.getElementById('workspace-grid');
+  document.getElementById('board-title').textContent = 'Agent Board';
+  document.getElementById('welcome-subtitle').textContent =
+    `You're on the ${this.user.role.toLowerCase()} · ${this.getTotalOpen()} open tasks across ${this.getTotalProjects()} projects`;
+
+  let html = '';
+  this.workspaces.forEach(ws => {
+    const openTasks = ws.projects.reduce((sum, p) => sum + p.cards.filter(c => c.status !== 'done').length, 0);
+    html += `
+      <div class="workspace-section">
+        <div class="workspace-section-header">
+          <div style="width:24px;height:24px;border-radius:6px;background:${ws.color};display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff"><i class="fas ${ws.icon}"></i></div>
+          <h2>${ws.name}</h2>
+          <span class="ws-count">${ws.projects.length} projects · ${openTasks} open</span>
+          <button onclick="event.stopPropagation();APP.openAddProjectModal('${ws.id}')" style="margin-left:auto;padding:4px 10px;border-radius:6px;font-size:.68rem;font-weight:600;border:1px solid var(--border);display:flex;align-items:center;gap:4px;transition:.1s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><i class="fas fa-plus" style="font-size:.6rem"></i> Project</button>
+        </div>
+        <div class="project-grid">
+          ${ws.projects.map(p => {
+            const backlog = p.cards.filter(c => c.status === 'backlog').length;
+            const done = p.cards.filter(c => c.status === 'done').length;
+            return `
+            <div class="project-card" onclick="APP.navToProject('${ws.id}','${p.id}')">
+              <div class="project-card-icon" style="background:${ws.color}"><i class="fas ${p.icon}"></i></div>
+              <h3>${p.name}</h3>
+              <p>${p.desc}</p>
+              <div class="project-card-stats">
+                <span class="open"><i class="fas fa-inbox"></i> ${backlog} open</span>
+                <span class="done"><i class="fas fa-check-circle"></i> ${done} done</span>
+                <span><i class="fas fa-users"></i> ${p.agents.length} agents</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  });
+  grid.innerHTML = html;
+};
+
+APP.getTotalOpen = function() {
+  let n = 0;
+  this.workspaces.forEach(w => w.projects.forEach(p => { n += p.cards.filter(c => c.status !== 'done').length; }));
+  return n;
+};
+
+APP.getTotalProjects = function() {
+  let n = 0;
+  this.workspaces.forEach(w => n += w.projects.length);
+  return n;
+};
+
+// ═══════════════════════════════════════════════════════
+// PROJECT HELPERS
+// ═══════════════════════════════════════════════════════
+
+APP.getCurrentProject = function() {
+  const ws = this.workspaces.find(w => w.id === this.state.wsId);
+  if (!ws) return null;
+  return ws.projects.find(p => p.id === this.state.projectId);
+};
+
+APP.getCards = function() {
+  const proj = this.getCurrentProject();
+  return proj ? proj.cards : [];
+};
+
+APP.getAgents = function() {
+  const proj = this.getCurrentProject();
+  return proj ? proj.agents : [];
+};
+
+APP.getColumns = function() {
+  const proj = this.getCurrentProject();
+  return proj ? proj.columns : [];
+};
+
+APP.getLog = function() {
+  const proj = this.getCurrentProject();
+  return proj ? proj.logEntries : [];
+};
+
+// ═══════════════════════════════════════════════════════
+// RENDER BOARD
+// ═══════════════════════════════════════════════════════
+
+APP.renderBoard = function() {
+  const project = this.getCurrentProject();
+  if (!project) return;
+
+  document.getElementById('board-title').textContent = project.name;
+  document.getElementById('total-count').textContent = project.cards.length;
+
+  const cols = this.getColumns();
+  const cards = this.state.filterAgent
+    ? project.cards.filter(c => c.agent === this.state.filterAgent)
+    : project.cards;
+
+  const group = {};
+  cols.forEach(c => group[c.id] = []);
+  cards.forEach(c => { if (group[c.status]) group[c.status].push(c); });
+
+  const container = document.getElementById('board-columns');
+  container.innerHTML = cols.map(col => {
+    const items = group[col.id] || [];
+    return `
+      <div class="column" data-column="${col.id}">
+        <div class="column-header">
+          <span class="column-dot" style="background:${col.color}"></span>
+          <span class="column-title">${col.title}</span>
+          <span class="column-count">${items.length}</span>
+        </div>
+        <div class="column-body" data-column="${col.id}"
+             ondragover="APP.dragOver(event)" ondragleave="APP.dragLeave(event)" ondrop="APP.dropCard(event)">
+          ${items.length ? items.map(c => this.renderCard(c)).join('') : '<div class="empty-state">Drop tasks here</div>'}
+        </div>
+      </div>`;
+  }).join('');
+
+  this.renderAgents();
+  this.renderQueue();
+  this.renderLog();
+};
+
+APP.renderCard = function(c) {
+  const agents = this.getAgents();
+  const agent = agents.find(a => a.id === c.agent);
+  const typeMap = {feature:'Feature', fix:'Fix', review:'Review'};
+  return `
+    <div class="card" draggable="true" data-id="${c.id}"
+         ondragstart="APP.dragStart(event)" ondragend="APP.dragEnd(event)"
+         onclick="APP.openDrawer('${c.id}')" style="animation-delay:${Math.random()*0.1}s">
+      <div class="card-priority ${c.priority}">${c.priority}</div>
+      <div class="card-title">${c.title}</div>
+      ${c.desc ? `<div class="card-desc">${c.desc}</div>` : ''}
+      <div class="card-labels">${c.labels.map(l => `<span class="card-label" style="background:${this.labelColor(l)};color:${this.labelTextColor(l)}">${l}</span>`).join('')}</div>
+      <div class="card-footer">
+        <span class="card-type ${c.type}">${typeMap[c.type]||c.type}</span>
+        ${c.comments > 0 ? `<span class="card-comments"><i class="far fa-comment"></i>${c.comments}</span>` : ''}
+        ${agent ? `<span class="card-agent" style="background:${agent.color}" title="${agent.name}">${agent.name.split(' ').map(w=>w[0]).join('')}</span>` : ''}
+      </div>
+    </div>`;
+};
+
+APP.labelColor = function(l) {
+  const m={auth:'#EDE9FE',middleware:'#E0E7FF',bug:'#FEE2E2',performance:'#DBEAFE',security:'#DCFCE7',websocket:'#FEF3C7',audit:'#F3E8FF',observability:'#E0F2FE',ai:'#EDE9FE',analytics:'#FEF3C7',review:'#F3E8FF',deploy:'#DCFCE7',testing:'#FEF3C7',api:'#E0E7FF',spec:'#EDE9FE',cors:'#FEE2E2',docs:'#E0F2FE',tooling:'#F3F4F6',cli:'#DCFCE7',ci:'#FEE2E2',typescript:'#EDE9FE','design-tokens':'#EDE9FE',css:'#DBEAFE',a11y:'#FEF3C7',icons:'#F3E8FF',ml:'#DCFCE7',data:'#DBEAFE'};
+  return m[l]||'#F3F4F6';
+};
+APP.labelTextColor = function(l) {
+  const m={auth:'#7C3AED',middleware:'#4338CA',bug:'#DC2626',performance:'#2563EB',security:'#16A34A',websocket:'#D97706',audit:'#7C3AED',observability:'#0284C7',ai:'#7C3AED',analytics:'#D97706',review:'#7C3AED',deploy:'#16A34A',testing:'#D97706',api:'#4338CA',spec:'#7C3AED',cors:'#DC2626',docs:'#0284C7',tooling:'#6B7280',cli:'#16A34A',ci:'#DC2626',typescript:'#7C3AED','design-tokens':'#7C3AED',css:'#2563EB',a11y:'#D97706',icons:'#7C3AED',ml:'#16A34A',data:'#2563EB'};
+  return m[l]||'#6B7280';
+};
+
+// ─── Drag & Drop ───
+
+APP.dragStart = function(e) {
+  this.state.draggedCard = e.currentTarget.dataset.id;
+  e.currentTarget.classList.add('dragging');
+  document.querySelectorAll('.column-body').forEach(el => el.classList.remove('drag-over'));
+};
+
+APP.dragEnd = function(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.column-body').forEach(el => el.classList.remove('drag-over'));
+  this.state.draggedCard = null;
+};
+
+APP.dragOver = function(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+};
+
+APP.dragLeave = function(e) {
+  e.currentTarget.classList.remove('drag-over');
+};
+
+APP.dropCard = function(e) {
+  e.preventDefault();
+  const colId = e.currentTarget.dataset.column;
+  const cardId = this.state.draggedCard;
+  if (!cardId) return;
+
+  const project = this.getCurrentProject();
+  if (!project) return;
+
+  const card = project.cards.find(c => c.id === cardId);
+  if (card && card.status !== colId) {
+    const oldStatus = card.status;
+    card.status = colId;
+    const fromCol = project.columns.find(c => c.id === oldStatus);
+    const toCol = project.columns.find(c => c.id === colId);
+    this.addLog('System', `Moved "${card.title}" from ${fromCol?.title} to ${toCol?.title}`);
+    this.renderBoard();
+  }
+  document.querySelectorAll('.column-body').forEach(el => el.classList.remove('drag-over'));
+};
+
+// ─── Agents ───
+
+APP.renderAgents = function() {
+  const agents = this.getAgents();
+  const el = document.getElementById('agent-list');
+  el.innerHTML = agents.map(a => `
+    <div class="agent-item ${this.state.filterAgent === a.id ? 'active' : ''}" onclick="APP.filterByAgent('${a.id}')">
+      <div class="agent-avatar" style="background:${a.color}">
+        ${a.name.split(' ').map(w=>w[0]).join('')}
+        <span class="agent-status ${a.status}"></span>
+      </div>
+      <div class="agent-info">
+        <div class="agent-name">${a.name}</div>
+        <div class="agent-role">${a.role}</div>
+      </div>
+    </div>`).join('');
+};
+
+APP.filterByAgent = function(agentId) {
+  const project = this.getCurrentProject();
+  if (!project) return;
+  this.state.filterAgent = this.state.filterAgent === agentId ? null : agentId;
+  this.renderBoard();
+};
+
+APP.toggleAgentPanel = function() {
+  document.getElementById('agent-panel').classList.toggle('open');
+};
+
+// ─── Global Agents View & CRUD ───
+
+APP.renderAgentsView = function() {
+  const grid = document.getElementById('agents-grid');
+  const statsBar = document.getElementById('agents-stats-bar');
+  const subtitle = document.getElementById('agents-subtitle');
+  const badge = document.getElementById('agents-total-badge');
+
+  const allAgents = this.sampleAgents; // global pool
+  const counts = { idle:0, busy:0, offline:0 };
+  allAgents.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+
+  badge.textContent = allAgents.length;
+  this.updateSidebarAgentCount();
+  subtitle.textContent = `${allAgents.length} agents across all workspaces`;
+
+  statsBar.innerHTML = `
+    <div class="agent-stat"><span class="agent-stat-dot" style="background:#22C55E"></span><span class="agent-stat-value">${counts.idle}</span><span class="agent-stat-label">Idle</span></div>
+    <div class="agent-stat"><span class="agent-stat-dot" style="background:var(--accent)"></span><span class="agent-stat-value">${counts.busy}</span><span class="agent-stat-label">Busy</span></div>
+    <div class="agent-stat"><span class="agent-stat-dot" style="background:var(--muted)"></span><span class="agent-stat-value">${counts.offline}</span><span class="agent-stat-label">Offline</span></div>
+    <div class="agent-stat" style="margin-left:auto"><span class="agent-stat-value">${allAgents.length}</span><span class="agent-stat-label">Total</span></div>
+  `;
+
+  if (allAgents.length === 0) {
+    grid.innerHTML = `<div class="agent-empty"><i class="fas fa-robot"></i><p>No agents yet. Create your first agent to get started.</p><button onclick="APP.openAddAgentModal()" style="padding:8px 18px;border-radius:var(--radius);font-size:.82rem;font-weight:600;background:var(--accent);color:#fff;border:none">+ Add Agent</button></div>`;
+    return;
+  }
+
+  const runtimeInfo = this.runtimeInfo;
+  grid.innerHTML = allAgents.map(a => {
+    const ri = runtimeInfo[a.runtime] || runtimeInfo['custom'];
+    const statusLabel = { idle:'Idle', busy:'Busy', offline:'Offline' };
+    const statusColor = { idle:'#22C55E', busy:'var(--accent)', offline:'var(--muted)' };
+    return `
+      <div class="agent-card">
+        <div class="agent-card-header">
+          <div class="agent-card-avatar" style="background:${a.color}">
+            ${a.initials || a.name.split(' ').map(w=>w[0]).join('')}
+            <span class="status-dot" style="background:${statusColor[a.status]||'var(--muted)'}"></span>
+          </div>
+          <div class="agent-card-names">
+            <div class="agent-card-name">${a.name}</div>
+            <div class="agent-card-role">${a.role || 'Custom Agent'}</div>
+          </div>
+        </div>
+        <div class="agent-card-project"><i class="fas fa-briefcase"></i> ${a.projectName || 'Global pool'}</div>
+        <div class="agent-card-meta">
+          <span class="agent-card-runtime"><i class="fas ${ri.icon}"></i> ${ri.name}</span>
+          <span class="agent-card-status"><span class="s-dot" style="background:${statusColor[a.status]}"></span> ${statusLabel[a.status]}</span>
+        </div>
+        <div class="agent-card-purpose"><strong>Purpose:</strong> ${a.purpose || 'General purpose agent'}</div>
+        <div class="agent-card-actions">
+          <button onclick="APP.editAgent('${a.id}')"><i class="fas fa-pen"></i> Edit</button>
+          <button class="danger" onclick="APP.deleteAgent('${a.id}')"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+      </div>`;
+  }).join('');
+};
+
+APP.openAddAgentModal = function(editId) {
+  const isEdit = !!editId;
+  const agent = isEdit ? this.sampleAgents.find(a => a.id === editId) : null;
+
+  this.state.modalMode = 'agent';
+  this._editAgentId = editId || null;
+
+  document.getElementById('modal-title').textContent = isEdit ? 'Edit Agent' : 'New Agent';
+  document.getElementById('modal-submit').textContent = isEdit ? 'Save Changes' : 'Create Agent';
+
+  const runtimeOpts = Object.entries(this.runtimeInfo).map(([id, r]) =>
+    `<option value="${id}" ${agent?.runtime === id ? 'selected' : ''} style="display:flex;align-items:center;gap:6px">${r.name} — ${r.desc}</option>`
+  ).join('');
+
+  const statusOpts = ['idle','busy','offline'].map(s =>
+    `<option value="${s}" ${agent?.status === s ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`
+  ).join('');
+
+  const agentColors = ['#7C3AED','#2563EB','#DC2626','#D97706','#0891B2','#16A34A','#EC4899','#6366F1'];
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-field">
+      <label>Agent Name</label>
+      <input type="text" id="modal-agent-name" value="${isEdit ? agent.name : ''}" placeholder="e.g. Codex Prime" autofocus>
+    </div>
+    <div class="modal-field">
+      <label>Role / Title</label>
+      <input type="text" id="modal-agent-role" value="${isEdit ? (agent.role || '') : ''}" placeholder="e.g. Senior Review Agent">
+    </div>
+    <div class="modal-field">
+      <label>Runtime CLI</label>
+      <select id="modal-agent-runtime">${runtimeOpts}</select>
+    </div>
+    <div class="modal-field">
+      <label>Specialization / Purpose</label>
+      <textarea id="modal-agent-purpose" placeholder="Describe what this agent specializes in, what it should be used for...">${isEdit ? (agent.purpose || '') : ''}</textarea>
+      <div style="font-size:.64rem;color:var(--muted);margin-top:4px">This prompt defines the agent's behavior and task focus</div>
+    </div>
+    <div class="modal-field">
+      <label>Status</label>
+      <select id="modal-agent-status">${statusOpts}</select>
+    </div>
+    <div class="modal-field">
+      <label>Color</label>
+      <div class="color-grid" id="modal-agent-colors">
+        ${agentColors.map(c =>
+          `<div class="color-swatch ${(agent?.color === c) ? 'selected' : ''}" style="background:${c}" onclick="APP.selectAgentColor('${c}',this)"></div>`
+        ).join('')}
+      </div>
+    </div>`;
+
+  // Default selection
+  if (!agent) {
+    document.querySelector('#modal-agent-colors .color-swatch')?.classList.add('selected');
+  }
+  this._selectedAgentColor = agent?.color || agentColors[0];
+
+  document.getElementById('modal-overlay').classList.add('open');
+};
+
+APP.selectAgentColor = function(color, el) {
+  document.querySelectorAll('#modal-agent-colors .color-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  this._selectedAgentColor = color;
+};
+
+APP._createAgent = function() {
+  const name = document.getElementById('modal-agent-name')?.value?.trim();
+  if (!name) return;
+  const role = document.getElementById('modal-agent-role')?.value?.trim() || 'Custom Agent';
+  const runtime = document.getElementById('modal-agent-runtime')?.value || 'custom';
+  const purpose = document.getElementById('modal-agent-purpose')?.value?.trim() || '';
+  const status = document.getElementById('modal-agent-status')?.value || 'idle';
+  const color = this._selectedAgentColor || '#6366F1';
+
+  const editId = this._editAgentId;
+
+  if (editId) {
+    // Update existing agent
+    const agent = this.sampleAgents.find(a => a.id === editId);
+    if (agent) {
+      agent.name = name;
+      agent.role = role;
+      agent.runtime = runtime;
+      agent.purpose = purpose;
+      agent.status = status;
+      agent.color = color;
+      agent.initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    }
+    this.addGlobalLog(`Updated agent "${name}"`);
+  } else {
+    // Create new agent
+    const id = 'ga' + (this.state.nextAgentId++);
+    this.sampleAgents.push({
+      id, name, initials: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+      runtime, purpose, status, color, role,
+      tasks: 0
+    });
+    this.addGlobalLog(`Created agent "${name}"`);
+  }
+
+  this.closeModal();
+  this.renderAgentsView();
+};
+
+APP.editAgent = function(agentId) {
+  this.openAddAgentModal(agentId);
+};
+
+APP.deleteAgent = function(agentId) {
+  const agent = this.sampleAgents.find(a => a.id === agentId);
+  if (!agent) return;
+  if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
+  this.sampleAgents = this.sampleAgents.filter(a => a.id !== agentId);
+  this.addGlobalLog(`Deleted agent "${agent.name}"`);
+  this.updateSidebarAgentCount();
+  this.renderAgentsView();
+};
+
+// ─── Queue ───
+
+APP.renderQueue = function() {
+  const project = this.getCurrentProject();
+  if (!project) return;
+  const queue = project.cards.filter(c => !c.agent && c.status !== 'done');
+  const el = document.getElementById('queue-list');
+  el.innerHTML = queue.length ? queue.slice(0,5).map(c => `
+    <div class="queue-item" onclick="APP.openDrawer('${c.id}')">
+      <div style="font-weight:600">${c.title}</div>
+      <div class="meta">${c.type} · ${c.priority}</div>
+    </div>`).join('') : '<div style="padding:8px;text-align:center;color:var(--muted);font-size:.7rem">All tasks assigned</div>';
+};
+
+APP.autoAssign = function() {
+  const project = this.getCurrentProject();
+  if (!project) return;
+  const unassigned = project.cards.filter(c => !c.agent && c.status !== 'done');
+  if (!unassigned.length) return this.addLog('System', 'No unassigned tasks to auto-assign');
+  const idle = project.agents.filter(a => a.status === 'idle');
+  if (!idle.length) return this.addLog('System', 'No idle agents available');
+  unassigned.forEach((c,i) => {
+    const agent = idle[i % idle.length];
+    c.agent = agent.id;
+    this.addLog('System', `Auto-assigned "${c.title}" to ${agent.name}`);
+  });
+  this.renderBoard();
+};
+
+// ─── Activity Log ───
+
+APP.addLog = function(agent, msg) {
+  const project = this.getCurrentProject();
+  if (!project) return;
+  project.logEntries.unshift({time: Date.now(), agent, msg});
+  this.renderLog();
+};
+
+APP.renderLog = function() {
+  const project = this.getCurrentProject();
+  const el = document.getElementById('log-body');
+  const label = document.getElementById('log-context-label');
+  if (!project) {
+    el.innerHTML = '';
+    label.textContent = '';
+    return;
+  }
+  label.textContent = `${project.name} · ${project.logEntries.length} entries`;
+  el.innerHTML = project.logEntries.map(e => {
+    const t = new Date(e.time);
+    const time = t.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    return `<div class="log-entry"><span class="log-time">${time}</span><span class="log-agent">${e.agent}</span><span class="log-msg">${e.msg}</span></div>`;
+  }).join('');
+};
+
+APP.toggleLog = function() {
+  document.getElementById('log-panel').classList.toggle('open');
+};
+
+// ─── Drawer ───
+
+APP.openDrawer = function(cardId) {
+  const overlay = document.getElementById('drawer-overlay');
+  const drawer = document.getElementById('drawer');
+  const titleEl = document.getElementById('drawer-title');
+  const body = document.getElementById('drawer-body');
+  const project = this.getCurrentProject();
+  if (!project) return;
+
+  if (!cardId) {
+    titleEl.textContent = 'New Task';
+    body.innerHTML = `
+      <div class="drawer-section">
+        <h4>Title</h4>
+        <div class="drawer-field"><input type="text" id="new-title" placeholder="e.g. Implement agent retry logic" style="width:100%;padding:4px 0;font-size:.8rem"></div>
+      </div>
+      <div class="drawer-section">
+        <h4>Description</h4>
+        <div class="drawer-field"><textarea id="new-desc" placeholder="Describe the task..." style="font-size:.8rem"></textarea></div>
+      </div>
+      <div class="drawer-section">
+        <h4>Type</h4>
+        <div style="display:flex;gap:8px">
+          <button class="card-type feature" style="padding:5px 14px;font-size:.72rem;border:2px solid transparent" onclick="APP.selectNewType('feature',this)">Feature</button>
+          <button class="card-type fix" style="padding:5px 14px;font-size:.72rem;border:2px solid transparent" onclick="APP.selectNewType('fix',this)">Fix</button>
+          <button class="card-type review" style="padding:5px 14px;font-size:.72rem;border:2px solid transparent" onclick="APP.selectNewType('review',this)">Review</button>
+        </div>
+      </div>
+      <div class="drawer-section">
+        <h4>Priority</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${['critical','high','medium','low'].map(p => `<button class="card-priority ${p}" style="padding:4px 14px;font-size:.7rem;border:2px solid transparent" onclick="APP.selectNewPriority('${p}',this)">${p}</button>`).join('')}
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button style="flex:1;padding:10px;background:var(--accent);color:#fff;border-radius:var(--radius);font-weight:600;font-size:.82rem" onclick="APP.createTask()">Create Task</button>
+      </div>
+    `;
+    this._newTask = {type:'feature', priority:'medium'};
+  } else {
+    const card = project.cards.find(c => c.id === cardId);
+    if (!card) return;
+    this.state.selectedCard = card;
+    titleEl.textContent = card.title;
+    const agents = this.getAgents();
+    const agent = agents.find(a => a.id === card.agent);
+    const typeMap = {feature:'Feature', fix:'Fix', review:'Review'};
+    const activities = [
+      {icon:'fa-pen', text:`Status changed to <strong>${project.columns.find(c=>c.id===card.status)?.title}</strong>`, time:'2h ago'},
+      {icon:agent?'fa-user-check':'fa-robot', text:agent ? `Assigned to <strong>${agent.name}</strong>` : 'Unassigned', time:'3h ago'},
+      {icon:'fa-code-branch', text:`Branch: <code>feat/${card.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)}</code>`, time:'4h ago'},
+      {icon:'fa-message', text:'2 review comments added', time:'5h ago'},
+    ];
+    body.innerHTML = `
+      <div class="drawer-section">
+        <h4>Description</h4>
+        <div class="drawer-field">${card.desc || 'No description provided'}</div>
+      </div>
+      <div class="drawer-section" style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="card-type ${card.type}">${typeMap[card.type]||card.type}</span>
+        <span class="card-priority ${card.priority}">${card.priority}</span>
+        ${card.labels.map(l => `<span class="card-label" style="background:${this.labelColor(l)};color:${this.labelTextColor(l)}">${l}</span>`).join('')}
+      </div>
+      <div class="drawer-section">
+        <h4>Assignee</h4>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+          ${agent ? `<div class="agent-avatar" style="background:${agent.color};width:26px;height:26px;position:relative;font-size:.58rem">${agent.name.split(' ').map(w=>w[0]).join('')}</div><span style="font-weight:600;font-size:.82rem">${agent.name}</span>` : '<span style="color:var(--muted);font-size:.82rem">Unassigned</span>'}
+        </div>
+      </div>
+      <div class="drawer-section">
+        <h4>Activity</h4>
+        ${activities.map(a => `
+          <div class="activity-item">
+            <div class="activity-icon"><i class="fas ${a.icon}"></i></div>
+            <div class="activity-content"><div class="activity-text">${a.text}</div><div class="activity-time">${a.time}</div></div>
+          </div>`).join('')}
+      </div>
+    `;
+  }
+
+  overlay.classList.add('open');
+  drawer.classList.add('open');
+  document.body.style.overflow = 'hidden';
+};
+
+APP.closeDrawer = function() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+  document.body.style.overflow = '';
+  this.state.selectedCard = null;
+};
+
+APP.selectNewType = function(type, btn) {
+  document.querySelectorAll('#drawer-body [onclick*="selectNewType"]').forEach(b => b.style.borderColor='transparent');
+  btn.style.borderColor = 'var(--accent)';
+  this._newTask.type = type;
+};
+
+APP.selectNewPriority = function(priority, btn) {
+  document.querySelectorAll('#drawer-body [onclick*="selectNewPriority"]').forEach(b => b.style.borderColor='transparent');
+  btn.style.borderColor = 'var(--accent)';
+  this._newTask.priority = priority;
+};
+
+APP.createTask = function() {
+  const project = this.getCurrentProject();
+  if (!project) return;
+  const title = document.getElementById('new-title')?.value?.trim();
+  const desc = document.getElementById('new-desc')?.value?.trim();
+  if (!title) return;
+  const task = {
+    id:'c'+ (this.state.nextCardId++),
+    title, desc: desc||'',
+    type: this._newTask?.type || 'feature',
+    priority: this._newTask?.priority || 'medium',
+    status: 'backlog', agent: null,
+    labels: [], comments: 0, created: Date.now()
+  };
+  project.cards.push(task);
+  this.addLog('System', `Created task "${title}"`);
+  this.closeDrawer();
+  this.renderBoard();
+};
+
+// ─── Search ───
+
+APP.search = function(q) {
+  const term = q.toLowerCase().trim();
+  document.querySelectorAll('.card').forEach(el => {
+    const title = el.querySelector('.card-title')?.textContent?.toLowerCase()||'';
+    const desc = el.querySelector('.card-desc')?.textContent?.toLowerCase()||'';
+    el.style.display = (!term || title.includes(term) || desc.includes(term)) ? '' : 'none';
+  });
+};
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+
+APP.init = function() {
+  // Set user info
+  document.getElementById('user-avatar').textContent = this.user.initials;
+  document.getElementById('user-name').textContent = this.user.name;
+
+  // Initialize agent badge and sidebar count on load
+  const badge = document.getElementById('agents-total-badge');
+  if (badge) badge.textContent = this.sampleAgents.length;
+  this.updateSidebarAgentCount();
+
+  // Start at workspaces
+  this.navToWorkspaces();
+};
+
+APP.updateSidebarAgentCount = function() {
+  const el = document.getElementById('sidebar-agent-count');
+  if (el) el.textContent = this.sampleAgents.length;
+};
+
+APP.init();
+</script>
+</body>
+</html>

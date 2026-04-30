@@ -1,21 +1,18 @@
 <template>
   <div class="flex flex-col h-full">
-    <!-- Board header -->
-    <KanbanBoardHeader
+    <BoardHeader
       :statuses="statuses"
       :task-count="tasks.length"
       @create-task="$emit('createTask')"
-      @view-backlog="router.push(`/workspaces/${route.params.slug}/projects/${route.params.projectId}/backlog`)"
     />
 
-    <!-- Board columns -->
-    <div class="flex-1 overflow-x-auto board-scroll px-6 pb-6">
-      <div class="flex gap-4 h-full min-h-0">
+    <div class="flex-1 overflow-x-auto board-scroll px-5 pb-4">
+      <div class="flex gap-3.5 h-full min-h-0">
         <KanbanColumn
-          v-for="column in columns"
-          :key="column.status.id"
-          :column="column"
-          @update-task="handleUpdateTask"
+          v-for="col in columns"
+          :key="col.status.id"
+          :column="col"
+          @update-task="(data) => $emit('updateTask', data)"
           @create-task="() => $emit('createTask')"
           @open-task="(task) => $emit('openTask', task)"
         />
@@ -26,7 +23,6 @@
 
 <script setup lang="ts">
 import type { Task, Status } from '~/types'
-import { useSortable } from '@vueuse/integrations/useSortable'
 
 const props = defineProps<{
   statuses: Status[]
@@ -39,9 +35,6 @@ const emit = defineEmits<{
   openTask: [task: Task]
 }>()
 
-const route = useRoute()
-const router = useRouter()
-
 const columns = computed(() => {
   return props.statuses.map((status) => ({
     status,
@@ -50,8 +43,4 @@ const columns = computed(() => {
       .sort((a, b) => a.position - b.position),
   }))
 })
-
-function handleUpdateTask(data: { id: string; statusId: string; position: number }) {
-  emit('updateTask', data)
-}
 </script>

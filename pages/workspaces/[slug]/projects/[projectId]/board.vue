@@ -12,7 +12,7 @@
       />
     </template>
 
-    <!-- Task side panel -->
+    <!-- Task side panel (existing) -->
     <KanbanTaskSidePanel
       v-if="showTaskSidePanel && selectedTask"
       :task-id="selectedTask.id"
@@ -54,6 +54,7 @@ const project = ref<any>(null)
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const showCreateModal = ref(false)
+const { addLog } = useLog()
 
 onMounted(async () => {
   const data = await fetchProjectDetail(projectId.value)
@@ -72,6 +73,7 @@ function handleCreateTask() {
 async function handleTaskCreated(task: Task) {
   showCreateModal.value = false
   tasks.value.push(task)
+  addLog('System', `Created task "${task.title}"`)
 }
 
 async function handleUpdateTask(data: { id: string; statusId?: string; position?: number; [key: string]: any }) {

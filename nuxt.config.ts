@@ -24,6 +24,7 @@ export default defineNuxtConfig({
   components: [
     { path: '~/components/general', prefix: '' },
     { path: '~/components/icons', prefix: '' },
+    { path: '~/components/layout', prefix: 'Layout' },
     '~/components',
   ],
 

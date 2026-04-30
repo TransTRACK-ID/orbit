@@ -31,7 +31,6 @@ export const useTask = () => {
       method: 'POST',
       body: data,
     })
-    tasks.value.push(task)
     return task
   }
 

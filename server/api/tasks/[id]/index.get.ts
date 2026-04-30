@@ -2,6 +2,15 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 
+function unifyAssignee(task: any) {
+  if (!task) return task
+  const { agentAssignee, assignee, ...rest } = task
+  const unified = task.assigneeType === 'agent' && agentAssignee
+    ? { id: agentAssignee.id, name: agentAssignee.name, initials: agentAssignee.initials, color: agentAssignee.color }
+    : task.assigneeType === 'user' ? assignee : null
+  return { ...rest, assignee: unified }
+}
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   await requireAuth(event)
@@ -13,6 +22,7 @@ export default defineEventHandler(async (event) => {
       assignee: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
+      agentAssignee: true,
       reporter: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
@@ -26,6 +36,7 @@ export default defineEventHandler(async (event) => {
           assignee: {
             columns: { id: true, email: true, name: true, avatarUrl: true },
           },
+          agentAssignee: true,
         },
       },
     },
@@ -36,8 +47,9 @@ export default defineEventHandler(async (event) => {
   }
 
   return {
-    ...task,
+    ...unifyAssignee(task),
     labels: task.taskLabels?.map((tl) => tl.label) || [],
     taskLabels: undefined,
+    subtasks: task.subtasks?.map((st: any) => unifyAssignee(st)) || [],
   }
 })

@@ -77,7 +77,7 @@
 const route = useRoute()
 const router = useRouter()
 
-const { agents } = useAgent()
+const { agents, fetchAgents } = useAgent()
 const { toggle: toggleLog } = useLog()
 
 const emit = defineEmits<{
@@ -91,6 +91,10 @@ const breadcrumbProject = computed(() => route.params.projectId as string | unde
 const breadcrumbWsSlug = computed(() => route.params.slug as string)
 
 const agentCount = computed(() => agents.value.length)
+
+onMounted(() => {
+  if (agents.value.length === 0) fetchAgents()
+})
 
 const { data: session } = useAuth()
 const user = computed(() => (session.value?.user as any) || { name: 'Alex Chen' })

@@ -1,15 +1,11 @@
 <template>
   <div class="fixed inset-0 z-50 flex">
-    <!-- Backdrop -->
     <div class="absolute inset-0 bg-surface-900/20 backdrop-blur-sm" @click="$emit('close')" />
 
-    <!-- Side panel -->
     <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
-      <!-- Loading -->
       <UiLoadingState v-if="loading" text="Loading task..." />
 
       <template v-else-if="task">
-        <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div class="flex items-center gap-3">
             <KanbanPriorityBadge :priority="task.priority" />
@@ -19,17 +15,19 @@
           </div>
           <div class="flex items-center gap-2">
             <IconButton @click="confirmDelete = true">
-              <Trash class="w-4 h-4" />
+              <template #icon>
+                <Trash class="stroke-surface-500 w-4 h-4" />
+              </template>
             </IconButton>
             <IconButton @click="$emit('close')">
-              <Close class="w-4 h-4" />
+              <template #icon>
+                <Close class="stroke-surface-500 w-4 h-4" />
+              </template>
             </IconButton>
           </div>
         </div>
 
-        <!-- Content -->
         <div class="flex-1 overflow-y-auto p-6">
-          <!-- Title -->
           <div class="mb-4">
             <TextInput
               :model-value="task.title"
@@ -39,9 +37,7 @@
             />
           </div>
 
-          <!-- Properties -->
           <div class="grid grid-cols-2 gap-4 mb-6 p-4 bg-surface-50 rounded-xl">
-            <!-- Status -->
             <div>
               <label class="block text-xs font-medium text-surface-500 mb-1">Status</label>
               <div class="relative">
@@ -57,7 +53,6 @@
               </div>
             </div>
 
-            <!-- Priority -->
             <div>
               <label class="block text-xs font-medium text-surface-500 mb-1">Priority</label>
               <div class="relative">
@@ -75,25 +70,78 @@
               </div>
             </div>
 
-            <!-- Assignee -->
-            <div>
+            <div class="relative">
               <label class="block text-xs font-medium text-surface-500 mb-1">Assignee</label>
-              <div class="flex items-center gap-2">
-                <Avatar
-                  v-if="task.assignee"
-                  :name="task.assignee.name"
-                  size="sm"
-                />
-                <TextInput
-                  :model-value="task.assignee?.name || ''"
-                  placeholder="Unassigned"
-                  disabled
-                  class="flex-1 text-sm"
-                />
+              <button
+                class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
+                @click="showAssigneePicker = !showAssigneePicker"
+              >
+                <template v-if="task.assignee">
+                  <span
+                    v-if="task.assignee.color"
+                    class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    :style="{ background: task.assignee.color }"
+                  >
+                    {{ task.assignee.initials || computedInitials(task.assignee.name) }}
+                  </span>
+                  <Avatar
+                    v-else
+                    :name="task.assignee.name"
+                    size="sm"
+                  />
+                  <span class="flex-1 truncate">{{ task.assignee.name }}</span>
+                  <span v-if="task.assigneeType === 'agent'" class="text-[9px] text-primary-500 font-semibold uppercase">Agent</span>
+                </template>
+                <template v-else>
+                  <span class="text-surface-400 flex-1">Unassigned</span>
+                </template>
+                <ChevronDown class="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
+              </button>
+
+              <div
+                v-if="showAssigneePicker"
+                class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
+              >
+                <button
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
+                  @click="assignTo()"
+                >
+                  <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
+                  Unassigned
+                </button>
+
+                <div v-if="members.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Members</div>
+                <button
+                  v-for="m in members"
+                  :key="m.userId"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                  :class="{ 'bg-primary-50': task.assigneeId === m.userId && task.assigneeType === 'user' }"
+                  @click="assignTo(m.userId, 'user')"
+                >
+                  <Avatar :name="m.user?.name || 'U'" size="sm" />
+                  <span class="truncate">{{ m.user?.name }}</span>
+                </button>
+
+                <div v-if="agents.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider border-t border-surface-100 mt-1 pt-1">Agents</div>
+                <button
+                  v-for="a in agents"
+                  :key="a.id"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                  :class="{ 'bg-primary-50': task.assigneeId === a.id && task.assigneeType === 'agent' }"
+                  @click="assignTo(a.id, 'agent')"
+                >
+                  <span
+                    class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    :style="{ background: a.color }"
+                  >
+                    {{ a.initials }}
+                  </span>
+                  <span class="truncate">{{ a.name }}</span>
+                  <span class="ml-auto text-[9px] text-primary-500 font-semibold uppercase">{{ a.runtime }}</span>
+                </button>
               </div>
             </div>
 
-            <!-- Labels -->
             <div>
               <label class="block text-xs font-medium text-surface-500 mb-1">Labels</label>
               <div v-if="task.labels?.length" class="flex flex-wrap gap-1">
@@ -109,27 +157,17 @@
             </div>
           </div>
 
-          <!-- Description (Tiptap) -->
           <div class="mb-6">
             <label class="block text-xs font-medium text-surface-500 mb-2">Description</label>
             <div class="border border-surface-200 rounded-lg overflow-hidden">
               <div class="border-b border-surface-100 px-3 py-2 flex gap-1 bg-surface-50">
-                <button
-                  class="p-1 rounded hover:bg-surface-200 text-surface-500"
-                  @click="toggleBold"
-                >
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500" @click="toggleBold">
                   <strong class="text-xs">B</strong>
                 </button>
-                <button
-                  class="p-1 rounded hover:bg-surface-200 text-surface-500"
-                  @click="toggleItalic"
-                >
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500" @click="toggleItalic">
                   <em class="text-xs">I</em>
                 </button>
-                <button
-                  class="p-1 rounded hover:bg-surface-200 text-surface-500"
-                  @click="toggleStrike"
-                >
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500" @click="toggleStrike">
                   <span class="text-xs line-through">S</span>
                 </button>
               </div>
@@ -139,13 +177,11 @@
                   contenteditable
                   class="text-sm text-surface-700 outline-none min-h-[80px]"
                   @input="handleDescriptionInput"
-                  v-html="renderedDescription"
                 />
               </div>
             </div>
           </div>
 
-          <!-- Comments -->
           <div>
             <label class="block text-xs font-medium text-surface-500 mb-3">
               Comments ({{ comments.length }})
@@ -156,10 +192,7 @@
                 :key="comment.id"
                 class="flex gap-3 p-3 rounded-lg bg-surface-50"
               >
-                <Avatar
-                  :name="comment.user?.name || 'U'"
-                  size="sm"
-                />
+                <Avatar :name="comment.user?.name || 'U'" size="sm" />
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-0.5">
                     <span class="text-sm font-medium text-surface-900">{{ comment.user?.name }}</span>
@@ -170,7 +203,6 @@
               </div>
             </div>
 
-            <!-- Add comment -->
             <div class="flex gap-2">
               <TextInput
                 v-model="newComment"
@@ -181,7 +213,6 @@
               <Button :disabled="!newComment" @click="handleAddComment">Send</Button>
             </div>
 
-            <!-- Activity log -->
             <div v-if="activityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
               <div class="space-y-2">
@@ -190,10 +221,7 @@
                   :key="log.id"
                   class="flex items-start gap-2 text-sm text-surface-500"
                 >
-                  <Avatar
-                    :name="log.user?.name || 'U'"
-                    size="xs"
-                  />
+                  <Avatar :name="log.user?.name || 'U'" size="xs" />
                   <div>
                     <span class="font-medium text-surface-700">{{ log.user?.name }}</span>
                     <span>
@@ -209,7 +237,6 @@
       </template>
     </div>
 
-    <!-- Delete confirmation -->
     <ModalConfirmation
       v-if="confirmDelete"
       title="Delete Task"
@@ -223,13 +250,17 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, Comment, ActivityLog } from '~/types'
+import type { Task, Status, Label, Comment, ActivityLog, ProjectMember } from '~/types'
+import type { Agent } from '~/types'
+import { useDebounceFn } from '@vueuse/core'
 
 const props = defineProps<{
   taskId: string
   projectId: string
   statuses: Status[]
   labels: Label[]
+  members: ProjectMember[]
+  agents: Agent[]
 }>()
 
 const emit = defineEmits<{
@@ -254,6 +285,24 @@ const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
 const confirmDelete = ref(false)
 const editorRef = ref<HTMLDivElement | null>(null)
+const showAssigneePicker = ref(false)
+
+function computedInitials(name: string) {
+  return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
+  showAssigneePicker.value = false
+  if (!task.value) return
+  const updated = await updateTaskApi(task.value.id, {
+    assigneeId: assigneeId || null,
+    assigneeType: assigneeType || null,
+  })
+  task.value = updated
+  emit('updated', updated)
+}
+
+
 
 const renderedDescription = computed(() => {
   if (!task.value?.description) return ''
@@ -262,6 +311,14 @@ const renderedDescription = computed(() => {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
 })
+
+function syncDescription() {
+  if (editorRef.value) {
+    editorRef.value.innerHTML = task.value?.description
+      ? renderedDescription.value
+      : ''
+  }
+}
 
 onMounted(async () => {
   try {
@@ -272,6 +329,7 @@ onMounted(async () => {
     console.error('Failed to load task detail:', err)
   } finally {
     loading.value = false
+    nextTick(syncDescription)
   }
 })
 
@@ -295,12 +353,16 @@ function handleDescriptionInput(e: Event) {
   if (task.value) {
     task.value.description = plain
   }
-  debouncedSave(field, plain)
+  debouncedSave('description', plain)
 }
 
 const debouncedSave = useDebounceFn(async (field: string, value: any) => {
   if (!task.value) return
-  await updateTaskApi(task.value.id, { [field]: value })
+  try {
+    await updateTaskApi(task.value.id, { [field]: value })
+  } catch (err) {
+    console.error(`Failed to save ${field}:`, err)
+  }
 }, 500)
 
 function toggleBold() {

@@ -30,7 +30,9 @@
           v-if="member.role !== 'owner'"
           @click="handleRemove(member)"
         >
-          <Close class="w-3.5 h-3.5" />
+          <template #icon>
+            <Close class="w-3.5 h-3.5" />
+          </template>
         </IconButton>
       </div>
     </div>

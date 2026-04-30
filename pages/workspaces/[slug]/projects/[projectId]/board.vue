@@ -19,6 +19,8 @@
       :project-id="project?.id || ''"
       :statuses="statuses"
       :labels="labels"
+      :members="members"
+      :agents="agents"
       @close="closeTaskDetail"
       @updated="handleTaskUpdated"
       @deleted="handleTaskDeleted"
@@ -29,6 +31,8 @@
       v-if="showCreateModal"
       :statuses="statuses"
       :labels="labels"
+      :members="members"
+      :agents="agents"
       :project-id="project?.id || ''"
       @close="showCreateModal = false"
       @created="handleTaskCreated"
@@ -37,7 +41,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label } from '~/types'
+import type { Task, Status, Label, ProjectMember } from '~/types'
+import type { Agent } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -47,12 +52,14 @@ const route = useRoute()
 const projectId = computed(() => route.params.projectId as string)
 
 const { tasks, loading, fetchTasks, createTask, updateTask } = useTask()
-const { fetchProjectDetail, projectStatuses, projectLabels } = useProject()
+const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
+const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
 
 const project = ref<any>(null)
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
+const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
 const { addLog } = useLog()
 
@@ -64,6 +71,8 @@ onMounted(async () => {
   if (statuses.value.length > 0) {
     await fetchTasks(projectId.value)
   }
+  members.value = await fetchMembers(projectId.value)
+  await fetchAgents()
 })
 
 function handleCreateTask() {

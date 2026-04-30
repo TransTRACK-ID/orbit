@@ -78,6 +78,7 @@ export interface Task {
   projectId: string
   statusId: string
   assigneeId: string | null
+  assigneeType: 'user' | 'agent' | null
   reporterId: string
   title: string
   description: string | null
@@ -88,12 +89,20 @@ export interface Task {
   estimate: number | null
   createdAt: string
   updatedAt: string
-  assignee?: AuthUser | null
+  assignee?: TaskAssignee | null
   reporter?: AuthUser
   status?: Status
   labels?: Label[]
   subtasks?: Task[]
   _count?: { comments: number; subtasks: number }
+}
+
+export interface TaskAssignee {
+  id: string
+  name: string
+  initials?: string
+  color?: string
+  avatarUrl?: string | null
 }
 
 // ─── Comment ───

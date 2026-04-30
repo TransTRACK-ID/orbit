@@ -63,13 +63,16 @@ const route = useRoute()
 const router = useRouter()
 
 const { workspaces, fetchWorkspaces } = useWorkspace()
-const { agents } = useAgent()
+const { agents, fetchAgents } = useAgent()
 
 const agentCount = computed(() => agents.value.length)
 
 onMounted(async () => {
   if (!workspaces.value || workspaces.value.length === 0) {
     await fetchWorkspaces()
+  }
+  if (agents.value.length === 0) {
+    await fetchAgents()
   }
 })
 

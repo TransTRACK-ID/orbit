@@ -50,11 +50,11 @@
       <!-- Assignee -->
       <span
         v-if="task.assignee"
-        class="ml-auto w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white"
-        :style="{ background: assigneeColor }"
+        class="ml-auto w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white flex-shrink-0"
+        :style="{ background: task.assignee.color || '#6366F1' }"
         :title="task.assignee.name"
       >
-        {{ assigneeInitials }}
+        {{ task.assignee.initials || computedInitials(task.assignee.name) }}
       </span>
     </div>
   </div>
@@ -71,7 +71,9 @@ defineEmits<{
   click: []
 }>()
 
-const { agents } = useAgent()
+function computedInitials(name: string) {
+  return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+}
 
 function priorityStyle(priority: string) {
   return {
@@ -98,14 +100,5 @@ function typeLabel(task: Task) {
   return 'Feature'
 }
 
-const assigneeInitials = computed(() => {
-  if (!props.task.assignee?.name) return ''
-  return props.task.assignee.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-})
 
-const assigneeColor = computed(() => {
-  if (!props.task.assignee?.name) return '#6366F1'
-  const agent = agents.value.find(a => a.name === props.task.assignee!.name)
-  return agent?.color || '#6366F1'
-})
 </script>

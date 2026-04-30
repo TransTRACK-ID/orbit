@@ -78,6 +78,7 @@ export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
   statusId: z.string().uuid(),
   assigneeId: z.string().uuid().nullable().optional(),
+  assigneeType: z.enum(['user', 'agent']).nullable().optional(),
   description: z.string().optional(),
   priority: z.enum(['none', 'urgent', 'high', 'medium', 'low']).optional(),
   parentTaskId: z.string().uuid().nullable().optional(),
@@ -90,6 +91,7 @@ export const updateTaskSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   statusId: z.string().uuid().optional(),
   assigneeId: z.string().uuid().nullable().optional(),
+  assigneeType: z.enum(['user', 'agent']).nullable().optional(),
   description: z.string().nullable().optional(),
   position: z.number().optional(),
   priority: z.enum(['none', 'urgent', 'high', 'medium', 'low']).optional(),
@@ -97,6 +99,26 @@ export const updateTaskSchema = z.object({
   dueDate: z.string().datetime().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),
   labelIds: z.array(z.string().uuid()).optional(),
+})
+
+// ─── Agent ───
+export const createAgentSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  role: z.string().min(1, 'Role is required').max(255),
+  runtime: z.string().min(1).max(50),
+  purpose: z.string().max(2000).optional(),
+  status: z.enum(['idle', 'busy', 'offline']).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid color hex').optional(),
+})
+
+export const updateAgentSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  role: z.string().min(1).max(255).optional(),
+  runtime: z.string().min(1).max(50).optional(),
+  purpose: z.string().max(2000).optional(),
+  status: z.enum(['idle', 'busy', 'offline']).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  tasks: z.number().int().min(0).optional(),
 })
 
 // ─── Comment ───

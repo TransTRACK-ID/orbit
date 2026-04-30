@@ -3,13 +3,21 @@ import { getDb, schema } from '~/server/database'
 import { updateTaskSchema } from '~/server/utils/validation'
 import { eq } from 'drizzle-orm'
 
+function unifyAssignee(task: any) {
+  if (!task) return task
+  const { agentAssignee, assignee, ...rest } = task
+  const unified = task.assigneeType === 'agent' && agentAssignee
+    ? { id: agentAssignee.id, name: agentAssignee.name, initials: agentAssignee.initials, color: agentAssignee.color }
+    : task.assigneeType === 'user' ? assignee : null
+  return { ...rest, assignee: unified }
+}
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
   const body = await readValidatedBody(event, updateTaskSchema.parse)
   const db = getDb()
 
-  // Get existing task
   const existing = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
   })
@@ -18,16 +26,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  // Build update data (exclude labelIds — handled separately)
-  const { labelIds, ...updateData } = body
-  const dataToUpdate: any = { ...updateData }
+  const { labelIds, assigneeId, assigneeType, ...restData } = body
+  const dataToUpdate: any = { ...restData }
 
-  // Convert dueDate string to Date if provided
   if (dataToUpdate.dueDate) {
     dataToUpdate.dueDate = new Date(dataToUpdate.dueDate)
   }
 
-  // Update task
+  if (assigneeId !== undefined || assigneeType !== undefined) {
+    const resolvedType = assigneeType !== undefined ? assigneeType : existing.assigneeType
+    dataToUpdate.assigneeType = resolvedType || null
+    dataToUpdate.assigneeId = resolvedType === 'user' ? (assigneeId ?? null) : null
+    dataToUpdate.agentAssigneeId = resolvedType === 'agent' ? (assigneeId ?? null) : null
+  }
+
   if (Object.keys(dataToUpdate).length > 0) {
     await db
       .update(schema.tasks)
@@ -35,7 +47,6 @@ export default defineEventHandler(async (event) => {
       .where(eq(schema.tasks.id, id))
   }
 
-  // Update labels if provided
   if (labelIds !== undefined) {
     await db.delete(schema.taskLabels).where(eq(schema.taskLabels.taskId, id))
     if (labelIds.length > 0) {
@@ -45,7 +56,6 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Log activity for status or assignee changes
   if (body.statusId && body.statusId !== existing.statusId) {
     const newStatus = await db.query.statuses.findFirst({
       where: eq(schema.statuses.id, body.statusId),
@@ -62,23 +72,28 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (body.assigneeId !== undefined && body.assigneeId !== existing.assigneeId) {
-    await db.insert(schema.activityLogs).values({
-      taskId: id,
-      userId: user.id,
-      action: 'assignee_change',
-      oldValue: { assigneeId: existing.assigneeId },
-      newValue: { assigneeId: body.assigneeId },
-    })
+  const newAssigneeId = dataToUpdate.assigneeId ?? dataToUpdate.agentAssigneeId ?? existing.assigneeId
+  const oldAssigneeId = existing.assigneeId
+  const newAssigneeType = dataToUpdate.assigneeType ?? existing.assigneeType
+  if (newAssigneeId !== oldAssigneeId || newAssigneeType !== existing.assigneeType) {
+    if (body.assigneeId !== undefined || body.assigneeType !== undefined) {
+      await db.insert(schema.activityLogs).values({
+        taskId: id,
+        userId: user.id,
+        action: 'assignee_change',
+        oldValue: { assigneeId: existing.assigneeId, assigneeType: existing.assigneeType },
+        newValue: { assigneeId: newAssigneeId, assigneeType: newAssigneeType },
+      })
+    }
   }
 
-  // Fetch updated task
   const updated = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
     with: {
       assignee: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
+      agentAssignee: true,
       reporter: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
@@ -90,7 +105,7 @@ export default defineEventHandler(async (event) => {
   })
 
   return {
-    ...updated,
+    ...unifyAssignee(updated),
     labels: updated?.taskLabels?.map((tl) => tl.label) || [],
     taskLabels: undefined,
   }

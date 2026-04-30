@@ -35,8 +35,13 @@
       </div>
     </div>
 
+    <!-- Loading state -->
+    <div v-if="loading" class="flex items-center justify-center py-16">
+      <Icon name="lucide:loader-circle" class="w-5 h-5 text-surface-400 animate-spin" />
+    </div>
+
     <!-- Empty state -->
-    <div v-if="agents.length === 0" class="text-center py-16 text-surface-400">
+    <div v-else-if="agents.length === 0" class="text-center py-16 text-surface-400">
       <Icon name="lucide:bot" class="w-8 h-8 mx-auto mb-3" />
       <p class="text-xs mb-4">No agents yet. Create your first agent to get started.</p>
       <button
@@ -217,8 +222,12 @@ definePageMeta({
   layout: 'default',
 })
 
-const { agents, agentCounts, runtimeInfo, runtimes, createAgent, updateAgent, deleteAgent: deleteAgentApi } = useAgent()
+const { agents, loading, agentCounts, runtimeInfo, runtimes, fetchAgents, createAgent, updateAgent, deleteAgent: deleteAgentApi } = useAgent()
 const { addLog } = useLog()
+
+onMounted(() => {
+  fetchAgents()
+})
 
 const agentColors = ['#7C3AED', '#2563EB', '#DC2626', '#D97706', '#0891B2', '#16A34A', '#EC4899', '#6366F1']
 
@@ -266,23 +275,23 @@ function resetForm() {
   form.color = '#7C3AED'
 }
 
-function saveAgent() {
+async function saveAgent() {
   if (!form.name.trim()) return
 
   if (editingAgent.value) {
-    updateAgent(editingAgent.value.id, { ...form })
+    await updateAgent(editingAgent.value.id, { ...form })
     addLog('System', `Updated agent "${form.name}"`)
   } else {
-    createAgent({ ...form })
+    await createAgent({ ...form })
     addLog('System', `Created agent "${form.name}"`)
   }
 
   closeModal()
 }
 
-function handleDelete(agent: Agent) {
+async function handleDelete(agent: Agent) {
   if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return
-  deleteAgentApi(agent.id)
+  await deleteAgentApi(agent.id)
   addLog('System', `Deleted agent "${agent.name}"`)
 }
 

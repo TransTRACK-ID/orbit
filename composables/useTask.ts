@@ -1,11 +1,12 @@
 import type { Task, Comment, ActivityLog } from '~/types'
 
+const tasks = ref<Task[]>([])
+const currentTask = ref<Task | null>(null)
+const comments = ref<Comment[]>([])
+const activityLogs = ref<ActivityLog[]>([])
+const loading = ref(false)
+
 export const useTask = () => {
-  const tasks = ref<Task[]>([])
-  const currentTask = ref<Task | null>(null)
-  const comments = ref<Comment[]>([])
-  const activityLogs = ref<ActivityLog[]>([])
-  const loading = ref(false)
 
   async function fetchTasks(projectId: string) {
     loading.value = true
@@ -22,6 +23,7 @@ export const useTask = () => {
     title: string
     statusId: string
     assigneeId?: string | null
+    assigneeType?: 'user' | 'agent' | null
     description?: string
     priority?: string
     labelIds?: string[]

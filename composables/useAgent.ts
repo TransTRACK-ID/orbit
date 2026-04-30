@@ -1,19 +1,10 @@
 import type { Agent, AgentStatus, RuntimeInfo } from '~/types'
 
-const sampleAgents: Agent[] = [
-  { id:'ga1', name:'Aria Codex',   initials:'AC', runtime:'claude-code', purpose:'Senior agent specialized in middleware refactoring, authentication chains, and embedding cache optimization',  status:'idle',    color:'#7C3AED', role:'Senior Agent', tasks:12 },
-  { id:'ga2', name:'Nova Prime',   initials:'NP', runtime:'codex',       purpose:'Review agent focused on PR validation, code quality gates, context window verification, and tool registry audits', status:'busy',    color:'#2563EB', role:'Review Agent', tasks:8 },
-  { id:'ga3', name:'Echo Shell',   initials:'ES', runtime:'opencode',    purpose:'Fix agent specialized in memory leak diagnosis, crash debugging, rate limiter edge cases, and state serialization bugs', status:'busy',    color:'#DC2626', role:'Fix Agent', tasks:15 },
-  { id:'ga4', name:'Luna Fetch',   initials:'LF', runtime:'kimi-cli',    purpose:'Junior agent learning observability patterns, heartbeat monitoring, analytics dashboards, and cache layer patterns', status:'offline', color:'#D97706', role:'Junior Agent', tasks:4 },
-  { id:'ga5', name:'Vector Prime', initials:'VP', runtime:'claude-code', purpose:'API gateway specialist focusing on rate limit headers, WebSocket throttling, and playground development',            status:'idle',    color:'#0891B2', role:'API Agent', tasks:6 },
-  { id:'ga6', name:'Sage Logic',   initials:'SL', runtime:'codex',       purpose:'Gateway agent managing OAuth refresh flows, CORS policy, and blue-green gateway deployments',                         status:'idle',    color:'#7C3AED', role:'Gateway Agent', tasks:4 },
-  { id:'ga7', name:'Clippy Bot',   initials:'CB', runtime:'opencode',    purpose:'CLI scaffolding specialist for kanvas init, commands, project presets, and developer tooling',                    status:'idle',    color:'#16A34A', role:'CLI Agent', tasks:3 },
-  { id:'ga8', name:'Docs Sage',    initials:'DS', runtime:'droid',       purpose:'Documentation agent for SDK type definitions, integration test harnesses, and API reference generation',           status:'offline', color:'#D97706', role:'Docs Agent', tasks:2 },
-]
+const agents = ref<Agent[]>([])
+const loading = ref(false)
+const filterAgentId = ref<string | null>(null)
 
 export const useAgent = () => {
-  const agents = ref<Agent[]>([...sampleAgents])
-  const filterAgentId = ref<string | null>(null)
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
     'claude-code': { name:'Claude Code', icon:'lucide:terminal', color:'#7C3AED', desc:'Anthropic CLI agent for code generation and analysis' },
@@ -33,40 +24,38 @@ export const useAgent = () => {
     offline: agents.value.filter(a => a.status === 'offline').length,
   }))
 
-  function createAgent(data: {
-    name: string
-    role: string
-    runtime: string
-    purpose: string
-    status: AgentStatus
-    color: string
-  }) {
-    const id = 'ga' + Date.now()
-    const agent: Agent = {
-      id,
-      name: data.name,
-      initials: data.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-      role: data.role,
-      runtime: data.runtime,
-      purpose: data.purpose,
-      status: data.status,
-      color: data.color,
-      tasks: 0,
+  async function fetchAgents() {
+    loading.value = true
+    try {
+      agents.value = await $fetch<Agent[]>('/api/agents')
+    } catch (err) {
+      console.error('Failed to fetch agents:', err)
+    } finally {
+      loading.value = false
     }
+  }
+
+  async function createAgent(data: { name: string; role: string; runtime: string; purpose: string; status: AgentStatus; color: string }) {
+    const agent = await $fetch<Agent>('/api/agents', {
+      method: 'POST',
+      body: data,
+    })
     agents.value.push(agent)
     return agent
   }
 
-  function updateAgent(id: string, data: Partial<Agent>) {
+  async function updateAgent(id: string, data: Partial<Agent>) {
+    const updated = await $fetch<Agent>(`/api/agents/${id}`, {
+      method: 'PATCH',
+      body: data,
+    })
     const idx = agents.value.findIndex(a => a.id === id)
-    if (idx !== -1) {
-      agents.value[idx] = { ...agents.value[idx], ...data }
-      return agents.value[idx]
-    }
-    return null
+    if (idx !== -1) agents.value[idx] = updated
+    return updated
   }
 
-  function deleteAgent(id: string) {
+  async function deleteAgent(id: string) {
+    await $fetch(`/api/agents/${id}`, { method: 'DELETE' })
     agents.value = agents.value.filter(a => a.id !== id)
   }
 
@@ -78,16 +67,13 @@ export const useAgent = () => {
     filterAgentId.value = filterAgentId.value === agentId ? null : agentId
   }
 
+  function computeInitials(name: string) {
+    return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  }
+
   return {
-    agents,
-    filterAgentId,
-    runtimeInfo,
-    runtimes,
-    agentCounts,
-    createAgent,
-    updateAgent,
-    deleteAgent,
-    getAgentById,
-    toggleFilter,
+    agents, loading, filterAgentId, runtimeInfo, runtimes, agentCounts,
+    fetchAgents, createAgent, updateAgent, deleteAgent,
+    getAgentById, toggleFilter, computeInitials,
   }
 }

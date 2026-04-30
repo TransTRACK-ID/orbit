@@ -28,7 +28,9 @@ export default defineEventHandler(async (event) => {
     .values({
       projectId,
       statusId: body.statusId,
-      assigneeId: body.assigneeId || null,
+      assigneeId: body.assigneeType === 'user' ? body.assigneeId : null,
+      agentAssigneeId: body.assigneeType === 'agent' ? body.assigneeId : null,
+      assigneeType: body.assigneeType || null,
       reporterId: user.id,
       title: body.title,
       description: body.description || null,
@@ -57,6 +59,7 @@ export default defineEventHandler(async (event) => {
       assignee: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
+      agentAssignee: true,
       reporter: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
@@ -67,8 +70,15 @@ export default defineEventHandler(async (event) => {
     },
   })
 
+  const { agentAssignee, assignee, ...rest } = createdTask || {}
+  const unifiedAssignee = createdTask?.assigneeType === 'agent' && agentAssignee
+    ? { id: agentAssignee.id, name: agentAssignee.name, initials: agentAssignee.initials, color: agentAssignee.color }
+    : createdTask?.assigneeType === 'user' ? assignee : null
+
   return {
-    ...createdTask,
+    ...rest,
+    assignee: unifiedAssignee,
+    agentAssignee: undefined,
     labels: createdTask?.taskLabels?.map((tl) => tl.label) || [],
     taskLabels: undefined,
   }

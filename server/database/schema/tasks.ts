@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, doublePrecision, timestamp, integer } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { users } from './users'
+import { agents } from './agents'
 import { projects } from './projects'
 import { statuses } from './statuses'
 import { taskLabels } from './task-labels'
@@ -12,6 +13,8 @@ export const tasks = pgTable('tasks', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   statusId: uuid('status_id').notNull().references(() => statuses.id, { onDelete: 'cascade' }),
   assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  agentAssigneeId: uuid('agent_assignee_id').references(() => agents.id, { onDelete: 'set null' }),
+  assigneeType: varchar('assignee_type', { length: 10 }),
   reporterId: uuid('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 500 }).notNull(),
   description: text('description'),
@@ -36,6 +39,10 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   assignee: one(users, {
     fields: [tasks.assigneeId],
     references: [users.id],
+  }),
+  agentAssignee: one(agents, {
+    fields: [tasks.agentAssigneeId],
+    references: [agents.id],
   }),
   reporter: one(users, {
     fields: [tasks.reporterId],

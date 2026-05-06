@@ -4,8 +4,8 @@ export const useLog = () => {
   const logs = useState<ActivityLogEntry[]>('app:logs', () => [])
   const isOpen = useState<boolean>('app:logPanelOpen', () => false)
 
-  function addLog(agent: string, msg: string) {
-    logs.value = [{ time: Date.now(), agent, msg }, ...logs.value]
+  function addLog(agent: string, msg: string, taskId?: string) {
+    logs.value = [{ time: Date.now(), agent, msg, taskId }, ...logs.value]
     if (logs.value.length > 200) {
       logs.value = logs.value.slice(0, 200)
     }

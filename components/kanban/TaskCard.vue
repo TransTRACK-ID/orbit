@@ -1,6 +1,7 @@
 <template>
   <div
     class="kanban-card"
+    :class="{ agentic: isAgentInProgress }"
     :data-id="task.id"
     @click="$emit('click')"
   >
@@ -31,6 +32,14 @@
         :style="{ backgroundColor: label.color + '20', color: label.color }"
       >
         {{ label.name }}
+      </span>
+    </div>
+
+    <!-- Agentic In Progress badge -->
+    <div v-if="isAgentInProgress" class="flex items-center gap-1.5 mb-1.5">
+      <span class="agentic-badge">
+        <span class="agentic-dot" />
+        <span>Agentic · {{ task.assignee?.name }}</span>
       </span>
     </div>
 
@@ -70,6 +79,15 @@ const props = defineProps<{
 defineEmits<{
   click: []
 }>()
+
+const isAgentInProgress = computed(() => {
+  return (
+    props.task.assigneeType === 'agent' &&
+    props.task.assignee &&
+    props.task.status?.name &&
+    /progress/i.test(props.task.status.name)
+  )
+})
 
 function computedInitials(name: string) {
   return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)

@@ -1,12 +1,12 @@
 <template>
   <div
     class="agent-panel flex-shrink-0 border-l border-surface-200 bg-white flex flex-col overflow-hidden transition-all duration-200"
-    :class="isOpen ? 'w-[220px]' : 'w-0'"
+    :class="agentPanelOpen ? 'w-[220px]' : 'w-0'"
   >
     <div class="flex items-center gap-2 px-3.5 py-3 border-b border-surface-200 flex-shrink-0">
       <Icon name="lucide:bot" class="w-3.5 h-3.5 text-accent" />
       <h4 class="text-[11px] font-semibold">Agents</h4>
-      <button class="ml-auto text-[10px] px-1.5 py-0.5 rounded hover:bg-surface-100" @click="togglePanel">
+      <button class="ml-auto text-[10px] px-1.5 py-0.5 rounded hover:bg-surface-100" @click="toggleAgentPanel">
         <Icon name="lucide:x" class="w-3 h-3" />
       </button>
     </div>
@@ -59,17 +59,8 @@
 <script setup lang="ts">
 import type { Task } from '~/types'
 
-const { agents, filterAgentId, toggleFilter } = useAgent()
+const { agents, filterAgentId, agentPanelOpen, toggleAgentPanel, toggleFilter } = useAgent()
 const drawerState = useTaskDrawer()
-
-const isOpen = ref(false)
-
-function togglePanel() {
-  isOpen.value = !isOpen.value
-}
-
-// Expose toggle for parent
-defineExpose({ isOpen, togglePanel })
 
 const statusDotClass = (status: string) => ({
   'bg-green-500': status === 'idle',

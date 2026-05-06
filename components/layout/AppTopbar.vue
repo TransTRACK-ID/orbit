@@ -87,8 +87,20 @@ const emit = defineEmits<{
 const searchQuery = ref('')
 
 const breadcrumbWs = computed(() => route.params.slug as string | undefined)
-const breadcrumbProject = computed(() => route.params.projectId as string | undefined)
 const breadcrumbWsSlug = computed(() => route.params.slug as string)
+
+const { getProjectById } = useProject()
+const projectName = ref<string>()
+watch(() => route.params.projectId, async (projectId) => {
+  if (projectId) {
+    const project = await getProjectById(projectId as string)
+    projectName.value = project?.name || (projectId as string)
+  } else {
+    projectName.value = undefined
+  }
+}, { immediate: true })
+
+const breadcrumbProject = computed(() => projectName.value)
 
 const agentCount = computed(() => agents.value.length)
 
@@ -104,7 +116,5 @@ const userInitials = computed(() => {
   return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 })
 
-function toggleSidebar() {
-  document.getElementById('sidebar')?.classList.toggle('-translate-x-full')
-}
+const { toggle: toggleSidebar } = useSidebar()
 </script>

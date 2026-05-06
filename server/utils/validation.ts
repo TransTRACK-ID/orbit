@@ -26,6 +26,9 @@ export const createWorkspaceSchema = z.object({
 export const updateWorkspaceSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(1000).optional(),
+  repositoryUrl: z.string().max(1000).nullable().optional(),
+  defaultBranch: z.string().min(1).max(255).optional(),
+  createBranch: z.boolean().optional(),
 })
 
 // ─── Project ───

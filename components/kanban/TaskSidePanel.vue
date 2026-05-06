@@ -98,6 +98,13 @@
                 <ChevronDown class="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
               </button>
 
+              <div v-if="isAgentInProgress" class="flex items-center gap-1.5 mt-2">
+                <span class="agentic-badge">
+                  <span class="agentic-dot" />
+                  <span>Agentic · {{ task.assignee?.name }}</span>
+                </span>
+              </div>
+
               <div
                 v-if="showAssigneePicker"
                 class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
@@ -213,24 +220,115 @@
               <Button :disabled="!newComment" @click="handleAddComment">Send</Button>
             </div>
 
-            <div v-if="activityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
+            <div v-if="userActivityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
               <div class="space-y-2">
                 <div
-                  v-for="log in activityLogs"
+                  v-for="log in userActivityLogs"
                   :key="log.id"
                   class="flex items-start gap-2 text-sm text-surface-500"
                 >
-                  <Avatar :name="log.user?.name || 'U'" size="xs" />
+                  <Avatar :name="log.userName || 'U'" size="xs" />
                   <div>
-                    <span class="font-medium text-surface-700">{{ log.user?.name }}</span>
-                    <span>
-                      {{ formatActivity(log) }}
-                    </span>
-                    <span class="text-xs text-surface-400 ml-1">{{ formatRelativeTime(log.createdAt) }}</span>
+                    <span class="font-medium text-surface-700">{{ log.userName }}</span>
+                    <span>{{ ' ' + log.message }}</span>
+                    <span class="text-xs text-surface-400 ml-1">{{ log.displayTime }}</span>
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div v-if="task" class="mt-6 pt-4 border-t border-surface-100">
+              <div class="flex items-center gap-2 mb-3">
+                <button
+                  class="flex items-center gap-1 flex-1 text-left group"
+                  @click="runtimeLogsExpanded = !runtimeLogsExpanded"
+                >
+                  <ChevronDown
+                    class="w-3 h-3 text-surface-400 transition-transform duration-200"
+                    :class="{ 'rotate-180': runtimeLogsExpanded }"
+                  />
+                  <label class="text-xs font-medium text-surface-500 cursor-pointer group-hover:text-surface-700 transition-colors">
+                    Runtime ({{ runtimeLogsForTask.length }})
+                  </label>
+                </button>
+                <button
+                  v-if="isAgentInProgress && !runtimeActive"
+                  class="text-[10px] font-semibold px-2 py-1 rounded-md bg-primary-500 text-white hover:bg-primary-600 transition-colors flex items-center gap-1"
+                  @click="startRuntime(task.id); prUrl = ''; prError = ''"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                  Run
+                </button>
+                <button
+                  v-if="runtimeActive"
+                  class="text-[10px] font-semibold px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-1"
+                  @click="stopRuntime(task.id)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  Stop
+                </button>
+              </div>
+
+              <template v-if="runtimeLogsForTask.length > 0 || runtimeActive">
+
+              <div class="flex items-start gap-2 text-sm text-surface-500 mb-2">
+                <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-600"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M9 14h6"/><path d="M12 14v4"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-medium text-surface-700">Runtime</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-semibold">LIVE</span>
+                  </div>
+                  <p class="text-sm text-surface-600 truncate mt-0.5">{{ latestRuntimeLog?.message || 'Waiting...' }}</p>
+                </div>
+              </div>
+
+              <div
+                v-if="runtimeLogsExpanded"
+                class="space-y-0.5 max-h-40 overflow-y-auto rounded-lg bg-surface-50 p-2"
+              >
+                <div
+                  v-for="log in runtimeLogsForTask"
+                  :key="log.id"
+                  class="flex items-start gap-1.5 py-0.5 text-[11px] leading-snug"
+                >
+                  <span class="text-primary-400 mt-0.5 flex-shrink-0">&#8250;</span>
+                  <span class="text-surface-600 font-mono flex-1 min-w-0">{{ log.message }}</span>
+                  <span class="text-surface-400 flex-shrink-0 whitespace-nowrap">{{ log.displayTime }}</span>
+                </div>
+              </div>
+
+              <div v-if="runtimeCompleted && !runtimeActive" class="mt-3">
+                <button
+                  v-if="!prUrl && !prLoading"
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5"
+                  @click="handleCreatePr"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  Create PR
+                </button>
+                <button
+                  v-else-if="prLoading"
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-500 text-white flex items-center justify-center gap-1.5 opacity-70 cursor-wait"
+                  disabled
+                >
+                  <svg class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  Creating PR...
+                </button>
+                <a
+                  v-else-if="prUrl"
+                  :href="prUrl"
+                  target="_blank"
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5 no-underline"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  Open PR
+                </a>
+                <p v-if="prError" class="text-[10px] text-red-500 mt-1">{{ prError }}</p>
+              </div>
+            </template>
             </div>
           </div>
         </div>
@@ -253,6 +351,8 @@
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember } from '~/types'
 import type { Agent } from '~/types'
 import { useDebounceFn } from '@vueuse/core'
+
+const { addLog, logs: runtimeLogs } = useLog()
 
 const props = defineProps<{
   taskId: string
@@ -287,17 +387,130 @@ const confirmDelete = ref(false)
 const editorRef = ref<HTMLDivElement | null>(null)
 const showAssigneePicker = ref(false)
 
+const isAgentInProgress = computed(() => {
+  return (
+    task.value?.assigneeType === 'agent' &&
+    task.value?.assignee &&
+    task.value?.status?.name &&
+    /progress/i.test(task.value.status.name)
+  )
+})
+
+const { startRuntime, stopRuntime, isRunning } = useAgentRuntime()
+const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)
+
 function computedInitials(name: string) {
   return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
+function formatRelativeTimeFromMs(ts: number) {
+  const diff = Date.now() - ts
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+const runtimeLogsExpanded = ref(false)
+
+const userActivityLogs = computed(() =>
+  activityLogs.value
+    .filter(log => log.action !== 'runtime_log')
+    .map(log => ({
+      id: log.id,
+      userName: log.user?.name || 'Unknown',
+      message: formatActivity(log),
+      displayTime: formatRelativeTime(log.createdAt),
+      timestamp: new Date(log.createdAt).getTime(),
+    }))
+)
+
+const runtimeLogsForTask = computed(() => {
+  const inMemoryLogs = runtimeLogs.value
+    .filter(log => log.taskId === props.taskId)
+    .map(log => ({
+      id: `runtime-${log.time}`,
+      message: log.msg,
+      displayTime: formatRelativeTimeFromMs(log.time),
+      timestamp: log.time,
+    }))
+
+  const persistedLogs = activityLogs.value
+    .filter(log => log.action === 'runtime_log')
+    .map(log => ({
+      id: `persisted-${log.id}`,
+      message: `> ${log.newValue?.message || ''}`,
+      displayTime: formatRelativeTime(log.createdAt),
+      timestamp: new Date(log.createdAt).getTime(),
+    }))
+
+  return [...inMemoryLogs, ...persistedLogs].sort((a, b) => b.timestamp - a.timestamp)
+})
+
+const latestRuntimeLog = computed(() => runtimeLogsForTask.value[0] || null)
+
+const runtimeCompleted = computed(() =>
+  runtimeLogsForTask.value.some(log => /Done|completed|exited/i.test(log.message))
+)
+
+const prUrl = computed(() => {
+  const prLog = activityLogs.value.find(l => l.action === 'pr_created')
+  return prLog?.newValue?.url || ''
+})
+
+const prLoading = ref(false)
+const prError = ref('')
+
+async function handleCreatePr() {
+  if (!task.value) return
+  if (prUrl.value) return
+  prLoading.value = true
+  prError.value = ''
+  try {
+    await $fetch<{ url: string }>(`/api/tasks/${task.value.id}/pr`, { method: 'POST' })
+    activityLogs.value = await fetchActivity(props.taskId)
+  } catch (err: any) {
+    prError.value = err.message || err.data?.statusMessage || 'Failed to create PR'
+  } finally {
+    prLoading.value = false
+  }
+}
+
+let hasAdvanced = false
+watch(runtimeCompleted, async (completed) => {
+  if (completed && task.value && !runtimeActive.value && !hasAdvanced) {
+    hasAdvanced = true
+    const currentStatus = props.statuses.find(s => s.id === task.value?.statusId)
+    if (currentStatus) {
+      const sorted = [...props.statuses].sort((a, b) => a.position - b.position)
+      const idx = sorted.findIndex(s => s.id === currentStatus.id)
+      const nextStatus = sorted[idx + 1]
+      if (nextStatus) {
+        await handleUpdate('statusId', nextStatus.id)
+        activityLogs.value = await fetchActivity(props.taskId)
+      }
+    }
+  }
+})
+
 async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   showAssigneePicker.value = false
   if (!task.value) return
+  const oldAssigneeType = task.value.assigneeType
   const updated = await updateTaskApi(task.value.id, {
     assigneeId: assigneeId || null,
     assigneeType: assigneeType || null,
   })
+  if (updated) {
+    if (oldAssigneeType !== 'agent' && assigneeType === 'agent' && updated.assignee) {
+      addLog('Runtime', `Agent "${updated.assignee.name}" assigned to "${updated.title}"`, props.taskId)
+    } else if (oldAssigneeType === 'agent' && assigneeType !== 'agent') {
+      addLog('Runtime', `Agent unassigned from "${updated.title}"`, props.taskId)
+    }
+  }
   task.value = updated
   emit('updated', updated)
 }
@@ -335,7 +548,14 @@ onMounted(async () => {
 
 async function handleUpdate(field: string, value: any) {
   if (!task.value) return
+  const old = { ...task.value }
   const updated = await updateTaskApi(task.value.id, { [field]: value })
+  if (updated && field === 'statusId' && old.statusId !== value) {
+    const newStatus = props.statuses.find((s) => s.id === value)
+    if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
+      addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
+    }
+  }
   task.value = updated
   emit('updated', updated)
 }
@@ -413,8 +633,17 @@ function formatActivity(log: ActivityLog) {
   switch (log.action) {
     case 'status_change':
       return `moved from "${log.oldValue?.statusName}" to "${log.newValue?.statusName}"`
-    case 'assignee_change':
+    case 'assignee_change': {
+      const oldType = log.oldValue?.assigneeType
+      const newType = log.newValue?.assigneeType
+      if (oldType !== 'agent' && newType === 'agent') {
+        return 'assigned to runtime agent'
+      }
+      if (oldType === 'agent' && newType !== 'agent') {
+        return 'removed from runtime agent'
+      }
       return 'changed assignee'
+    }
     case 'comment_added':
       return 'added a comment'
     default:

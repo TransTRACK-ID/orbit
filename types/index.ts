@@ -12,6 +12,9 @@ export interface Workspace {
   name: string
   slug: string
   description: string | null
+  repositoryUrl: string | null
+  defaultBranch: string
+  createBranch: boolean
   ownerId: string
   createdAt: string
   updatedAt: string
@@ -163,6 +166,7 @@ export interface ActivityLogEntry {
   time: number
   agent: string
   msg: string
+  taskId?: string
 }
 
 // ─── Queue Item (unassigned tasks) ───

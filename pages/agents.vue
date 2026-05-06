@@ -237,7 +237,7 @@ const editingAgent = ref<Agent | null>(null)
 const form = reactive({
   name: '',
   role: 'Custom Agent',
-  runtime: 'custom',
+  runtime: 'opencode',
   purpose: '',
   status: 'idle' as AgentStatus,
   color: '#7C3AED',
@@ -269,7 +269,7 @@ function closeModal() {
 function resetForm() {
   form.name = ''
   form.role = 'Custom Agent'
-  form.runtime = 'custom'
+  form.runtime = 'opencode'
   form.purpose = ''
   form.status = 'idle'
   form.color = '#7C3AED'

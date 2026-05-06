@@ -82,11 +82,26 @@ function handleCreateTask() {
 async function handleTaskCreated(task: Task) {
   showCreateModal.value = false
   tasks.value.push(task)
-  addLog('System', `Created task "${task.title}"`)
+  addLog('System', `Created task "${task.title}"`, task.id)
 }
 
 async function handleUpdateTask(data: { id: string; statusId?: string; position?: number; [key: string]: any }) {
-  await updateTask(data.id, data)
+  const oldTask = tasks.value.find(t => t.id === data.id)
+  const updated = await updateTask(data.id, data)
+
+  if (updated && oldTask && data.statusId && oldTask.statusId !== data.statusId) {
+    if (updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
+      addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, data.id)
+    }
+  }
+
+  if (updated && oldTask && (data.assigneeId !== undefined || data.assigneeType !== undefined)) {
+    const oldAssigneeType = oldTask.assigneeType
+    const newAssigneeType = updated.assigneeType
+    if (oldAssigneeType !== 'agent' && newAssigneeType === 'agent' && updated.assignee) {
+      addLog('Runtime', `Task "${updated.title}" assigned to agent "${updated.assignee.name}"`, data.id)
+    }
+  }
 }
 
 function handleOpenTask(task: Task) {

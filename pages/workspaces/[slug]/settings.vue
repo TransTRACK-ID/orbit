@@ -28,6 +28,51 @@
         </form>
       </div>
 
+      <!-- Repository -->
+      <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-surface-900 mb-4">Repository</h2>
+        <p class="text-xs text-surface-400 mb-4">
+          Connect a repository so agents can clone, create branches, and start working from tasks.
+        </p>
+        <form @submit.prevent="handleRepoUpdate" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Repository URL</label>
+            <TextInput
+              v-model="form.repositoryUrl"
+              placeholder="https://github.com/org/repo or git@github.com:org/repo.git"
+            />
+            <p class="text-[10px] text-surface-400 mt-1">Supports GitHub and self-hosted GitLab</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Default Branch</label>
+            <TextInput v-model="form.defaultBranch" placeholder="main" />
+          </div>
+          <div class="flex items-start gap-3 pt-1">
+            <input
+              id="create-branch"
+              v-model="form.createBranch"
+              type="checkbox"
+              class="mt-0.5 w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
+            />
+            <div>
+              <label for="create-branch" class="text-sm font-medium text-surface-700 cursor-pointer">
+                Always create a new branch
+              </label>
+              <p class="text-[10px] text-surface-400">
+                Agents will create a new branch from the default branch before starting work.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <Button type="submit" :loading="repoSaving">Save Repository</Button>
+            <TextButton v-if="repoSaved" class="text-success-500">
+              <Check class="w-4 h-4" />
+              Saved
+            </TextButton>
+          </div>
+        </form>
+      </div>
+
       <!-- Members -->
       <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
@@ -98,9 +143,11 @@ const { getWorkspaceBySlug, updateWorkspace, deleteWorkspace } = useWorkspace()
 
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<any>(null)
-const form = reactive({ name: '', description: '' })
+const form = reactive({ name: '', description: '', repositoryUrl: '', defaultBranch: 'main', createBranch: true })
 const saving = ref(false)
 const saved = ref(false)
+const repoSaving = ref(false)
+const repoSaved = ref(false)
 const showInvite = ref(false)
 const inviteEmail = ref('')
 const confirmDelete = ref(false)
@@ -110,6 +157,9 @@ onMounted(async () => {
   if (workspace.value) {
     form.name = workspace.value.name
     form.description = workspace.value.description || ''
+    form.repositoryUrl = workspace.value.repositoryUrl || ''
+    form.defaultBranch = workspace.value.defaultBranch || 'main'
+    form.createBranch = workspace.value.createBranch
   }
 })
 
@@ -125,6 +175,22 @@ async function handleUpdate() {
     setTimeout(() => { saved.value = false }, 2000)
   } finally {
     saving.value = false
+  }
+}
+
+async function handleRepoUpdate() {
+  if (!workspace.value) return
+  repoSaving.value = true
+  try {
+    workspace.value = await updateWorkspace(workspace.value.id, {
+      repositoryUrl: form.repositoryUrl || null,
+      defaultBranch: form.defaultBranch || 'main',
+      createBranch: form.createBranch,
+    })
+    repoSaved.value = true
+    setTimeout(() => { repoSaved.value = false }, 2000)
+  } finally {
+    repoSaving.value = false
   }
 }
 

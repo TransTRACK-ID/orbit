@@ -1,7 +1,9 @@
 <template>
   <aside
     id="sidebar"
-    class="w-60 bg-white border-r border-surface-200 flex flex-col flex-shrink-0 overflow-hidden max-lg:fixed max-lg:left-[-100%] max-lg:top-[52px] max-lg:bottom-0 max-lg:z-40 max-lg:shadow-lg max-lg:transition-left max-lg:duration-200"
+    class="w-60 bg-white border-r border-surface-200 flex flex-col flex-shrink-0 overflow-hidden max-lg:fixed max-lg:top-[52px] max-lg:bottom-0 max-lg:z-40 max-lg:shadow-lg max-lg:transition-transform max-lg:duration-200"
+    :class="sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'"
+    @click="closeOnMobile"
   >
     <div class="flex-1 overflow-y-auto py-3">
       <!-- Agents link -->
@@ -64,8 +66,15 @@ const router = useRouter()
 
 const { workspaces, fetchWorkspaces } = useWorkspace()
 const { agents, fetchAgents } = useAgent()
+const { isOpen: sidebarOpen, close: closeSidebar } = useSidebar()
 
 const agentCount = computed(() => agents.value.length)
+
+function closeOnMobile() {
+  if (window.innerWidth < 1024) {
+    closeSidebar()
+  }
+}
 
 onMounted(async () => {
   if (!workspaces.value || workspaces.value.length === 0) {

@@ -62,6 +62,7 @@ const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
 const { addLog } = useLog()
+const { startRuntime } = useAgentRuntime()
 
 onMounted(async () => {
   const data = await fetchProjectDetail(projectId.value)
@@ -92,6 +93,7 @@ async function handleUpdateTask(data: { id: string; statusId?: string; position?
   if (updated && oldTask && data.statusId && oldTask.statusId !== data.statusId) {
     if (updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, data.id)
+      startRuntime(data.id)
     }
   }
 

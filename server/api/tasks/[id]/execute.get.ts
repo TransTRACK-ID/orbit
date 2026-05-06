@@ -231,6 +231,7 @@ export default defineEventHandler(async (event) => {
       const msg = code === 0 ? 'Done' : `Exited with code ${code}`
       await stream.push(JSON.stringify({ step: msg, timestamp: Date.now() }))
       persistLog(msg)
+      stream.close()
     })
 
     stream.onClosed = () => {

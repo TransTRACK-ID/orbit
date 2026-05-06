@@ -301,14 +301,13 @@
               </div>
 
               <div v-if="runtimeCompleted && !runtimeActive" class="mt-3">
-                <button
-                  v-if="!prUrl && !prLoading"
-                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5"
-                  @click="handleCreatePr"
+                <div
+                  v-if="prSkipped"
+                  class="w-full text-[11px] px-3 py-2 rounded-lg bg-surface-100 text-surface-500 flex items-center justify-center gap-1.5"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
-                  Create PR
-                </button>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  No code changes to commit
+                </div>
                 <button
                   v-else-if="prLoading"
                   class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-500 text-white flex items-center justify-center gap-1.5 opacity-70 cursor-wait"
@@ -326,6 +325,14 @@
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   Open PR
                 </a>
+                <button
+                  v-else
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5"
+                  @click="handleCreatePr"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  Create PR
+                </button>
                 <p v-if="prError" class="text-[10px] text-red-500 mt-1">{{ prError }}</p>
               </div>
             </template>
@@ -456,13 +463,24 @@ const runtimeCompleted = computed(() =>
   runtimeLogsForTask.value.some(log => /Done|completed|exited/i.test(log.message))
 )
 
+const remotePrUrl = ref('')
+
 const prUrl = computed(() => {
   const prLog = activityLogs.value.find(l => l.action === 'pr_created')
-  return prLog?.newValue?.url || ''
+  return prLog?.newValue?.url || remotePrUrl.value || ''
 })
 
 const prLoading = ref(false)
 const prError = ref('')
+const prSkipped = ref(false)
+
+async function checkExistingPr() {
+  if (!task.value) return
+  try {
+    const { url } = await $fetch<{ url: string | null }>(`/api/tasks/${task.value.id}/pr`, { method: 'GET' })
+    if (url) remotePrUrl.value = url
+  } catch {}
+}
 
 async function handleCreatePr() {
   if (!task.value) return
@@ -470,8 +488,12 @@ async function handleCreatePr() {
   prLoading.value = true
   prError.value = ''
   try {
-    await $fetch<{ url: string }>(`/api/tasks/${task.value.id}/pr`, { method: 'POST' })
-    activityLogs.value = await fetchActivity(props.taskId)
+    const res = await $fetch<{ url: string | null; noChanges?: boolean }>(`/api/tasks/${task.value.id}/pr`, { method: 'POST' })
+    if (res.noChanges) {
+      prSkipped.value = true
+    } else {
+      activityLogs.value = await fetchActivity(props.taskId)
+    }
   } catch (err: any) {
     prError.value = err.message || err.data?.statusMessage || 'Failed to create PR'
   } finally {
@@ -480,18 +502,28 @@ async function handleCreatePr() {
 }
 
 let hasAdvanced = false
+
+async function autoCreatePr() {
+  if (!task.value || prUrl.value || prSkipped.value) return
+  try {
+    const res = await $fetch<{ url: string | null; noChanges?: boolean }>(`/api/tasks/${task.value.id}/pr`, { method: 'POST' })
+    if (res.noChanges) {
+      prSkipped.value = true
+    } else {
+      activityLogs.value = await fetchActivity(props.taskId)
+    }
+  } catch {}
+  await checkExistingPr()
+}
+
 watch(runtimeCompleted, async (completed) => {
   if (completed && task.value && !runtimeActive.value && !hasAdvanced) {
     hasAdvanced = true
-    const currentStatus = props.statuses.find(s => s.id === task.value?.statusId)
-    if (currentStatus) {
-      const sorted = [...props.statuses].sort((a, b) => a.position - b.position)
-      const idx = sorted.findIndex(s => s.id === currentStatus.id)
-      const nextStatus = sorted[idx + 1]
-      if (nextStatus) {
-        await handleUpdate('statusId', nextStatus.id)
-        activityLogs.value = await fetchActivity(props.taskId)
-      }
+    await autoCreatePr()
+    const doneStatus = props.statuses.find(s => /done/i.test(s.name))
+    if (doneStatus && task.value.statusId !== doneStatus.id) {
+      await handleUpdate('statusId', doneStatus.id)
+      activityLogs.value = await fetchActivity(props.taskId)
     }
   }
 })
@@ -544,6 +576,17 @@ onMounted(async () => {
     loading.value = false
     nextTick(syncDescription)
   }
+
+  if (
+    task.value &&
+    isAgentInProgress.value &&
+    !isRunning(task.value.id) &&
+    !activityLogs.value.some(l => l.action === 'runtime_log')
+  ) {
+    startRuntime(task.value.id)
+  }
+
+  await checkExistingPr()
 })
 
 async function handleUpdate(field: string, value: any) {
@@ -554,6 +597,7 @@ async function handleUpdate(field: string, value: any) {
     const newStatus = props.statuses.find((s) => s.id === value)
     if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
+      startRuntime(updated.id)
     }
   }
   task.value = updated

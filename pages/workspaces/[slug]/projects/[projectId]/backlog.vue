@@ -62,12 +62,13 @@
         v-if="showTaskSidePanel && selectedTask"
         :task-id="selectedTask.id"
         :project-id="projectId"
+        :workspace-id="workspaceId"
         :statuses="statuses"
         :labels="labels"
-      @close="closeTaskDetail"
-      @updated="handleTaskUpdated"
-      @deleted="handleTaskDeleted"
-      @duplicated="handleTaskDuplicated"
+        @close="closeTaskDetail"
+        @updated="handleTaskUpdated"
+        @deleted="handleTaskDeleted"
+        @duplicated="handleTaskDuplicated"
       />
 
       <!-- Create modal -->
@@ -97,9 +98,11 @@ const projectId = computed(() => route.params.projectId as string)
 const { tasks, loading, fetchTasks } = useTask()
 const { fetchProjectDetail, projectStatuses, projectLabels } = useProject()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
+const { addLog, persistLog } = useLog()
 
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
+const workspaceId = ref('')
 const showCreateModal = ref(false)
 
 const sortedTasks = computed(() =>
@@ -110,6 +113,7 @@ onMounted(async () => {
   const data = await fetchProjectDetail(projectId.value)
   statuses.value = data.statuses || []
   labels.value = data.labels || []
+  workspaceId.value = data.workspaceId || ''
   await fetchTasks(projectId.value)
 })
 
@@ -120,6 +124,9 @@ function handleOpenTask(task: Task) {
 function handleTaskCreated(task: Task) {
   showCreateModal.value = false
   tasks.value.push(task)
+  if (workspaceId.value) {
+    persistLog(workspaceId.value, { entityType: 'task', entityId: task.id, entityName: task.title, action: 'create', message: `Created task "${task.title}"` })
+  }
 }
 
 function handleTaskUpdated(task: Task) {
@@ -135,6 +142,9 @@ function handleTaskDeleted(taskId: string) {
 function handleTaskDuplicated(task: Task) {
   tasks.value.push(task)
   flashHighlight(task.id)
+  if (workspaceId.value) {
+    persistLog(workspaceId.value, { entityType: 'task', entityId: task.id, entityName: task.title, action: 'duplicate', message: `Duplicated "${task.title}"` })
+  }
   closeTaskDetail()
   nextTick(() => openTaskDetail(task))
 }

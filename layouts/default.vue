@@ -46,10 +46,8 @@ function handleKeydown(e: KeyboardEvent) {
   // Ctrl+L or Cmd+L: Toggle log panel
   if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
     e.preventDefault()
-    const logPanel = document.querySelector('.log-panel-fixed') as HTMLElement
-    if (logPanel) {
-      logPanel.classList.toggle('open')
-    }
+    const { toggle: toggleLogPanel } = useLog()
+    toggleLogPanel()
   }
 }
 

@@ -158,6 +158,35 @@ export default defineEventHandler(async (event) => {
     await execAsync(`git push origin --delete ${branch} 2>/dev/null; true`, { cwd: repoDir })
     await execAsync(`git push -u origin ${branch} 2>/dev/null || git push --force -u origin ${branch}`, { cwd: repoDir })
 
+    // Check if PR already exists for this branch
+    let existingPrUrl = ''
+    try {
+      const { stdout: existing } = await execAsync(
+        `gh pr view ${branch} --json url --jq '.url // empty' 2>/dev/null || true`,
+        { cwd: repoDir }
+      )
+      existingPrUrl = existing.trim()
+    } catch {}
+
+    if (existingPrUrl) {
+      // PR already exists — just update the body with new diff summary
+      if (prBody) {
+        writeFileSync('/tmp/pr-body.md', prBody, 'utf-8')
+        try {
+          await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir })
+        } catch {}
+      }
+      try {
+        await db.insert(schema.activityLogs).values({
+          taskId: id,
+          userId: user.id,
+          action: 'pr_updated',
+          newValue: { url: existingPrUrl, branch },
+        })
+      } catch {}
+      return { url: existingPrUrl, branch }
+    }
+
     if (prBody) {
       writeFileSync('/tmp/pr-body.md', prBody, 'utf-8')
     }

@@ -17,6 +17,7 @@
       v-if="showTaskSidePanel && selectedTask"
       :task-id="selectedTask.id"
       :project-id="project?.id || ''"
+      :workspace-id="project?.workspaceId || ''"
       :statuses="statuses"
       :labels="labels"
       :members="members"
@@ -66,7 +67,7 @@ const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
-const { addLog } = useLog()
+const { addLog, persistLog } = useLog()
 const { startRuntime } = useAgentRuntime()
 
 onMounted(async () => {
@@ -92,6 +93,9 @@ async function handleTaskCreated(task: Task) {
   showCreateModal.value = false
   tasks.value.push(task)
   addLog('System', `Created task "${task.title}"`, task.id)
+  if (project.value?.workspaceId) {
+    persistLog(project.value.workspaceId, { entityType: 'task', entityId: task.id, entityName: task.title, action: 'create', message: `Created task "${task.title}"` })
+  }
 }
 
 async function handleUpdateTask(data: { id: string; statusId?: string; position?: number; [key: string]: any }) {
@@ -99,6 +103,11 @@ async function handleUpdateTask(data: { id: string; statusId?: string; position?
   const updated = await updateTask(data.id, data)
 
   if (updated && oldTask && data.statusId && oldTask.statusId !== data.statusId) {
+    const newStatus = statuses.value.find(s => s.id === data.statusId)
+    const oldStatus = statuses.value.find(s => s.id === oldTask.statusId)
+    if (project.value?.workspaceId) {
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: data.id, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
+    }
     if (updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, data.id)
       startRuntime(data.id)
@@ -126,6 +135,9 @@ function handleTaskUpdated(task: Task) {
 function handleTaskDuplicated(task: Task) {
   tasks.value.push(task)
   flashHighlight(task.id)
+  if (project.value?.workspaceId) {
+    persistLog(project.value.workspaceId, { entityType: 'task', entityId: task.id, entityName: task.title, action: 'duplicate', message: `Duplicated "${task.title}"` })
+  }
   closeTaskDetail()
   nextTick(() => openTaskDetail(task))
 }

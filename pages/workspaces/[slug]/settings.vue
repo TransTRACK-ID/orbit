@@ -1,5 +1,6 @@
 <template>
-  <div class="page-container max-w-3xl">
+  <div class="flex-1 overflow-y-auto py-7 px-8">
+    <div class="max-w-3xl mx-auto">
     <div v-if="workspace">
       <h1 class="text-2xl font-bold text-surface-900 mb-8">Workspace Settings</h1>
 
@@ -216,6 +217,7 @@
       @confirm="handleDelete"
       @cancel="confirmDelete = false"
     />
+    </div>
   </div>
 </template>
 

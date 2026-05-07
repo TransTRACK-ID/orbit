@@ -1,4 +1,4 @@
-import { createEventStream } from 'h3'
+import { createEventStream, getQuery } from 'h3'
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync } from 'fs'
@@ -54,6 +54,8 @@ const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
+  const { feedback: feedbackRaw } = getQuery(event)
+  const feedback = typeof feedbackRaw === 'string' ? feedbackRaw.trim() : ''
 
   const db = getDb()
   const task = await db.query.tasks.findFirst({
@@ -182,9 +184,16 @@ export default defineEventHandler(async (event) => {
 
     await stream.push(JSON.stringify({ step: `Spawning opencode for "${task.title}" in ${workDir}...`, timestamp: Date.now() }))
 
-    const message = task.description
+    let message = task.description
       ? `${task.title}\n\n${task.description}`
       : task.title
+
+    if (feedback) {
+      const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
+      await stream.push(JSON.stringify({ step: `Including PR feedback: ${feedbackTail}`, timestamp: Date.now() }))
+      await persistLog(`Including PR feedback: ${feedbackTail}`)
+      message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\nPlease address each piece of feedback above. Make the necessary code changes to resolve the issues raised.`
+    }
 
     const proc = spawn(opencodePath, [
       'run',

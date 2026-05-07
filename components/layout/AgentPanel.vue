@@ -72,15 +72,27 @@ const statusDotClass = (status: string) => ({
 const route = useRoute()
 const { tasks } = useTask()
 
+function deriveTaskType(t: Task): string {
+  if (t.labels && t.labels.length > 0) {
+    return t.labels[0].name
+  }
+  return 'task'
+}
+
+function priorityLabel(p: string): string {
+  const labels: Record<string, string> = { urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low', none: 'None' }
+  return labels[p] || p
+}
+
 const queue = computed(() => {
   return tasks.value
-    .filter((t: Task) => !t.assigneeId && t.priority !== 'none')
+    .filter((t: Task) => !t.assigneeId && !t.assigneeType && t.priority !== 'none')
     .slice(0, 5)
     .map((t: Task) => ({
       id: t.id,
       title: t.title,
-      type: t.priority || 'task',
-      priority: t.priority,
+      type: deriveTaskType(t),
+      priority: priorityLabel(t.priority),
     }))
 })
 

@@ -355,6 +355,94 @@
                 <p v-if="prError" class="text-[10px] text-red-500 mt-1">{{ prError }}</p>
               </div>
             </template>
+
+              <!-- Review Feedback Section -->
+              <div v-if="prUrl && isReviewStatus" class="mt-6 pt-4 border-t border-surface-100">
+                <div class="flex items-center gap-2 mb-3">
+                  <button
+                    class="flex items-center gap-1 flex-1 text-left group"
+                    @click="showReviewFeedback = !showReviewFeedback"
+                  >
+                    <ChevronDown
+                      class="w-3 h-3 text-surface-400 transition-transform duration-200"
+                      :class="{ 'rotate-180': showReviewFeedback }"
+                    />
+                    <label class="text-xs font-medium text-surface-500 cursor-pointer group-hover:text-surface-700 transition-colors">
+                      Review Feedback ({{ prComments.length }})
+                    </label>
+                  </button>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-semibold">REVIEW</span>
+                </div>
+
+                <template v-if="showReviewFeedback">
+                  <!-- Auto-loading state -->
+                  <div
+                    v-if="autoLoadingComments"
+                    class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-amber-500 text-white flex items-center justify-center gap-1.5 opacity-70 cursor-wait"
+                  >
+                    <svg class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Loading feedback...
+                  </div>
+
+                  <!-- Fetch from GitHub button when no comments loaded and not auto-loading -->
+                  <button
+                    v-if="prComments.length === 0 && !fetchingComments && !autoLoadingComments"
+                    class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
+                    @click="handleFetchComments"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Fetch PR Feedback
+                  </button>
+
+                  <!-- Fetching from GitHub -->
+                  <div
+                    v-if="fetchingComments"
+                    class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-amber-500 text-white flex items-center justify-center gap-1.5 opacity-70 cursor-wait"
+                  >
+                    <svg class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Fetching comments...
+                  </div>
+
+                  <!-- Comments list -->
+                  <div v-if="prComments.length > 0" class="space-y-2 max-h-48 overflow-y-auto">
+                    <div
+                      v-for="comment in prComments"
+                      :key="comment.id"
+                      class="rounded-lg bg-surface-50 p-2.5"
+                    >
+                      <div class="flex items-center gap-1.5 mb-1">
+                        <span class="text-[10px] font-semibold text-surface-700 bg-surface-200 rounded-full px-1.5 py-0.5">{{ comment.author }}</span>
+                        <span v-if="comment.path" class="text-[9px] text-surface-400 font-mono truncate">{{ comment.path }}{{ comment.line ? `:${comment.line}` : '' }}</span>
+                        <span v-if="comment.isReview" class="text-[9px] text-amber-500 ml-auto">review</span>
+                      </div>
+                      <div class="text-[11px] text-surface-600 leading-relaxed review-feedback-body" v-html="comment.body" />
+                    </div>
+                  </div>
+
+                  <!-- Bottom actions row: Refresh + Fix with Agent -->
+                  <div v-if="prComments.length > 0" class="flex gap-2 mt-3">
+                    <button
+                      class="flex-1 text-[11px] font-semibold px-3 py-2 rounded-lg border border-amber-300 text-amber-600 hover:bg-amber-50 transition-colors flex items-center justify-center gap-1.5"
+                      :disabled="fetchingComments"
+                      :class="{ 'opacity-70 cursor-wait': fetchingComments }"
+                      @click="handleFetchComments"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                      Refresh
+                    </button>
+                    <button
+                      class="flex-1 text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
+                      :disabled="fixingFeedback"
+                      :class="{ 'opacity-70 cursor-wait': fixingFeedback }"
+                      @click="handleFixFeedback"
+                    >
+                      <svg v-if="fixingFeedback" class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
+                      {{ fixingFeedback ? 'Fixing...' : `Fix with Agent (${prComments.length})` }}
+                    </button>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </div>
@@ -374,15 +462,16 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository } from '~/types'
+import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment } from '~/types'
 import type { Agent } from '~/types'
 import { useDebounceFn } from '@vueuse/core'
 
-const { addLog, logs: runtimeLogs } = useLog()
+const { addLog, persistLog, logs: runtimeLogs } = useLog()
 
 const props = defineProps<{
   taskId: string
   projectId: string
+  workspaceId: string
   statuses: Status[]
   labels: Label[]
   members: ProjectMember[]
@@ -488,13 +577,24 @@ const runtimeCompleted = computed(() =>
 const remotePrUrl = ref('')
 
 const prUrl = computed(() => {
-  const prLog = activityLogs.value.find(l => l.action === 'pr_created')
+  const prLog = activityLogs.value.find(l => l.action === 'pr_created' || l.action === 'pr_updated')
   return prLog?.newValue?.url || remotePrUrl.value || ''
 })
 
 const prLoading = ref(false)
 const prError = ref('')
 const prSkipped = ref(false)
+
+// Review feedback state
+const showReviewFeedback = ref(false)
+const prComments = ref<PrComment[]>([])
+const fetchingComments = ref(false)
+const fixingFeedback = ref(false)
+const autoLoadingComments = ref(false)
+
+const isReviewStatus = computed(() =>
+  task.value?.status?.name && /review/i.test(task.value.status.name)
+)
 
 async function checkExistingPr() {
   if (!task.value) return
@@ -524,9 +624,25 @@ async function handleCreatePr() {
 }
 
 let hasAdvanced = false
+let isFixRun = false
 
 async function autoCreatePr() {
-  if (!task.value || prUrl.value || prSkipped.value) return
+  if (!task.value || prSkipped.value) return
+  if (isFixRun) {
+    // For fix runs, push to existing branch instead of creating new PR
+    try {
+      const res = await $fetch<{ url: string | null; noChanges?: boolean }>(`/api/tasks/${task.value.id}/pr`, { method: 'POST' })
+      if (res.noChanges) {
+        prSkipped.value = true
+      } else {
+        // If PR already existed, the create will silently fail but push succeeded
+        await checkExistingPr()
+        activityLogs.value = await fetchActivity(props.taskId)
+      }
+    } catch {}
+    return
+  }
+  if (prUrl.value) return
   try {
     const res = await $fetch<{ url: string | null; noChanges?: boolean }>(`/api/tasks/${task.value.id}/pr`, { method: 'POST' })
     if (res.noChanges) {
@@ -542,9 +658,10 @@ watch(runtimeCompleted, async (completed) => {
   if (completed && task.value && !runtimeActive.value && !hasAdvanced) {
     hasAdvanced = true
     await autoCreatePr()
-    const doneStatus = props.statuses.find(s => /done/i.test(s.name))
-    if (doneStatus && task.value.statusId !== doneStatus.id) {
-      await handleUpdate('statusId', doneStatus.id)
+    isFixRun = false
+    const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
+    if (reviewStatus && task.value.statusId !== reviewStatus.id) {
+      await handleUpdate('statusId', reviewStatus.id)
       activityLogs.value = await fetchActivity(props.taskId)
     }
   }
@@ -561,15 +678,68 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   if (updated) {
     if (oldAssigneeType !== 'agent' && assigneeType === 'agent' && updated.assignee) {
       addLog('Runtime', `Agent "${updated.assignee.name}" assigned to "${updated.title}"`, props.taskId)
+      persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'assign_agent', message: `Agent "${updated.assignee.name}" assigned` })
     } else if (oldAssigneeType === 'agent' && assigneeType !== 'agent') {
       addLog('Runtime', `Agent unassigned from "${updated.title}"`, props.taskId)
+      persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'unassign_agent', message: `Agent unassigned from "${updated.title}"` })
     }
   }
   task.value = updated
   emit('updated', updated)
 }
 
+async function loadPersistedComments() {
+  if (!task.value || !prUrl.value) return
+  autoLoadingComments.value = true
+  try {
+    const res = await $fetch<{ comments: PrComment[]; prUrl: string; cached?: boolean }>(`/api/tasks/${task.value.id}/pr-comments?prUrl=${encodeURIComponent(prUrl.value)}`, { method: 'GET' })
+    if (res.comments.length > 0) {
+      prComments.value = res.comments
+      showReviewFeedback.value = true
+    }
+  } catch {
+    // Silently fail — user can manually fetch
+  } finally {
+    autoLoadingComments.value = false
+  }
+}
 
+async function handleFetchComments() {
+  if (!task.value) return
+  fetchingComments.value = true
+  try {
+    const res = await $fetch<{ comments: PrComment[]; prUrl: string }>(`/api/tasks/${task.value.id}/pr-comments?prUrl=${encodeURIComponent(prUrl.value)}&refresh=true`, { method: 'GET' })
+    prComments.value = res.comments || []
+    showReviewFeedback.value = true
+  } catch {
+    prComments.value = []
+  } finally {
+    fetchingComments.value = false
+  }
+}
+
+async function handleFixFeedback() {
+  if (!task.value || prComments.value.length === 0) return
+  fixingFeedback.value = true
+  try {
+    const feedbackText = prComments.value
+      .map(c => {
+        const location = c.path ? ` (File: ${c.path}${c.line ? `, line ${c.line}` : ''})` : ''
+        return `[Comment by ${c.author}]${location}\n${c.body}`
+      })
+      .join('\n\n---\n\n')
+
+    persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: task.value.title, action: 'fix_feedback', message: `Agent fixing ${prComments.value.length} feedback items from PR review` })
+
+    isFixRun = true
+    hasAdvanced = false
+
+    startRuntime(task.value.id, feedbackText)
+  } catch {
+  } finally {
+    fixingFeedback.value = false
+  }
+}
 
 const renderedDescription = computed(() => {
   if (!task.value?.description) return ''
@@ -612,6 +782,11 @@ onMounted(async () => {
   }
 
   await checkExistingPr()
+
+  // Auto-load persisted PR comments if task is in review status
+  if (prUrl.value && isReviewStatus.value) {
+    await loadPersistedComments()
+  }
 })
 
 async function handleUpdate(field: string, value: any) {
@@ -620,6 +795,8 @@ async function handleUpdate(field: string, value: any) {
   const updated = await updateTaskApi(task.value.id, { [field]: value })
   if (updated && field === 'statusId' && old.statusId !== value) {
     const newStatus = props.statuses.find((s) => s.id === value)
+    const oldStatus = props.statuses.find((s) => s.id === old.statusId)
+    persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
     if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
       startRuntime(updated.id)
@@ -678,8 +855,11 @@ async function handleAddComment() {
 
 async function handleDelete() {
   if (!task.value) return
-  await deleteTaskApi(task.value.id)
-  emit('deleted', task.value.id)
+  const taskName = task.value.title
+  const taskId = task.value.id
+  await deleteTaskApi(taskId)
+  persistLog(props.workspaceId, { entityType: 'task', entityId: taskId, entityName: taskName, action: 'delete', message: `Deleted task "${taskName}"` })
+  emit('deleted', taskId)
 }
 
 async function handleDuplicate() {
@@ -699,6 +879,8 @@ async function handleDuplicate() {
     repositoryId: task.value.repositoryId,
     labelIds: task.value.labels?.map(l => l.id),
   })
+
+  persistLog(props.workspaceId, { entityType: 'task', entityId: dup.id, entityName: dup.title, action: 'duplicate', message: `Duplicated from "${task.value.title}"` })
 
   emit('duplicated', dup)
 }
@@ -741,3 +923,96 @@ function formatActivity(log: ActivityLog) {
   }
 }
 </script>
+
+<style scoped>
+.review-feedback-body :deep(h3) {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 8px 0 4px;
+  line-height: 1.4;
+}
+
+.review-feedback-body :deep(h3:first-child) {
+  margin-top: 0;
+}
+
+.review-feedback-body :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  background: #e2e8f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #334155;
+}
+
+.review-feedback-body :deep(pre) {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  background: #f1f5f9;
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 4px 0;
+  color: #475569;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.review-feedback-body :deep(details) {
+  margin: 6px 0;
+  font-size: 11px;
+}
+
+.review-feedback-body :deep(summary) {
+  cursor: pointer;
+  font-weight: 500;
+  color: #475569;
+  padding: 2px 0;
+}
+
+.review-feedback-body :deep(summary:hover) {
+  color: #1e293b;
+}
+
+.review-feedback-body :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 3px;
+  margin: 4px 0;
+}
+
+.review-feedback-body :deep(a) {
+  color: #6366f1;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.review-feedback-body :deep(a:hover) {
+  color: #4f46e5;
+}
+
+.review-feedback-body :deep(blockquote) {
+  border-left: 2px solid #cbd5e1;
+  margin: 4px 0;
+  padding: 2px 0 2px 8px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.review-feedback-body :deep(br) {
+  display: block;
+  content: '';
+  margin: 2px 0;
+}
+
+.review-feedback-body :deep(strong) {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.review-feedback-body :deep(em) {
+  font-style: italic;
+}
+</style>

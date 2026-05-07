@@ -171,12 +171,44 @@ export interface RuntimeInfo {
   desc: string
 }
 
+// ─── PR Comment (from GitHub) ───
+export interface PrComment {
+  id: number
+  author: string
+  body: string
+  path: string | null
+  line: number | null
+  createdAt: string
+  isReview: boolean
+}
+
 // ─── Activity Log Entry (local) ───
 export interface ActivityLogEntry {
   time: number
   agent: string
   msg: string
   taskId?: string
+}
+
+// ─── Activity Feed (persisted) ───
+export interface ActivityFeedItem {
+  id: string
+  workspaceId: string
+  userId: string
+  entityType: string
+  entityId: string | null
+  entityName: string | null
+  action: string
+  message: string
+  oldValue: any
+  newValue: any
+  createdAt: string
+  user?: {
+    id: string
+    name: string
+    email: string
+    avatarUrl?: string | null
+  }
 }
 
 // ─── Queue Item (unassigned tasks) ───

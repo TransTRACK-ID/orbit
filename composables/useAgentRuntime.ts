@@ -4,10 +4,14 @@ const activeRuntimes = ref<Record<string, boolean>>({})
 export const useAgentRuntime = () => {
   const { addLog } = useLog()
 
-  function startRuntime(taskId: string) {
+  function startRuntime(taskId: string, feedback?: string) {
     if (eventSources.has(taskId)) return
 
-    const es = new EventSource(`/api/tasks/${taskId}/execute`)
+    const url = feedback
+      ? `/api/tasks/${taskId}/execute?feedback=${encodeURIComponent(feedback)}`
+      : `/api/tasks/${taskId}/execute`
+
+    const es = new EventSource(url)
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)

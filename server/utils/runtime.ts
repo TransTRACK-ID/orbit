@@ -9,6 +9,9 @@ export type ProcState = {
 
 export const activeProcesses = new Map<string, ProcState>()
 
+/** Stores pending feedback for a task before the EventSource connects */
+export const pendingFeedback = new Map<string, string>()
+
 export function addStreamToProc(taskId: string, stream: EventStream, entry: ProcState) {
   entry.streams.push(stream)
   stream.onClosed = () => {

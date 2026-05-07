@@ -20,9 +20,15 @@ export interface PrComment {
 
 async function apiGet(path: string) {
   const url = `https://api.github.com${path}`
-  const res = await fetch(url, {
-    headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'orbit-app' },
-  })
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'orbit-app',
+  }
+  const token = process.env.GITHUB_TOKEN
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(url, { headers })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`)
@@ -157,7 +163,6 @@ export default defineEventHandler(async (event) => {
     // Delete existing cached comments for this task before re-saving
     await db.delete(schema.prComments).where(eq(schema.prComments.taskId, id))
 
-    const now = new Date().toISOString()
     await db.insert(schema.prComments).values(
       comments.map(c => ({
         taskId: id,
@@ -168,7 +173,6 @@ export default defineEventHandler(async (event) => {
         line: c.line,
         isReview: c.isReview,
         createdAt: c.createdAt,
-        syncedAt: now as any,
       }))
     )
   }

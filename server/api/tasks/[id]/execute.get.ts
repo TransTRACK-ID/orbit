@@ -44,7 +44,7 @@ function extractRepoName(url: string): string {
   return match ? match[1] : 'repo'
 }
 
-import { activeProcesses, addStreamToProc, pushToStreams } from '~/server/utils/runtime'
+import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
@@ -54,8 +54,10 @@ const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
-  const { feedback: feedbackRaw } = getQuery(event)
-  const feedback = typeof feedbackRaw === 'string' ? feedbackRaw.trim() : ''
+
+  // Read and clear pending feedback (posted separately to avoid oversized URL params)
+  const feedback = pendingFeedback.get(id) || ''
+  pendingFeedback.delete(id)
 
   const db = getDb()
   const task = await db.query.tasks.findFirst({
@@ -99,6 +101,27 @@ export default defineEventHandler(async (event) => {
 
       return
     }
+
+    // ── Helpers for streaming + persistence ──
+    const persistLog = async (msg: string) => {
+      try {
+        await db.insert(schema.activityLogs).values({
+          taskId: id,
+          userId: user.id,
+          action: 'runtime_log',
+          newValue: { message: msg },
+        })
+      } catch {}
+    }
+
+    async function pushAndPersist(msg: string) {
+      await stream.push(JSON.stringify({ step: msg, timestamp: Date.now() }))
+      await persistLog(msg)
+    }
+
+    let lineBuffer = ''
+    let hasOutput = false
+    let lastActivity = Date.now()
 
     let workDir = defaultProjectDir
     let branchName = ''
@@ -144,7 +167,7 @@ export default defineEventHandler(async (event) => {
         const cloneDir = `${projectsDir}/${repoName}`
 
         if (!existsSync(cloneDir)) {
-          await stream.push(JSON.stringify({ step: `Cloning ${repoUrl}...`, timestamp: Date.now() }))
+          await pushAndPersist(`Cloning ${repoUrl}...`)
           try {
             mkdirSync(projectsDir, { recursive: true })
             await new Promise<void>((resolve, reject) => {
@@ -157,9 +180,9 @@ export default defineEventHandler(async (event) => {
               })
               git.on('error', reject)
             })
-            await stream.push(JSON.stringify({ step: `Cloned to ${cloneDir}`, timestamp: Date.now() }))
+            await pushAndPersist(`Cloned to ${cloneDir}`)
           } catch (err: any) {
-            await stream.push(JSON.stringify({ step: `Clone failed: ${err.message}`, timestamp: Date.now() }))
+            await pushAndPersist(`Clone failed: ${err.message}`)
           }
         }
 
@@ -172,17 +195,19 @@ export default defineEventHandler(async (event) => {
             const { stdout: branchCheck } = await execAsync(`git branch --list ${branchName}`, { cwd: workDir })
             if (!branchCheck.trim()) {
               await execAsync(`git checkout -b ${branchName}`, { cwd: workDir })
-              await stream.push(JSON.stringify({ step: `Switched to new branch "${branchName}"`, timestamp: Date.now() }))
+              await pushAndPersist(`Switched to new branch "${branchName}"`)
             } else {
+              await execAsync(`git fetch origin ${branchName} 2>/dev/null`, { cwd: workDir })
               await execAsync(`git checkout ${branchName}`, { cwd: workDir })
-              await stream.push(JSON.stringify({ step: `Checked out existing branch "${branchName}"`, timestamp: Date.now() }))
+              await execAsync(`git reset --hard origin/${branchName} 2>/dev/null || true`, { cwd: workDir })
+              await pushAndPersist(`Checked out existing branch "${branchName}"`)
             }
           } catch {}
         }
       }
     }
 
-    await stream.push(JSON.stringify({ step: `Spawning opencode for "${task.title}" in ${workDir}...`, timestamp: Date.now() }))
+    await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)
 
     let message = task.description
       ? `${task.title}\n\n${task.description}`
@@ -190,9 +215,8 @@ export default defineEventHandler(async (event) => {
 
     if (feedback) {
       const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
-      await stream.push(JSON.stringify({ step: `Including PR feedback: ${feedbackTail}`, timestamp: Date.now() }))
-      await persistLog(`Including PR feedback: ${feedbackTail}`)
-      message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\nPlease address each piece of feedback above. Make the necessary code changes to resolve the issues raised.`
+      await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
+      message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\nCRITICAL: The PR feedback above was given by a code reviewer. You MUST examine each item carefully and make the necessary code changes to fix ALL reported issues. Do NOT skip any item. Do NOT assume issues are already resolved — verify by making actual code changes. Your goal is to modify the codebase to satisfy each piece of feedback.`
     }
 
     const proc = spawn(opencodePath, [
@@ -210,21 +234,6 @@ export default defineEventHandler(async (event) => {
     const entry: ProcState = { proc, streams: [], heartbeat: null }
     activeProcesses.set(id, entry)
     addStreamToProc(id, stream, entry)
-
-    let lineBuffer = ''
-    let hasOutput = false
-    let lastActivity = Date.now()
-
-    const persistLog = async (msg: string) => {
-      try {
-        await db.insert(schema.activityLogs).values({
-          taskId: id,
-          userId: user.id,
-          action: 'runtime_log',
-          newValue: { message: msg },
-        })
-      } catch {}
-    }
 
     const heartbeat = setInterval(async () => {
       const idle = Math.round((Date.now() - lastActivity) / 1000)
@@ -308,6 +317,24 @@ export default defineEventHandler(async (event) => {
 
     proc.on('exit', async (code) => {
       clearInterval(heartbeat)
+
+      if (code === 0 && branchName) {
+        try {
+          const { stdout: status } = await execAsync('git status --porcelain', { cwd: workDir })
+          if (status.trim()) {
+            await execAsync('git add -A', { cwd: workDir })
+            await execAsync(`git commit -m "${task.title.replace(/"/g, '\\"')}"`, { cwd: workDir })
+            await execAsync(`git push origin --delete ${branchName} 2>/dev/null; true`, { cwd: workDir })
+            await execAsync(`git push -u origin ${branchName} 2>/dev/null || git push --force -u origin ${branchName}`, { cwd: workDir })
+            await pushToStreams(entry, JSON.stringify({ step: 'Pushed changes to branch', timestamp: Date.now() }))
+          } else {
+            await pushToStreams(entry, JSON.stringify({ step: 'No changes to push', timestamp: Date.now() }))
+          }
+        } catch (err: any) {
+          await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))
+        }
+      }
+
       const msg = code === 0 ? 'Done' : `Exited with code ${code}`
       await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       persistLog(msg)

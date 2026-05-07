@@ -372,6 +372,14 @@
                     </label>
                   </button>
                   <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-semibold">REVIEW</span>
+                  <!-- Agent fixing indicator -->
+                  <span
+                    v-if="runtimeActive && prComments.length > 0"
+                    class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-semibold flex items-center gap-1"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+                    Fixing...
+                  </span>
                 </div>
 
                 <template v-if="showReviewFeedback">
@@ -419,6 +427,18 @@
                     </div>
                   </div>
 
+                  <!-- Agent working status banner -->
+                  <div
+                    v-if="runtimeActive && prComments.length > 0"
+                    class="mt-3 p-2.5 rounded-lg bg-primary-50 border border-primary-100 flex items-center gap-2.5"
+                  >
+                    <span class="w-2 h-2 rounded-full bg-primary-500 animate-pulse flex-shrink-0" />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[11px] font-medium text-primary-700">Agent is fixing feedback...</p>
+                      <p class="text-[10px] text-primary-500 truncate">{{ latestRuntimeLog?.message?.replace('> ', '') || 'Working...' }}</p>
+                    </div>
+                  </div>
+
                   <!-- Bottom actions row: Refresh + Fix with Agent -->
                   <div v-if="prComments.length > 0" class="flex gap-2 mt-3">
                     <button
@@ -431,14 +451,23 @@
                       Refresh
                     </button>
                     <button
+                      v-if="feedbackFixed"
+                      class="flex-1 text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white flex items-center justify-center gap-1.5 cursor-default"
+                      disabled
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      Fix Applied
+                    </button>
+                    <button
+                      v-else
                       class="flex-1 text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
-                      :disabled="fixingFeedback"
-                      :class="{ 'opacity-70 cursor-wait': fixingFeedback }"
+                      :disabled="fixingFeedback || runtimeActive"
+                      :class="{ 'opacity-70 cursor-wait': fixingFeedback || runtimeActive }"
                       @click="handleFixFeedback"
                     >
-                      <svg v-if="fixingFeedback" class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <svg v-if="fixingFeedback || runtimeActive" class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                       <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
-                      {{ fixingFeedback ? 'Fixing...' : `Fix with Agent (${prComments.length})` }}
+                      {{ fixingFeedback || runtimeActive ? 'Fixing...' : `Fix with Agent (${prComments.length})` }}
                     </button>
                   </div>
                 </template>
@@ -591,6 +620,7 @@ const prComments = ref<PrComment[]>([])
 const fetchingComments = ref(false)
 const fixingFeedback = ref(false)
 const autoLoadingComments = ref(false)
+const feedbackFixed = ref(false)
 
 const isReviewStatus = computed(() =>
   task.value?.status?.name && /review/i.test(task.value.status.name)
@@ -626,6 +656,44 @@ async function handleCreatePr() {
 let hasAdvanced = false
 let isFixRun = false
 
+/**
+ * Tracks completion events from the runtime. Incremented each time a new
+ * "Done"/"completed"/"exited" log arrives that we haven't acted on yet.
+ * The watch below only fires on new increments, solving the problem where
+ * runtimeCompleted computed stays `true` after the first run's "Done" message.
+ */
+const runtimeCompletionTick = ref(0)
+const lastCompletionTimestamp = ref(0)
+
+watch(runtimeLogsForTask, async (logs) => {
+  if (!task.value || hasAdvanced || prSkipped.value) return
+  if (logs.length === 0) return
+
+  // Look for a "Done" message that's newer than what we've already processed
+  const latest = logs[0]
+  if (
+    /Done|completed|exited/i.test(latest.message) &&
+    latest.timestamp > lastCompletionTimestamp.value
+  ) {
+    lastCompletionTimestamp.value = latest.timestamp
+    runtimeCompletionTick.value++
+    hasAdvanced = true
+    if (isFixRun) {
+      feedbackFixed.value = true
+      persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: task.value.title, action: 'fix_feedback_completed', message: 'Agent applied PR feedback fixes' })
+      isFixRun = false
+    } else {
+      await autoCreatePr()
+      isFixRun = false
+    }
+    const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
+    if (reviewStatus && task.value.statusId !== reviewStatus.id) {
+      await handleUpdate('statusId', reviewStatus.id)
+      activityLogs.value = await fetchActivity(props.taskId)
+    }
+  }
+})
+
 async function autoCreatePr() {
   if (!task.value || prSkipped.value) return
   if (isFixRun) {
@@ -653,19 +721,6 @@ async function autoCreatePr() {
   } catch {}
   await checkExistingPr()
 }
-
-watch(runtimeCompleted, async (completed) => {
-  if (completed && task.value && !runtimeActive.value && !hasAdvanced) {
-    hasAdvanced = true
-    await autoCreatePr()
-    isFixRun = false
-    const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
-    if (reviewStatus && task.value.statusId !== reviewStatus.id) {
-      await handleUpdate('statusId', reviewStatus.id)
-      activityLogs.value = await fetchActivity(props.taskId)
-    }
-  }
-})
 
 async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   showAssigneePicker.value = false
@@ -720,21 +775,41 @@ async function handleFetchComments() {
 
 async function handleFixFeedback() {
   if (!task.value || prComments.value.length === 0) return
+  feedbackFixed.value = false
   fixingFeedback.value = true
   try {
+    // Strip HTML from feedback to avoid confusing the agent CLI
+    function stripHtml(html: string) {
+      return html
+        .replace(/<[^>]*>/g, '')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    }
+
     const feedbackText = prComments.value
       .map(c => {
         const location = c.path ? ` (File: ${c.path}${c.line ? `, line ${c.line}` : ''})` : ''
-        return `[Comment by ${c.author}]${location}\n${c.body}`
+        return `[Comment by ${c.author}]${location}\n${stripHtml(c.body)}`
       })
       .join('\n\n---\n\n')
+      .slice(0, 5000) // Cap at 5000 chars to keep CLI args manageable
 
     persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: task.value.title, action: 'fix_feedback', message: `Agent fixing ${prComments.value.length} feedback items from PR review` })
 
+    prSkipped.value = false
     isFixRun = true
     hasAdvanced = false
 
-    startRuntime(task.value.id, feedbackText)
+    // Expand runtime logs so user can see the agent working
+    runtimeLogsExpanded.value = true
+
+    await startRuntime(task.value.id, feedbackText)
   } catch {
   } finally {
     fixingFeedback.value = false
@@ -758,6 +833,7 @@ function syncDescription() {
 }
 
 onMounted(async () => {
+  lastCompletionTimestamp.value = Date.now()
   try {
     task.value = await fetchTaskDetail(props.taskId)
     comments.value = await fetchComments(props.taskId)
@@ -772,11 +848,11 @@ onMounted(async () => {
   if (task.value && isAgentInProgress.value && !isRunning(task.value.id)) {
     const hasLogs = activityLogs.value.some(l => l.action === 'runtime_log')
     if (!hasLogs) {
-      startRuntime(task.value.id)
+      await startRuntime(task.value.id)
     } else {
       const { active } = await $fetch<{ active: boolean }>(`/api/tasks/${task.value.id}/execute/status`)
       if (active) {
-        startRuntime(task.value.id)
+        await startRuntime(task.value.id)
       }
     }
   }
@@ -786,6 +862,31 @@ onMounted(async () => {
   // Auto-load persisted PR comments if task is in review status
   if (prUrl.value && isReviewStatus.value) {
     await loadPersistedComments()
+
+    // Reattach to a running fix process if one exists (survives page refresh)
+    const hasRuntimeLogs = activityLogs.value.some(l => l.action === 'runtime_log')
+    if (hasRuntimeLogs && !isRunning(task.value.id)) {
+      try {
+        const { active } = await $fetch<{ active: boolean }>(`/api/tasks/${task.value.id}/execute/status`)
+        if (active) {
+          await startRuntime(task.value.id)
+        }
+      } catch {}
+    }
+  }
+
+  // Restore feedbackFixed state from persisted logs (survives page refresh)
+  // Only restore if no runtime activity occurred after the fix completed
+  // (prevents showing "Fix Applied" when a new agent run is in progress)
+  const fixCompletedLog = activityLogs.value.find(l => l.action === 'fix_feedback_completed')
+  if (fixCompletedLog) {
+    const fixCompletedAt = new Date(fixCompletedLog.createdAt).getTime()
+    const hasNewerRuntime = activityLogs.value.some(l =>
+      l.action === 'runtime_log' && new Date(l.createdAt).getTime() > fixCompletedAt
+    )
+    if (!hasNewerRuntime) {
+      feedbackFixed.value = true
+    }
   }
 })
 
@@ -799,7 +900,7 @@ async function handleUpdate(field: string, value: any) {
     persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
     if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
-      startRuntime(updated.id)
+      await startRuntime(updated.id)
     }
   }
   task.value = updated

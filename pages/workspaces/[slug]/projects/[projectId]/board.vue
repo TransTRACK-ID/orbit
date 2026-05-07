@@ -110,7 +110,7 @@ async function handleUpdateTask(data: { id: string; statusId?: string; position?
     }
     if (updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, data.id)
-      startRuntime(data.id)
+      await startRuntime(data.id)
     }
   }
 

@@ -4,12 +4,34 @@ const activeRuntimes = ref<Record<string, boolean>>({})
 export const useAgentRuntime = () => {
   const { addLog } = useLog()
 
-  function startRuntime(taskId: string, feedback?: string) {
-    if (eventSources.has(taskId)) return
+  async function killServerProcess(taskId: string) {
+    try {
+      await $fetch(`/api/tasks/${taskId}/execute/kill`, { method: 'POST' })
+    } catch {
+      // Server process might already be dead, that's fine
+    }
+  }
 
-    const url = feedback
-      ? `/api/tasks/${taskId}/execute?feedback=${encodeURIComponent(feedback)}`
-      : `/api/tasks/${taskId}/execute`
+  async function startRuntime(taskId: string, feedback?: string) {
+    // If a runtime is already active, kill server process and stop it first
+    if (eventSources.has(taskId) || activeRuntimes.value[taskId]) {
+      await killServerProcess(taskId)
+      stopRuntime(taskId)
+    }
+
+    // POST large feedback separately to avoid oversized URL params (431 error)
+    if (feedback) {
+      try {
+        await $fetch(`/api/tasks/${taskId}/execute`, {
+          method: 'POST',
+          body: { feedback },
+        })
+      } catch {
+        // Silently fall through — execute will still run without feedback
+      }
+    }
+
+    const url = `/api/tasks/${taskId}/execute`
 
     const es = new EventSource(url)
     es.onmessage = (e) => {

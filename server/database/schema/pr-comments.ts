@@ -1,11 +1,11 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, bigint, boolean, timestamp } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { tasks } from './tasks'
 
 export const prComments = pgTable('pr_comments', {
   id: uuid('id').primaryKey().defaultRandom(),
   taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
-  githubCommentId: integer('github_comment_id').notNull(),
+  githubCommentId: bigint('github_comment_id', { mode: 'number' }).notNull(),
   author: varchar('author', { length: 255 }).notNull(),
   body: text('body').notNull(),
   path: varchar('path', { length: 500 }),

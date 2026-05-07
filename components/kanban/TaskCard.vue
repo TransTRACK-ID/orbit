@@ -1,7 +1,7 @@
 <template>
   <div
     class="kanban-card"
-    :class="{ agentic: isAgentInProgress }"
+    :class="{ agentic: isAgentInProgress, highlighted: isHighlighted }"
     :data-id="task.id"
     @click="$emit('click')"
   >
@@ -71,6 +71,7 @@
 
 <script setup lang="ts">
 import type { Task } from '~/types'
+import { highlightedTaskId } from '~/composables/useKanban'
 
 const props = defineProps<{
   task: Task
@@ -79,6 +80,8 @@ const props = defineProps<{
 defineEmits<{
   click: []
 }>()
+
+const isHighlighted = computed(() => highlightedTaskId.value === props.task.id)
 
 const isAgentInProgress = computed(() => {
   return (
@@ -117,6 +120,18 @@ function typeLabel(task: Task) {
   if (task.priority === 'medium') return 'Review'
   return 'Feature'
 }
-
-
 </script>
+
+<style scoped>
+.kanban-card.highlighted {
+  animation: highlight-pulse 3s ease-out;
+  outline: 2px solid #22c55e;
+  outline-offset: 1px;
+}
+
+@keyframes highlight-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+</style>

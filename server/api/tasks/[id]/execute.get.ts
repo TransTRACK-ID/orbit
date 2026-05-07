@@ -1,9 +1,12 @@
 import { createEventStream } from 'h3'
-import { spawn } from 'child_process'
+import { spawn, exec } from 'child_process'
+import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
+
+const execAsync = promisify(exec)
 
 function formatToolEvent(part: any): string {
   if (!part) return ''
@@ -41,6 +44,9 @@ function extractRepoName(url: string): string {
   return match ? match[1] : 'repo'
 }
 
+import { activeProcesses, addStreamToProc, pushToStreams } from '~/server/utils/runtime'
+import type { ProcState } from '~/server/utils/runtime'
+
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
@@ -52,7 +58,7 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, description: true, projectId: true },
+    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true },
   })
 
   if (!task) {
@@ -73,7 +79,27 @@ export default defineEventHandler(async (event) => {
       return
     }
 
+    const existing = activeProcesses.get(id)
+    if (existing) {
+      addStreamToProc(id, stream, existing)
+
+      const prevLogs = await db.query.activityLogs.findMany({
+        where: eq(schema.activityLogs.taskId, id),
+        columns: { newValue: true },
+        orderBy: [asc(schema.activityLogs.createdAt)],
+        limit: 20,
+      })
+      for (const l of prevLogs) {
+        if (l.newValue?.message) {
+          await stream.push(JSON.stringify({ step: l.newValue.message, timestamp: Date.now() }))
+        }
+      }
+
+      return
+    }
+
     let workDir = defaultProjectDir
+    let branchName = ''
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -81,21 +107,46 @@ export default defineEventHandler(async (event) => {
     })
 
     if (project) {
-      const workspace = await db.query.workspaces.findFirst({
-        where: eq(schema.workspaces.id, project.workspaceId),
-        columns: { repositoryUrl: true, defaultBranch: true, name: true },
-      })
+      let repoUrl = ''
+      let repoDefaultBranch = 'main'
+      let createBranch = false
+      let repoName = ''
 
-      if (workspace?.repositoryUrl) {
-        const repoName = workspace.name || extractRepoName(workspace.repositoryUrl)
+      if (task.repositoryId) {
+        const repo = await db.query.repositories.findFirst({
+          where: eq(schema.repositories.id, task.repositoryId),
+        })
+        if (repo) {
+          repoUrl = repo.url
+          repoDefaultBranch = repo.defaultBranch || 'main'
+          createBranch = repo.createBranch
+          repoName = repo.name
+        }
+      }
+
+      if (!repoUrl && project) {
+        const workspaceRepos = await db.query.repositories.findMany({
+          where: eq(schema.repositories.workspaceId, project.workspaceId),
+          limit: 1,
+        })
+        if (workspaceRepos[0]) {
+          repoUrl = workspaceRepos[0].url
+          repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
+          createBranch = workspaceRepos[0].createBranch
+          repoName = workspaceRepos[0].name
+        }
+      }
+
+      if (repoUrl) {
+        repoName = repoName || extractRepoName(repoUrl)
         const cloneDir = `${projectsDir}/${repoName}`
 
         if (!existsSync(cloneDir)) {
-          await stream.push(JSON.stringify({ step: `Cloning ${workspace.repositoryUrl}...`, timestamp: Date.now() }))
+          await stream.push(JSON.stringify({ step: `Cloning ${repoUrl}...`, timestamp: Date.now() }))
           try {
             mkdirSync(projectsDir, { recursive: true })
             await new Promise<void>((resolve, reject) => {
-              const git = spawn('git', ['clone', workspace!.repositoryUrl, cloneDir], {
+              const git = spawn('git', ['clone', repoUrl, cloneDir], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: false,
               })
@@ -106,11 +157,26 @@ export default defineEventHandler(async (event) => {
             })
             await stream.push(JSON.stringify({ step: `Cloned to ${cloneDir}`, timestamp: Date.now() }))
           } catch (err: any) {
-            await stream.push(JSON.stringify({ step: `Clone failed: ${err.message}. Falling back to default directory.`, timestamp: Date.now() }))
+            await stream.push(JSON.stringify({ step: `Clone failed: ${err.message}`, timestamp: Date.now() }))
           }
         }
 
         workDir = cloneDir
+
+        if (createBranch) {
+          branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
+          try {
+            await execAsync(`git checkout ${repoDefaultBranch} 2>/dev/null && git pull origin ${repoDefaultBranch} 2>/dev/null`, { cwd: workDir })
+            const { stdout: branchCheck } = await execAsync(`git branch --list ${branchName}`, { cwd: workDir })
+            if (!branchCheck.trim()) {
+              await execAsync(`git checkout -b ${branchName}`, { cwd: workDir })
+              await stream.push(JSON.stringify({ step: `Switched to new branch "${branchName}"`, timestamp: Date.now() }))
+            } else {
+              await execAsync(`git checkout ${branchName}`, { cwd: workDir })
+              await stream.push(JSON.stringify({ step: `Checked out existing branch "${branchName}"`, timestamp: Date.now() }))
+            }
+          } catch {}
+        }
       }
     }
 
@@ -132,6 +198,10 @@ export default defineEventHandler(async (event) => {
       shell: false,
     })
 
+    const entry: ProcState = { proc, streams: [], heartbeat: null }
+    activeProcesses.set(id, entry)
+    addStreamToProc(id, stream, entry)
+
     let lineBuffer = ''
     let hasOutput = false
     let lastActivity = Date.now()
@@ -152,9 +222,10 @@ export default defineEventHandler(async (event) => {
       const alive = proc.exitCode === null
       if (!hasOutput) {
         const msg = alive ? `Waiting for opencode (${idle}s)` : `Process exited (code ${proc.exitCode})`
-        await stream.push(JSON.stringify({ step: msg, timestamp: Date.now() }))
+        await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       }
     }, 5000)
+    entry.heartbeat = heartbeat
 
     const parseAndPush = async (line: string) => {
       try {
@@ -189,7 +260,7 @@ export default defineEventHandler(async (event) => {
         if (logMsg) {
           hasOutput = true
           lastActivity = Date.now()
-          await stream.push(JSON.stringify({ step: logMsg, timestamp: Date.now() }))
+          await pushToStreams(entry, JSON.stringify({ step: logMsg, timestamp: Date.now() }))
           persistLog(logMsg)
         }
       } catch {}
@@ -213,7 +284,7 @@ export default defineEventHandler(async (event) => {
         if (!trimmed) continue
         if (trimmed.startsWith('ERROR') || trimmed.includes('error:')) {
           hasOutput = true
-          stream.push(JSON.stringify({ step: trimmed.slice(0, 120), timestamp: Date.now() })).catch(() => {})
+          pushToStreams(entry, JSON.stringify({ step: trimmed.slice(0, 120), timestamp: Date.now() })).catch(() => {})
         }
       }
     })
@@ -222,23 +293,20 @@ export default defineEventHandler(async (event) => {
       clearInterval(heartbeat)
       hasOutput = true
       const msg = `Failed to start opencode: ${err.message}`
-      await stream.push(JSON.stringify({ step: msg, timestamp: Date.now() }))
+      await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       persistLog(msg)
     })
 
     proc.on('exit', async (code) => {
       clearInterval(heartbeat)
       const msg = code === 0 ? 'Done' : `Exited with code ${code}`
-      await stream.push(JSON.stringify({ step: msg, timestamp: Date.now() }))
+      await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       persistLog(msg)
-      stream.close()
+      activeProcesses.delete(id)
+      for (const s of entry.streams) {
+        try { s.close() } catch {}
+      }
     })
-
-    stream.onClosed = () => {
-      clearInterval(heartbeat)
-      try { proc.kill('SIGTERM') } catch {}
-      setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
-    }
   }, 10)
 
   return stream.send()

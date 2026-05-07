@@ -14,6 +14,11 @@
             </span>
           </div>
           <div class="flex items-center gap-2">
+            <IconButton @click="handleDuplicate">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </template>
+            </IconButton>
             <IconButton @click="confirmDelete = true">
               <template #icon>
                 <Trash class="stroke-surface-500 w-4 h-4" />
@@ -162,6 +167,20 @@
               </div>
               <span v-else class="text-sm text-surface-400">None</span>
             </div>
+          </div>
+
+          <div v-if="repositories && repositories.length > 0" class="mb-4">
+            <label class="block text-xs font-medium text-surface-500 mb-1">Repository</label>
+            <select
+              :value="task.repositoryId"
+              class="w-full text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+              @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value || null)"
+            >
+              <option :value="null">None</option>
+              <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
+                {{ repo.name }} — {{ repo.defaultBranch }}
+              </option>
+            </select>
           </div>
 
           <div class="mb-6">
@@ -355,7 +374,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, Comment, ActivityLog, ProjectMember } from '~/types'
+import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository } from '~/types'
 import type { Agent } from '~/types'
 import { useDebounceFn } from '@vueuse/core'
 
@@ -368,12 +387,14 @@ const props = defineProps<{
   labels: Label[]
   members: ProjectMember[]
   agents: Agent[]
+  repositories?: Repository[]
 }>()
 
 const emit = defineEmits<{
   close: []
   updated: [task: Task]
   deleted: [taskId: string]
+  duplicated: [task: Task]
 }>()
 
 const {
@@ -381,6 +402,7 @@ const {
   fetchComments,
   addComment,
   fetchActivity,
+  createTask: createTaskApi,
   updateTask: updateTaskApi,
   deleteTask: deleteTaskApi,
 } = useTask()
@@ -577,13 +599,16 @@ onMounted(async () => {
     nextTick(syncDescription)
   }
 
-  if (
-    task.value &&
-    isAgentInProgress.value &&
-    !isRunning(task.value.id) &&
-    !activityLogs.value.some(l => l.action === 'runtime_log')
-  ) {
-    startRuntime(task.value.id)
+  if (task.value && isAgentInProgress.value && !isRunning(task.value.id)) {
+    const hasLogs = activityLogs.value.some(l => l.action === 'runtime_log')
+    if (!hasLogs) {
+      startRuntime(task.value.id)
+    } else {
+      const { active } = await $fetch<{ active: boolean }>(`/api/tasks/${task.value.id}/execute/status`)
+      if (active) {
+        startRuntime(task.value.id)
+      }
+    }
   }
 
   await checkExistingPr()
@@ -655,6 +680,27 @@ async function handleDelete() {
   if (!task.value) return
   await deleteTaskApi(task.value.id)
   emit('deleted', task.value.id)
+}
+
+async function handleDuplicate() {
+  if (!task.value) return
+  const backlog = props.statuses.find(s => /backlog/i.test(s.name))
+    || props.statuses.find(s => /todo/i.test(s.name))
+    || props.statuses[0]
+  if (!backlog) return
+
+  const dup = await createTaskApi(props.projectId, {
+    title: `${task.value.title} (copy)`,
+    statusId: backlog.id,
+    description: task.value.description,
+    priority: task.value.priority,
+    assigneeId: null,
+    assigneeType: null,
+    repositoryId: task.value.repositoryId,
+    labelIds: task.value.labels?.map(l => l.id),
+  })
+
+  emit('duplicated', dup)
 }
 
 function formatDate(dateStr: string) {

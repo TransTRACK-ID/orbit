@@ -64,9 +64,10 @@
         :project-id="projectId"
         :statuses="statuses"
         :labels="labels"
-        @close="closeTaskDetail"
-        @updated="handleTaskUpdated"
-        @deleted="handleTaskDeleted"
+      @close="closeTaskDetail"
+      @updated="handleTaskUpdated"
+      @deleted="handleTaskDeleted"
+      @duplicated="handleTaskDuplicated"
       />
 
       <!-- Create modal -->
@@ -84,6 +85,7 @@
 
 <script setup lang="ts">
 import type { Task, Status, Label } from '~/types'
+import { flashHighlight } from '~/composables/useKanban'
 
 definePageMeta({
   layout: 'default',
@@ -128,5 +130,12 @@ function handleTaskUpdated(task: Task) {
 function handleTaskDeleted(taskId: string) {
   tasks.value = tasks.value.filter((t) => t.id !== taskId)
   closeTaskDetail()
+}
+
+function handleTaskDuplicated(task: Task) {
+  tasks.value.push(task)
+  flashHighlight(task.id)
+  closeTaskDetail()
+  nextTick(() => openTaskDetail(task))
 }
 </script>

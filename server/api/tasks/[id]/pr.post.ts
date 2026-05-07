@@ -16,6 +16,11 @@ function sanitizeBranchName(title: string): string {
       .slice(0, 50)
 }
 
+function extractRepoName(url: string): string {
+  const match = url.match(/\/([^/]+?)(\.git)?$/)
+  return match ? match[1] : 'repo'
+}
+
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
 export default defineEventHandler(async (event) => {
@@ -25,28 +30,49 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, description: true, projectId: true },
+    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true },
   })
 
   if (!task) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
 
-  const project = await db.query.projects.findFirst({
-    where: eq(schema.projects.id, task.projectId),
-    columns: { workspaceId: true },
-  })
+  let repoUrl = ''
+  let repoDefaultBranch = 'main'
+  let repoName = ''
 
-  if (!project) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-
-  const workspace = await db.query.workspaces.findFirst({
-    where: eq(schema.workspaces.id, project.workspaceId),
-    columns: { repositoryUrl: true, defaultBranch: true, name: true },
-  })
-
-  if (!workspace || !workspace.repositoryUrl) {
-    throw createError({ statusCode: 400, statusMessage: 'No repository configured for this workspace' })
+  if (task.repositoryId) {
+    const repo = await db.query.repositories.findFirst({
+      where: eq(schema.repositories.id, task.repositoryId),
+    })
+    if (repo) {
+      repoUrl = repo.url
+      repoDefaultBranch = repo.defaultBranch || 'main'
+      repoName = repo.name
+    }
   }
 
-  const repoDir = `${projectsDir}/${workspace.name || 'repo'}`
+  if (!repoUrl) {
+    const project = await db.query.projects.findFirst({
+      where: eq(schema.projects.id, task.projectId),
+      columns: { workspaceId: true },
+    })
+    if (project) {
+      const workspaceRepos = await db.query.repositories.findMany({
+        where: eq(schema.repositories.workspaceId, project.workspaceId),
+        limit: 1,
+      })
+      if (workspaceRepos[0]) {
+        repoUrl = workspaceRepos[0].url
+        repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
+        repoName = workspaceRepos[0].name
+      }
+    }
+  }
+
+  if (!repoUrl) {
+    throw createError({ statusCode: 400, statusMessage: 'No repository configured for this task' })
+  }
+
+  const repoDir = `${projectsDir}/${repoName || extractRepoName(repoUrl)}`
 
   if (!existsSync(repoDir)) {
     throw createError({ statusCode: 400, statusMessage: 'Repository not cloned yet. Run the agent first.' })
@@ -137,7 +163,7 @@ export default defineEventHandler(async (event) => {
     }
     const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
     const { stdout } = await execAsync(
-      `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${workspace.defaultBranch || 'main'} --head ${branch}`,
+      `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
       { cwd: repoDir }
     )
 

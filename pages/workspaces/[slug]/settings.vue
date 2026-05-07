@@ -28,49 +28,136 @@
         </form>
       </div>
 
-      <!-- Repository -->
+      <!-- Repositories -->
       <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-surface-900 mb-4">Repository</h2>
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-lg font-semibold text-surface-900">Repositories</h2>
+          <Button @click="showAddRepo = true" v-if="!showAddRepo">
+            <Icon name="lucide:plus" class="w-3.5 h-3.5" />
+            Add Repository
+          </Button>
+        </div>
         <p class="text-xs text-surface-400 mb-4">
-          Connect a repository so agents can clone, create branches, and start working from tasks.
+          Connect repositories so agents can clone, create branches, and start working from tasks.
         </p>
-        <form @submit.prevent="handleRepoUpdate" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Repository URL</label>
-            <TextInput
-              v-model="form.repositoryUrl"
-              placeholder="https://github.com/org/repo or git@github.com:org/repo.git"
-            />
-            <p class="text-[10px] text-surface-400 mt-1">Supports GitHub and self-hosted GitLab</p>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Default Branch</label>
-            <TextInput v-model="form.defaultBranch" placeholder="main" />
-          </div>
-          <div class="flex items-start gap-3 pt-1">
-            <input
-              id="create-branch"
-              v-model="form.createBranch"
-              type="checkbox"
-              class="mt-0.5 w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
-            />
+
+        <!-- Add repo form -->
+        <div v-if="showAddRepo" class="mb-4 p-4 rounded-xl bg-surface-50 border border-surface-200">
+          <h3 class="text-sm font-semibold text-surface-900 mb-3">New Repository</h3>
+          <div class="space-y-3">
             <div>
-              <label for="create-branch" class="text-sm font-medium text-surface-700 cursor-pointer">
-                Always create a new branch
-              </label>
-              <p class="text-[10px] text-surface-400">
-                Agents will create a new branch from the default branch before starting work.
-              </p>
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Name</label>
+              <TextInput v-model="newRepo.name" placeholder="e.g. frontend, backend-api" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">URL</label>
+              <TextInput v-model="newRepo.url" placeholder="https://github.com/org/repo.git" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Default Branch</label>
+              <TextInput v-model="newRepo.defaultBranch" placeholder="main" />
+            </div>
+            <div class="flex items-start gap-3">
+              <input
+                v-model="newRepo.createBranch"
+                type="checkbox"
+                class="mt-0.5 w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
+              />
+              <div>
+                <label class="text-sm font-medium text-surface-700 cursor-pointer">Always create a new branch</label>
+                <p class="text-[10px] text-surface-400">Agents will create a new branch from default before starting work.</p>
+              </div>
             </div>
           </div>
-          <div class="flex items-center gap-3">
-            <Button type="submit" :loading="repoSaving">Save Repository</Button>
-            <TextButton v-if="repoSaved" class="text-success-500">
-              <Check class="w-4 h-4" />
-              Saved
-            </TextButton>
+          <div class="flex items-center gap-2 mt-4">
+            <Button @click="handleAddRepo" :loading="addRepoLoading">Add</Button>
+            <OutlinedButton @click="cancelAddRepo">Cancel</OutlinedButton>
           </div>
-        </form>
+        </div>
+
+        <!-- Repo list -->
+        <div v-if="repos.length === 0 && !showAddRepo" class="text-center py-8 text-surface-400">
+          <Icon name="lucide:git-branch" class="w-6 h-6 mx-auto mb-2" />
+          <p class="text-xs">No repositories connected yet.</p>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="repo in repos"
+            :key="repo.id"
+            class="rounded-xl border border-surface-200 p-4"
+          >
+            <!-- Display mode -->
+            <template v-if="editingRepoId !== repo.id">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <Icon name="lucide:folder" class="w-4 h-4 text-accent flex-shrink-0" />
+                    <span class="text-sm font-semibold text-surface-900">{{ repo.name }}</span>
+                  </div>
+                  <div class="text-[11px] text-surface-500 font-mono truncate mb-2">{{ repo.url }}</div>
+                  <div class="flex items-center gap-4 text-[10px] text-surface-400">
+                    <span class="flex items-center gap-1">
+                      <Icon name="lucide:git-branch" class="w-3 h-3" />
+                      {{ repo.defaultBranch }}
+                    </span>
+                    <span v-if="repo.createBranch" class="flex items-center gap-1 text-accent">
+                      <span class="w-1.5 h-1.5 rounded-full bg-accent" />
+                      Auto-create branch
+                    </span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-surface-100 transition-colors text-surface-400 hover:text-surface-700"
+                    @click="startEditRepo(repo)"
+                  >
+                    <Icon name="lucide:pencil" class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-surface-400 hover:text-red-500"
+                    @click="handleDeleteRepo(repo.id)"
+                  >
+                    <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <!-- Edit mode -->
+            <template v-else>
+              <h3 class="text-sm font-semibold text-surface-900 mb-3">Edit Repository</h3>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Name</label>
+                  <TextInput v-model="editRepo.name" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">URL</label>
+                  <TextInput v-model="editRepo.url" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Default Branch</label>
+                  <TextInput v-model="editRepo.defaultBranch" />
+                </div>
+                <div class="flex items-start gap-3">
+                  <input
+                    v-model="editRepo.createBranch"
+                    type="checkbox"
+                    class="mt-0.5 w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
+                  />
+                  <div>
+                    <label class="text-sm font-medium text-surface-700 cursor-pointer">Always create a new branch</label>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 mt-4">
+                <Button @click="handleEditRepo(repo.id)" :loading="editRepoLoading">Save</Button>
+                <OutlinedButton @click="editingRepoId = null">Cancel</OutlinedButton>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- Members -->
@@ -140,26 +227,31 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const { getWorkspaceBySlug, updateWorkspace, deleteWorkspace } = useWorkspace()
+const { repositories: repos, fetchRepositories, createRepository, updateRepository, deleteRepository } = useRepository()
 
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<any>(null)
-const form = reactive({ name: '', description: '', repositoryUrl: '', defaultBranch: 'main', createBranch: true })
+const form = reactive({ name: '', description: '' })
 const saving = ref(false)
 const saved = ref(false)
-const repoSaving = ref(false)
-const repoSaved = ref(false)
 const showInvite = ref(false)
 const inviteEmail = ref('')
 const confirmDelete = ref(false)
+
+// Repository state
+const showAddRepo = ref(false)
+const newRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true })
+const editingRepoId = ref<string | null>(null)
+const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true })
+const addRepoLoading = ref(false)
+const editRepoLoading = ref(false)
 
 onMounted(async () => {
   workspace.value = await getWorkspaceBySlug(slug.value)
   if (workspace.value) {
     form.name = workspace.value.name
     form.description = workspace.value.description || ''
-    form.repositoryUrl = workspace.value.repositoryUrl || ''
-    form.defaultBranch = workspace.value.defaultBranch || 'main'
-    form.createBranch = workspace.value.createBranch
+    fetchRepositories(workspace.value.id)
   }
 })
 
@@ -178,20 +270,52 @@ async function handleUpdate() {
   }
 }
 
-async function handleRepoUpdate() {
-  if (!workspace.value) return
-  repoSaving.value = true
+async function handleAddRepo() {
+  if (!workspace.value || !newRepo.name || !newRepo.url) return
+  addRepoLoading.value = true
   try {
-    workspace.value = await updateWorkspace(workspace.value.id, {
-      repositoryUrl: form.repositoryUrl || null,
-      defaultBranch: form.defaultBranch || 'main',
-      createBranch: form.createBranch,
-    })
-    repoSaved.value = true
-    setTimeout(() => { repoSaved.value = false }, 2000)
+    await createRepository(workspace.value.id, { ...newRepo })
+    newRepo.name = ''
+    newRepo.url = ''
+    newRepo.defaultBranch = 'main'
+    newRepo.createBranch = true
+    showAddRepo.value = false
   } finally {
-    repoSaving.value = false
+    addRepoLoading.value = false
   }
+}
+
+function cancelAddRepo() {
+  showAddRepo.value = false
+  newRepo.name = ''
+  newRepo.url = ''
+  newRepo.defaultBranch = 'main'
+  newRepo.createBranch = true
+}
+
+function startEditRepo(repo: any) {
+  editingRepoId.value = repo.id
+  editRepo.name = repo.name
+  editRepo.url = repo.url
+  editRepo.defaultBranch = repo.defaultBranch
+  editRepo.createBranch = repo.createBranch
+}
+
+async function handleEditRepo(repoId: string) {
+  if (!workspace.value || !editRepo.name || !editRepo.url) return
+  editRepoLoading.value = true
+  try {
+    await updateRepository(workspace.value.id, repoId, { ...editRepo })
+    editingRepoId.value = null
+  } finally {
+    editRepoLoading.value = false
+  }
+}
+
+async function handleDeleteRepo(repoId: string) {
+  if (!workspace.value) return
+  if (!confirm('Delete this repository? This cannot be undone.')) return
+  await deleteRepository(workspace.value.id, repoId)
 }
 
 async function handleInvite() {

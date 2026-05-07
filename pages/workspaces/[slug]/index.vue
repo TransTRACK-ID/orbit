@@ -57,11 +57,11 @@
           <div class="flex gap-4 text-[10px] text-surface-400">
             <span class="flex items-center gap-1">
               <Icon name="lucide:inbox" class="w-3 h-3 text-accent" />
-              {{ project._count?.tasks || 0 }} open
+              {{ (project._count?.tasks || 0) - (project._count?.doneTasks || 0) }} open
             </span>
             <span class="flex items-center gap-1">
               <Icon name="lucide:check-circle" class="w-3 h-3 text-green-500" />
-              {{ 0 }} done
+              {{ project._count?.doneTasks || 0 }} done
             </span>
             <span class="flex items-center gap-1">
               <Icon name="lucide:users" class="w-3 h-3" />

@@ -26,9 +26,6 @@ export const createWorkspaceSchema = z.object({
 export const updateWorkspaceSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(1000).optional(),
-  repositoryUrl: z.string().max(1000).nullable().optional(),
-  defaultBranch: z.string().min(1).max(255).optional(),
-  createBranch: z.boolean().optional(),
 })
 
 // ─── Project ───
@@ -84,6 +81,7 @@ export const createTaskSchema = z.object({
   assigneeType: z.enum(['user', 'agent']).nullable().optional(),
   description: z.string().optional(),
   priority: z.enum(['none', 'urgent', 'high', 'medium', 'low']).optional(),
+  repositoryId: z.string().uuid().nullable().optional(),
   parentTaskId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),
@@ -98,6 +96,7 @@ export const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   position: z.number().optional(),
   priority: z.enum(['none', 'urgent', 'high', 'medium', 'low']).optional(),
+  repositoryId: z.string().uuid().nullable().optional(),
   parentTaskId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),
@@ -122,6 +121,21 @@ export const updateAgentSchema = z.object({
   status: z.enum(['idle', 'busy', 'offline']).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   tasks: z.number().int().min(0).optional(),
+})
+
+// ─── Repository ───
+export const createRepositorySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  url: z.string().min(1, 'URL is required').max(1000),
+  defaultBranch: z.string().min(1).max(255).default('main'),
+  createBranch: z.boolean().default(true),
+})
+
+export const updateRepositorySchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  url: z.string().min(1).max(1000).optional(),
+  defaultBranch: z.string().min(1).max(255).optional(),
+  createBranch: z.boolean().optional(),
 })
 
 // ─── Comment ───

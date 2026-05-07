@@ -25,28 +25,49 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, projectId: true },
+    columns: { id: true, title: true, projectId: true, repositoryId: true },
   })
 
   if (!task) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
 
-  const project = await db.query.projects.findFirst({
-    where: eq(schema.projects.id, task.projectId),
-    columns: { workspaceId: true },
-  })
+  let repoUrl = ''
+  let repoName = ''
 
-  if (!project) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-
-  const workspace = await db.query.workspaces.findFirst({
-    where: eq(schema.workspaces.id, project.workspaceId),
-    columns: { repositoryUrl: true, name: true },
-  })
-
-  if (!workspace || !workspace.repositoryUrl) {
-    return { url: null }
+  if (task.repositoryId) {
+    const repo = await db.query.repositories.findFirst({
+      where: eq(schema.repositories.id, task.repositoryId),
+    })
+    if (repo) {
+      repoUrl = repo.url
+      repoName = repo.name
+    }
   }
 
-  const repoDir = `${projectsDir}/${workspace.name || 'repo'}`
+  if (!repoUrl) {
+    const project = await db.query.projects.findFirst({
+      where: eq(schema.projects.id, task.projectId),
+      columns: { workspaceId: true },
+    })
+    if (project) {
+      const workspaceRepos = await db.query.repositories.findMany({
+        where: eq(schema.repositories.workspaceId, project.workspaceId),
+        limit: 1,
+      })
+      if (workspaceRepos[0]) {
+        repoUrl = workspaceRepos[0].url
+        repoName = workspaceRepos[0].name
+      }
+    }
+  }
+
+  if (!repoUrl) return { url: null }
+
+  function extractRepoName(url: string): string {
+    const match = url.match(/\/([^/]+?)(\.git)?$/)
+    return match ? match[1] : 'repo'
+  }
+
+  const repoDir = `${projectsDir}/${repoName || extractRepoName(repoUrl)}`
   if (!existsSync(repoDir)) {
     return { url: null }
   }

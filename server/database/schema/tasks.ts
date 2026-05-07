@@ -7,6 +7,7 @@ import { statuses } from './statuses'
 import { taskLabels } from './task-labels'
 import { comments } from './comments'
 import { activityLogs } from './activity-logs'
+import { repositories } from './repositories'
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -20,6 +21,7 @@ export const tasks = pgTable('tasks', {
   description: text('description'),
   position: doublePrecision('position').notNull().default(0),
   priority: varchar('priority', { length: 10 }).notNull().default('none'),
+  repositoryId: uuid('repository_id').references(() => repositories.id, { onDelete: 'set null' }),
   parentTaskId: uuid('parent_task_id').references((): typeof tasks.id => tasks.id, { onDelete: 'cascade' }),
   dueDate: timestamp('due_date'),
   estimate: integer('estimate'),
@@ -31,6 +33,10 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   project: one(projects, {
     fields: [tasks.projectId],
     references: [projects.id],
+  }),
+  repository: one(repositories, {
+    fields: [tasks.repositoryId],
+    references: [repositories.id],
   }),
   status: one(statuses, {
     fields: [tasks.statusId],

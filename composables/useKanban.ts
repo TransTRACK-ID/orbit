@@ -1,6 +1,14 @@
+import { ref } from 'vue'
 import type { KanbanColumn, Task, Status } from '~/types'
 
-export const useKanban = () => {
+export const highlightedTaskId = ref<string | null>(null)
+
+export function flashHighlight(taskId: string) {
+  highlightedTaskId.value = taskId
+  setTimeout(() => { highlightedTaskId.value = null }, 3000)
+}
+
+export function useKanban() {
   const columns = ref<KanbanColumn[]>([])
   const selectedTask = ref<Task | null>(null)
   const showTaskSidePanel = ref(false)

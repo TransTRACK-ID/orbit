@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
       description: body.description || null,
       position,
       priority: body.priority || 'none',
+      repositoryId: body.repositoryId || null,
       parentTaskId: body.parentTaskId || null,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       estimate: body.estimate || null,

@@ -12,13 +12,22 @@ export interface Workspace {
   name: string
   slug: string
   description: string | null
-  repositoryUrl: string | null
-  defaultBranch: string
-  createBranch: boolean
   ownerId: string
   createdAt: string
   updatedAt: string
   _count?: { members: number; projects: number }
+  repositories?: Repository[]
+}
+
+export interface Repository {
+  id: string
+  workspaceId: string
+  name: string
+  url: string
+  defaultBranch: string
+  createBranch: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface WorkspaceMember {
@@ -40,7 +49,7 @@ export interface Project {
   icon: string | null
   createdAt: string
   updatedAt: string
-  _count?: { tasks: number; members: number }
+  _count?: { tasks: number; doneTasks: number; members: number }
 }
 
 export interface ProjectMember {
@@ -87,6 +96,7 @@ export interface Task {
   description: string | null
   position: number
   priority: TaskPriority
+  repositoryId: string | null
   parentTaskId: string | null
   dueDate: string | null
   estimate: number | null

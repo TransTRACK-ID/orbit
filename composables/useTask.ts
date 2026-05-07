@@ -26,6 +26,7 @@ export const useTask = () => {
     assigneeType?: 'user' | 'agent' | null
     description?: string
     priority?: string
+    repositoryId?: string | null
     labelIds?: string[]
     parentTaskId?: string | null
   }) {

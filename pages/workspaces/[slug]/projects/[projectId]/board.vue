@@ -21,9 +21,11 @@
       :labels="labels"
       :members="members"
       :agents="agents"
+      :repositories="repositories"
       @close="closeTaskDetail"
       @updated="handleTaskUpdated"
       @deleted="handleTaskDeleted"
+      @duplicated="handleTaskDuplicated"
     />
 
     <!-- Create task modal -->
@@ -33,6 +35,7 @@
       :labels="labels"
       :members="members"
       :agents="agents"
+      :repositories="repositories"
       :project-id="project?.id || ''"
       @close="showCreateModal = false"
       @created="handleTaskCreated"
@@ -43,6 +46,7 @@
 <script setup lang="ts">
 import type { Task, Status, Label, ProjectMember } from '~/types'
 import type { Agent } from '~/types'
+import { flashHighlight } from '~/composables/useKanban'
 
 definePageMeta({
   layout: 'default',
@@ -55,6 +59,7 @@ const { tasks, loading, fetchTasks, createTask, updateTask } = useTask()
 const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
 const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
+const { repositories, fetchRepositories } = useRepository()
 
 const project = ref<any>(null)
 const statuses = ref<Status[]>([])
@@ -74,6 +79,9 @@ onMounted(async () => {
   }
   members.value = await fetchMembers(projectId.value)
   await fetchAgents()
+  if (data.workspaceId) {
+    fetchRepositories(data.workspaceId)
+  }
 })
 
 function handleCreateTask() {
@@ -113,6 +121,13 @@ function handleOpenTask(task: Task) {
 function handleTaskUpdated(task: Task) {
   const idx = tasks.value.findIndex((t) => t.id === task.id)
   if (idx !== -1) tasks.value[idx] = task
+}
+
+function handleTaskDuplicated(task: Task) {
+  tasks.value.push(task)
+  flashHighlight(task.id)
+  closeTaskDetail()
+  nextTick(() => openTaskDetail(task))
 }
 
 function handleTaskDeleted(taskId: string) {

@@ -258,32 +258,40 @@ export default defineEventHandler(async (event) => {
     }
     
     let prUrl = ''
+    let lastError = ''
     if (cli === 'glab') {
       const bodyFlag = prBody ? '--description-file /tmp/pr-body.md' : ''
-      const { stdout } = await execAsync(
-        `glab mr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y | grep -Eo 'https?://[^ ]+' | head -1 || true`,
+      const { stdout, stderr } = await execAsync(
+        `glab mr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y 2>&1`,
         { cwd: repoDir, env: gitlabEnv }
       )
-      prUrl = stdout.trim()
+      const output = (stdout + stderr).trim()
+      const urlMatch = output.match(/https?:\/\/[^\s]+/)
+      prUrl = urlMatch ? urlMatch[0] : ''
+      if (!prUrl) lastError = output.slice(0, 300)
+
       if (!prUrl) {
-        const { stdout: fallback } = await execAsync(
-          `glab mr view ${branch} -F json | jq -r '.web_url // empty' || true`,
+        const { stdout: fallback, stderr: fallbackErr } = await execAsync(
+          `glab mr view ${branch} -F json 2>&1 | jq -r '.web_url // empty' || true`,
           { cwd: repoDir, env: gitlabEnv }
         )
-        prUrl = fallback.trim()
-        if (prUrl === 'null') prUrl = ''
+        prUrl = (fallback + fallbackErr).trim()
+        if (prUrl === 'null' || prUrl === '') {
+          prUrl = ''
+          if (!lastError) lastError = (fallback + fallbackErr).trim().slice(0, 300)
+        }
       }
     } else {
       const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
-      const { stdout } = await execAsync(
+      const { stdout, stderr } = await execAsync(
         `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
         { cwd: repoDir }
       )
-      prUrl = stdout.trim()
+      prUrl = (stdout + stderr).trim()
     }
 
     if (!prUrl) {
-      throw createError({ statusCode: 500, statusMessage: `Failed to create PR/MR. The remote repository may not be reachable or the CLI is not configured correctly.` })
+      throw createError({ statusCode: 500, statusMessage: `Failed to create PR/MR. ${lastError || 'Check that the CLI is installed and authenticated.'}` })
     }
 
     try {

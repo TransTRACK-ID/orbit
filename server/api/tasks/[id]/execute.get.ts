@@ -1,4 +1,4 @@
-import { createEventStream, getQuery } from 'h3'
+import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getRequestHeaders } from 'h3'
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync } from 'fs'
@@ -376,6 +376,25 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
             await pushToStreams(entry, JSON.stringify({ step: 'Pushed changes to branch', timestamp: Date.now() }))
           } else {
             await pushToStreams(entry, JSON.stringify({ step: 'No changes to push', timestamp: Date.now() }))
+          }
+
+          // Auto-create PR/MR
+          try {
+            const baseUrl = `${getRequestProtocol(event)}://${getRequestHost(event)}`
+            const res = await fetch(`${baseUrl}/api/tasks/${id}/pr`, {
+              method: 'POST',
+              headers: { cookie: getRequestHeaders(event).cookie || '' },
+            })
+            if (res.ok) {
+              const prResult = await res.json() as { url: string | null; noChanges?: boolean }
+              if (prResult?.url) {
+                await pushToStreams(entry, JSON.stringify({ step: `Created PR: ${prResult.url}`, timestamp: Date.now() }))
+              } else if (prResult?.noChanges) {
+                await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
+              }
+            }
+          } catch (err: any) {
+            await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${err.message}`, timestamp: Date.now() }))
           }
         } catch (err: any) {
           await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))

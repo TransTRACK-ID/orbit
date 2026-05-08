@@ -83,8 +83,9 @@ export default defineEventHandler(async (event) => {
 
   async function getDiffSummary(repoDir: string): Promise<string> {
     try {
-      const { stdout: diffOutput } = await execAsync('git diff HEAD', { cwd: repoDir })
-      const { stdout: diffStat } = await execAsync('git diff --stat HEAD', { cwd: repoDir })
+      const ref = `origin/${repoDefaultBranch}`
+      const { stdout: diffOutput } = await execAsync(`git diff ${ref} HEAD`, { cwd: repoDir })
+      const { stdout: diffStat } = await execAsync(`git diff --stat ${ref} HEAD`, { cwd: repoDir })
 
       if (!diffStat.trim()) return ''
 
@@ -147,14 +148,30 @@ export default defineEventHandler(async (event) => {
   let prBody = await getDiffSummary(repoDir)
 
   const { stdout: status } = await execAsync('git status --porcelain', { cwd: repoDir })
-  if (!status.trim()) {
+  const hasUncommitted = !!status.trim()
+
+  let hasCommittedChanges = false
+  if (!hasUncommitted) {
+    try {
+      await execAsync(`git fetch origin ${repoDefaultBranch} 2>/dev/null`, { cwd: repoDir })
+      const { stdout: ahead } = await execAsync(
+        `git rev-list --count HEAD ^origin/${repoDefaultBranch} 2>/dev/null || echo "0"`,
+        { cwd: repoDir }
+      )
+      hasCommittedChanges = parseInt(ahead.trim()) > 0
+    } catch {}
+  }
+
+  if (!hasUncommitted && !hasCommittedChanges) {
     return { url: null, noChanges: true }
   }
 
   try {
     await execAsync(`git checkout -b ${branch} 2>/dev/null || git checkout ${branch}`, { cwd: repoDir })
-    await execAsync('git add -A', { cwd: repoDir })
-    await execAsync(`git commit -m "${prTitle.replace(/"/g, '\\"')}"`, { cwd: repoDir })
+    if (hasUncommitted) {
+      await execAsync('git add -A', { cwd: repoDir })
+      await execAsync(`git commit -m "${prTitle.replace(/"/g, '\\"')}"`, { cwd: repoDir })
+    }
     await execAsync(`git push origin --delete ${branch} 2>/dev/null; true`, { cwd: repoDir })
     await execAsync(`git push -u origin ${branch} 2>/dev/null || git push --force -u origin ${branch}`, { cwd: repoDir })
 

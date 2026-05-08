@@ -125,6 +125,7 @@ export default defineEventHandler(async (event) => {
 
     let workDir = defaultProjectDir
     let branchName = ''
+    let repoPlatform: 'github' | 'gitlab' | 'gitlab-self-hosted' = 'github'
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -146,6 +147,7 @@ export default defineEventHandler(async (event) => {
           repoDefaultBranch = repo.defaultBranch || 'main'
           createBranch = repo.createBranch
           repoName = repo.name
+          repoPlatform = (repo.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
         }
       }
 
@@ -159,6 +161,7 @@ export default defineEventHandler(async (event) => {
           repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
           createBranch = workspaceRepos[0].createBranch
           repoName = workspaceRepos[0].name
+          repoPlatform = (workspaceRepos[0].platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
         }
       }
 
@@ -209,9 +212,14 @@ export default defineEventHandler(async (event) => {
 
     await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)
 
-    let message = task.description
-      ? `${task.title}\n\n${task.description}`
-      : task.title
+    const isGitLab = repoPlatform === 'gitlab' || repoPlatform === 'gitlab-self-hosted'
+    const platformLabel = isGitLab ? 'GitLab' : 'GitHub'
+    const correctCli = isGitLab ? 'glab' : 'gh'
+    const wrongCli = isGitLab ? 'gh' : 'glab'
+    const platformRule = `[GIT PLATFORM: ${repoPlatform}]
+CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" for ALL git hosting operations (clone, push, PRs/MRs, status, etc.). NEVER use "${wrongCli}" — it will fail.`
+
+    let message = `${platformRule}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
 
     if (feedback) {
       if (feedback.includes('[USER MESSAGE]')) {
@@ -237,7 +245,7 @@ export default defineEventHandler(async (event) => {
 
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including user message: ${feedbackTail}`)
-        message = `${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
+        message = `${platformRule}\n\n${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
@@ -255,6 +263,7 @@ export default defineEventHandler(async (event) => {
       cwd: workDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
+      env: { ...process.env, GIT_PLATFORM: repoPlatform },
     })
 
     const entry: ProcState = { proc, streams: [], heartbeat: null }

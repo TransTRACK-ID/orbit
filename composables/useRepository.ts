@@ -15,7 +15,7 @@ export const useRepository = () => {
     }
   }
 
-  async function createRepository(workspaceId: string, data: { name: string; url: string; defaultBranch?: string; createBranch?: boolean }) {
+  async function createRepository(workspaceId: string, data: { name: string; url: string; defaultBranch?: string; createBranch?: boolean; platform?: 'github' | 'gitlab' | 'gitlab-self-hosted' }) {
     const repo = await $fetch<Repository>(`/api/workspaces/${workspaceId}/repositories`, {
       method: 'POST',
       body: data,

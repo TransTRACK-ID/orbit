@@ -9,6 +9,7 @@ export const repositories = pgTable('repositories', {
   url: text('url').notNull(),
   defaultBranch: varchar('default_branch', { length: 255 }).default('main').notNull(),
   createBranch: boolean('create_branch').default(true).notNull(),
+  platform: varchar('platform', { length: 20 }).default('github').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

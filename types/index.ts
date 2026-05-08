@@ -26,6 +26,7 @@ export interface Repository {
   url: string
   defaultBranch: string
   createBranch: boolean
+  platform: 'github' | 'gitlab' | 'gitlab-self-hosted'
   createdAt: string
   updatedAt: string
 }

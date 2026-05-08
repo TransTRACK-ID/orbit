@@ -61,7 +61,7 @@ definePageMeta({
   layout: 'default',
 })
 
-const { data: session } = useAuth()
+const { data: session, getSession } = useAuth()
 const user = computed(() => (session.value?.user as any) || {})
 
 // Profile form
@@ -83,12 +83,12 @@ const passwordSaving = ref(false)
 const passwordSaved = ref(false)
 const passwordError = ref('')
 
-onMounted(() => {
-  if (user.value) {
-    profileForm.name = user.value.name || ''
-    profileForm.email = user.value.email || ''
+watch(() => session.value?.user, (userData) => {
+  if (userData) {
+    profileForm.name = (userData as any).name || ''
+    profileForm.email = (userData as any).email || ''
   }
-})
+}, { immediate: true })
 
 async function handleUpdateProfile() {
   profileError.value = ''
@@ -120,10 +120,8 @@ async function handleUpdateProfile() {
       body: data,
     })
 
-    // Update local session
-    if (session.value?.user) {
-      session.value.user = { ...session.value.user, ...data }
-    }
+    // Refresh session from server to pick up changes
+    await getSession()
 
     profileSaved.value = true
     setTimeout(() => { profileSaved.value = false }, 2000)

@@ -67,6 +67,18 @@ useSortable(sortableContainer, props.column.tasks, {
   },
   onEnd: (evt: any) => {
     isDraggingOver.value = false
+
+    // Detect a click (no actual drag movement). SortableJS prevents the
+    // native click event by calling preventDefault on mousedown, so we
+    // catch click-to-open via onEnd instead.
+    if (evt.from === evt.to && evt.oldIndex === evt.newIndex) {
+      const taskId = evt.item.dataset?.id
+      if (!taskId) return
+      const task = props.column.tasks.find(t => t.id === taskId)
+      if (task) emit('openTask', task)
+      return
+    }
+
     if (evt.from !== evt.to) return
     const taskId = evt.item.dataset?.id
     if (!taskId) return

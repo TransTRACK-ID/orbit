@@ -6,7 +6,7 @@ import { eq, desc, inArray, and } from 'drizzle-orm'
  * Returns persisted agent runtime responses for a task. These are activity
  * logs with action = 'runtime_log' or 'agent_reply' that were saved by the opencode runtime
  * during execution. Each entry contains the agent's message, timestamp, and
- * the user who triggered the run.
+ * the agent who was executing (resolved from the task's assignee).
  *
  * Non-actionable messages (heartbeats, user echoes, boilerplate) are excluded
  * so only meaningful agent activity is returned.
@@ -15,6 +15,23 @@ export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   await requireAuth(event)
   const db = getDb()
+
+  // Resolve the agent name from the task's assigned agent (if any)
+  const task = await db.query.tasks.findFirst({
+    where: eq(schema.tasks.id, id),
+    columns: { agentAssigneeId: true, assigneeType: true },
+    with: {
+      agentAssignee: {
+        columns: { id: true, name: true, color: true },
+      },
+    },
+  })
+  const defaultAgentName = task?.assigneeType === 'agent' && task?.agentAssignee
+    ? task.agentAssignee.name
+    : 'Agent'
+  const defaultAgentColor = task?.assigneeType === 'agent' && task?.agentAssignee
+    ? task.agentAssignee.color
+    : '#6366f1'
 
   const logs = await db.query.activityLogs.findMany({
     where: (al, { eq, and, inArray }) => and(
@@ -62,10 +79,27 @@ export default defineEventHandler(async (event) => {
     return true
   })
 
-  return deduplicatedLogs.map(log => ({
+  // Deduplicate agent_reply entries: OpenCode streams text events, so each
+  // chunk produces a separate database row.  If a shorter reply is entirely
+  // contained within a later, longer one (streamed fragment), drop the shorter.
+  const uniqueReplies = deduplicatedLogs.filter((log, index, arr) => {
+    if (log.action !== 'agent_reply') return true
+    const body = (log.newValue?.message || '').trim()
+    if (!body) return false
+    // Keep this entry unless a later agent_reply entry contains it entirely
+    return !arr.some((other, otherIndex) =>
+      otherIndex > index &&
+      other.action === 'agent_reply' &&
+      (other.newValue?.message || '').includes(body) &&
+      (other.newValue?.message || '').trim() !== body
+    )
+  })
+
+  return uniqueReplies.map(log => ({
     id: `agent-${log.id}`,
     body: (log.newValue as { message: string }).message,
     createdAt: log.createdAt,
-    agentName: log.user?.name || 'Agent',
+    agentName: defaultAgentName,
+    agentColor: defaultAgentColor,
   }))
 })

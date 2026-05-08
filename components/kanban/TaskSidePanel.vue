@@ -270,26 +270,6 @@
                   </div>
                 </div>
               </template>
-
-              <!-- Live agent reply (from current runtime session) -->
-              <div
-                v-if="latestAgentReply && showAgentChat"
-                class="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary-50/50 to-primary-50 border border-primary-100"
-              >
-                <span
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                  :style="{ background: chatAgentIdentity.color || '#6366f1' }"
-                >
-                  {{ computedInitials(chatAgentIdentity.name) }}
-                </span>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-0.5">
-                    <span class="text-sm font-medium text-primary-700">{{ chatAgentIdentity.name }}</span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
-                  </div>
-                  <p class="text-sm text-primary-800 whitespace-pre-wrap">{{ latestAgentReply }}</p>
-                </div>
-              </div>
             </div>
 
             <div class="flex gap-2">
@@ -868,7 +848,7 @@ const latestAgentReply = computed(() => {
     const msg = log.message.replace(/^>\s*/, '')
     if (
       msg &&
-      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with/i.test(msg) &&
+      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with|Chat session ended/i.test(msg) &&
       !/Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Pushed|No changes|Push failed|Including PR feedback|Including user message/i.test(msg) &&
       !/^User:/.test(msg) &&
       !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg)
@@ -886,11 +866,15 @@ const latestAgentReply = computed(() => {
  * entries in activity_logs that were saved by the opencode runtime. Unlike
  * the in-memory runtimeLogsForTask, these survive page refresh.
  */
-const agentReplies = ref<Array<{ id: string; body: string; createdAt: string; agentName: string }>>([])
+const agentReplies = ref<Array<{ id: string; body: string; createdAt: string; agentName: string; agentColor?: string }>>([])
 
 async function fetchAgentReplies() {
   if (!task.value) return
   try {
+    // Clear the bridge first so allComments never sees a duplicate
+    // (virtual entry + persisted entry for the same reply).
+    lastChatReplyText.value = null
+    lastChatReplyTimestamp.value = 0
     agentReplies.value = await $fetch(`/api/tasks/${task.value.id}/agent-replies`)
   } catch {
     agentReplies.value = []
@@ -907,22 +891,62 @@ const allComments = computed(() => {
       isAgent: false,
     })),
     ...agentReplies.value.map(r => {
-      const agent = props.agents.find(a => a.name === r.agentName)
+      let agent = props.agents.find(a => a.name === r.agentName)
+      if (!agent) {
+        agent = props.agents.find(a => a.name === chatAgentIdentity.value.name)
+      }
       return {
         id: r.id,
         body: r.body,
         createdAt: new Date(r.createdAt).getTime(),
-        authorName: r.agentName || 'Agent',
-        authorColor: agent?.color || '#6366f1',
+        authorName: agent?.name || chatAgentIdentity.value.name || 'Agent',
+        authorColor: r.agentColor || agent?.color || chatAgentIdentity.value.color || '#6366f1',
         isAgent: true,
       }
-    })
+    }),
   ]
+
+  // Include the in-memory agent reply (live during runtime, or bridged after
+  // runtime ends) as a virtual comment entry so it appears in chronological
+  // order with all other comments and respects the full comment history.
+  const liveReply = latestAgentReply.value
+  const bridgedReply = lastChatReplyText.value
+  const inMemoryBody = liveReply || bridgedReply
+  if (inMemoryBody) {
+    const isLive = !!liveReply
+    merged.push({
+      id: 'in-memory-reply',
+      body: inMemoryBody,
+      createdAt: isLive ? Date.now() : (lastChatReplyTimestamp.value || Date.now()),
+      authorName: isLive ? chatAgentIdentity.value.name : (lastChatReplyAuthor.value || chatAgentIdentity.value.name),
+      authorColor: isLive ? (chatAgentIdentity.value.color || '#6366f1') : (lastChatReplyAuthorColor.value || '#6366f1'),
+      isAgent: true,
+    })
+  }
+
   return merged.sort((a, b) => a.createdAt - b.createdAt)
 })
 
 const { startRuntime, stopRuntime, isRunning } = useAgentRuntime()
 const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)
+
+/** In-memory store for the last agent chat reply that survives runtime completion */
+const lastChatReplyText = ref<string | null>(null)
+const lastChatReplyAuthor = ref<string>('Agent')
+const lastChatReplyAuthorColor = ref<string>('#6366f1')
+const lastChatReplyTimestamp = ref(0)
+
+/** Safety net: when the runtime transitions from active to inactive, refresh
+ *  persisted agent replies. This covers edge cases where the "Done" log from
+ *  runtimeLogsForTask may not fire the completion watch (e.g. non-zero exit,
+ *  network interruption, or the premature "Step completed" match before our fix). */
+watch(runtimeActive, async (active) => {
+  if (!active && task.value && isChatMessage.value) {
+    setTimeout(async () => {
+      await fetchAgentReplies()
+    }, 500)
+  }
+})
 
 function computedInitials(name: string) {
   return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -978,8 +1002,19 @@ const runtimeLogsForTask = computed(() => {
 const latestRuntimeLog = computed(() => runtimeLogsForTask.value[0] || null)
 
 const runtimeCompleted = computed(() =>
-  runtimeLogsForTask.value.some(log => /Done|completed|exited/i.test(log.message))
+  runtimeLogsForTask.value.some(log => /Done|exited/i.test(log.message) && !/^>?\s*Step /i.test(log.message))
 )
+
+/** Watch the live agent reply and capture it so it stays visible even after the
+ *  runtime ends and "Chat session ended" causes latestAgentReply to return null. */
+watch(latestAgentReply, (reply) => {
+  if (reply && reply.length > 0) {
+    lastChatReplyText.value = reply
+    lastChatReplyAuthor.value = chatAgentIdentity.value.name
+    lastChatReplyAuthorColor.value = chatAgentIdentity.value.color || '#6366f1'
+    lastChatReplyTimestamp.value = Date.now()
+  }
+})
 
 const remotePrUrl = ref('')
 
@@ -1047,10 +1082,14 @@ watch(runtimeLogsForTask, async (logs) => {
   if (!task.value || hasAdvanced || prSkipped.value) return
   if (logs.length === 0) return
 
-  // Look for a "Done" message that's newer than what we've already processed
+  // Look for a "Done" or "Exited" message that's newer than what we've already processed.
+  // IMPORTANT: "Step completed" also contains the word "completed", so we explicitly
+  // exclude it — otherwise the first step completion triggers the handler prematurely
+  // and fetchAgentReplies() never fires on the actual "Done".
   const latest = logs[0]
   if (
-    /Done|completed|exited/i.test(latest.message) &&
+    /Done|exited/i.test(latest.message) &&
+    !/^>?\s*Step /i.test(latest.message) &&
     latest.timestamp > lastCompletionTimestamp.value
   ) {
     lastCompletionTimestamp.value = latest.timestamp
@@ -1381,6 +1420,9 @@ async function handleAddComment() {
       isChatMessage.value = true
       hasAdvanced = false
       prSkipped.value = false
+      // Clear the previous chat reply so the new one can take its place
+      lastChatReplyText.value = null
+      lastChatReplyTimestamp.value = 0
 
       // Build a context message for the agent. Include the @mention as a hint
       // about who the user is talking to, but the full request is always included.

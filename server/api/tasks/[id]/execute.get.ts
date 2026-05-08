@@ -215,9 +215,29 @@ export default defineEventHandler(async (event) => {
 
     if (feedback) {
       if (feedback.includes('[USER MESSAGE]')) {
+        // Load conversation history so the agent doesn't forget past work
+        // when a new opencode process is spawned.
+        const historyLogs = await db.query.activityLogs.findMany({
+          where: eq(schema.activityLogs.taskId, id),
+          columns: { action: true, newValue: true, createdAt: true },
+          orderBy: [asc(schema.activityLogs.createdAt)],
+          limit: 60,
+        })
+        const historyLines: string[] = []
+        for (const l of historyLogs) {
+          if (l.action === 'agent_reply' && l.newValue?.message) {
+            historyLines.push(`Agent: ${l.newValue.message}`)
+          } else if (l.action === 'runtime_log' && l.newValue?.message?.startsWith('User:')) {
+            historyLines.push(l.newValue.message)
+          }
+        }
+        const historyContext = historyLines.length > 0
+          ? `\n\n[CONVERSATION HISTORY]\n${historyLines.join('\n')}\n`
+          : ''
+
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including user message: ${feedbackTail}`)
-        message = `${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
+        message = `${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)

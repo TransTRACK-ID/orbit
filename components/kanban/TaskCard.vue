@@ -3,7 +3,8 @@
     class="kanban-card"
     :class="{ agentic: isAgentInProgress, highlighted: isHighlighted }"
     :data-id="task.id"
-    @click="$emit('click')"
+    @pointerdown="onPointerDown"
+    @pointerup="onPointerUp"
   >
     <!-- Priority badge -->
     <span
@@ -39,7 +40,7 @@
     <div v-if="isAgentInProgress" class="flex items-center gap-1.5 mb-1.5">
       <span class="agentic-badge">
         <span class="agentic-dot" />
-        <span>Agentic · {{ task.assignee?.name }}</span>
+        <span>Agentic · {{ resolveAgentName(task.assignee?.name || '', task.assigneeId, task.assigneeType) }}</span>
       </span>
     </div>
 
@@ -61,7 +62,7 @@
         v-if="task.assignee"
         class="ml-auto w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white flex-shrink-0"
         :style="{ background: task.assignee.color || '#6366F1' }"
-        :title="task.assignee.name"
+        :title="resolveAgentName(task.assignee.name, task.assigneeId, task.assigneeType)"
       >
         {{ task.assignee.initials || computedInitials(task.assignee.name) }}
       </span>
@@ -77,11 +78,39 @@ const props = defineProps<{
   task: Task
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   click: []
 }>()
 
+const { agents } = useAgent()
 const isHighlighted = computed(() => highlightedTaskId.value === props.task.id)
+
+/** Pointer position when the user pressed down — used to distinguish a click
+ *  from a drag. SortableJS prevents native `click` events on draggable items
+ *  (via preventDefault on mousedown), so we detect clicks manually. */
+const pointerStart = { x: 0, y: 0 }
+
+function onPointerDown(e: PointerEvent) {
+  pointerStart.x = e.clientX
+  pointerStart.y = e.clientY
+}
+
+function onPointerUp(e: PointerEvent) {
+  const dx = Math.abs(e.clientX - pointerStart.x)
+  const dy = Math.abs(e.clientY - pointerStart.y)
+  // If the pointer barely moved (< 8px), treat it as a click, not a drag
+  if (dx < 8 && dy < 8) {
+    emit('click')
+  }
+}
+
+function resolveAgentName(name: string, assigneeId: string | null, assigneeType: string | null | undefined) {
+  if (assigneeType === 'agent' && assigneeId) {
+    const agent = agents.value.find(a => a.id === assigneeId)
+    if (agent) return agent.name
+  }
+  return name
+}
 
 const isAgentInProgress = computed(() => {
   return (

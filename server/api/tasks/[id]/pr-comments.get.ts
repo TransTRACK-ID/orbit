@@ -1,11 +1,28 @@
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, desc, and } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 
-function parsePrUrl(url: string): { owner: string; repo: string; number: number } | null {
+const execAsync = promisify(exec)
+
+function parseGitlabUrl(url: string): { projectPath: string; iid: number } | null {
+  const match = url.match(/gitlab\.[^\/]+\/(.+?)\/-\/merge_requests\/(\d+)/i)
+  if (match) return { projectPath: match[1], iid: parseInt(match[2], 10) }
+  const match2 = url.match(/gitlab\.com\/(.+?)\/-\/merge_requests\/(\d+)/i)
+  if (match2) return { projectPath: match2[1], iid: parseInt(match2[2], 10) }
+  return null
+}
+
+function parseGithubUrl(url: string): { owner: string; repo: string; number: number } | null {
   const match = url.match(/github\.com\/([^/]+)\/([^/]+?)(\/pull|\/issues)\/(\d+)/i)
   if (!match) return null
   return { owner: match[1], repo: match[2].replace(/\.git$/, ''), number: parseInt(match[4], 10) }
+}
+
+function extractGitlabHost(url: string): string {
+  const match = url.match(/^(https?:\/\/[^\/]+)/)
+  return match ? match[1] : ''
 }
 
 export interface PrComment {
@@ -18,22 +35,112 @@ export interface PrComment {
   isReview: boolean
 }
 
-async function apiGet(path: string) {
+async function githubApiGet(path: string) {
   const url = `https://api.github.com${path}`
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
     'User-Agent': 'orbit-app',
   }
   const token = process.env.GITHUB_TOKEN
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
+  if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(url, { headers })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`)
   }
   return res.json()
+}
+
+async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string): Promise<any[]> {
+  const encodedPath = encodeURIComponent(projectPath)
+  const host = gitlabHost || 'https://gitlab.com'
+  const env = { ...process.env, GITLAB_HOST: host }
+  const { stdout } = await execAsync(
+    `glab api /projects/${encodedPath}/merge_requests/${iid}/discussions`,
+    { env }
+  )
+  return JSON.parse(stdout)
+}
+
+async function fetchGithubComments(owner: string, repo: string, number: number): Promise<{ comments: PrComment[]; errors: string[] }> {
+  const comments: PrComment[] = []
+  const errors: string[] = []
+
+  try {
+    const reviewData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/comments`)
+    for (const c of reviewData) {
+      comments.push({
+        id: c.id,
+        author: c.user?.login || 'unknown',
+        body: c.body || '',
+        path: c.path || null,
+        line: c.line || null,
+        createdAt: c.created_at || '',
+        isReview: true,
+      })
+    }
+  } catch (e: any) { errors.push(`review: ${e.message}`) }
+
+  try {
+    const issueData: any[] = await githubApiGet(`/repos/${owner}/${repo}/issues/${number}/comments`)
+    for (const c of issueData) {
+      if (!comments.some(ex => ex.body === c.body && ex.author === (c.user?.login || 'unknown'))) {
+        comments.push({
+          id: c.id,
+          author: c.user?.login || 'unknown',
+          body: c.body || '',
+          path: null,
+          line: null,
+          createdAt: c.created_at || '',
+          isReview: false,
+        })
+      }
+    }
+  } catch (e: any) { errors.push(`issue: ${e.message}`) }
+
+  try {
+    const reviewsData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/reviews`)
+    for (const r of reviewsData) {
+      if (!r.body) continue
+      if (comments.some(ex => ex.body === r.body && ex.author === (r.user?.login || 'unknown'))) continue
+      comments.push({
+        id: r.id,
+        author: r.user?.login || 'unknown',
+        body: r.body,
+        path: null,
+        line: null,
+        createdAt: r.submitted_at || '',
+        isReview: true,
+      })
+    }
+  } catch (e: any) { errors.push(`reviews: ${e.message}`) }
+
+  return { comments, errors }
+}
+
+async function fetchGitlabComments(projectPath: string, iid: number, gitlabHost: string): Promise<{ comments: PrComment[]; errors: string[] }> {
+  const comments: PrComment[] = []
+  const errors: string[] = []
+
+  try {
+    const discussions: any[] = await gitlabApiGet(projectPath, iid, gitlabHost)
+    for (const d of discussions) {
+      for (const note of (d.notes || [])) {
+        if (note.system) continue
+        comments.push({
+          id: note.id,
+          author: note.author?.name || note.author?.username || 'unknown',
+          body: note.body || '',
+          path: note.position?.new_path || null,
+          line: note.position?.new_line || null,
+          createdAt: note.created_at || '',
+          isReview: !!note.position,
+        })
+      }
+    }
+  } catch (e: any) { errors.push(`gitlab: ${e.message}`) }
+
+  return { comments, errors }
 }
 
 export default defineEventHandler(async (event) => {
@@ -58,7 +165,6 @@ export default defineEventHandler(async (event) => {
       orderBy: [desc(schema.activityLogs.createdAt)],
       limit: 50,
     })
-
     for (const log of prLogs) {
       if ((log.action === 'pr_created' || log.action === 'pr_updated') && log.newValue?.url) {
         prUrl = log.newValue.url
@@ -75,14 +181,11 @@ export default defineEventHandler(async (event) => {
       orderBy: [desc(schema.prComments.syncedAt)],
       limit: 1,
     })
-
     if (cachedComments.length > 0) {
-      // Return all cached comments for this task
       const allCached = await db.query.prComments.findMany({
         where: eq(schema.prComments.taskId, id),
         orderBy: [desc(schema.prComments.githubCommentId)],
       })
-
       return {
         comments: allCached.map(c => ({
           id: c.githubCommentId,
@@ -99,70 +202,31 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Fetch from GitHub API
-  const parsed = parsePrUrl(prUrl)
-  if (!parsed) return { comments: [] }
+  let comments: PrComment[] = []
+  let errors: string[] = []
 
-  const { owner, repo, number } = parsed
-  const comments: PrComment[] = []
-  const errors: string[] = []
+  // Detect platform from URL
+  const ghParsed = parseGithubUrl(prUrl)
+  const glParsed = parseGitlabUrl(prUrl)
 
-  try {
-    const reviewData: any[] = await apiGet(`/repos/${owner}/${repo}/pulls/${number}/comments`)
-    for (const c of reviewData) {
-      comments.push({
-        id: c.id,
-        author: c.user?.login || 'unknown',
-        body: c.body || '',
-        path: c.path || null,
-        line: c.line || null,
-        createdAt: c.created_at || '',
-        isReview: true,
-      })
-    }
-  } catch (e: any) { errors.push(`review: ${e.message}`) }
-
-  try {
-    const issueData: any[] = await apiGet(`/repos/${owner}/${repo}/issues/${number}/comments`)
-    for (const c of issueData) {
-      if (!comments.some(ex => ex.body === c.body && ex.author === (c.user?.login || 'unknown'))) {
-        comments.push({
-          id: c.id,
-          author: c.user?.login || 'unknown',
-          body: c.body || '',
-          path: null,
-          line: null,
-          createdAt: c.created_at || '',
-          isReview: false,
-        })
-      }
-    }
-  } catch (e: any) { errors.push(`issue: ${e.message}`) }
-
-  try {
-    const reviewsData: any[] = await apiGet(`/repos/${owner}/${repo}/pulls/${number}/reviews`)
-    for (const r of reviewsData) {
-      if (!r.body) continue
-      if (comments.some(ex => ex.body === r.body && ex.author === (r.user?.login || 'unknown'))) continue
-      comments.push({
-        id: r.id,
-        author: r.user?.login || 'unknown',
-        body: r.body,
-        path: null,
-        line: null,
-        createdAt: r.submitted_at || '',
-        isReview: true,
-      })
-    }
-  } catch (e: any) { errors.push(`reviews: ${e.message}`) }
+  if (ghParsed) {
+    const result = await fetchGithubComments(ghParsed.owner, ghParsed.repo, ghParsed.number)
+    comments = result.comments
+    errors = result.errors
+  } else if (glParsed) {
+    const gitlabHost = extractGitlabHost(prUrl)
+    const result = await fetchGitlabComments(glParsed.projectPath, glParsed.iid, gitlabHost)
+    comments = result.comments
+    errors = result.errors
+  } else {
+    return { comments: [] }
+  }
 
   comments.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 
   // Persist comments to DB
   if (comments.length > 0) {
-    // Delete existing cached comments for this task before re-saving
     await db.delete(schema.prComments).where(eq(schema.prComments.taskId, id))
-
     await db.insert(schema.prComments).values(
       comments.map(c => ({
         taskId: id,

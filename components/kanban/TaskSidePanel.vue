@@ -947,14 +947,11 @@ const lastChatReplyTimestamp = ref(0)
  *  network interruption, or the premature "Step completed" match before our fix). */
 watch(runtimeActive, async (active) => {
   if (!active && task.value) {
-    if (isChatMessage.value) {
-      setTimeout(async () => {
-        await fetchAgentReplies()
-      }, 500)
-    } else {
-      lastChatReplyText.value = null
-      lastChatReplyTimestamp.value = 0
-    }
+    lastChatReplyText.value = null
+    lastChatReplyTimestamp.value = 0
+    setTimeout(async () => {
+      await fetchAgentReplies()
+    }, 500)
   }
 })
 

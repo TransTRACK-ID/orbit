@@ -403,20 +403,20 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
             await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${err.message}`, timestamp: Date.now() }))
           }
 
-          // Generate summary comment from diff and post it on the task
+          // Post summary as agent reply so it shows in the runtime output
           try {
             const summary = await getDiffSummary(workDir, repoDefaultBranch, task.title, task.description)
             if (summary) {
-              const commentUserId = task.agentAssignee?.userId || user.id
-              await db.insert(schema.comments).values({
+              await db.insert(schema.activityLogs).values({
                 taskId: id,
-                userId: commentUserId,
-                body: summary,
+                userId: user.id,
+                action: 'agent_reply',
+                newValue: { message: summary },
               })
-              await pushToStreams(entry, JSON.stringify({ step: 'Posted summary comment to task', timestamp: Date.now() }))
+              await pushToStreams(entry, JSON.stringify({ step: 'Posted summary to task', timestamp: Date.now() }))
             }
           } catch (err: any) {
-            await pushToStreams(entry, JSON.stringify({ step: `Summary comment failed: ${err.message}`, timestamp: Date.now() }))
+            await pushToStreams(entry, JSON.stringify({ step: `Summary post failed: ${err.message}`, timestamp: Date.now() }))
           }
         } catch (err: any) {
           await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))

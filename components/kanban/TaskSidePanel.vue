@@ -245,7 +245,7 @@
                       <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
                       <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <p class="text-sm text-surface-700 whitespace-pre-wrap">{{ comment.body }}</p>
+                    <p class="text-sm text-surface-700 whitespace-pre-wrap" v-html="linkify(comment.body)"></p>
                   </div>
                 </div>
 
@@ -266,7 +266,7 @@
                       <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
                       <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <p class="text-sm text-primary-800 whitespace-pre-wrap">{{ comment.body }}</p>
+                    <p class="text-sm text-primary-800 whitespace-pre-wrap" v-html="linkify(comment.body)"></p>
                   </div>
                 </div>
               </template>

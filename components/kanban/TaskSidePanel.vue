@@ -848,10 +848,11 @@ const latestAgentReply = computed(() => {
     const msg = log.message.replace(/^>\s*/, '')
     if (
       msg &&
-      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with|Chat session ended/i.test(msg) &&
+      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with|Chat session ended|Posted summary/i.test(msg) &&
       !/Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Pushed|No changes|Push failed|Including PR feedback|Including user message/i.test(msg) &&
       !/^User:/.test(msg) &&
       !/Agent .+ assigned (to|from)/i.test(msg) &&
+      !/Agent .+ started processing/i.test(msg) &&
       !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg)
     ) {
       return msg.slice(0, 200)
@@ -945,10 +946,15 @@ const lastChatReplyTimestamp = ref(0)
  *  runtimeLogsForTask may not fire the completion watch (e.g. non-zero exit,
  *  network interruption, or the premature "Step completed" match before our fix). */
 watch(runtimeActive, async (active) => {
-  if (!active && task.value && isChatMessage.value) {
-    setTimeout(async () => {
-      await fetchAgentReplies()
-    }, 500)
+  if (!active && task.value) {
+    if (isChatMessage.value) {
+      setTimeout(async () => {
+        await fetchAgentReplies()
+      }, 500)
+    } else {
+      lastChatReplyText.value = null
+      lastChatReplyTimestamp.value = 0
+    }
   }
 })
 

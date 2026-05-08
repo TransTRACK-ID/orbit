@@ -46,6 +46,7 @@ function extractRepoName(url: string): string {
 
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
+import { getDiffSummary } from '~/server/utils/git-summary'
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
@@ -62,7 +63,12 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true },
+    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true, agentAssigneeId: true },
+    with: {
+      agentAssignee: {
+        columns: { userId: true },
+      },
+    },
   })
 
   if (!task) {
@@ -126,6 +132,9 @@ export default defineEventHandler(async (event) => {
     let workDir = defaultProjectDir
     let branchName = ''
     let repoPlatform: 'github' | 'gitlab' | 'gitlab-self-hosted' = 'github'
+    let repoDefaultBranch = 'main'
+    let repoUrl = ''
+    let repoName = ''
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -133,10 +142,7 @@ export default defineEventHandler(async (event) => {
     })
 
     if (project) {
-      let repoUrl = ''
-      let repoDefaultBranch = 'main'
       let createBranch = false
-      let repoName = ''
 
       if (task.repositoryId) {
         const repo = await db.query.repositories.findFirst({
@@ -395,6 +401,22 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
             }
           } catch (err: any) {
             await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${err.message}`, timestamp: Date.now() }))
+          }
+
+          // Generate summary comment from diff and post it on the task
+          try {
+            const summary = await getDiffSummary(workDir, repoDefaultBranch, task.title, task.description)
+            if (summary) {
+              const commentUserId = task.agentAssignee?.userId || user.id
+              await db.insert(schema.comments).values({
+                taskId: id,
+                userId: commentUserId,
+                body: summary,
+              })
+              await pushToStreams(entry, JSON.stringify({ step: 'Posted summary comment to task', timestamp: Date.now() }))
+            }
+          } catch (err: any) {
+            await pushToStreams(entry, JSON.stringify({ step: `Summary comment failed: ${err.message}`, timestamp: Date.now() }))
           }
         } catch (err: any) {
           await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))

@@ -95,7 +95,30 @@ export default defineEventHandler(async (event) => {
     )
   })
 
-  return uniqueReplies.map(log => ({
+  // Only keep the most recent agent_reply from each contiguous time window.
+  // OpenCode produces multiple text events during a single run (progress
+  // updates, tool results, thinking).  We want to surface only the final
+  // response, not the intermediate chatter.  Entries within 5 minutes of
+  // each other are considered part of the same run / chat turn.
+  const WINDOW_MS = 5 * 60 * 1000
+  const agentReplyEntries = uniqueReplies.filter(log => log.action === 'agent_reply')
+  const representativeReplies: typeof agentReplyEntries = []
+
+  for (const log of agentReplyEntries) {
+    const logTime = new Date(log.createdAt).getTime()
+    const lastKept = representativeReplies[representativeReplies.length - 1]
+    if (!lastKept) {
+      representativeReplies.push(log)
+    } else {
+      const lastKeptTime = new Date(lastKept.createdAt).getTime()
+      if (lastKeptTime - logTime > WINDOW_MS) {
+        representativeReplies.push(log)
+      }
+      // Otherwise same window — skip (we already kept the most recent one)
+    }
+  }
+
+  return representativeReplies.map(log => ({
     id: `agent-${log.id}`,
     body: (log.newValue as { message: string }).message,
     createdAt: log.createdAt,

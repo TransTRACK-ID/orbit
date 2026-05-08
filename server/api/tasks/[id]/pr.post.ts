@@ -1,9 +1,10 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
+import { getDiffSummary } from '~/server/utils/git-summary'
 
 const execAsync = promisify(exec)
 
@@ -14,6 +15,10 @@ function sanitizeBranchName(title: string): string {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 50)
+}
+
+function shEscape(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`
 }
 
 function extractRepoName(url: string): string {
@@ -81,71 +86,7 @@ export default defineEventHandler(async (event) => {
   const branch = sanitizeBranchName(task.title)
   const prTitle = task.title
 
-  async function getDiffSummary(repoDir: string): Promise<string> {
-    try {
-      const ref = `origin/${repoDefaultBranch}`
-      const { stdout: diffOutput } = await execAsync(`git diff ${ref} HEAD`, { cwd: repoDir })
-      const { stdout: diffStat } = await execAsync(`git diff --stat ${ref} HEAD`, { cwd: repoDir })
-
-      if (!diffStat.trim()) return ''
-
-      const files: { path: string; additions: string[]; deletions: number }[] = []
-      let currentFile: typeof files[0] | null = null
-
-      for (const line of diffOutput.split('\n')) {
-        const fileMatch = line.match(/^diff --git a\/(.+?) b\/(.+?)$/)
-        if (fileMatch) {
-          if (currentFile) files.push(currentFile)
-          currentFile = { path: fileMatch[2], additions: [], deletions: 0 }
-          continue
-        }
-        if (currentFile) {
-          if (line.startsWith('+') && !line.startsWith('+++') && !/^\+\s*$/.test(line) && !/^\+import\s/.test(line) && !/^\+\/\/\s/.test(line)) {
-            const clean = line.slice(1).trim()
-            if (clean && !clean.startsWith('}') && !clean.startsWith('{')) {
-              currentFile.additions.push(clean)
-            }
-          }
-          if (line.startsWith('-') && !line.startsWith('---') && !/^\-\s*$/.test(line)) {
-            currentFile.deletions++
-          }
-        }
-      }
-      if (currentFile) files.push(currentFile)
-
-      let summary = '## Summary\n\n'
-      summary += `This PR implements **${task.title}**.`
-
-      if (task.description) {
-        summary += `\n\n${task.description}`
-      }
-
-      summary += '\n\n## Changes\n'
-      for (const file of files) {
-        summary += `\n### \`${file.path}\`\n`
-        if (file.additions.length > 0) {
-          summary += '\n**Added:**\n'
-          for (const add of file.additions.slice(0, 10)) {
-            summary += `- ${add}\n`
-          }
-          if (file.additions.length > 10) {
-            summary += `- _... and ${file.additions.length - 10} more changes_\n`
-          }
-        }
-        if (file.deletions > 0) {
-          summary += `\n**Removed:** ${file.deletions} line${file.deletions > 1 ? 's' : ''}\n`
-        }
-      }
-
-      summary += `\n## Files Changed\n\`\`\`\n${diffStat.trim()}\n\`\`\``
-
-      return summary
-    } catch {
-      return ''
-    }
-  }
-
-  let prBody = await getDiffSummary(repoDir)
+  let prBody = await getDiffSummary(repoDir, repoDefaultBranch, task.title, task.description)
 
   const { stdout: status } = await execAsync('git status --porcelain', { cwd: repoDir })
   const hasUncommitted = !!status.trim()
@@ -217,11 +158,11 @@ export default defineEventHandler(async (event) => {
     try {
       if (cli === 'glab') {
         const { stdout: existing } = await execAsync(
-          `glab mr view ${branch} -F json | jq -r '.web_url // empty' || true`,
+          `glab mr view ${branch} -F json 2>/dev/null | jq -r '.web_url // empty' || true`,
           { cwd: repoDir, env: gitlabEnv }
         )
         existingPrUrl = existing.trim()
-        if (existingPrUrl === 'null') existingPrUrl = ''
+        if (existingPrUrl === 'null' || !existingPrUrl) existingPrUrl = ''
       } else {
         const { stdout: existing } = await execAsync(
           `gh pr view ${branch} --json url --jq '.url // empty' 2>/dev/null || true`,
@@ -236,7 +177,8 @@ export default defineEventHandler(async (event) => {
         writeFileSync('/tmp/pr-body.md', prBody, 'utf-8')
         try {
           if (cli === 'glab') {
-            await execAsync(`glab mr update ${branch} --description-file /tmp/pr-body.md`, { cwd: repoDir, env: gitlabEnv })
+            const bodyContent = readFileSync('/tmp/pr-body.md', 'utf-8')
+            await execAsync(`glab mr update ${branch} --description ${shEscape(bodyContent)}`, { cwd: repoDir, env: gitlabEnv })
           } else {
             await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir })
           }
@@ -260,9 +202,9 @@ export default defineEventHandler(async (event) => {
     let prUrl = ''
     let lastError = ''
     if (cli === 'glab') {
-      const bodyFlag = prBody ? '--description-file /tmp/pr-body.md' : ''
+      const bodyArg = prBody ? `--description ${shEscape(readFileSync('/tmp/pr-body.md', 'utf-8'))}` : ''
       const { stdout, stderr } = await execAsync(
-        `glab mr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y 2>&1`,
+        `glab mr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyArg} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y 2>&1 || true`,
         { cwd: repoDir, env: gitlabEnv }
       )
       const output = (stdout + stderr).trim()
@@ -271,14 +213,14 @@ export default defineEventHandler(async (event) => {
       if (!prUrl) lastError = output.slice(0, 300)
 
       if (!prUrl) {
-        const { stdout: fallback, stderr: fallbackErr } = await execAsync(
-          `glab mr view ${branch} -F json 2>&1 | jq -r '.web_url // empty' || true`,
+        const { stdout: fallback } = await execAsync(
+          `glab mr view ${branch} -F json 2>/dev/null | jq -r '.web_url // empty' || true`,
           { cwd: repoDir, env: gitlabEnv }
         )
-        prUrl = (fallback + fallbackErr).trim()
+        prUrl = fallback.trim()
         if (prUrl === 'null' || prUrl === '') {
           prUrl = ''
-          if (!lastError) lastError = (fallback + fallbackErr).trim().slice(0, 300)
+          if (!lastError) lastError = (output || fallback).slice(0, 300)
         }
       }
     } else {

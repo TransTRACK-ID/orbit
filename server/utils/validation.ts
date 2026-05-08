@@ -138,6 +138,17 @@ export const updateRepositorySchema = z.object({
   createBranch: z.boolean().optional(),
 })
 
+// ─── User ───
+export const updateUserSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255).optional(),
+  email: z.string().email('Invalid email address').optional(),
+})
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+})
+
 // ─── Comment ───
 export const createCommentSchema = z.object({
   body: z.string().min(1, 'Comment cannot be empty'),

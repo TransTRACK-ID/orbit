@@ -74,12 +74,60 @@ export default defineEventHandler(async (event) => {
 
   const branch = sanitizeBranchName(task.title)
 
+  // Detect which CLI to use
+  let cli = 'gh'
+  let gitlabHost = ''
   try {
-    const { stdout } = await execAsync(
-      `gh pr list --head "${branch}" --json url --jq '.[0].url // empty'`,
-      { cwd: repoDir }
-    )
-    const url = stdout.trim() || null
+    const { stdout: remotes } = await execAsync('git remote -v', { cwd: repoDir })
+    if (remotes.includes('gitlab')) {
+      cli = 'glab'
+    }
+  } catch {}
+
+  if (cli === 'gh') {
+    try {
+      await execAsync('gh repo view >/dev/null 2>&1', { cwd: repoDir })
+    } catch {
+      try {
+        await execAsync('glab repo view >/dev/null 2>&1', { cwd: repoDir })
+        cli = 'glab'
+      } catch {
+        if (repoUrl && !repoUrl.includes('github.com')) {
+          cli = 'glab'
+        }
+      }
+    }
+  }
+
+  // For self-hosted GitLab: extract host for GITLAB_HOST
+  if (cli === 'glab') {
+    try {
+      const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: repoDir })
+      const match = remoteUrl.trim().match(/^(https?:\/\/[^\/]+)/)
+      if (match && !match[1].includes('github.com')) {
+        gitlabHost = match[1]
+      }
+    } catch {}
+  }
+
+  const gitlabEnv = gitlabHost ? { ...process.env, GITLAB_HOST: gitlabHost } : process.env
+
+  try {
+    let url: string | null = null
+    if (cli === 'glab') {
+      const { stdout } = await execAsync(
+        `glab mr list --source-branch "${branch}" -F json | jq -r '.[0].web_url // empty' || true`,
+        { cwd: repoDir, env: gitlabEnv }
+      )
+      url = stdout.trim() || null
+      if (url === 'null') url = null
+    } else {
+      const { stdout } = await execAsync(
+        `gh pr list --head "${branch}" --json url --jq '.[0].url // empty'`,
+        { cwd: repoDir }
+      )
+      url = stdout.trim() || null
+    }
     return { url }
   } catch {
     return { url: null }

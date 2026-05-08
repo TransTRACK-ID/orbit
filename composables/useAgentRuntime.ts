@@ -40,6 +40,9 @@ export const useAgentRuntime = () => {
         if (data.step) {
           addLog('Runtime', `> ${data.step}`, taskId)
         }
+        if (data.agentReply) {
+          addLog('Runtime', `[AGENT_REPLY] ${data.agentReply}`, taskId)
+        }
       } catch {}
     }
     es.onerror = () => {

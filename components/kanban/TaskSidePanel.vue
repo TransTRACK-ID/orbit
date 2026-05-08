@@ -209,34 +209,161 @@
           </div>
 
           <div>
+            <!-- Agent chat indicator -->
+            <div
+              v-if="showAgentChat"
+              class="mb-3 p-2.5 rounded-lg bg-primary-50/80 border border-primary-200 flex items-center gap-2.5"
+            >
+              <span
+                class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                :style="{ background: chatAgentIdentity.color || '#6366f1' }"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-primary-700 flex items-center gap-1.5">
+                  Chatting with {{ chatAgentIdentity.name }}
+                  <span v-if="isSendingToAgent" class="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+                </p>
+                <p class="text-[10px] text-primary-500 leading-relaxed">Comments and @mentions are sent to the agent for processing</p>
+              </div>
+            </div>
+
             <label class="block text-xs font-medium text-surface-500 mb-3">
-              Comments ({{ comments.length }})
+              Comments ({{ allComments.length }})
             </label>
             <div class="space-y-3 mb-4">
+              <template v-for="comment in allComments" :key="comment.id">
+                <!-- User comment -->
+                <div
+                  v-if="!comment.isAgent"
+                  class="flex gap-3 p-3 rounded-lg bg-surface-50"
+                >
+                  <Avatar :name="comment.authorName" size="sm" />
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
+                      <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
+                    </div>
+                    <p class="text-sm text-surface-700 whitespace-pre-wrap">{{ comment.body }}</p>
+                  </div>
+                </div>
+
+                <!-- Persisted agent reply -->
+                <div
+                  v-else
+                  class="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary-50/50 to-primary-50 border border-primary-100"
+                >
+                  <span
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                    :style="{ background: comment.authorColor || '#6366f1' }"
+                  >
+                    {{ computedInitials(comment.authorName) }}
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium text-primary-700">{{ comment.authorName }}</span>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
+                      <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
+                    </div>
+                    <p class="text-sm text-primary-800 whitespace-pre-wrap">{{ comment.body }}</p>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Live agent reply (from current runtime session) -->
               <div
-                v-for="comment in comments"
-                :key="comment.id"
-                class="flex gap-3 p-3 rounded-lg bg-surface-50"
+                v-if="latestAgentReply && showAgentChat"
+                class="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary-50/50 to-primary-50 border border-primary-100"
               >
-                <Avatar :name="comment.user?.name || 'U'" size="sm" />
+                <span
+                  class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                  :style="{ background: chatAgentIdentity.color || '#6366f1' }"
+                >
+                  {{ computedInitials(chatAgentIdentity.name) }}
+                </span>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-0.5">
-                    <span class="text-sm font-medium text-surface-900">{{ comment.user?.name }}</span>
-                    <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
+                    <span class="text-sm font-medium text-primary-700">{{ chatAgentIdentity.name }}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
                   </div>
-                  <p class="text-sm text-surface-700">{{ comment.body }}</p>
+                  <p class="text-sm text-primary-800 whitespace-pre-wrap">{{ latestAgentReply }}</p>
                 </div>
               </div>
             </div>
 
             <div class="flex gap-2">
-              <TextInput
-                v-model="newComment"
-                placeholder="Write a comment..."
-                class="flex-1"
-                @keydown.enter.prevent="handleAddComment"
-              />
-              <Button :disabled="!newComment" @click="handleAddComment">Send</Button>
+              <div class="flex-1 relative">
+                <!-- Custom input with @mention support -->
+                <div
+                  class="w-full rounded-lg overflow-hidden stroke-gray-500 border-2 flex h-10"
+                  :class="isSendingToAgent ? 'bg-gray-100 cursor-not-allowed' : 'bg-white border-gray-200'"
+                >
+                  <input
+                    ref="commentInputRef"
+                    v-model="newComment"
+                    type="text"
+                    :placeholder="isAgentInProgress ? 'Message the agent...' : 'Write a comment... (type @ to mention someone)'"
+                    class="block px-2.5 w-full h-full border-none text-gray-900 bg-transparent focus:ring-0 outline-none"
+                    :disabled="isSendingToAgent"
+                    @keydown.enter.prevent="mentionActive ? selectMention(mentionOptions[mentionSelectedIndex]) : handleAddComment()"
+                    @keydown.escape="mentionActive = false"
+                    @keydown.down.prevent="mentionNavigate(1)"
+                    @keydown.up.prevent="mentionNavigate(-1)"
+                    @input="handleMentionInput"
+                  />
+                </div>
+
+                <!-- AGENT badge -->
+                <span
+                  v-if="isAgentInProgress && newComment.length > 0"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-semibold text-primary-400 pointer-events-none"
+                >
+                  AGENT
+                </span>
+
+                <!-- @mention dropdown -->
+                <div
+                  v-if="mentionActive && mentionOptions.length > 0"
+                  class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white border border-surface-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                >
+                  <button
+                    v-for="(option, idx) in mentionOptions"
+                    :key="option.id"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-surface-50 transition-colors text-left"
+                    :class="{ 'bg-primary-50': idx === mentionSelectedIndex }"
+                    @click="selectMention(option)"
+                    @mouseenter="mentionSelectedIndex = idx"
+                  >
+                    <span
+                      class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                      :style="{ background: option.color || '#64748b' }"
+                    >
+                      {{ option.initials }}
+                    </span>
+                    <span class="flex-1 truncate text-surface-800">{{ option.name }}</span>
+                    <span v-if="option.type" class="text-[9px] font-semibold uppercase flex-shrink-0" :class="option.type === 'agent' ? 'text-primary-500' : 'text-surface-400'">
+                      {{ option.type }}
+                    </span>
+                  </button>
+                  <div v-if="mentionOptions.length === 0" class="px-3 py-2 text-sm text-surface-400">
+                    No matches found
+                  </div>
+                </div>
+              </div>
+              <Button
+                :disabled="!newComment || isSendingToAgent"
+                :loading="isSendingToAgent"
+                @click="handleAddComment"
+              >
+                <template v-if="isAgentInProgress && !isSendingToAgent">
+                  <span class="flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+                    Send
+                  </span>
+                </template>
+                <template v-else>Send</template>
+              </Button>
             </div>
 
             <div v-if="userActivityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
@@ -494,6 +621,7 @@
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment } from '~/types'
 import type { Agent } from '~/types'
 import { useDebounceFn } from '@vueuse/core'
+import { nextTick } from 'vue'
 
 const { addLog, persistLog, logs: runtimeLogs } = useLog()
 
@@ -543,6 +671,256 @@ const isAgentInProgress = computed(() => {
   )
 })
 
+/** Tracks when we are sending a comment to the agent runtime */
+const isSendingToAgent = ref(false)
+
+/**
+ * When `true`, the current runtime was triggered by a chat comment from the
+ * user, so completion should NOT auto-create a PR or change the task status.
+ */
+const isChatMessage = ref(false)
+
+// ─── @mention autocomplete ───
+
+/** Reference to the raw comment input element for cursor manipulation */
+const commentInputRef = ref<HTMLInputElement | null>(null)
+
+/** Whether the @mention dropdown is currently shown */
+const mentionActive = ref(false)
+
+/** The text typed after "@" that we're filtering by */
+const mentionQuery = ref('')
+
+/** Index of the currently highlighted option in the dropdown (keyboard nav) */
+const mentionSelectedIndex = ref(0)
+
+/** Agents mapped to mention options */
+const agentMentionOptions = computed(() =>
+  props.agents.map(a => ({
+    id: a.id,
+    name: a.name,
+    initials: a.initials,
+    color: a.color,
+    type: 'agent' as const,
+  }))
+)
+
+/** Project members mapped to mention options */
+const memberMentionOptions = computed(() =>
+  props.members.map(m => ({
+    id: m.userId,
+    name: m.user?.name || 'Unknown',
+    initials: (m.user?.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+    color: undefined,
+    type: 'member' as const,
+  }))
+)
+
+/** Combined & filtered mention options based on current query */
+const mentionOptions = computed(() => {
+  const q = mentionQuery.value.toLowerCase().trim()
+  const agents = q
+    ? agentMentionOptions.value.filter(o => o.name.toLowerCase().includes(q))
+    : agentMentionOptions.value
+  const members = q
+    ? memberMentionOptions.value.filter(o => o.name.toLowerCase().includes(q))
+    : memberMentionOptions.value
+  return [...agents, ...members]
+})
+
+/**
+ * Called on every keystroke in the comment input. Detects "@" followed by a
+ * query string (no spaces) and activates the mention dropdown.
+ */
+function handleMentionInput(e: Event) {
+  const input = e.target as HTMLInputElement
+  const val = input.value
+  const cursorPos = input.selectionStart || 0
+
+  // Find the last "@" before the cursor position
+  const textBeforeCursor = val.slice(0, cursorPos)
+  const atIndex = textBeforeCursor.lastIndexOf('@')
+
+  if (atIndex !== -1) {
+    // Only trigger if preceded by whitespace or at the very start
+    const charBefore = atIndex > 0 ? textBeforeCursor[atIndex - 1] : ' '
+    if (charBefore === ' ' || charBefore === '\n') {
+      const afterAt = textBeforeCursor.slice(atIndex + 1)
+      // Query must not contain spaces (user is still typing the name)
+      if (!afterAt.includes(' ')) {
+        mentionQuery.value = afterAt
+        mentionSelectedIndex.value = 0
+        mentionActive.value = true
+        return
+      }
+    }
+  }
+
+  mentionActive.value = false
+}
+
+/** Navigate the dropdown with arrow keys */
+function mentionNavigate(dir: number) {
+  const len = mentionOptions.value.length
+  if (len === 0) return
+  mentionSelectedIndex.value = (mentionSelectedIndex.value + dir + len) % len
+}
+
+/** Insert the selected mention into the comment text */
+function selectMention(option: { name: string }) {
+  const input = commentInputRef.value
+  if (!input) return
+
+  const val = input.value
+  const cursorPos = input.selectionStart || 0
+  const textBeforeCursor = val.slice(0, cursorPos)
+  const atIndex = textBeforeCursor.lastIndexOf('@')
+
+  if (atIndex === -1) {
+    mentionActive.value = false
+    return
+  }
+
+  // Find where the "@query" text ends (first space after @ or cursor position)
+  const afterAt = textBeforeCursor.slice(atIndex + 1)
+  const spaceAfter = afterAt.search(/\s/)
+  const queryEnd = spaceAfter !== -1 ? atIndex + 1 + spaceAfter : cursorPos
+
+  // Replace "@query" with "@Name " in the full value
+  const newVal = val.slice(0, atIndex) + `@${option.name} ` + val.slice(queryEnd)
+  newComment.value = newVal
+  mentionActive.value = false
+
+  // Restore focus & place cursor right after the inserted name
+  nextTick(() => {
+    input.focus()
+    const newPos = atIndex + option.name.length + 2
+    input.setSelectionRange(newPos, newPos)
+  })
+}
+
+// ─── Agent @mention detection ───
+
+/** When the user last sent a comment to the agent (0 = never). Used to
+ *  filter runtime logs so the "reply" bubble only shows fresh responses. */
+const lastAgentChatTimestamp = ref(0)
+
+/** Find the first agent @mentioned in a comment body (case-insensitive).
+ *  Returns the agent info or null if no agent is mentioned. */
+function findMentionedAgent(body: string): { name: string; color?: string } | null {
+  const atMentions = body.match(/@(\S+)/g)
+  if (!atMentions) return null
+  for (const mention of atMentions) {
+    const mentionedName = mention.slice(1).toLowerCase().trim()
+    const agent = props.agents.find(a => a.name.toLowerCase() === mentionedName)
+    if (agent) return { name: agent.name, color: agent.color }
+  }
+  return null
+}
+
+/** Whether the task has agent activity that warrants showing the chat UI.
+ *  True when: the task is agent-assigned + in-progress, OR the runtime is
+ *  actively processing, OR we're in the process of sending to the agent. */
+const showAgentChat = computed(() =>
+  isAgentInProgress.value || runtimeActive.value || isSendingToAgent.value
+)
+
+/** The agent identity to show in chat UI — prefers the @mentioned agent,
+ *  falls back to the task's assigned agent, then the first available agent. */
+const chatAgentIdentity = computed(() => {
+  // Use the agent from the most recent mention if one was found
+  if (lastAgentChatTimestamp.value > 0 && mentionedAgentName.value) {
+    return { name: mentionedAgentName.value, color: mentionedAgentColor.value }
+  }
+  if (task.value?.assignee) {
+    return { name: task.value.assignee.name, color: task.value.assignee.color }
+  }
+  // Fall back to the first agent on the project
+  const first = props.agents[0]
+  if (first) return { name: first.name, color: first.color }
+  return { name: 'Agent', color: '#6366f1' }
+})
+
+/** The name of the most recently @mentioned agent (sticky across renders) */
+const mentionedAgentName = ref('')
+const mentionedAgentColor = ref<string | undefined>(undefined)
+
+/**
+ * The latest agent "reply" — a recent runtime log shown inside the comments
+ * section to create a conversational feel. Only shows logs that appeared
+ * *after* the last user message was sent to the agent.
+ */
+const latestAgentReply = computed(() => {
+  const logs = runtimeLogsForTask.value
+  if (logs.length === 0) return null
+
+  // Only show logs from the current chat session (after last agent-directed comment)
+  const recentLogs = lastAgentChatTimestamp.value > 0
+    ? logs.filter(log => log.timestamp >= lastAgentChatTimestamp.value)
+    : logs
+
+  if (recentLogs.length === 0) return null
+
+  for (const log of recentLogs) {
+    if (log.message.startsWith('[AGENT_REPLY] ')) {
+      return log.message.slice(14)
+    }
+    const msg = log.message.replace(/^>\s*/, '')
+    if (
+      msg &&
+      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with/i.test(msg) &&
+      !/Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Pushed|No changes|Push failed|Including PR feedback|Including user message/i.test(msg) &&
+      !/^User:/.test(msg) &&
+      !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg)
+    ) {
+      return msg.slice(0, 200)
+    }
+  }
+  return null
+})
+
+// ─── Persisted agent replies ───
+
+/**
+ * Persisted agent responses fetched from the server. These are runtime_log
+ * entries in activity_logs that were saved by the opencode runtime. Unlike
+ * the in-memory runtimeLogsForTask, these survive page refresh.
+ */
+const agentReplies = ref<Array<{ id: string; body: string; createdAt: string; agentName: string }>>([])
+
+async function fetchAgentReplies() {
+  if (!task.value) return
+  try {
+    agentReplies.value = await $fetch(`/api/tasks/${task.value.id}/agent-replies`)
+  } catch {
+    agentReplies.value = []
+  }
+}
+
+const allComments = computed(() => {
+  const merged = [
+    ...comments.value.map(c => ({
+      id: c.id,
+      body: c.body,
+      createdAt: new Date(c.createdAt).getTime(),
+      authorName: c.user?.name || 'U',
+      isAgent: false,
+    })),
+    ...agentReplies.value.map(r => {
+      const agent = props.agents.find(a => a.name === r.agentName)
+      return {
+        id: r.id,
+        body: r.body,
+        createdAt: new Date(r.createdAt).getTime(),
+        authorName: r.agentName || 'Agent',
+        authorColor: agent?.color || '#6366f1',
+        isAgent: true,
+      }
+    })
+  ]
+  return merged.sort((a, b) => a.createdAt - b.createdAt)
+})
+
 const { startRuntime, stopRuntime, isRunning } = useAgentRuntime()
 const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)
 
@@ -565,7 +943,7 @@ const runtimeLogsExpanded = ref(false)
 
 const userActivityLogs = computed(() =>
   activityLogs.value
-    .filter(log => log.action !== 'runtime_log')
+    .filter(log => log.action !== 'runtime_log' && log.action !== 'agent_reply')
     .map(log => ({
       id: log.id,
       userName: log.user?.name || 'Unknown',
@@ -678,6 +1056,18 @@ watch(runtimeLogsForTask, async (logs) => {
     lastCompletionTimestamp.value = latest.timestamp
     runtimeCompletionTick.value++
     hasAdvanced = true
+
+    if (isChatMessage.value) {
+      // Chat messages should not trigger PR creation or status changes.
+      // Reset the flag so the next non-chat run behaves normally.
+      isChatMessage.value = false
+      addLog('Runtime', 'Chat session ended', props.taskId)
+
+      // Refresh persisted agent replies so the comments section shows them
+      await fetchAgentReplies()
+      return
+    }
+
     if (isFixRun) {
       feedbackFixed.value = true
       persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: task.value.title, action: 'fix_feedback_completed', message: 'Agent applied PR feedback fixes' })
@@ -838,6 +1228,7 @@ onMounted(async () => {
     task.value = await fetchTaskDetail(props.taskId)
     comments.value = await fetchComments(props.taskId)
     activityLogs.value = await fetchActivity(props.taskId)
+    await fetchAgentReplies()
   } catch (err) {
     console.error('Failed to load task detail:', err)
   } finally {
@@ -949,9 +1340,67 @@ function toggleStrike() {
 
 async function handleAddComment() {
   if (!newComment.value || !task.value) return
-  await addComment(task.value.id, newComment.value)
+  const commentBody = newComment.value
   newComment.value = ''
+
+  // Save the comment to the database
+  await addComment(task.value.id, commentBody)
   comments.value = await fetchComments(task.value.id)
+
+  // Detect if the comment @mentions any agent by name (case-insensitive).
+  // If so, forward the comment to that agent's runtime — even if the task
+  // isn't currently assigned to an agent or "In Progress".
+  const mentionedAgent = findMentionedAgent(commentBody)
+  const shouldSendToAgent = isAgentInProgress.value || mentionedAgent !== null
+
+  if (shouldSendToAgent) {
+    isSendingToAgent.value = true
+    runtimeLogsExpanded.value = true
+
+    // Stamp the chat timestamp so the reply bubble only shows fresh logs
+    lastAgentChatTimestamp.value = Date.now()
+
+    // Persist the agent identity for reply-bubble rendering
+    if (mentionedAgent) {
+      mentionedAgentName.value = mentionedAgent.name
+      mentionedAgentColor.value = mentionedAgent.color
+    }
+
+    // Log the user's message in the runtime feed so it feels like a conversation
+    addLog('Runtime', `User: ${commentBody}`, props.taskId)
+    persistLog(props.workspaceId, {
+      entityType: 'task',
+      entityId: props.taskId,
+      entityName: task.value.title,
+      action: 'runtime_log',
+      message: `User: ${commentBody}`,
+    })
+
+    try {
+      // Reset completion tracking so the watch below re-fires on new "Done"
+      isChatMessage.value = true
+      hasAdvanced = false
+      prSkipped.value = false
+
+      // Build a context message for the agent. Include the @mention as a hint
+      // about who the user is talking to, but the full request is always included.
+      const agentHint = mentionedAgent
+        ? `Addressed to agent "${mentionedAgent.name}" (mentioned via @). `
+        : ''
+
+      // Send the comment as feedback and restart the runtime so the agent
+      // immediately receives the new instruction
+      await startRuntime(
+        task.value.id,
+        `${agentHint}[USER MESSAGE]\n${commentBody}\n\nPlease respond to this user message appropriately. If it is a question or greeting, respond conversationally. If it requires codebase modifications, make the necessary changes.`
+      )
+    } catch (err) {
+      console.error('Failed to send comment to agent:', err)
+      addLog('Runtime', `Failed to send message to agent: ${err}`, props.taskId)
+    } finally {
+      isSendingToAgent.value = false
+    }
+  }
 }
 
 async function handleDelete() {
@@ -1019,6 +1468,9 @@ function formatActivity(log: ActivityLog) {
     }
     case 'comment_added':
       return 'added a comment'
+    case 'pr_created':
+    case 'pr_updated':
+      return log.newValue?.url ? log.action.replace(/_/g, ' ') : 'PR creation failed'
     default:
       return log.action.replace(/_/g, ' ')
   }

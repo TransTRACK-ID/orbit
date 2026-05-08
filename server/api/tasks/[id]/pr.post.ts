@@ -158,22 +158,71 @@ export default defineEventHandler(async (event) => {
     await execAsync(`git push origin --delete ${branch} 2>/dev/null; true`, { cwd: repoDir })
     await execAsync(`git push -u origin ${branch} 2>/dev/null || git push --force -u origin ${branch}`, { cwd: repoDir })
 
-    // Check if PR already exists for this branch
+    let cli = 'gh'
+    let gitlabHost = ''
+    try {
+      const { stdout: remotes } = await execAsync('git remote -v', { cwd: repoDir })
+      if (remotes.includes('gitlab')) {
+        cli = 'glab'
+      }
+    } catch {}
+
+    if (cli === 'gh') {
+      try {
+        await execAsync('gh repo view >/dev/null 2>&1', { cwd: repoDir })
+      } catch {
+        try {
+          await execAsync('glab repo view >/dev/null 2>&1', { cwd: repoDir })
+          cli = 'glab'
+        } catch {
+          if (repoUrl && !repoUrl.includes('github.com')) {
+            cli = 'glab'
+          }
+        }
+      }
+    }
+
+    // For self-hosted GitLab: extract host and set GITLAB_HOST so glab knows where to connect
+    if (cli === 'glab') {
+      try {
+        const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: repoDir })
+        const match = remoteUrl.trim().match(/^(https?:\/\/[^\/]+)/)
+        if (match && !match[1].includes('github.com')) {
+          gitlabHost = match[1]
+        }
+      } catch {}
+    }
+
+    const gitlabEnv = gitlabHost ? { ...process.env, GITLAB_HOST: gitlabHost } : process.env
+
+    // Check if PR/MR already exists for this branch
     let existingPrUrl = ''
     try {
-      const { stdout: existing } = await execAsync(
-        `gh pr view ${branch} --json url --jq '.url // empty' 2>/dev/null || true`,
-        { cwd: repoDir }
-      )
-      existingPrUrl = existing.trim()
+      if (cli === 'glab') {
+        const { stdout: existing } = await execAsync(
+          `glab mr view ${branch} -F json | jq -r '.web_url // empty' || true`,
+          { cwd: repoDir, env: gitlabEnv }
+        )
+        existingPrUrl = existing.trim()
+        if (existingPrUrl === 'null') existingPrUrl = ''
+      } else {
+        const { stdout: existing } = await execAsync(
+          `gh pr view ${branch} --json url --jq '.url // empty' 2>/dev/null || true`,
+          { cwd: repoDir }
+        )
+        existingPrUrl = existing.trim()
+      }
     } catch {}
 
     if (existingPrUrl) {
-      // PR already exists — just update the body with new diff summary
       if (prBody) {
         writeFileSync('/tmp/pr-body.md', prBody, 'utf-8')
         try {
-          await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir })
+          if (cli === 'glab') {
+            await execAsync(`glab mr update ${branch} --description-file /tmp/pr-body.md`, { cwd: repoDir, env: gitlabEnv })
+          } else {
+            await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir })
+          }
         } catch {}
       }
       try {
@@ -190,13 +239,36 @@ export default defineEventHandler(async (event) => {
     if (prBody) {
       writeFileSync('/tmp/pr-body.md', prBody, 'utf-8')
     }
-    const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
-    const { stdout } = await execAsync(
-      `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
-      { cwd: repoDir }
-    )
+    
+    let prUrl = ''
+    if (cli === 'glab') {
+      const bodyFlag = prBody ? '--description-file /tmp/pr-body.md' : ''
+      const { stdout } = await execAsync(
+        `glab mr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y | grep -Eo 'https?://[^ ]+' | head -1 || true`,
+        { cwd: repoDir, env: gitlabEnv }
+      )
+      prUrl = stdout.trim()
+      if (!prUrl) {
+        const { stdout: fallback } = await execAsync(
+          `glab mr view ${branch} -F json | jq -r '.web_url // empty' || true`,
+          { cwd: repoDir, env: gitlabEnv }
+        )
+        prUrl = fallback.trim()
+        if (prUrl === 'null') prUrl = ''
+      }
+    } else {
+      const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
+      const { stdout } = await execAsync(
+        `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
+        { cwd: repoDir }
+      )
+      prUrl = stdout.trim()
+    }
 
-    const prUrl = stdout.trim()
+    if (!prUrl) {
+      throw createError({ statusCode: 500, statusMessage: `Failed to create PR/MR. The remote repository may not be reachable or the CLI is not configured correctly.` })
+    }
+
     try {
       await db.insert(schema.activityLogs).values({
         taskId: id,

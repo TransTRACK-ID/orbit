@@ -214,9 +214,15 @@ export default defineEventHandler(async (event) => {
       : task.title
 
     if (feedback) {
-      const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
-      await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
-      message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\nCRITICAL: The PR feedback above was given by a code reviewer. You MUST examine each item carefully and make the necessary code changes to fix ALL reported issues. Do NOT skip any item. Do NOT assume issues are already resolved — verify by making actual code changes. Your goal is to modify the codebase to satisfy each piece of feedback.`
+      if (feedback.includes('[USER MESSAGE]')) {
+        const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
+        await pushAndPersist(`Including user message: ${feedbackTail}`)
+        message = `${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
+      } else {
+        const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
+        await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
+        message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\nCRITICAL: The PR feedback above was given by a code reviewer. You MUST examine each item carefully and make the necessary code changes to fix ALL reported issues. Do NOT skip any item. Do NOT assume issues are already resolved — verify by making actual code changes. Your goal is to modify the codebase to satisfy each piece of feedback.`
+      }
     }
 
     const proc = spawn(opencodePath, [
@@ -250,6 +256,7 @@ export default defineEventHandler(async (event) => {
         const evt = JSON.parse(line)
         const part = evt.part
         let logMsg = ''
+        let fullText = ''
 
         switch (evt.type) {
           case 'step_start':
@@ -257,6 +264,15 @@ export default defineEventHandler(async (event) => {
             break
           case 'text':
             logMsg = formatTextEvent(part)
+            fullText = typeof part === 'string' ? part : part.text || part.content || ''
+            if (fullText.trim()) {
+              db.insert(schema.activityLogs).values({
+                taskId: id,
+                userId: user.id,
+                action: 'agent_reply',
+                newValue: { message: fullText.trim() }
+              }).catch(() => {})
+            }
             break
           case 'step_finish':
             logMsg = 'Step completed'
@@ -275,11 +291,13 @@ export default defineEventHandler(async (event) => {
             }
         }
 
-        if (logMsg) {
+        if (logMsg || fullText) {
           hasOutput = true
           lastActivity = Date.now()
-          await pushToStreams(entry, JSON.stringify({ step: logMsg, timestamp: Date.now() }))
-          persistLog(logMsg)
+          const payload: any = { step: logMsg, timestamp: Date.now() }
+          if (fullText) payload.agentReply = fullText.trim()
+          await pushToStreams(entry, JSON.stringify(payload))
+          if (logMsg) persistLog(logMsg)
         }
       } catch {}
     }

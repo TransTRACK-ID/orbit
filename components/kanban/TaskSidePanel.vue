@@ -3,6 +3,26 @@
     <div class="absolute inset-0 bg-surface-900/20 backdrop-blur-sm" @click="$emit('close')" />
 
     <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
+      <!-- Agent runtime indicator — floating top-right, only when CLI is actively processing -->
+      <div
+        v-if="runtimeActive"
+        class="absolute top-20 right-6 z-30"
+      >
+        <Tooltip
+          :id="'agent-runtime-status-' + task.id"
+          label="Agent runtime is processing..."
+        >
+          <template #default>
+            <div 
+              class="w-9 h-9 rounded-full shadow-xl border-2 border-white flex items-center justify-center cursor-help transition-all duration-300 hover:scale-110 group"
+              :style="{ background: chatAgentIdentity.color || '#6366f1' }"
+            >
+              <svg class="animate-spin text-white" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle class="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            </div>
+          </template>
+        </Tooltip>
+      </div>
+
       <UiLoadingState v-if="loading" text="Loading task..." />
 
       <template v-else-if="task">
@@ -209,16 +229,16 @@
           </div>
 
           <div>
-            <!-- Agent chat indicator -->
+            <!-- Agent chat indicator — only when runtime is actively processing -->
             <div
-              v-if="showAgentChat"
+              v-if="runtimeActive"
               class="mb-3 p-2.5 rounded-lg bg-primary-50/80 border border-primary-200 flex items-center gap-2.5"
             >
               <span
                 class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                 :style="{ background: chatAgentIdentity.color || '#6366f1' }"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+                <svg class="animate-spin text-white" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle class="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
               </span>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-semibold text-primary-700 flex items-center gap-1.5">

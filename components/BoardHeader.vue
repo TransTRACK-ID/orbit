@@ -86,7 +86,6 @@ async function handleAutoAssign() {
         updateData.statusId = progressStatus.id
       }
       await updateTask(task.id, updateData)
-      addLog('Runtime', `Agent "${agent.name}" assigned to "${task.title}"${progressStatus ? ' (moved to In Progress)' : ''}`, task.id)
       assignedCount++
     } catch {
       addLog('System', `Failed to assign "${task.title}" to "${agent.name}"`, task.id)

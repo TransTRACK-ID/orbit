@@ -229,26 +229,6 @@
           </div>
 
           <div>
-            <!-- Agent chat indicator — only when runtime is actively processing -->
-            <div
-              v-if="runtimeActive"
-              class="mb-3 p-2.5 rounded-lg bg-primary-50/80 border border-primary-200 flex items-center gap-2.5"
-            >
-              <span
-                class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                :style="{ background: chatAgentIdentity.color || '#6366f1' }"
-              >
-                <svg class="animate-spin text-white" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle class="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              </span>
-              <div class="flex-1 min-w-0">
-                <p class="text-xs font-semibold text-primary-700 flex items-center gap-1.5">
-                  Chatting with {{ chatAgentIdentity.name }}
-                  <span v-if="isSendingToAgent" class="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
-                </p>
-                <p class="text-[10px] text-primary-500 leading-relaxed">Comments and @mentions are sent to the agent for processing</p>
-              </div>
-            </div>
-
             <label class="block text-xs font-medium text-surface-500 mb-3">
               Comments ({{ allComments.length }})
             </label>
@@ -871,6 +851,7 @@ const latestAgentReply = computed(() => {
       !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with|Chat session ended/i.test(msg) &&
       !/Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Pushed|No changes|Push failed|Including PR feedback|Including user message/i.test(msg) &&
       !/^User:/.test(msg) &&
+      !/Agent .+ assigned (to|from)/i.test(msg) &&
       !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg)
     ) {
       return msg.slice(0, 200)
@@ -929,10 +910,13 @@ const allComments = computed(() => {
   // Include the in-memory agent reply (live during runtime, or bridged after
   // runtime ends) as a virtual comment entry so it appears in chronological
   // order with all other comments and respects the full comment history.
+  // Skip if already present in persisted agent replies (avoids duplication
+  // after runtime finishes and agentReplies are refreshed).
   const liveReply = latestAgentReply.value
   const bridgedReply = lastChatReplyText.value
   const inMemoryBody = liveReply || bridgedReply
-  if (inMemoryBody) {
+  const alreadyPersisted = agentReplies.value.some(r => r.body === inMemoryBody)
+  if (inMemoryBody && !alreadyPersisted) {
     const isLive = !!liveReply
     merged.push({
       id: 'in-memory-reply',
@@ -1179,15 +1163,6 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
     assigneeId: assigneeId || null,
     assigneeType: assigneeType || null,
   })
-  if (updated) {
-    if (oldAssigneeType !== 'agent' && assigneeType === 'agent' && updated.assignee) {
-      addLog('Runtime', `Agent "${updated.assignee.name}" assigned to "${updated.title}"`, props.taskId)
-      persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'assign_agent', message: `Agent "${updated.assignee.name}" assigned` })
-    } else if (oldAssigneeType === 'agent' && assigneeType !== 'agent') {
-      addLog('Runtime', `Agent unassigned from "${updated.title}"`, props.taskId)
-      persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'unassign_agent', message: `Agent unassigned from "${updated.title}"` })
-    }
-  }
   task.value = updated
   emit('updated', updated)
 }

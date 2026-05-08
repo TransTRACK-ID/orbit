@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
 
   // Filter out internal tool-call logs and boilerplate messages for runtime_log.
   // Only keep actual OpenCode response text (the agent's thinking / answers).
-  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request)/i
+  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from))/i
 
   const validLogs = logs.filter(log => {
     const msg: string = log.newValue?.message || ''

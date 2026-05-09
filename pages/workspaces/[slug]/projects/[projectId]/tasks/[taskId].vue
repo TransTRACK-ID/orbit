@@ -104,7 +104,7 @@
                   <span class="text-sm font-medium text-surface-900">{{ comment.user?.name }}</span>
                   <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
                 </div>
-                <p class="text-sm text-surface-700" v-html="linkify(comment.body)"></p>
+                <p class="text-sm text-surface-700" v-html="linkify(comment.body.replace(/^Summary:\s*(##\s*Summary)/i, '$1').replace(/^Summary:\s*/i, ''))"></p>
               </div>
             </div>
           </div>

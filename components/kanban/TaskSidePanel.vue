@@ -350,7 +350,7 @@
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
               <div class="space-y-2">
                 <div
-                  v-for="log in userActivityLogs"
+                  v-for="log in activityLogsToShow"
                   :key="log.id"
                   class="flex items-start gap-2 text-sm text-surface-500"
                 >
@@ -362,6 +362,13 @@
                   </div>
                 </div>
               </div>
+              <button
+                v-if="activityHasMore"
+                @click="activityExpanded = !activityExpanded"
+                class="mt-2 text-xs text-primary-600 font-medium hover:text-primary-700 transition-colors"
+              >
+                {{ activityExpanded ? 'Show less' : `Show ${userActivityLogs.length - ACTIVITY_COLLAPSE_THRESHOLD} more` }}
+              </button>
             </div>
 
             <div v-if="task" class="mt-6 pt-4 border-t border-surface-100">
@@ -903,7 +910,7 @@ const allComments = computed(() => {
   const merged = [
     ...comments.value.map(c => ({
       id: c.id,
-      body: c.body,
+      body: c.body.replace(/^Summary:\s*(##\s*Summary)/i, '$1').replace(/^Summary:\s*/i, ''),
       createdAt: new Date(c.createdAt).getTime(),
       authorName: c.user?.name || 'U',
       isAgent: false,
@@ -915,7 +922,7 @@ const allComments = computed(() => {
       }
       return {
         id: r.id,
-        body: r.body,
+        body: r.body.replace(/^Summary:\s*(##\s*Summary)/i, '$1').replace(/^Summary:\s*/i, ''),
         createdAt: new Date(r.createdAt).getTime(),
         authorName: agent?.name || chatAgentIdentity.value.name || 'Agent',
         authorColor: r.agentColor || agent?.color || chatAgentIdentity.value.color || '#6366f1',
@@ -1000,6 +1007,16 @@ const userActivityLogs = computed(() =>
       timestamp: new Date(log.createdAt).getTime(),
     }))
 )
+
+const ACTIVITY_COLLAPSE_THRESHOLD = 10
+const activityExpanded = ref(false)
+const activityLogsToShow = computed(() => {
+  if (activityExpanded.value || userActivityLogs.value.length <= ACTIVITY_COLLAPSE_THRESHOLD) {
+    return userActivityLogs.value
+  }
+  return userActivityLogs.value.slice(0, ACTIVITY_COLLAPSE_THRESHOLD)
+})
+const activityHasMore = computed(() => userActivityLogs.value.length > ACTIVITY_COLLAPSE_THRESHOLD)
 
 const runtimeLogsForTask = computed(() => {
   const inMemoryLogs = runtimeLogs.value

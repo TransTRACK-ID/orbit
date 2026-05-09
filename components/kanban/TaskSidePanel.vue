@@ -834,6 +834,13 @@ const latestAgentReply = computed(() => {
   const logs = runtimeLogsForTask.value
   if (logs.length === 0) return null
 
+  // Only show agent replies when:
+  // 1. User explicitly messaged the agent (chat session), OR
+  // 2. Task is in a terminal state (Done), OR
+  // 3. Agent runtime has completed (so the final summary is visible)
+  const isDone = task.value?.status?.name && /done/i.test(task.value.status.name)
+  if (lastAgentChatTimestamp.value === 0 && !isDone && !runtimeCompleted.value) return null
+
   // Only show logs from the current chat session (after last agent-directed comment)
   const recentLogs = lastAgentChatTimestamp.value > 0
     ? logs.filter(log => log.timestamp >= lastAgentChatTimestamp.value)
@@ -841,6 +848,7 @@ const latestAgentReply = computed(() => {
 
   if (recentLogs.length === 0) return null
 
+    // Find the most recent meaningful agent response (skip planning fragments)
   for (const log of recentLogs) {
     if (log.message.startsWith('[AGENT_REPLY] ')) {
       return log.message.slice(14)
@@ -853,7 +861,9 @@ const latestAgentReply = computed(() => {
       !/^User:/.test(msg) &&
       !/Agent .+ assigned (to|from)/i.test(msg) &&
       !/Agent .+ started processing/i.test(msg) &&
-      !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg)
+      !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg) &&
+      !/^(Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash)/i.test(msg) &&
+      !/^(I'll |I will |Let me |I am going to |First, |Next, |Now, )/i.test(msg)
     ) {
       return msg.slice(0, 200)
     }
@@ -873,11 +883,17 @@ const agentReplies = ref<Array<{ id: string; body: string; createdAt: string; ag
 async function fetchAgentReplies() {
   if (!task.value) return
   try {
-    // Clear the bridge first so allComments never sees a duplicate
-    // (virtual entry + persisted entry for the same reply).
-    lastChatReplyText.value = null
-    lastChatReplyTimestamp.value = 0
-    agentReplies.value = await $fetch(`/api/tasks/${task.value.id}/agent-replies`)
+    const fetched = await $fetch(`/api/tasks/${task.value.id}/agent-replies`) as Array<{ id: string; body: string; createdAt: string; agentName: string; agentColor?: string }>
+    agentReplies.value = fetched
+    // Only clear the in-memory bridge once we confirm the reply was persisted.
+    // This prevents a gap where no agent reply is visible during the fetch.
+    const alreadyPersisted = fetched.some(
+      (r) => r.body === lastChatReplyText.value
+    )
+    if (alreadyPersisted) {
+      lastChatReplyText.value = null
+      lastChatReplyTimestamp.value = 0
+    }
   } catch {
     agentReplies.value = []
   }
@@ -947,8 +963,9 @@ const lastChatReplyTimestamp = ref(0)
  *  network interruption, or the premature "Step completed" match before our fix). */
 watch(runtimeActive, async (active) => {
   if (!active && task.value) {
-    lastChatReplyText.value = null
-    lastChatReplyTimestamp.value = 0
+    // Do NOT clear lastChatReplyText here — let fetchAgentReplies decide
+    // after the API returns whether the reply was already persisted.
+    // This prevents a gap where no agent reply is visible during the fetch.
     setTimeout(async () => {
       await fetchAgentReplies()
     }, 500)

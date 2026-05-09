@@ -92,7 +92,6 @@ function handleCreateTask() {
 async function handleTaskCreated(task: Task) {
   showCreateModal.value = false
   tasks.value.push(task)
-  addLog('System', `Created task "${task.title}"`, task.id)
   if (project.value?.workspaceId) {
     persistLog(project.value.workspaceId, { entityType: 'task', entityId: task.id, entityName: task.title, action: 'create', message: `Created task "${task.title}"` })
   }

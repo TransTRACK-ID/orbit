@@ -3,6 +3,18 @@ import { promisify } from 'util'
 
 const execAsync = promisify(exec)
 
+function parseDiffStat(stat: string): { insertions: number; deletions: number; files: number } {
+  const match = stat.trim().match(/(\d+) files? changed/)
+  const files = match ? parseInt(match[1]) : 0
+  const insMatch = stat.match(/(\d+) insertion/)
+  const delMatch = stat.match(/(\d+) deletion/)
+  return {
+    files,
+    insertions: insMatch ? parseInt(insMatch[1]) : 0,
+    deletions: delMatch ? parseInt(delMatch[1]) : 0,
+  }
+}
+
 export async function getDiffSummary(
   repoDir: string,
   repoDefaultBranch: string,
@@ -16,57 +28,50 @@ export async function getDiffSummary(
 
     if (!diffStat.trim()) return ''
 
-    const files: { path: string; additions: string[]; deletions: number }[] = []
+    const stats = parseDiffStat(diffStat)
+
+    const files: { path: string; hunks: { header: string }[] }[] = []
     let currentFile: typeof files[0] | null = null
 
     for (const line of diffOutput.split('\n')) {
       const fileMatch = line.match(/^diff --git a\/(.+?) b\/(.+?)$/)
       if (fileMatch) {
         if (currentFile) files.push(currentFile)
-        currentFile = { path: fileMatch[2], additions: [], deletions: 0 }
+        currentFile = { path: fileMatch[2], hunks: [] }
         continue
       }
-      if (currentFile) {
-        if (line.startsWith('+') && !line.startsWith('+++') && !/^\+\s*$/.test(line) && !/^\+import\s/.test(line) && !/^\/\/\s/.test(line)) {
-          const clean = line.slice(1).trim()
-          if (clean && !clean.startsWith('}') && !clean.startsWith('{')) {
-            currentFile.additions.push(clean)
-          }
-        }
-        if (line.startsWith('-') && !line.startsWith('---') && !/^\-\s*$/.test(line)) {
-          currentFile.deletions++
-        }
+      const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/)
+      if (hunkMatch && currentFile) {
+        const start = parseInt(hunkMatch[1])
+        const count = hunkMatch[2] ? parseInt(hunkMatch[2]) : 1
+        const label = start === 0 && count === 0 ? 'deleted'
+          : count === 1 ? `L${start}`
+          : `L${start}-${start + count - 1}`
+        currentFile.hunks.push({ header: label })
       }
     }
+
     if (currentFile) files.push(currentFile)
 
-    let summary = '## Summary\n\n'
-    summary += `This PR implements **${taskTitle}**.`
+    let body = ''
+    body += `## Summary\n\n`
+    body += `**${taskTitle}**\n\n`
 
     if (taskDescription) {
-      summary += `\n\n${taskDescription}`
+      body += `${taskDescription}\n\n`
     }
 
-    summary += '\n\n## Changes\n'
+    body += `**${stats.files} file${stats.files > 1 ? 's' : ''} changed** — +${stats.insertions}/-${stats.deletions}\n\n`
+
+    body += `| File | Changes |\n|------|---------|\n`
     for (const file of files) {
-      summary += `\n### \`${file.path}\`\n`
-      if (file.additions.length > 0) {
-        summary += '\n**Added:**\n'
-        for (const add of file.additions.slice(0, 10)) {
-          summary += `- ${add}\n`
-        }
-        if (file.additions.length > 10) {
-          summary += `- _... and ${file.additions.length - 10} more changes_\n`
-        }
-      }
-      if (file.deletions > 0) {
-        summary += `\n**Removed:** ${file.deletions} line${file.deletions > 1 ? 's' : ''}\n`
-      }
+      const hunks = file.hunks.map(h => h.header || '(structural change)').join('; ')
+      body += `| \`${file.path}\` | ${hunks || 'structural'} |\n`
     }
 
-    summary += `\n## Files Changed\n\`\`\`\n${diffStat.trim()}\n\`\`\``
+    body += `\n\`\`\`\n${diffStat.trim()}\n\`\`\``
 
-    return summary
+    return body
   } catch {
     return ''
   }

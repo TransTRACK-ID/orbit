@@ -108,13 +108,26 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    // Ensure we start from a clean default branch before creating the task branch
+    const { stdout: branchCheck } = await execAsync(`git branch --list ${branch}`, { cwd: repoDir })
+    if (!branchCheck.trim()) {
+      // Branch doesn't exist yet: reset default to origin to avoid inheriting old local commits
+      await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: repoDir })
+      await execAsync(`git checkout ${repoDefaultBranch}`, { cwd: repoDir })
+      await execAsync(`git reset --hard origin/${repoDefaultBranch}`, { cwd: repoDir })
+    }
     await execAsync(`git checkout -b ${branch} 2>/dev/null || git checkout ${branch}`, { cwd: repoDir })
     if (hasUncommitted) {
       await execAsync('git add -A', { cwd: repoDir })
       await execAsync(`git commit -m "${prTitle.replace(/"/g, '\\"')}"`, { cwd: repoDir })
     }
-    await execAsync(`git push origin --delete ${branch} 2>/dev/null; true`, { cwd: repoDir })
-    await execAsync(`git push -u origin ${branch} 2>/dev/null || git push --force -u origin ${branch}`, { cwd: repoDir })
+    // Try normal push first — only force-push on explicit failure
+    try {
+      await execAsync(`git push -u origin ${branch}`, { cwd: repoDir })
+    } catch (pushErr: any) {
+      console.warn(`[pr.post] Push rejected for ${branch}: ${pushErr.message}. Force pushing...`)
+      await execAsync(`git push --force -u origin ${branch}`, { cwd: repoDir })
+    }
 
     let cli = 'gh'
     let gitlabHost = ''

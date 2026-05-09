@@ -3,20 +3,16 @@ import { getDb, schema } from '~/server/database'
 import { eq, desc, inArray, and } from 'drizzle-orm'
 
 /**
- * Returns persisted agent runtime responses for a task. These are activity
- * logs with action = 'runtime_log' or 'agent_reply' that were saved by the opencode runtime
- * during execution. Each entry contains the agent's message, timestamp, and
- * the agent who was executing (resolved from the task's assignee).
+ * Returns persisted agent runtime responses for a task.
  *
- * Non-actionable messages (heartbeats, user echoes, boilerplate) are excluded
- * so only meaningful agent activity is returned.
+ * The opencode agent streams text events, producing many database rows for a
+ * single response.  We collapse those into one representative entry per run.
  */
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   await requireAuth(event)
   const db = getDb()
 
-  // Resolve the agent name from the task's assigned agent (if any)
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
     columns: { agentAssigneeId: true, assigneeType: true },
@@ -38,88 +34,74 @@ export default defineEventHandler(async (event) => {
       eq(al.taskId, id),
       inArray(al.action, ['runtime_log', 'agent_reply']),
     ),
-    with: {
-      user: {
-        columns: { id: true, name: true },
-      },
-    },
     orderBy: [desc(schema.activityLogs.createdAt)],
-    limit: 50,
+    limit: 200,
   })
 
-  // Filter out internal tool-call logs and boilerplate messages for runtime_log.
-  // Only keep actual OpenCode response text (the agent's thinking / answers).
-  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from))/i
+  // Boilerplate patterns that should NEVER appear in comments
+  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from)|Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Checkout failed|Clone failed|Branch setup failed|Summary:|Created PR:|Created MR:)/i
 
   const validLogs = logs.filter(log => {
     const msg: string = log.newValue?.message || ''
     const trimmed = msg.trim()
     if (!trimmed) return false
-    
-    // If it's an explicit agent_reply, keep it completely unfiltered EXCEPT if it's literally just 'Done'
+
+    // Explicit agent_reply: keep only meaningful responses
     if (log.action === 'agent_reply') {
+      // Drop one-word boilerplate
       if (/^(Done\.?|Step completed|Step started|Process exited)$/i.test(trimmed)) return false
+      // Drop git/PR system messages that leak into comments
+      if (/^(Created PR:|Created MR:|Summary:|Pushed changes|No changes to push|Auto-create PR failed|Summary post failed|Push failed)/i.test(trimmed)) return false
       return true
     }
-    
-    // Otherwise apply the skip pattern for generic runtime_logs
+
+    // runtime_log: apply skip pattern
     return !skipPattern.test(trimmed)
   })
 
-  // Deduplicate runtime_logs that are truncated versions of agent_replies
-  const deduplicatedLogs = validLogs.filter(log => {
-    if (log.action === 'runtime_log') {
-      const msg = (log.newValue?.message || '').trim()
-      // If there is any agent_reply that contains this message, drop the runtime_log
-      return !validLogs.some(other => 
-        other.action === 'agent_reply' && 
-        (other.newValue?.message || '').includes(msg)
-      )
-    }
-    return true
+  // Separate actions
+  const agentReplies = validLogs.filter(l => l.action === 'agent_reply')
+  const runtimeLogs = validLogs.filter(l => l.action === 'runtime_log')
+
+  // Drop runtime_logs already covered by an agent_reply
+  const standaloneRuntimeLogs = runtimeLogs.filter(log => {
+    const msg = (log.newValue?.message || '').trim()
+    return !agentReplies.some(ar => (ar.newValue?.message || '').includes(msg))
   })
 
-  // Deduplicate agent_reply entries: OpenCode streams text events, so each
-  // chunk produces a separate database row.  If a shorter reply is entirely
-  // contained within a later, longer one (streamed fragment), drop the shorter.
-  const uniqueReplies = deduplicatedLogs.filter((log, index, arr) => {
-    if (log.action !== 'agent_reply') return true
-    const body = (log.newValue?.message || '').trim()
-    if (!body) return false
-    // Keep this entry unless a later agent_reply entry contains it entirely
-    return !arr.some((other, otherIndex) =>
-      otherIndex > index &&
-      other.action === 'agent_reply' &&
-      (other.newValue?.message || '').includes(body) &&
-      (other.newValue?.message || '').trim() !== body
-    )
-  })
+  // Group agent_reply entries by time proximity (same streaming session)
+  const SESSION_GAP_MS = 60 * 1000
+  const sortedReplies = [...agentReplies].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
 
-  // Only keep the most recent agent_reply from each contiguous time window.
-  // OpenCode produces multiple text events during a single run (progress
-  // updates, tool results, thinking).  We want to surface only the final
-  // response, not the intermediate chatter.  Entries within 5 minutes of
-  // each other are considered part of the same run / chat turn.
-  const WINDOW_MS = 5 * 60 * 1000
-  const agentReplyEntries = uniqueReplies.filter(log => log.action === 'agent_reply')
-  const representativeReplies: typeof agentReplyEntries = []
+  const sessions: typeof sortedReplies[] = []
+  let currentSession: typeof sortedReplies = []
 
-  for (const log of agentReplyEntries) {
+  for (const log of sortedReplies) {
     const logTime = new Date(log.createdAt).getTime()
-    const lastKept = representativeReplies[representativeReplies.length - 1]
-    if (!lastKept) {
-      representativeReplies.push(log)
+    if (currentSession.length === 0) {
+      currentSession.push(log)
     } else {
-      const lastKeptTime = new Date(lastKept.createdAt).getTime()
-      if (lastKeptTime - logTime > WINDOW_MS) {
-        representativeReplies.push(log)
+      const lastTime = new Date(currentSession[currentSession.length - 1].createdAt).getTime()
+      if (logTime - lastTime <= SESSION_GAP_MS) {
+        currentSession.push(log)
+      } else {
+        sessions.push(currentSession)
+        currentSession = [log]
       }
-      // Otherwise same window — skip (we already kept the most recent one)
     }
   }
+  if (currentSession.length > 0) sessions.push(currentSession)
 
-  return representativeReplies.map(log => ({
-    id: `agent-${log.id}`,
+  // Keep only the LAST entry per session (complete final response)
+  const representatives = sessions.map(session => session[session.length - 1])
+
+  const allEntries = [...representatives, ...standaloneRuntimeLogs]
+  allEntries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  return allEntries.map(log => ({
+    id: log.action === 'agent_reply' ? `agent-${log.id}` : `runtime-${log.id}`,
     body: (log.newValue as { message: string }).message,
     createdAt: log.createdAt,
     agentName: defaultAgentName,

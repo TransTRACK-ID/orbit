@@ -869,7 +869,7 @@ const latestAgentReply = computed(() => {
       !/Agent .+ assigned (to|from)/i.test(msg) &&
       !/Agent .+ started processing/i.test(msg) &&
       !/^(Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:)/i.test(msg) &&
-      !/^(Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash)/i.test(msg) &&
+      !/^(Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Created PR:|Created MR:|PR created:|MR created:)/i.test(msg) &&
       !/^(I'll |I will |Let me |I am going to |First, |Next, |Now, )/i.test(msg)
     ) {
       return msg.slice(0, 200)

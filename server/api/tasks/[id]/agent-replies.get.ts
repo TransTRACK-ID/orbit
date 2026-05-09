@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   })
 
   // Boilerplate patterns that should NEVER appear in comments
-  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from)|Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Checkout failed|Clone failed|Branch setup failed|Summary:|Created PR:|Created MR:)/i
+  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from)|Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Checkout failed|Clone failed|Branch setup failed|Summary:|Created PR:|Created MR:|PR created:|MR created:)/i
 
   const validLogs = logs.filter(log => {
     const msg: string = log.newValue?.message || ''
@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
       // Drop one-word boilerplate
       if (/^(Done\.?|Step completed|Step started|Process exited)$/i.test(trimmed)) return false
       // Drop git/PR system messages that leak into comments
-      if (/^(Created PR:|Created MR:|Summary:|Pushed changes|No changes to push|Auto-create PR failed|Summary post failed|Push failed)/i.test(trimmed)) return false
+      if (/^(Created PR:|Created MR:|PR created:|MR created:|Summary:|Pushed changes|No changes to push|Auto-create PR failed|Summary post failed|Push failed)/i.test(trimmed)) return false
       return true
     }
 

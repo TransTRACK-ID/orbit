@@ -9,7 +9,7 @@ services:
         - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
     container_name: orbit-web
     environment:
-      - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/orbit
+      - POSTGRES_URL=${POSTGRES_URL}
       - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}
       - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}

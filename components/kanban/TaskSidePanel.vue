@@ -52,6 +52,22 @@
           </div>
         </div>
 
+        <!-- Floating Open PR banner -->
+        <div
+          v-if="prUrl"
+          class="sticky top-0 z-20 px-6 py-2 bg-green-50 border-b border-green-100 flex items-center justify-between"
+        >
+          <span class="text-xs font-medium text-green-700">This task has an open pull request</span>
+          <a
+            :href="prUrl"
+            target="_blank"
+            class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 no-underline"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Open PR
+          </a>
+        </div>
+
         <div class="flex-1 overflow-y-auto p-6">
           <div class="mb-4">
             <TextInput
@@ -312,47 +328,9 @@
             <label class="block text-xs font-medium text-surface-500 mb-3">
               Comments ({{ allComments.length }})
             </label>
-            <div class="space-y-3 mb-4">
-              <template v-for="comment in allComments" :key="comment.id">
-                <!-- User comment -->
-                <div
-                  v-if="!comment.isAgent"
-                  class="flex gap-3 p-3 rounded-lg bg-surface-50"
-                >
-                  <Avatar :name="comment.authorName" size="sm" />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-0.5">
-                      <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
-                      <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
-                    </div>
-                    <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
-                  </div>
-                </div>
 
-                <!-- Persisted agent reply -->
-                <div
-                  v-else
-                  class="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary-50/50 to-primary-50 border border-primary-100"
-                >
-                  <span
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                    :style="{ background: comment.authorColor || '#6366f1' }"
-                  >
-                    {{ computedInitials(comment.authorName) }}
-                  </span>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-0.5">
-                      <span class="text-sm font-medium text-primary-700">{{ comment.authorName }}</span>
-                      <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
-                      <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
-                    </div>
-                    <div class="text-sm text-primary-800 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <div class="flex gap-2">
+            <!-- Comment input -->
+            <div class="flex gap-2 mb-4">
               <div class="flex-1 relative">
                 <!-- Custom input with @mention support -->
                 <div
@@ -425,6 +403,55 @@
                 <template v-else>Send</template>
               </Button>
             </div>
+
+            <!-- Comments list -->
+            <div class="space-y-3 mb-4">
+              <template v-for="comment in commentsToShow" :key="comment.id">
+                <!-- User comment -->
+                <div
+                  v-if="!comment.isAgent"
+                  class="flex gap-3 p-3 rounded-lg bg-surface-50"
+                >
+                  <Avatar :name="comment.authorName" size="sm" />
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
+                      <span class="text-xs text-surface-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
+                    </div>
+                    <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
+                  </div>
+                </div>
+
+                <!-- Persisted agent reply -->
+                <div
+                  v-else
+                  class="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary-50/50 to-primary-50 border border-primary-100"
+                >
+                  <span
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                    :style="{ background: comment.authorColor || '#6366f1' }"
+                  >
+                    {{ computedInitials(comment.authorName) }}
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium text-primary-700">{{ comment.authorName }}</span>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
+                      <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
+                    </div>
+                    <div class="text-sm text-primary-800 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <button
+              v-if="commentsHasMore"
+              @click="commentsExpanded = !commentsExpanded"
+              class="mb-4 text-xs text-primary-600 font-medium hover:text-primary-700 transition-colors"
+            >
+              {{ commentsExpanded ? 'Show less' : `Show ${allComments.length - COMMENTS_COLLAPSE_THRESHOLD} more` }}
+            </button>
 
             <div v-if="userActivityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
@@ -1101,8 +1128,18 @@ const allComments = computed(() => {
     })
   }
 
-  return merged.sort((a, b) => a.createdAt - b.createdAt)
+  return merged.sort((a, b) => b.createdAt - a.createdAt)
 })
+
+const COMMENTS_COLLAPSE_THRESHOLD = 10
+const commentsExpanded = ref(false)
+const commentsToShow = computed(() => {
+  if (commentsExpanded.value || allComments.value.length <= COMMENTS_COLLAPSE_THRESHOLD) {
+    return allComments.value
+  }
+  return allComments.value.slice(0, COMMENTS_COLLAPSE_THRESHOLD)
+})
+const commentsHasMore = computed(() => allComments.value.length > COMMENTS_COLLAPSE_THRESHOLD)
 
 const { startRuntime, stopRuntime, isRunning } = useAgentRuntime()
 const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)

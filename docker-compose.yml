@@ -19,8 +19,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: orbit-web
-    ports:
-      - '3030:3000'
     environment:
       - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/orbit
       - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}

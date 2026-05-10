@@ -11,11 +11,27 @@ definePageMeta({
 
 const { status } = useAuth()
 
-onMounted(() => {
-  if (status.value === 'authenticated') {
+// Redirect as soon as auth status resolves
+watch(status, (newStatus) => {
+  if (newStatus === 'authenticated') {
     navigateTo('/workspaces')
-  } else if (status.value === 'unauthenticated') {
+  } else if (newStatus === 'unauthenticated') {
     navigateTo('/login')
   }
+}, { immediate: true })
+
+// Fallback: prevent infinite loading if auth requests fail (e.g. wrong AUTH_ORIGIN)
+let timeout: ReturnType<typeof setTimeout>
+onMounted(() => {
+  timeout = setTimeout(() => {
+    if (status.value === 'loading') {
+      console.warn('[auth] Status still loading after timeout — redirecting to login')
+      navigateTo('/login')
+    }
+  }, 3000)
+})
+
+onUnmounted(() => {
+  clearTimeout(timeout)
 })
 </script>

@@ -6,6 +6,10 @@ RUN npm install -g bun
 
 WORKDIR /app
 
+# Accept AUTH_ORIGIN as build argument (set this to your Coolify domain in Coolify UI)
+ARG AUTH_ORIGIN
+ENV AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
+
 # Copy package files and install dependencies
 COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile

@@ -18,6 +18,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
     container_name: orbit-web
     environment:
       - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/orbit

@@ -8,6 +8,8 @@ export default defineNuxtConfig({
   ],
 
   auth: {
+    // IMPORTANT: Set AUTH_ORIGIN to your public deployment URL (e.g. https://orbit.yourdomain.com)
+    // In Coolify, pass this as a build argument AND runtime environment variable.
     baseURL: process.env.AUTH_ORIGIN || 'http://localhost:3000',
     provider: {
       type: 'authjs',

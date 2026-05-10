@@ -1,8 +1,6 @@
 # Stage 1: Build the Nuxt application
-FROM node:20-bookworm-slim AS builder
-
-# Install bun for building
-RUN npm install -g bun
+# Using official bun image (smaller, no need to install bun separately)
+FROM oven/bun:1-slim AS builder
 
 WORKDIR /app
 
@@ -12,7 +10,7 @@ ENV AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
 
 # Copy package files and install dependencies
 COPY package.json bun.lockb ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile && rm -rf /tmp/*
 
 # Copy the rest of the application code
 COPY . .
@@ -21,10 +19,7 @@ COPY . .
 RUN bun run build
 
 # Stage 2: Run the Nuxt application and the agent runtime
-FROM node:20-bookworm-slim AS runner
-
-# Install bun in the runner
-RUN npm install -g bun
+FROM oven/bun:1-slim AS runner
 
 # Install base system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -72,4 +67,4 @@ ENV HOST=0.0.0.0
 
 # Use entrypoint to decode config, then run the Nuxt server
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", ".output/server/index.mjs"]
+CMD ["bun", ".output/server/index.mjs"]

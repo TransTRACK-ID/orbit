@@ -57,7 +57,8 @@
       <div
         v-for="agent in agents"
         :key="agent.id"
-        class="bg-white border border-surface-200 rounded-xl p-[18px] hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150"
+        class="border rounded-xl p-[18px] hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150"
+        :class="getAgentStatus(agent.id) === 'offline' ? 'bg-surface-50 border-surface-300 opacity-70' : 'bg-white border-surface-200'"
       >
         <div class="flex items-center gap-3 mb-2.5">
           <div
@@ -67,7 +68,7 @@
             {{ agent.initials }}
             <span
               class="absolute bottom-0 right-0 w-[10px] h-[10px] rounded-full border-2 border-white"
-              :class="statusDotClass(agent.status)"
+              :class="statusDotClass(getAgentStatus(agent.id))"
             />
           </div>
           <div class="min-w-0">
@@ -85,13 +86,23 @@
           <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-semibold bg-surface-100 border border-surface-200">
             <Icon :name="runtimeIcon(agent.runtime)" class="w-2.5 h-2.5 text-accent" />
             {{ runtimeName(agent.runtime) }}
+            <span
+              v-if="runtimeReachable && agent.runtime === 'opencode'"
+              class="w-[5px] h-[5px] rounded-full bg-green-500 animate-pulse ml-0.5"
+              title="Runtime CLI is connected"
+            />
+            <span
+              v-else-if="!runtimeReachable && agent.runtime === 'opencode'"
+              class="w-[5px] h-[5px] rounded-full bg-red-500 ml-0.5"
+              title="Runtime CLI is offline"
+            />
           </span>
           <span class="text-[9px] font-semibold flex items-center gap-1">
             <span
               class="w-[6px] h-[6px] rounded-full"
-              :class="statusDotClass(agent.status)"
+              :class="statusDotClass(getAgentStatus(agent.id))"
             />
-            {{ statusLabel(agent.status) }}
+            {{ statusLabel(getAgentStatus(agent.id)) }}
           </span>
         </div>
 
@@ -222,11 +233,20 @@ definePageMeta({
   layout: 'default',
 })
 
-const { agents, loading, agentCounts, runtimeInfo, runtimes, fetchAgents, createAgent, updateAgent, deleteAgent: deleteAgentApi } = useAgent()
+const { agents, loading, agentCounts, runtimeInfo, runtimes, getAgentStatus, runtimeReachable, fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent: deleteAgentApi } = useAgent()
 const { addLog } = useLog()
+
+let healthInterval: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   fetchAgents()
+  healthInterval = setInterval(() => {
+    fetchHealth()
+  }, 5000)
+})
+
+onUnmounted(() => {
+  if (healthInterval) clearInterval(healthInterval)
 })
 
 const agentColors = ['#7C3AED', '#2563EB', '#DC2626', '#D97706', '#0891B2', '#16A34A', '#EC4899', '#6366F1']

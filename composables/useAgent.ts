@@ -4,6 +4,8 @@ const agents = ref<Agent[]>([])
 const loading = ref(false)
 const filterAgentId = ref<string | null>(null)
 const agentPanelOpen = ref(false)
+const healthStatus = ref<Record<string, 'idle' | 'busy' | 'offline'>>({})
+const runtimeReachable = ref(false)
 
 export const useAgent = () => {
 
@@ -13,17 +15,37 @@ export const useAgent = () => {
 
   const runtimes = Object.entries(runtimeInfo).map(([id, r]) => ({ id, ...r }))
 
+  const computedStatuses = computed<Record<string, AgentStatus>>(() => {
+    const map: Record<string, AgentStatus> = {}
+    for (const a of agents.value) {
+      map[a.id] = healthStatus.value[a.id] || (a.status as AgentStatus) || 'idle'
+    }
+    return map
+  })
+
   const agentCounts = computed(() => ({
     total: agents.value.length,
-    idle: agents.value.filter(a => a.status === 'idle').length,
-    busy: agents.value.filter(a => a.status === 'busy').length,
-    offline: agents.value.filter(a => a.status === 'offline').length,
+    idle: agents.value.filter(a => computedStatuses.value[a.id] === 'idle').length,
+    busy: agents.value.filter(a => computedStatuses.value[a.id] === 'busy').length,
+    offline: agents.value.filter(a => computedStatuses.value[a.id] === 'offline').length,
   }))
+
+  async function fetchHealth() {
+    try {
+      const res = await $fetch<{ runtimeReachable: boolean; health: Record<string, 'idle' | 'busy' | 'offline'> }>('/api/agents/health')
+      runtimeReachable.value = res.runtimeReachable
+      healthStatus.value = res.health
+    } catch (err) {
+      console.error('Failed to fetch agent health:', err)
+      runtimeReachable.value = false
+    }
+  }
 
   async function fetchAgents() {
     loading.value = true
     try {
       agents.value = await $fetch<Agent[]>('/api/agents')
+      await fetchHealth()
     } catch (err) {
       console.error('Failed to fetch agents:', err)
     } finally {
@@ -71,9 +93,14 @@ export const useAgent = () => {
     return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   }
 
+  function getAgentStatus(agentId: string): AgentStatus {
+    return computedStatuses.value[agentId] || 'idle'
+  }
+
   return {
     agents, loading, filterAgentId, agentPanelOpen, runtimeInfo, runtimes, agentCounts,
-    fetchAgents, createAgent, updateAgent, deleteAgent,
+    runtimeReachable, healthStatus, computedStatuses, getAgentStatus,
+    fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent,
     getAgentById, toggleAgentPanel, toggleFilter, computeInitials,
   }
 }

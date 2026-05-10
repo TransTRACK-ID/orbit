@@ -25,6 +25,9 @@ FROM node:20-bookworm-slim AS runner
 # Install bun in the runner (needed for agent runtime / opencode)
 RUN npm install -g bun && rm -rf /tmp/*
 
+# Install opencode CLI (the actual agent runtime)
+RUN curl -fsSL https://opencode.ai/install.sh | NONINTERACTIVE=1 sh
+
 # Install base system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \

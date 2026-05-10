@@ -335,25 +335,28 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-    let opencodeOk = false
-  let opencodeVersion = ''
+  let opencodeOk = false
   try {
     accessSync(opencodePath, constants.X_OK)
     opencodeOk = true
-    // Verify opencode actually runs by checking version
-    try {
-      const { stdout } = await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
-      opencodeVersion = stdout.trim()
-    } catch (versionErr: any) {
-      opencodeVersion = `version check failed: ${versionErr.message}`
-    }
   } catch {}
 
   const stream = createEventStream(event)
 
   setTimeout(async () => {
+    let opencodeVersion = ''
+    if (opencodeOk) {
+      try {
+        const { stdout } = await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
+        opencodeVersion = stdout.trim()
+      } catch (versionErr: any) {
+        opencodeVersion = `version check failed: ${versionErr.message}`
+      }
+    }
+
     if (!opencodeOk) {
       await stream.push(JSON.stringify({ step: `opencode not found at ${opencodePath}`, timestamp: Date.now() }))
+      stream.close()
       return
     }
     await stream.push(JSON.stringify({ step: `opencode version: ${opencodeVersion || 'unknown'}`, timestamp: Date.now() }))
@@ -522,6 +525,7 @@ export default defineEventHandler(async (event) => {
 
     if (!existsSync(workDir)) {
       await pushAndPersist(`Work directory does not exist: ${workDir}. Cannot start agent.`)
+      stream.close()
       return
     }
     await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)

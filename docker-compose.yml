@@ -1,19 +1,6 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: orbit-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: orbit
-    ports:
-      - '5433:5432'
-    volumes:
-      - orbit-pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-
   web:
     build:
       context: .
@@ -34,8 +21,6 @@ services:
     volumes:
       # Mount the orbit-projects directory to preserve git clones between restarts
       - ~/orbit-projects:/root/orbit-projects
-    depends_on:
-      - postgres
     restart: unless-stopped
 
 volumes:

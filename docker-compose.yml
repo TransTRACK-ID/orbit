@@ -12,6 +12,32 @@ services:
       - '5432:5432'
     volumes:
       - orbit-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orbit-web
+    ports:
+      - '3000:3000'
+    environment:
+      - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/orbit
+      - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}
+      - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - PROJECT_DIR=/app
+      - HOME=/root
+      - OPENCODE_PATH=/root/.opencode/bin/opencode
+    volumes:
+      # Mount opencode configurations
+      - ./opencode/opencode.json:/root/.config/opencode/opencode.json
+      - ./opencode/AGENTS.md:/root/.config/opencode/AGENTS.md
+      # Mount the orbit-projects directory to preserve git clones between restarts
+      - ~/orbit-projects:/root/orbit-projects
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
 volumes:
   orbit-pgdata:

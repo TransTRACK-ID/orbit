@@ -305,6 +305,8 @@ const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/b
 const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
+const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
@@ -333,10 +335,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  let opencodeOk = false
+    let opencodeOk = false
+  let opencodeVersion = ''
   try {
     accessSync(opencodePath, constants.X_OK)
     opencodeOk = true
+    // Verify opencode actually runs by checking version
+    try {
+      const { stdout } = await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
+      opencodeVersion = stdout.trim()
+    } catch (versionErr: any) {
+      opencodeVersion = `version check failed: ${versionErr.message}`
+    }
   } catch {}
 
   const stream = createEventStream(event)
@@ -346,6 +356,7 @@ export default defineEventHandler(async (event) => {
       await stream.push(JSON.stringify({ step: `opencode not found at ${opencodePath}`, timestamp: Date.now() }))
       return
     }
+    await stream.push(JSON.stringify({ step: `opencode version: ${opencodeVersion || 'unknown'}`, timestamp: Date.now() }))
 
     const existing = activeProcesses.get(id)
     if (existing) {
@@ -509,6 +520,10 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    if (!existsSync(workDir)) {
+      await pushAndPersist(`Work directory does not exist: ${workDir}. Cannot start agent.`)
+      return
+    }
     await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)
 
     const isGitLab = repoPlatform === 'gitlab' || repoPlatform === 'gitlab-self-hosted'
@@ -557,6 +572,9 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
       }
     }
 
+    await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}`)
+    await pushAndPersist(`CWD: ${workDir} | HOME: ${process.env.HOME || 'undefined'}`)
+
     const proc = spawn(opencodePath, [
       'run',
       '--format', 'json',
@@ -574,10 +592,22 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
     activeProcesses.set(id, entry)
     addStreamToProc(id, stream, entry)
 
+    // Global runtime timeout to prevent infinite hangs
+    const runtimeTimeout = setTimeout(() => {
+      if (proc.exitCode === null) {
+        const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
+        pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() })).catch(() => {})
+        persistLog(msg)
+        try { proc.kill('SIGTERM') } catch {}
+        setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
+      }
+    }, MAX_RUNTIME_MS)
+
     const heartbeat = setInterval(async () => {
       const idle = Math.round((Date.now() - lastActivity) / 1000)
       const alive = proc.exitCode === null
-      if (!hasOutput) {
+      // Always report long idle times so users can see if it's stuck
+      if (!hasOutput || idle > 30) {
         const msg = alive ? `Waiting for opencode (${idle}s)` : `Process exited (code ${proc.exitCode})`
         await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       }
@@ -585,6 +615,7 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
     entry.heartbeat = heartbeat
 
     const parseAndPush = async (line: string) => {
+      if (!line.trim()) return
       try {
         const evt = JSON.parse(line)
         const part = evt.part
@@ -639,7 +670,17 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
           await pushToStreams(entry, JSON.stringify(payload))
           if (logMsg) persistLog(logMsg)
         }
-      } catch {}
+      } catch (parseErr: any) {
+        // Not valid JSON — could be startup logs, errors, or partial output
+        lastActivity = Date.now()
+        const raw = line.trim().slice(0, 200)
+        if (raw) {
+          hasOutput = true
+          const msg = `opencode output: ${raw}`
+          await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+          persistLog(msg)
+        }
+      }
     }
 
     proc.stdout?.on('data', (chunk: Buffer) => {
@@ -658,15 +699,15 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
       for (const line of text.split('\n')) {
         const trimmed = line.trim()
         if (!trimmed) continue
-        if (trimmed.startsWith('ERROR') || trimmed.includes('error:')) {
-          hasOutput = true
-          pushToStreams(entry, JSON.stringify({ step: trimmed.slice(0, 120), timestamp: Date.now() })).catch(() => {})
-        }
+        hasOutput = true
+        const level = trimmed.startsWith('ERROR') || trimmed.includes('error:') ? 'ERROR' : 'WARN'
+        pushToStreams(entry, JSON.stringify({ step: `[${level}] ${trimmed.slice(0, 200)}`, timestamp: Date.now() })).catch(() => {})
       }
     })
 
     proc.on('error', async (err) => {
       clearInterval(heartbeat)
+      clearTimeout(runtimeTimeout)
       hasOutput = true
       const msg = `Failed to start opencode: ${err.message}`
       await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
@@ -675,6 +716,7 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
 
     proc.on('exit', async (code) => {
       clearInterval(heartbeat)
+      clearTimeout(runtimeTimeout)
 
       if (code === 0 && branchName) {
         try {

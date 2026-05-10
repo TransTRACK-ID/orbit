@@ -14,10 +14,19 @@ function parseGitlabUrl(url: string): { projectPath: string; iid: number } | nul
   return null
 }
 
-function parseGithubUrl(url: string): { owner: string; repo: string; number: number } | null {
+function parseGithubUrl(url: string): { host: string; owner: string; repo: string; number: number; isEnterprise: boolean } | null {
+  // Self-hosted GitHub Enterprise: https://my-github.example.com/owner/repo/pull/123
+  const enterpriseMatch = url.match(/^(https?:\/\/[^\/]+)\/([^/]+)\/([^/]+?)(\/pull|\/issues)\/(\d+)/i)
+  if (enterpriseMatch) {
+    const host = enterpriseMatch[1]
+    if (!host.includes('github.com')) {
+      return { host, owner: enterpriseMatch[2], repo: enterpriseMatch[3].replace(/\.git$/, ''), number: parseInt(enterpriseMatch[5], 10), isEnterprise: true }
+    }
+  }
+  // Public GitHub: https://github.com/owner/repo/pull/123
   const match = url.match(/github\.com\/([^/]+)\/([^/]+?)(\/pull|\/issues)\/(\d+)/i)
   if (!match) return null
-  return { owner: match[1], repo: match[2].replace(/\.git$/, ''), number: parseInt(match[4], 10) }
+  return { host: 'https://github.com', owner: match[1], repo: match[2].replace(/\.git$/, ''), number: parseInt(match[4], 10), isEnterprise: false }
 }
 
 function extractGitlabHost(url: string): string {
@@ -35,8 +44,9 @@ export interface PrComment {
   isReview: boolean
 }
 
-async function githubApiGet(path: string) {
-  const url = `https://api.github.com${path}`
+async function githubApiGet(path: string, host: string, isEnterprise: boolean) {
+  const base = isEnterprise ? `${host}/api/v3` : 'https://api.github.com'
+  const url = `${base}${path}`
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
     'User-Agent': 'orbit-app',
@@ -62,12 +72,12 @@ async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string
   return JSON.parse(stdout)
 }
 
-async function fetchGithubComments(owner: string, repo: string, number: number): Promise<{ comments: PrComment[]; errors: string[] }> {
+async function fetchGithubComments(owner: string, repo: string, number: number, host: string, isEnterprise: boolean): Promise<{ comments: PrComment[]; errors: string[] }> {
   const comments: PrComment[] = []
   const errors: string[] = []
 
   try {
-    const reviewData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/comments`)
+    const reviewData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/comments`, host, isEnterprise)
     for (const c of reviewData) {
       comments.push({
         id: c.id,
@@ -82,7 +92,7 @@ async function fetchGithubComments(owner: string, repo: string, number: number):
   } catch (e: any) { errors.push(`review: ${e.message}`) }
 
   try {
-    const issueData: any[] = await githubApiGet(`/repos/${owner}/${repo}/issues/${number}/comments`)
+    const issueData: any[] = await githubApiGet(`/repos/${owner}/${repo}/issues/${number}/comments`, host, isEnterprise)
     for (const c of issueData) {
       if (!comments.some(ex => ex.body === c.body && ex.author === (c.user?.login || 'unknown'))) {
         comments.push({
@@ -99,7 +109,7 @@ async function fetchGithubComments(owner: string, repo: string, number: number):
   } catch (e: any) { errors.push(`issue: ${e.message}`) }
 
   try {
-    const reviewsData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/reviews`)
+    const reviewsData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/reviews`, host, isEnterprise)
     for (const r of reviewsData) {
       if (!r.body) continue
       if (comments.some(ex => ex.body === r.body && ex.author === (r.user?.login || 'unknown'))) continue
@@ -210,7 +220,7 @@ export default defineEventHandler(async (event) => {
   const glParsed = parseGitlabUrl(prUrl)
 
   if (ghParsed) {
-    const result = await fetchGithubComments(ghParsed.owner, ghParsed.repo, ghParsed.number)
+    const result = await fetchGithubComments(ghParsed.owner, ghParsed.repo, ghParsed.number, ghParsed.host, ghParsed.isEnterprise)
     comments = result.comments
     errors = result.errors
   } else if (glParsed) {

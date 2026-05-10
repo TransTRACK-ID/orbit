@@ -130,6 +130,7 @@ export const createRepositorySchema = z.object({
   defaultBranch: z.string().min(1).max(255).default('main'),
   createBranch: z.boolean().default(true),
   platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']).default('github'),
+  token: z.string().max(2000).optional(),
 })
 
 export const updateRepositorySchema = z.object({
@@ -138,6 +139,7 @@ export const updateRepositorySchema = z.object({
   defaultBranch: z.string().min(1).max(255).optional(),
   createBranch: z.boolean().optional(),
   platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']).optional(),
+  token: z.string().max(2000).optional(),
 })
 
 // ─── User ───

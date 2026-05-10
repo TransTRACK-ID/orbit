@@ -90,6 +90,11 @@
                 </button>
               </div>
             </div>
+            <div v-if="newRepo.platform !== 'github'">
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Access Token <span class="text-red-400">*</span></label>
+              <TextInput v-model="newRepo.token" placeholder="glpat-xxxxxxxx or personal access token" type="password" />
+              <p class="text-[10px] text-surface-400 mt-1">Required for GitLab API access. Create one in your GitLab profile → Access Tokens.</p>
+            </div>
             <div class="flex items-start gap-3">
               <input
                 v-model="newRepo.createBranch"
@@ -218,6 +223,11 @@
                     </button>
                   </div>
                 </div>
+                <div v-if="editRepo.platform !== 'github'">
+                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Access Token <span class="text-red-400">*</span></label>
+                  <TextInput v-model="editRepo.token" placeholder="glpat-xxxxxxxx or personal access token" type="password" />
+                  <p class="text-[10px] text-surface-400 mt-1">Required for GitLab API access. Create one in your GitLab profile → Access Tokens.</p>
+                </div>
                 <div class="flex items-start gap-3">
                   <input
                     v-model="editRepo.createBranch"
@@ -319,9 +329,9 @@ const confirmDelete = ref(false)
 
 // Repository state
 const showAddRepo = ref(false)
-const newRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true, platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted' })
+const newRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true, platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted', token: '' })
 const editingRepoId = ref<string | null>(null)
-const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true, platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted' })
+const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true, platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted', token: '' })
 const addRepoLoading = ref(false)
 const editRepoLoading = ref(false)
 
@@ -372,6 +382,7 @@ function cancelAddRepo() {
   newRepo.defaultBranch = 'main'
   newRepo.createBranch = true
   newRepo.platform = 'github'
+  newRepo.token = ''
 }
 
 function startEditRepo(repo: any) {
@@ -381,6 +392,7 @@ function startEditRepo(repo: any) {
   editRepo.defaultBranch = repo.defaultBranch
   editRepo.createBranch = repo.createBranch
   editRepo.platform = repo.platform || 'github'
+  editRepo.token = repo.token || ''
 }
 
 async function handleEditRepo(repoId: string) {

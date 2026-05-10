@@ -16,6 +16,8 @@ export default defineEventHandler(async (event) => {
       url: body.url,
       defaultBranch: body.defaultBranch || 'main',
       createBranch: body.createBranch ?? true,
+      platform: body.platform || 'github',
+      token: body.token || null,
     })
     .returning()
 

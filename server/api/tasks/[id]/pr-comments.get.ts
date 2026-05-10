@@ -57,21 +57,12 @@ async function githubApiGet(path: string, host: string, isEnterprise: boolean) {
   return res.json()
 }
 
-async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string): Promise<any[]> {
+async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string, token?: string): Promise<any[]> {
   const encodedPath = encodeURIComponent(projectPath)
   const host = gitlabHost || 'https://gitlab.com'
-  const env = { ...process.env, GITLAB_HOST: host }
-  const token = process.env.GITLAB_TOKEN || process.env.CI_JOB_TOKEN || ''
-  if (token) {
-    const { stdout } = await execAsync(
-      `glab api /projects/${encodedPath}/merge_requests/${iid}/discussions`,
-      { env: { ...env, GITLAB_TOKEN: token } }
-    )
-    return JSON.parse(stdout)
-  }
-  // Fallback to direct HTTP API if no glab CLI
+  // Prefer direct HTTP API with the repository token
   const url = `${host}/api/v4/projects/${encodedPath}/merge_requests/${iid}/discussions`
-  const headers: Record<string, string> = { 'User-Agent': 'orbit-app' }
+  const headers: Record<string, string> = { 'User-Agent': 'orbit-app', 'Content-Type': 'application/json' }
   if (token) headers['PRIVATE-TOKEN'] = token
   const res = await fetch(url, { headers })
   if (!res.ok) {
@@ -137,12 +128,12 @@ async function fetchGithubComments(owner: string, repo: string, number: number, 
   return { comments, errors }
 }
 
-async function fetchGitlabComments(projectPath: string, iid: number, gitlabHost: string): Promise<{ comments: PrComment[]; errors: string[] }> {
+async function fetchGitlabComments(projectPath: string, iid: number, gitlabHost: string, token?: string): Promise<{ comments: PrComment[]; errors: string[] }> {
   const comments: PrComment[] = []
   const errors: string[] = []
 
   try {
-    const discussions: any[] = await gitlabApiGet(projectPath, iid, gitlabHost)
+    const discussions: any[] = await gitlabApiGet(projectPath, iid, gitlabHost, token)
     for (const d of discussions) {
       for (const note of (d.notes || [])) {
         if (note.system) continue
@@ -170,7 +161,12 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true },
+    columns: { id: true, repositoryId: true },
+    with: {
+      repository: {
+        columns: { id: true, url: true, platform: true, token: true },
+      },
+    },
   })
   if (!task) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
 
@@ -233,7 +229,17 @@ export default defineEventHandler(async (event) => {
     comments = result.comments
     errors = result.errors
   } else if (glParsed) {
-    const result = await fetchGitlabComments(glParsed.projectPath, glParsed.iid, glParsed.host)
+    const repoToken = task.repository?.token
+    if (!repoToken) {
+      return {
+        comments: [],
+        prUrl,
+        errors: ['Missing repository access token. Add a GitLab Personal Access Token in Workspace Settings → Repositories.'],
+        needsAuth: true,
+        cached: false,
+      }
+    }
+    const result = await fetchGitlabComments(glParsed.projectPath, glParsed.iid, glParsed.host, repoToken)
     comments = result.comments
     errors = result.errors
   } else {

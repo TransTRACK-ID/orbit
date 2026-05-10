@@ -556,6 +556,27 @@
                     Fetching comments...
                   </div>
 
+                  <!-- Auth error - missing token -->
+                  <div
+                    v-if="prCommentsNeedAuth"
+                    class="p-3 rounded-lg bg-amber-50 border border-amber-200"
+                  >
+                    <div class="flex items-start gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500 mt-0.5 flex-shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      <div>
+                        <p class="text-[11px] font-medium text-amber-700 mb-1">Access token required</p>
+                        <p class="text-[10px] text-amber-600 mb-2">This self-hosted GitLab instance requires an access token to fetch PR comments.</p>
+                        <NuxtLink
+                          :to="`/workspaces/${route.params.slug}/settings`"
+                          class="text-[10px] font-semibold text-amber-700 underline hover:text-amber-800"
+                          @click="$emit('close')"
+                        >
+                          Go to Workspace Settings → Repositories → Add token
+                        </NuxtLink>
+                      </div>
+                    </div>
+                  </div>
+
                   <!-- Comments list -->
                   <div v-if="prComments.length > 0" class="space-y-2 max-h-48 overflow-y-auto">
                     <div
@@ -642,6 +663,7 @@ import { useDebounceFn } from '@vueuse/core'
 import { nextTick } from 'vue'
 
 const { addLog, persistLog, logs: runtimeLogs } = useLog()
+const route = useRoute()
 
 const props = defineProps<{
   taskId: string
@@ -1108,6 +1130,7 @@ const prComments = ref<PrComment[]>([])
 const fetchingComments = ref(false)
 const fixingFeedback = ref(false)
 const autoLoadingComments = ref(false)
+const prCommentsNeedAuth = ref(false)
 const feedbackFixed = ref(false)
 
 const isReviewStatus = computed(() =>
@@ -1241,9 +1264,13 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
 async function loadPersistedComments() {
   if (!task.value || !prUrl.value) return
   autoLoadingComments.value = true
+  prCommentsNeedAuth.value = false
   try {
-    const res = await $fetch<{ comments: PrComment[]; prUrl: string; cached?: boolean }>(`/api/tasks/${task.value.id}/pr-comments?prUrl=${encodeURIComponent(prUrl.value)}`, { method: 'GET' })
-    if (res.comments.length > 0) {
+    const res = await $fetch<{ comments: PrComment[]; prUrl: string; cached?: boolean; needsAuth?: boolean }>(`/api/tasks/${task.value.id}/pr-comments?prUrl=${encodeURIComponent(prUrl.value)}`, { method: 'GET' })
+    if (res.needsAuth) {
+      prCommentsNeedAuth.value = true
+      showReviewFeedback.value = true
+    } else if (res.comments.length > 0) {
       prComments.value = res.comments
       showReviewFeedback.value = true
     }
@@ -1257,10 +1284,16 @@ async function loadPersistedComments() {
 async function handleFetchComments() {
   if (!task.value) return
   fetchingComments.value = true
+  prCommentsNeedAuth.value = false
   try {
-    const res = await $fetch<{ comments: PrComment[]; prUrl: string }>(`/api/tasks/${task.value.id}/pr-comments?prUrl=${encodeURIComponent(prUrl.value)}&refresh=true`, { method: 'GET' })
-    prComments.value = res.comments || []
-    showReviewFeedback.value = true
+    const res = await $fetch<{ comments: PrComment[]; prUrl: string; needsAuth?: boolean }>(`/api/tasks/${task.value.id}/pr-comments?prUrl=${encodeURIComponent(prUrl.value)}&refresh=true`, { method: 'GET' })
+    if (res.needsAuth) {
+      prCommentsNeedAuth.value = true
+      showReviewFeedback.value = true
+    } else {
+      prComments.value = res.comments || []
+      showReviewFeedback.value = true
+    }
   } catch {
     prComments.value = []
   } finally {

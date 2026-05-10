@@ -121,6 +121,53 @@
             </div>
           </div>
 
+          <div>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Observer <span class="text-surface-400 font-normal">(optional)</span></label>
+            <div class="relative">
+              <button
+                type="button"
+                class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
+                @click="showObserverPicker = !showObserverPicker"
+              >
+                <template v-if="selectedObserver">
+                  <Avatar :name="selectedObserver.name" size="sm" />
+                  <span class="flex-1 truncate">{{ selectedObserver.name }}</span>
+                </template>
+                <template v-else>
+                  <span class="text-surface-400 flex-1">No observer — skip review</span>
+                </template>
+                <ChevronDown class="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
+              </button>
+
+              <div
+                v-if="showObserverPicker"
+                class="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
+              >
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
+                  @click="selectObserver()"
+                >
+                  <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
+                  No observer
+                </button>
+
+                <div v-if="members.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Members</div>
+                <button
+                  v-for="m in members"
+                  :key="m.userId"
+                  type="button"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                  @click="selectObserver(m.userId, m.user?.name || '')"
+                >
+                  <Avatar :name="m.user?.name || 'U'" size="sm" />
+                  <span class="truncate">{{ m.user?.name }}</span>
+                </button>
+              </div>
+            </div>
+            <p class="text-[10px] text-surface-400 mt-1">Assign a human reviewer to check the task result before completion</p>
+          </div>
+
           <div v-if="props.repositories && props.repositories.length > 0">
             <label class="block text-sm font-medium text-surface-700 mb-1.5">Repository</label>
             <select
@@ -199,12 +246,15 @@ const form = reactive({
   priority: 'none' as string,
   assigneeId: null as string | null,
   assigneeType: null as 'user' | 'agent' | null,
+  observerId: null as string | null,
   description: '',
   repositoryId: null as string | null,
 })
 
 const showAssigneePicker = ref(false)
 const selectedAssignee = ref<{ name: string; color?: string; initials?: string } | null>(null)
+const showObserverPicker = ref(false)
+const selectedObserver = ref<{ name: string } | null>(null)
 const selectedLabels = ref<string[]>([])
 const creating = ref(false)
 const error = ref('')
@@ -218,6 +268,12 @@ function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, col
   form.assigneeId = id || null
   form.assigneeType = type || null
   selectedAssignee.value = name ? { name, color, initials } : null
+}
+
+function selectObserver(id?: string, name?: string) {
+  showObserverPicker.value = false
+  form.observerId = id || null
+  selectedObserver.value = name ? { name } : null
 }
 
 function toggleLabel(labelId: string) {
@@ -249,6 +305,7 @@ async function handleCreate() {
       priority: form.priority,
       assigneeId: form.assigneeId,
       assigneeType: form.assigneeType,
+      observerId: form.observerId || undefined,
       description: form.description || undefined,
       repositoryId: form.repositoryId || undefined,
       labelIds: selectedLabels.value.length > 0 ? selectedLabels.value : undefined,

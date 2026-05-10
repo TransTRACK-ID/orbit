@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
       assigneeId: body.assigneeType === 'user' ? body.assigneeId : null,
       agentAssigneeId: body.assigneeType === 'agent' ? body.assigneeId : null,
       assigneeType: body.assigneeType || null,
+      observerId: body.observerId || null,
       reporterId: user.id,
       title: body.title,
       description: body.description || null,
@@ -61,6 +62,9 @@ export default defineEventHandler(async (event) => {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
       agentAssignee: true,
+      observer: {
+        columns: { id: true, email: true, name: true, avatarUrl: true },
+      },
       reporter: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },

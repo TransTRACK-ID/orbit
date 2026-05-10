@@ -16,6 +16,7 @@ export const tasks = pgTable('tasks', {
   assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   agentAssigneeId: uuid('agent_assignee_id').references(() => agents.id, { onDelete: 'set null' }),
   assigneeType: varchar('assignee_type', { length: 10 }),
+  observerId: uuid('observer_id').references(() => users.id, { onDelete: 'set null' }),
   reporterId: uuid('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 500 }).notNull(),
   description: text('description'),
@@ -49,6 +50,10 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   agentAssignee: one(agents, {
     fields: [tasks.agentAssigneeId],
     references: [agents.id],
+  }),
+  observer: one(users, {
+    fields: [tasks.observerId],
+    references: [users.id],
   }),
   reporter: one(users, {
     fields: [tasks.reporterId],

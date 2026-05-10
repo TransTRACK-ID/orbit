@@ -92,6 +92,7 @@ export interface Task {
   statusId: string
   assigneeId: string | null
   assigneeType: 'user' | 'agent' | null
+  observerId: string | null
   reporterId: string
   title: string
   description: string | null
@@ -104,6 +105,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   assignee?: TaskAssignee | null
+  observer?: AuthUser | null
   reporter?: AuthUser
   status?: Status
   labels?: Label[]

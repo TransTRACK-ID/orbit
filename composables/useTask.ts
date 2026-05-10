@@ -24,6 +24,7 @@ export const useTask = () => {
     statusId: string
     assigneeId?: string | null
     assigneeType?: 'user' | 'agent' | null
+    observerId?: string | null
     description?: string
     priority?: string
     repositoryId?: string | null

@@ -184,11 +184,11 @@
 
           <KanbanMarkdownEditor v-model="form.description" :rows="3" />
 
-          <div v-if="labels.length > 0">
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Labels</label>
-            <div class="flex flex-wrap gap-2">
+          <div>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Labels <span class="text-error-500">*</span></label>
+            <div v-if="uniqueAvailableLabels.length > 0" class="flex flex-wrap gap-2">
               <button
-                v-for="label in labels"
+                v-for="label in uniqueAvailableLabels"
                 :key="label.id"
                 type="button"
                 class="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
@@ -201,6 +201,8 @@
                 {{ label.name }}
               </button>
             </div>
+            <p v-else class="text-xs text-surface-400">No labels available. Default labels will be created automatically.</p>
+            <p class="text-[10px] text-surface-400 mt-1">Select a type such as bug, feature, or improvement</p>
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-2">
@@ -237,6 +239,7 @@ const emit = defineEmits<{
 }>()
 
 const { createTask } = useTask()
+const { createLabel } = useProject()
 
 const titleInput = ref<InstanceType<typeof TextInput> | null>(null)
 
@@ -258,6 +261,48 @@ const form = reactive({
   const selectedLabels = ref<string[]>([])
   const creating = ref(false)
   const error = ref('')
+
+  const DEFAULT_LABELS = [
+    { name: 'bug', color: '#ef4444' },
+    { name: 'feature', color: '#22c55e' },
+    { name: 'improvement', color: '#3b82f6' },
+    { name: 'docs', color: '#a855f7' },
+    { name: 'chore', color: '#6b7280' },
+  ]
+
+  const availableLabels = ref<Label[]>([...props.labels])
+
+  watch(() => props.labels, (newLabels) => {
+    availableLabels.value = [...newLabels]
+  }, { immediate: true })
+
+  const uniqueAvailableLabels = computed(() => {
+    const seen = new Set<string>()
+    return availableLabels.value.filter((l) => {
+      if (seen.has(l.name)) return false
+      seen.add(l.name)
+      return true
+    })
+  })
+
+  async function ensureDefaultLabels() {
+    const existingNames = new Set(availableLabels.value.map((l) => l.name))
+    const missing = DEFAULT_LABELS.filter((d) => !existingNames.has(d.name))
+    if (missing.length === 0) return
+
+    const created: Label[] = []
+    for (const def of missing) {
+      try {
+        const label = await createLabel(props.projectId, def)
+        created.push(label)
+      } catch {
+        // ignore duplicate or creation errors
+      }
+    }
+    if (created.length > 0) {
+      availableLabels.value = [...availableLabels.value, ...created]
+    }
+  }
 
   function computedInitials(name: string) {
     return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -304,6 +349,10 @@ async function handleCreate() {
     error.value = 'Status is required'
     return
   }
+  if (selectedLabels.value.length === 0) {
+    error.value = 'At least one label (type) is required'
+    return
+  }
 
   creating.value = true
   error.value = ''
@@ -318,7 +367,7 @@ async function handleCreate() {
       observerId: form.observerId || undefined,
       description: form.description || undefined,
       repositoryId: form.repositoryId || undefined,
-      labelIds: selectedLabels.value.length > 0 ? selectedLabels.value : undefined,
+      labelIds: selectedLabels.value,
     })
     emit('created', task)
   } catch (err: any) {
@@ -328,7 +377,8 @@ async function handleCreate() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await ensureDefaultLabels()
   setTimeout(() => titleInput.value?.$el?.querySelector('input')?.focus(), 100)
 })
 </script>

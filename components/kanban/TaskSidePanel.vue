@@ -217,17 +217,24 @@
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-surface-500 mb-1">Labels</label>
-              <div v-if="task.labels?.length" class="flex flex-wrap gap-1">
-                <Chip
-                  v-for="label in task.labels"
+              <label class="block text-xs font-medium text-surface-500 mb-1">Labels <span class="text-error-500">*</span></label>
+              <div v-if="uniqueAvailableLabels.length > 0" class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="label in uniqueAvailableLabels"
                   :key="label.id"
-                  :label="label.name"
-                  :color="label.color"
-                  size="sm"
-                />
+                  type="button"
+                  class="px-2 py-0.5 rounded-md text-[11px] font-medium border transition-all"
+                  :class="task.labels?.some((l: Label) => l.id === label.id)
+                    ? 'border-transparent text-white'
+                    : 'border-surface-200 text-surface-600 hover:border-surface-300'"
+                  :style="task.labels?.some((l: Label) => l.id === label.id) ? { backgroundColor: label.color } : {}"
+                  @click="toggleLabel(label.id)"
+                >
+                  {{ label.name }}
+                </button>
               </div>
-              <span v-else class="text-sm text-surface-400">None</span>
+              <p v-else class="text-xs text-surface-400">No labels available.</p>
+              <p v-if="!task.labels?.length" class="text-[10px] text-error-500 mt-1">At least one label is required</p>
             </div>
           </div>
 
@@ -318,7 +325,7 @@
                       <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
                       <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <p class="text-sm text-surface-700 whitespace-pre-wrap" v-html="linkify(comment.body)"></p>
+                    <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
                   </div>
                 </div>
 
@@ -339,7 +346,7 @@
                       <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
                       <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <p class="text-sm text-primary-800 whitespace-pre-wrap" v-html="linkify(comment.body)"></p>
+                    <div class="text-sm text-primary-800 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
                   </div>
                 </div>
               </template>
@@ -705,6 +712,7 @@ import { useDebounceFn } from '@vueuse/core'
 import { nextTick } from 'vue'
 
 const { addLog, persistLog, logs: runtimeLogs } = useLog()
+const { createLabel } = useProject()
 const route = useRoute()
 
 const props = defineProps<{
@@ -743,6 +751,48 @@ const newComment = ref('')
 const confirmDelete = ref(false)
 const showAssigneePicker = ref(false)
 const showObserverPicker = ref(false)
+
+const DEFAULT_LABELS = [
+  { name: 'bug', color: '#ef4444' },
+  { name: 'feature', color: '#22c55e' },
+  { name: 'improvement', color: '#3b82f6' },
+  { name: 'docs', color: '#a855f7' },
+  { name: 'chore', color: '#6b7280' },
+]
+
+const availableLabels = ref<Label[]>([...props.labels])
+
+watch(() => props.labels, (newLabels) => {
+  availableLabels.value = [...newLabels]
+}, { immediate: true })
+
+const uniqueAvailableLabels = computed(() => {
+  const seen = new Set<string>()
+  return availableLabels.value.filter((l) => {
+    if (seen.has(l.name)) return false
+    seen.add(l.name)
+    return true
+  })
+})
+
+async function ensureDefaultLabels() {
+  const existingNames = new Set(availableLabels.value.map((l) => l.name))
+  const missing = DEFAULT_LABELS.filter((d) => !existingNames.has(d.name))
+  if (missing.length === 0) return
+
+  const created: Label[] = []
+  for (const def of missing) {
+    try {
+      const label = await createLabel(props.projectId, def)
+      created.push(label)
+    } catch {
+      // ignore duplicate or creation errors
+    }
+  }
+  if (created.length > 0) {
+    availableLabels.value = [...availableLabels.value, ...created]
+  }
+}
 
 // ─── Description editor ───
 const descTab = ref<'write' | 'preview'>('preview')
@@ -1422,6 +1472,7 @@ const renderedDescription = computed(() => {
 onMounted(async () => {
   lastCompletionTimestamp.value = Date.now()
   try {
+    await ensureDefaultLabels()
     task.value = await fetchTaskDetail(props.taskId)
     comments.value = await fetchComments(props.taskId)
     activityLogs.value = await fetchActivity(props.taskId)
@@ -1509,6 +1560,22 @@ function handleDescriptionBlur() {
   const plain = editingDescription.value
   task.value.description = plain
   debouncedSave('description', plain)
+}
+
+function toggleLabel(labelId: string) {
+  if (!task.value) return
+  const currentIds = task.value.labels?.map((l: Label) => l.id) || []
+  const idx = currentIds.indexOf(labelId)
+  let nextIds: string[]
+  if (idx === -1) {
+    nextIds = [...currentIds, labelId]
+  } else {
+    nextIds = currentIds.filter((id: string) => id !== labelId)
+  }
+  // Prevent removing the last label so it stays mandatory
+  if (nextIds.length === 0) return
+  task.value = { ...task.value, labels: uniqueAvailableLabels.value.filter((l: Label) => nextIds.includes(l.id)) }
+  handleUpdate('labelIds', nextIds)
 }
 
 function insertFormat(wrap: string) {
@@ -1821,4 +1888,81 @@ function formatActivity(log: ActivityLog) {
   margin: 6px 0;
   border-color: #e2e8f0;
 }
+
+/* ─── Comment markdown body ─── */
+.comment-body :deep(p) {
+  margin: 3px 0;
+}
+
+.comment-body :deep(strong) {
+  font-weight: 600;
+}
+
+.comment-body :deep(em) {
+  font-style: italic;
+}
+
+.comment-body :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: #e2e8f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.comment-body :deep(pre) {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 4px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-body :deep(pre code) {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.comment-body :deep(ul),
+.comment-body :deep(ol) {
+  margin: 4px 0;
+  padding-left: 16px;
+}
+
+.comment-body :deep(li) {
+  margin: 2px 0;
+}
+
+.comment-body :deep(a) {
+  color: #6366f1;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.comment-body :deep(blockquote) {
+  border-left: 2px solid #cbd5e1;
+  margin: 4px 0;
+  padding: 2px 0 2px 8px;
+  color: #64748b;
+}
+
+.comment-body :deep(h1),
+.comment-body :deep(h2),
+.comment-body :deep(h3),
+.comment-body :deep(h4) {
+  font-weight: 600;
+  margin: 6px 0 3px;
+  line-height: 1.3;
+}
+
+.comment-body :deep(h1) { font-size: 14px; }
+.comment-body :deep(h2) { font-size: 13px; }
+.comment-body :deep(h3) { font-size: 12px; }
+.comment-body :deep(h4) { font-size: 11px; }
 </style>

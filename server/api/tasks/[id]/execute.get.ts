@@ -321,6 +321,11 @@ export default defineEventHandler(async (event) => {
       agentAssignee: {
         columns: { userId: true },
       },
+      taskLabels: {
+        with: {
+          label: true,
+        },
+      },
     },
   })
 
@@ -513,7 +518,12 @@ export default defineEventHandler(async (event) => {
     const platformRule = `[GIT PLATFORM: ${repoPlatform}]
 CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" for ALL git hosting operations (clone, push, PRs/MRs, status, etc.). NEVER use "${wrongCli}" — it will fail.`
 
-    let message = `${platformRule}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
+    const labelsContext = labels.length > 0
+      ? `\n\n[TASK TYPE: ${labels.join(', ')}]`
+      : '\n\n[TASK TYPE: none — no labels assigned]'
+
+    let message = `${platformRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
 
     if (feedback) {
       if (feedback.includes('[USER MESSAGE]')) {

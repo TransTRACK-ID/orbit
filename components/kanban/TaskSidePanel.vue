@@ -1229,7 +1229,7 @@ const runtimeLogsForTask = computed(() => {
 const latestRuntimeLog = computed(() => runtimeLogsForTask.value[0] || null)
 
 const runtimeCompleted = computed(() =>
-  runtimeLogsForTask.value.some(log => /Done|exited/i.test(log.message) && !/^>?\s*Step /i.test(log.message))
+  runtimeLogsForTask.value.some(log => />?\s*Done$/.test(log.message))
 )
 
 /** Watch the live agent reply and capture it so it stays visible even after the
@@ -1294,35 +1294,33 @@ async function handleCreatePr() {
   }
 }
 
-let hasAdvanced = false
+const hasAdvanced = ref(false)
 let isFixRun = false
 
 /**
  * Tracks completion events from the runtime. Incremented each time a new
- * "Done"/"completed"/"exited" log arrives that we haven't acted on yet.
+ * "Done" log arrives that we haven't acted on yet.
  * The watch below only fires on new increments, solving the problem where
- * runtimeCompleted computed stays `true` after the first run's "Done" message.
+ * the completion handler would re-fire on old persisted logs after mount.
  */
 const runtimeCompletionTick = ref(0)
-const lastCompletionTimestamp = ref(0)
+const lastCompletionTimestamp = ref(Date.now())
 
 watch(runtimeLogsForTask, async (logs) => {
-  if (!task.value || hasAdvanced || prSkipped.value) return
+  if (!task.value || hasAdvanced.value || prSkipped.value) return
   if (logs.length === 0) return
 
-  // Look for a "Done" or "Exited" message that's newer than what we've already processed.
-  // IMPORTANT: "Step completed" also contains the word "completed", so we explicitly
-  // exclude it — otherwise the first step completion triggers the handler prematurely
-  // and fetchAgentReplies() never fires on the actual "Done".
+  // Only react to the *current* run's "Done" message.
+  // We ignore "exited" (crashed / killed / SIGTERM) because that is NOT a
+  // successful completion — the agent didn't finish its work.
   const latest = logs[0]
   if (
-    /Done|exited/i.test(latest.message) &&
-    !/^>?\s*Step /i.test(latest.message) &&
+    />?\s*Done$/.test(latest.message) &&
     latest.timestamp > lastCompletionTimestamp.value
   ) {
     lastCompletionTimestamp.value = latest.timestamp
     runtimeCompletionTick.value++
-    hasAdvanced = true
+    hasAdvanced.value = true
 
     if (isChatMessage.value) {
       // Chat messages should not trigger PR creation or status changes.
@@ -1471,7 +1469,7 @@ async function handleFixFeedback() {
 
     prSkipped.value = false
     isFixRun = true
-    hasAdvanced = false
+    hasAdvanced.value = false
 
     // Expand runtime logs so user can see the agent working
     runtimeLogsExpanded.value = true
@@ -1673,7 +1671,7 @@ async function handleAddComment() {
     try {
       // Reset completion tracking so the watch below re-fires on new "Done"
       isChatMessage.value = true
-      hasAdvanced = false
+      hasAdvanced.value = false
       prSkipped.value = false
       // Clear the previous chat reply so the new one can take its place
       lastChatReplyText.value = null

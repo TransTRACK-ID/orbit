@@ -23,6 +23,9 @@ export default defineEventHandler(async (event) => {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
       agentAssignee: true,
+      observer: {
+        columns: { id: true, email: true, name: true, avatarUrl: true },
+      },
       reporter: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },

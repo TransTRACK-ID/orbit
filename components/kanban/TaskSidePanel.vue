@@ -174,6 +174,48 @@
               </div>
             </div>
 
+            <div class="relative">
+              <label class="block text-xs font-medium text-surface-500 mb-1">Observer</label>
+              <button
+                class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
+                @click="showObserverPicker = !showObserverPicker"
+              >
+                <template v-if="task.observer">
+                  <Avatar :name="task.observer.name" size="sm" />
+                  <span class="flex-1 truncate">{{ task.observer.name }}</span>
+                </template>
+                <template v-else>
+                  <span class="text-surface-400 flex-1">None</span>
+                </template>
+                <ChevronDown class="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
+              </button>
+
+              <div
+                v-if="showObserverPicker"
+                class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
+              >
+                <button
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
+                  @click="setObserver()"
+                >
+                  <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
+                  None
+                </button>
+
+                <div v-if="members.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Members</div>
+                <button
+                  v-for="m in members"
+                  :key="m.userId"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                  :class="{ 'bg-primary-50': task.observerId === m.userId }"
+                  @click="setObserver(m.userId)"
+                >
+                  <Avatar :name="m.user?.name || 'U'" size="sm" />
+                  <span class="truncate">{{ m.user?.name }}</span>
+                </button>
+              </div>
+            </div>
+
             <div>
               <label class="block text-xs font-medium text-surface-500 mb-1">Labels</label>
               <div v-if="task.labels?.length" class="flex flex-wrap gap-1">
@@ -700,6 +742,7 @@ const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
 const confirmDelete = ref(false)
 const showAssigneePicker = ref(false)
+const showObserverPicker = ref(false)
 
 // ─── Description editor ───
 const descTab = ref<'write' | 'preview'>('preview')
@@ -1252,10 +1295,19 @@ async function autoCreatePr() {
 async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   showAssigneePicker.value = false
   if (!task.value) return
-  const oldAssigneeType = task.value.assigneeType
   const updated = await updateTaskApi(task.value.id, {
     assigneeId: assigneeId || null,
     assigneeType: assigneeType || null,
+  })
+  task.value = updated
+  emit('updated', updated)
+}
+
+async function setObserver(observerId?: string) {
+  showObserverPicker.value = false
+  if (!task.value) return
+  const updated = await updateTaskApi(task.value.id, {
+    observerId: observerId || null,
   })
   task.value = updated
   emit('updated', updated)

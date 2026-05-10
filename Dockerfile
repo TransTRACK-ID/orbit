@@ -36,9 +36,11 @@ RUN npm install -g bun && rm -rf /tmp/*
 
 # Install opencode CLI (the actual agent runtime)
 # The package name on npm is 'opencode-ai', binary is 'opencode'
+# bun puts global binaries in /root/.bun/bin which is not on $PATH by default.
 RUN bun install -g opencode-ai \
-    && ls -la $(which opencode) \
-    && opencode --version
+    && mkdir -p /root/.opencode/bin \
+    && ln -sf /root/.bun/bin/opencode /root/.opencode/bin/opencode \
+    && /root/.opencode/bin/opencode --version
 
 # Install GitHub CLI (gh)
 RUN mkdir -p /etc/apt/keyrings \

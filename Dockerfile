@@ -19,7 +19,11 @@ COPY . .
 RUN bun run build
 
 # Stage 2: Run the Nuxt application and the agent runtime
-FROM oven/bun:1-slim AS runner
+# Using node image for production runtime (better compatibility with auth packages like jose/openid-client)
+FROM node:20-bookworm-slim AS runner
+
+# Install bun in the runner (needed for agent runtime / opencode)
+RUN npm install -g bun && rm -rf /tmp/*
 
 # Install base system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -65,6 +69,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
 
-# Use entrypoint to decode config, then run the Nuxt server
+# IMPORTANT: Use node (not bun) for production server runtime.
+# Bun has module resolution issues with jose/openid-client used by @sidebase/nuxt-auth.
+# The builder stage still uses bun for faster builds, but runtime uses node for compatibility.
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["bun", ".output/server/index.mjs"]
+CMD ["node", ".output/server/index.mjs"]

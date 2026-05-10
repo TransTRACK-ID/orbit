@@ -52,7 +52,7 @@
               <button
                 type="button"
                 class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
-                @click="showAssigneePicker = !showAssigneePicker"
+                @click="openAssigneePicker"
               >
                 <template v-if="selectedAssignee">
                   <span
@@ -127,7 +127,7 @@
               <button
                 type="button"
                 class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
-                @click="showObserverPicker = !showObserverPicker"
+                @click="openObserverPicker"
               >
                 <template v-if="selectedObserver">
                   <Avatar :name="selectedObserver.name" size="sm" />
@@ -251,30 +251,40 @@ const form = reactive({
   repositoryId: null as string | null,
 })
 
-const showAssigneePicker = ref(false)
-const selectedAssignee = ref<{ name: string; color?: string; initials?: string } | null>(null)
-const showObserverPicker = ref(false)
-const selectedObserver = ref<{ name: string } | null>(null)
-const selectedLabels = ref<string[]>([])
-const creating = ref(false)
-const error = ref('')
+  const showAssigneePicker = ref(false)
+  const selectedAssignee = ref<{ name: string; color?: string; initials?: string } | null>(null)
+  const showObserverPicker = ref(false)
+  const selectedObserver = ref<{ name: string } | null>(null)
+  const selectedLabels = ref<string[]>([])
+  const creating = ref(false)
+  const error = ref('')
 
-function computedInitials(name: string) {
-  return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-}
+  function computedInitials(name: string) {
+    return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  }
 
-function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, color?: string, initials?: string) {
-  showAssigneePicker.value = false
-  form.assigneeId = id || null
-  form.assigneeType = type || null
-  selectedAssignee.value = name ? { name, color, initials } : null
-}
+  function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, color?: string, initials?: string) {
+    showAssigneePicker.value = false
+    form.assigneeId = id || null
+    form.assigneeType = type || null
+    selectedAssignee.value = name ? { name, color, initials } : null
+  }
 
-function selectObserver(id?: string, name?: string) {
-  showObserverPicker.value = false
-  form.observerId = id || null
-  selectedObserver.value = name ? { name } : null
-}
+  function selectObserver(id?: string, name?: string) {
+    showObserverPicker.value = false
+    form.observerId = id || null
+    selectedObserver.value = name ? { name } : null
+  }
+
+  function openAssigneePicker() {
+    showObserverPicker.value = false
+    showAssigneePicker.value = !showAssigneePicker.value
+  }
+
+  function openObserverPicker() {
+    showAssigneePicker.value = false
+    showObserverPicker.value = !showObserverPicker.value
+  }
 
 function toggleLabel(labelId: string) {
   const idx = selectedLabels.value.indexOf(labelId)

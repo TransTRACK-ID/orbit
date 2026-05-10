@@ -204,25 +204,56 @@
           </div>
 
           <div class="mb-6">
-            <label class="block text-xs font-medium text-surface-500 mb-2">Description</label>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-xs font-medium text-surface-500">Description</label>
+              <div class="flex bg-surface-100 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  class="px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors"
+                  :class="descTab === 'preview' ? 'bg-white text-surface-900 shadow-sm' : 'text-surface-500 hover:text-surface-700'"
+                  @click="descTab = 'preview'"
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  class="px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors"
+                  :class="descTab === 'write' ? 'bg-white text-surface-900 shadow-sm' : 'text-surface-500 hover:text-surface-700'"
+                  @click="descTab = 'write'"
+                >
+                  Write
+                </button>
+              </div>
+            </div>
+
             <div class="border border-surface-200 rounded-lg overflow-hidden">
-              <div class="border-b border-surface-100 px-3 py-2 flex gap-1 bg-surface-50">
-                <button class="p-1 rounded hover:bg-surface-200 text-surface-500" @click="toggleBold">
+              <div v-if="descTab === 'write'" class="border-b border-surface-100 px-3 py-1.5 flex gap-1 bg-surface-50">
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500 transition-colors" @click="insertFormat('**')">
                   <strong class="text-xs">B</strong>
                 </button>
-                <button class="p-1 rounded hover:bg-surface-200 text-surface-500" @click="toggleItalic">
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500 transition-colors" @click="insertFormat('*')">
                   <em class="text-xs">I</em>
                 </button>
-                <button class="p-1 rounded hover:bg-surface-200 text-surface-500" @click="toggleStrike">
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500 transition-colors" @click="insertFormat('~~')">
                   <span class="text-xs line-through">S</span>
+                </button>
+                <button class="p-1 rounded hover:bg-surface-200 text-surface-500 transition-colors" @click="insertFormat('`')">
+                  <code class="text-xs bg-surface-200 px-0.5 rounded">&lt;/&gt;</code>
                 </button>
               </div>
               <div class="p-3 min-h-[100px]">
+                <textarea
+                  v-if="descTab === 'write'"
+                  v-model="editingDescription"
+                  rows="6"
+                  class="w-full text-sm text-surface-700 outline-none resize-y min-h-[80px] bg-transparent"
+                  placeholder="Add a description..."
+                  @blur="handleDescriptionBlur"
+                />
                 <div
-                  ref="editorRef"
-                  contenteditable
-                  class="text-sm text-surface-700 outline-none min-h-[80px]"
-                  @input="handleDescriptionInput"
+                  v-else
+                  class="text-sm text-surface-700 min-h-[80px] prose prose-sm max-w-none"
+                  v-html="renderedDescription"
                 />
               </div>
             </div>
@@ -646,8 +677,11 @@ const comments = ref<Comment[]>([])
 const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
 const confirmDelete = ref(false)
-const editorRef = ref<HTMLDivElement | null>(null)
 const showAssigneePicker = ref(false)
+
+// ─── Description editor ───
+const descTab = ref<'write' | 'preview'>('preview')
+const editingDescription = ref('')
 
 const isAgentInProgress = computed(() => {
   return (
@@ -1277,21 +1311,28 @@ async function handleFixFeedback() {
   }
 }
 
-const renderedDescription = computed(() => {
-  if (!task.value?.description) return ''
-  return task.value.description
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-})
-
-function syncDescription() {
-  if (editorRef.value) {
-    editorRef.value.innerHTML = task.value?.description
-      ? renderedDescription.value
-      : ''
-  }
+function parseMarkdown(md: string): string {
+  if (!md) return '<p class="text-surface-400 italic">No description provided</p>'
+  return md
+    .replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, text) => {
+      const level = hashes.length
+      return `<h${level} class="font-semibold text-slate-800 mt-2 mb-1">${text}</h${level}>`
+    })
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-xs">$1</code>')
+    .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
+    .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
+    .replace(/^(.*)$/gm, '<p class="mb-1">$1</p>')
+    .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')
+    .replace(/<p class="mb-1"><li class="ml-4">(.*?)<\/li><\/p>/g, '<li class="ml-4">$1</li>')
+    .replace(/(<li class="ml-4">.*?<\/li>\s*)+/g, '<ul class="list-disc pl-2 my-1">$&</ul>')
+    .replace(/\n/g, '')
 }
+
+const renderedDescription = computed(() => {
+  return parseMarkdown(task.value?.description || '')
+})
 
 onMounted(async () => {
   lastCompletionTimestamp.value = Date.now()
@@ -1304,7 +1345,7 @@ onMounted(async () => {
     console.error('Failed to load task detail:', err)
   } finally {
     loading.value = false
-    nextTick(syncDescription)
+    editingDescription.value = task.value?.description || ''
   }
 
   if (task.value && isAgentInProgress.value && !isRunning(task.value.id)) {
@@ -1369,22 +1410,6 @@ async function handleUpdate(field: string, value: any) {
   emit('updated', updated)
 }
 
-function handleDescriptionInput(e: Event) {
-  // Simple markdown-style handling
-  const html = (e.target as HTMLDivElement).innerHTML
-  const plain = html
-    .replace(/<br\s*\/?>/g, '\n')
-    .replace(/<div>/g, '\n')
-    .replace(/<\/div>/g, '')
-    .replace(/<strong>(.+?)<\/strong>/g, '**$1**')
-    .replace(/<em>(.+?)<\/em>/g, '*$1*')
-    .replace(/&nbsp;/g, ' ')
-  if (task.value) {
-    task.value.description = plain
-  }
-  debouncedSave('description', plain)
-}
-
 const debouncedSave = useDebounceFn(async (field: string, value: any) => {
   if (!task.value) return
   try {
@@ -1394,19 +1419,28 @@ const debouncedSave = useDebounceFn(async (field: string, value: any) => {
   }
 }, 500)
 
-function toggleBold() {
-  document.execCommand('bold')
-  editorRef.value?.focus()
+function handleDescriptionBlur() {
+  if (!task.value) return
+  const plain = editingDescription.value
+  task.value.description = plain
+  debouncedSave('description', plain)
 }
 
-function toggleItalic() {
-  document.execCommand('italic')
-  editorRef.value?.focus()
-}
-
-function toggleStrike() {
-  document.execCommand('strikeThrough')
-  editorRef.value?.focus()
+function insertFormat(wrap: string) {
+  const textarea = document.querySelector('.mb-6 textarea') as HTMLTextAreaElement
+  if (!textarea) return
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const val = editingDescription.value
+  const before = val.slice(0, start)
+  const selected = val.slice(start, end)
+  const after = val.slice(end)
+  editingDescription.value = before + wrap + (selected || wrap) + wrap + after
+  nextTick(() => {
+    textarea.focus()
+    const newPos = start + wrap.length + (selected || wrap).length + wrap.length
+    textarea.setSelectionRange(newPos, newPos)
+  })
 }
 
 async function handleAddComment() {

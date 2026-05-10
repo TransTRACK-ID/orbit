@@ -135,14 +135,7 @@
             <p class="text-[10px] text-surface-400 mt-1">Links this task to a repository for agent context</p>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Description</label>
-            <TextArea
-              v-model="form.description"
-              placeholder="Add a description..."
-              rows="3"
-            />
-          </div>
+          <KanbanMarkdownEditor v-model="form.description" :rows="3" />
 
           <div v-if="labels.length > 0">
             <label class="block text-sm font-medium text-surface-700 mb-1.5">Labels</label>

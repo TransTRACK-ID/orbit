@@ -469,8 +469,10 @@ export default defineEventHandler(async (event) => {
               // Check for any leftover uncommitted changes from a crashed previous run
               const { stdout: leftoverStatus } = await execAsync('git status --porcelain', { cwd: workDir }).catch(() => ({ stdout: '' }))
               if (leftoverStatus.trim()) {
-                await pushAndPersist(`WARNING: Uncommitted changes detected before checkout. Stashing...`)
-                await execAsync('git stash push -m "auto-stash before agent run"', { cwd: workDir })
+                await pushAndPersist(`Uncommitted changes detected — auto-committing WIP before continuing...`)
+                await execAsync('git add -A', { cwd: workDir })
+                await execAsync('git commit -m "wip: autosave before next agent run"', { cwd: workDir })
+                await pushAndPersist(`Auto-committed WIP. Previous work is now saved on branch.`)
               }
               await execAsync(`git checkout ${branchName}`, { cwd: workDir })
               const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: workDir })

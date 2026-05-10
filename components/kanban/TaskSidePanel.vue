@@ -1009,7 +1009,7 @@ const allComments = computed(() => {
   const merged = [
     ...comments.value.map(c => ({
       id: c.id,
-      body: c.body.replace(/^\s*Summary:\s*##\s*Summary\s*/i, '').replace(/^\s*Summary:\s*/i, ''),
+      body: c.body,
       createdAt: new Date(c.createdAt).getTime(),
       authorName: c.user?.name || 'U',
       isAgent: false,
@@ -1021,7 +1021,7 @@ const allComments = computed(() => {
       }
       return {
         id: r.id,
-        body: r.body.replace(/^\s*Summary:\s*##\s*Summary\s*/i, '').replace(/^\s*Summary:\s*/i, ''),
+        body: r.body,
         createdAt: new Date(r.createdAt).getTime(),
         authorName: agent?.name || chatAgentIdentity.value.name || 'Agent',
         authorColor: r.agentColor || agent?.color || chatAgentIdentity.value.color || '#6366f1',

@@ -22,13 +22,7 @@ RUN bun run build
 # Using node image for production runtime (better compatibility with auth packages like jose/openid-client)
 FROM node:20-bookworm-slim AS runner
 
-# Install bun in the runner (needed for agent runtime / opencode)
-RUN npm install -g bun && rm -rf /tmp/*
-
-# Install opencode CLI (the actual agent runtime)
-RUN curl -fsSL https://opencode.ai/install.sh | NONINTERACTIVE=1 sh
-
-# Install base system dependencies
+# Install base system dependencies FIRST (needed by opencode install script)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
@@ -36,6 +30,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
+
+# Install bun in the runner (needed for agent runtime / opencode)
+RUN npm install -g bun && rm -rf /tmp/*
+
+# Install opencode CLI (the actual agent runtime)
+# Explicitly set HOME so the installer knows where to put the binary
+RUN export HOME=/root \
+    && curl -fsSL https://opencode.ai/install.sh | NONINTERACTIVE=1 sh \
+    && ls -la /root/.opencode/bin/ \
+    && /root/.opencode/bin/opencode --version
 
 # Install GitHub CLI (gh)
 RUN mkdir -p /etc/apt/keyrings \

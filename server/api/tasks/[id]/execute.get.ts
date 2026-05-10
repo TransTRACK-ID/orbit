@@ -2,6 +2,7 @@ import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getReq
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'fs'
+import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
@@ -727,7 +728,7 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
             if (editCount > 0) {
               for (const file of editedFiles.slice(0, 3)) {
                 try {
-                  const fullPath = `${workDir}/${file}`
+                  const fullPath = path.join(workDir, file)
                   const content = readFileSync(fullPath, 'utf-8').slice(0, 200)
                   await pushToStreams(entry, JSON.stringify({ step: `File state ${file}: ${content.replace(/\n/g, ' ')}`, timestamp: Date.now() }))
                 } catch (err: any) {

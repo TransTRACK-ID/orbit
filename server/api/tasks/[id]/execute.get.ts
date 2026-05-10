@@ -307,6 +307,27 @@ const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
 
+/**
+ * Inject GITHUB_TOKEN into an HTTPS remote URL so git push works
+ * inside the container without interactive username/password prompts.
+ */
+function injectTokenIntoRemoteUrl(url: string): string {
+  const token = process.env.GITHUB_TOKEN || ''
+  if (!token) return url
+  // Only rewrite https://github.com/... URLs
+  if (!url.startsWith('https://github.com/')) return url
+  return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
+}
+
+async function configureGitAuth(workDir: string, repoUrl: string) {
+  const token = process.env.GITHUB_TOKEN || ''
+  if (!token || !repoUrl.startsWith('https://github.com/')) return
+  const authUrl = injectTokenIntoRemoteUrl(repoUrl)
+  try {
+    await execAsync(`git remote set-url origin ${authUrl}`, { cwd: workDir })
+  } catch {}
+}
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
@@ -476,6 +497,9 @@ export default defineEventHandler(async (event) => {
           await execAsync('git config user.email "agent@orbit.dev"', { cwd: workDir })
           await execAsync('git config user.name "Orbit Agent"', { cwd: workDir })
         } catch {}
+
+        // Inject GITHUB_TOKEN into the remote URL so push works non-interactively
+        await configureGitAuth(workDir, repoUrl)
 
         if (createBranch) {
           branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
@@ -764,6 +788,9 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
 
             await execAsync(`git commit -m "${commitMsg}"`, { cwd: workDir })
             await pushToStreams(entry, JSON.stringify({ step: `Committed: ${commitMsg}`, timestamp: Date.now() }))
+
+            // Ensure remote URL has auth token before pushing
+            await configureGitAuth(workDir, repoUrl)
 
             // Try normal push first — only force-push on explicit failure with logging
             try {

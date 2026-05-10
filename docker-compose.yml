@@ -32,8 +32,6 @@ services:
       # Base64-encoded opencode.json (use: base64 -i opencode/opencode.json)
       - OPENCODE_CONFIG_BASE64=${OPENCODE_CONFIG_BASE64:-}
     volumes:
-      # Mount opencode AGENTS.md (non-sensitive)
-      - ./opencode/AGENTS.md:/root/.config/opencode/AGENTS.md
       # Mount the orbit-projects directory to preserve git clones between restarts
       - ~/orbit-projects:/root/orbit-projects
     depends_on:

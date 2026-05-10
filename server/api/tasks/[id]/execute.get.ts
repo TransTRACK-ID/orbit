@@ -639,14 +639,10 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
           case 'text':
             logMsg = formatTextEvent(part)
             fullText = typeof part === 'string' ? part : part.text || part.content || ''
-            if (fullText.trim()) {
-              db.insert(schema.activityLogs).values({
-                taskId: id,
-                userId: user.id,
-                action: 'agent_reply',
-                newValue: { message: fullText.trim() }
-              }).catch(() => {})
-            }
+            // NOTE: We intentionally do NOT save intermediate text chunks as
+            // 'agent_reply' comments.  The live stream already shows them in the
+            // runtime panel.  Only the final summary (saved in the proc.on('exit')
+            // handler) is persisted as a single agent comment.
             break
           case 'step_finish':
             logMsg = 'Step completed'
@@ -829,18 +825,19 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
             await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${err.message}`, timestamp: Date.now() }))
           }
 
-          // Log diff summary as runtime_log only (not agent_reply) so it stays
-          // in the runtime feed but does NOT appear in the task comments.
+          // Save the diff summary as the single agent_reply comment.
+          // Intermediate text chunks are intentionally NOT persisted as comments
+          // (they only appear in the live runtime feed).
           try {
             const summary = await getDiffSummary(workDir, repoDefaultBranch, task.title, task.description)
             if (summary) {
               await db.insert(schema.activityLogs).values({
                 taskId: id,
                 userId: user.id,
-                action: 'runtime_log',
+                action: 'agent_reply',
                 newValue: { message: `Summary: ${summary}` },
               })
-              await pushToStreams(entry, JSON.stringify({ step: 'Posted summary to runtime log', timestamp: Date.now() }))
+              await pushToStreams(entry, JSON.stringify({ step: 'Posted summary to task comments', timestamp: Date.now() }))
             }
           } catch (err: any) {
             await pushToStreams(entry, JSON.stringify({ step: `Summary post failed: ${err.message}`, timestamp: Date.now() }))

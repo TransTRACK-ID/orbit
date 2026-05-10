@@ -41,7 +41,9 @@ RUN mkdir -p /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitLab CLI (glab)
-RUN curl -sL "https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/install.sh" | bash
+RUN export ARCH=$(dpkg --print-architecture) \
+    && export LATEST_TAG=$(curl -s "https://gitlab.com/api/v4/projects/34675721/releases" | grep -oP '"tag_name":"v\K[^"]+' | head -n 1) \
+    && curl -sL "https://gitlab.com/gitlab-org/cli/-/releases/v${LATEST_TAG}/downloads/glab_${LATEST_TAG}_linux_${ARCH}.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 bin/glab
 
 # Set up working directory
 WORKDIR /app

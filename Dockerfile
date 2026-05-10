@@ -35,11 +35,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN npm install -g bun && rm -rf /tmp/*
 
 # Install opencode CLI (the actual agent runtime)
-# Explicitly set HOME so the installer knows where to put the binary
-RUN export HOME=/root \
-    && curl -fsSL https://opencode.ai/install.sh | NONINTERACTIVE=1 sh \
-    && ls -la /root/.opencode/bin/ \
-    && /root/.opencode/bin/opencode --version
+# The package name on npm is 'opencode-ai', binary is 'opencode'
+RUN bun install -g opencode-ai \
+    && ls -la $(which opencode) \
+    && opencode --version
 
 # Install GitHub CLI (gh)
 RUN mkdir -p /etc/apt/keyrings \

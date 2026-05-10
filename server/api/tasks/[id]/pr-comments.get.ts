@@ -6,11 +6,10 @@ import { eq, desc } from 'drizzle-orm'
 
 const execAsync = promisify(exec)
 
-function parseGitlabUrl(url: string): { projectPath: string; iid: number } | null {
-  const match = url.match(/gitlab\.[^\/]+\/(.+?)\/-\/merge_requests\/(\d+)/i)
-  if (match) return { projectPath: match[1], iid: parseInt(match[2], 10) }
-  const match2 = url.match(/gitlab\.com\/(.+?)\/-\/merge_requests\/(\d+)/i)
-  if (match2) return { projectPath: match2[1], iid: parseInt(match2[2], 10) }
+function parseGitlabUrl(url: string): { host: string; projectPath: string; iid: number } | null {
+  // Self-hosted GitLab: https://my-gitlab.example.com/owner/repo/-/merge_requests/123
+  const match = url.match(/^(https?:\/\/[^\/]+)\/(.+?)\/\-\/merge_requests\/(\d+)/i)
+  if (match) return { host: match[1], projectPath: match[2], iid: parseInt(match[3], 10) }
   return null
 }
 
@@ -29,10 +28,7 @@ function parseGithubUrl(url: string): { host: string; owner: string; repo: strin
   return { host: 'https://github.com', owner: match[1], repo: match[2].replace(/\.git$/, ''), number: parseInt(match[4], 10), isEnterprise: false }
 }
 
-function extractGitlabHost(url: string): string {
-  const match = url.match(/^(https?:\/\/[^\/]+)/)
-  return match ? match[1] : ''
-}
+
 
 export interface PrComment {
   id: number
@@ -65,11 +61,24 @@ async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string
   const encodedPath = encodeURIComponent(projectPath)
   const host = gitlabHost || 'https://gitlab.com'
   const env = { ...process.env, GITLAB_HOST: host }
-  const { stdout } = await execAsync(
-    `glab api /projects/${encodedPath}/merge_requests/${iid}/discussions`,
-    { env }
-  )
-  return JSON.parse(stdout)
+  const token = process.env.GITLAB_TOKEN || process.env.CI_JOB_TOKEN || ''
+  if (token) {
+    const { stdout } = await execAsync(
+      `glab api /projects/${encodedPath}/merge_requests/${iid}/discussions`,
+      { env: { ...env, GITLAB_TOKEN: token } }
+    )
+    return JSON.parse(stdout)
+  }
+  // Fallback to direct HTTP API if no glab CLI
+  const url = `${host}/api/v4/projects/${encodedPath}/merge_requests/${iid}/discussions`
+  const headers: Record<string, string> = { 'User-Agent': 'orbit-app' }
+  if (token) headers['PRIVATE-TOKEN'] = token
+  const res = await fetch(url, { headers })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`)
+  }
+  return res.json()
 }
 
 async function fetchGithubComments(owner: string, repo: string, number: number, host: string, isEnterprise: boolean): Promise<{ comments: PrComment[]; errors: string[] }> {
@@ -224,8 +233,7 @@ export default defineEventHandler(async (event) => {
     comments = result.comments
     errors = result.errors
   } else if (glParsed) {
-    const gitlabHost = extractGitlabHost(prUrl)
-    const result = await fetchGitlabComments(glParsed.projectPath, glParsed.iid, gitlabHost)
+    const result = await fetchGitlabComments(glParsed.projectPath, glParsed.iid, glParsed.host)
     comments = result.comments
     errors = result.errors
   } else {

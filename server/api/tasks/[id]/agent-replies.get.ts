@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   const agentReplies = logs.filter(l => l.action === 'agent_reply')
 
   // For runtime_log, filter out step-level noise that would clutter the conversation view
-  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from)|Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Checkout failed|Clone failed|Branch setup failed|Created PR:|Created MR:|PR created:|MR created:)/i
+  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from)|Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Checkout failed|Clone failed|Branch setup failed|Created PR:|Created MR:|PR created:|MR created:|Exec:|CWD:)/i
 
   const runtimeLogs = logs.filter(l => {
     if (l.action !== 'runtime_log') return false

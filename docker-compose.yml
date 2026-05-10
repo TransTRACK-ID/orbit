@@ -29,9 +29,10 @@ services:
       - PROJECT_DIR=/app
       - HOME=/root
       - OPENCODE_PATH=/root/.opencode/bin/opencode
+      # Base64-encoded opencode.json (use: base64 -i opencode/opencode.json)
+      - OPENCODE_CONFIG_BASE64=${OPENCODE_CONFIG_BASE64:-}
     volumes:
-      # Mount opencode configurations
-      - ./opencode/opencode.json:/root/.config/opencode/opencode.json
+      # Mount opencode AGENTS.md (non-sensitive)
       - ./opencode/AGENTS.md:/root/.config/opencode/AGENTS.md
       # Mount the orbit-projects directory to preserve git clones between restarts
       - ~/orbit-projects:/root/orbit-projects

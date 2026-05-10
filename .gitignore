@@ -8,4 +8,3 @@ dist/
 server/database/migrations/
 
 **/opencode.json
-**/AGENTS.md

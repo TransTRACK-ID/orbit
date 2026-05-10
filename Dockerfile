@@ -42,9 +42,12 @@ WORKDIR /app
 # Copy built application from builder stage
 COPY --from=builder /app/.output /app/.output
 
-# Copy opencode configurations
-COPY opencode/opencode.json /root/.config/opencode/opencode.json
+# Copy opencode AGENTS.md (non-sensitive, can stay as a file)
 COPY opencode/AGENTS.md /root/.config/opencode/AGENTS.md
+
+# Copy and set up entrypoint script for decoding base64 config
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose Nuxt port
 EXPOSE 3000
@@ -54,5 +57,6 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
 
-# Start the Nuxt server
+# Use entrypoint to decode config, then run the Nuxt server
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", ".output/server/index.mjs"]

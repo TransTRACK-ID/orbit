@@ -471,6 +471,12 @@ export default defineEventHandler(async (event) => {
 
         workDir = cloneDir
 
+        // Ensure git identity is configured so commits don't fail
+        try {
+          await execAsync('git config user.email "agent@orbit.dev"', { cwd: workDir })
+          await execAsync('git config user.name "Orbit Agent"', { cwd: workDir })
+        } catch {}
+
         if (createBranch) {
           branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
           try {

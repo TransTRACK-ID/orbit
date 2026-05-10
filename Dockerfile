@@ -19,22 +19,29 @@ RUN bun run build
 # Stage 2: Run the Nuxt application and the agent runtime
 FROM node:20-bookworm-slim AS runner
 
-# Install bun in the runner, as well as necessary system dependencies for git, gh, glab, and the agent runtime
-RUN npm install -g bun \
-    && apt-get update && apt-get install -y \
+# Install bun in the runner
+RUN npm install -g bun
+
+# Install base system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     unzip \
     ca-certificates \
     gnupg \
-    && mkdir -p /etc/apt/keyrings \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (gh)
+RUN mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/etc/apt/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && apt-get update \
-    && apt-get install -y gh \
-    && curl -sL "https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/install.sh" | bash \
+    && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
+
+# Install GitLab CLI (glab)
+RUN curl -sL "https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/install.sh" | bash
 
 # Set up working directory
 WORKDIR /app

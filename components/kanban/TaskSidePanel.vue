@@ -589,7 +589,7 @@
                         <span v-if="comment.path" class="text-[9px] text-surface-400 font-mono truncate">{{ comment.path }}{{ comment.line ? `:${comment.line}` : '' }}</span>
                         <span v-if="comment.isReview" class="text-[9px] text-amber-500 ml-auto">review</span>
                       </div>
-                      <div class="text-[11px] text-surface-600 leading-relaxed review-feedback-body" v-html="comment.body" />
+                      <div class="text-[11px] text-surface-600 leading-relaxed review-feedback-body" v-html="parseMarkdown(comment.body)" />
                     </div>
                   </div>
 
@@ -1708,5 +1708,65 @@ function formatActivity(log: ActivityLog) {
 
 .review-feedback-body :deep(em) {
   font-style: italic;
+}
+
+.review-feedback-body :deep(h1),
+.review-feedback-body :deep(h2),
+.review-feedback-body :deep(h3),
+.review-feedback-body :deep(h4) {
+  font-weight: 600;
+  color: #1e293b;
+  margin: 6px 0 3px;
+  line-height: 1.3;
+}
+
+.review-feedback-body :deep(h1) { font-size: 12px; }
+.review-feedback-body :deep(h2) { font-size: 11px; }
+.review-feedback-body :deep(h3),
+.review-feedback-body :deep(h4) { font-size: 10px; }
+
+.review-feedback-body :deep(p) {
+  margin: 2px 0;
+}
+
+.review-feedback-body :deep(ul),
+.review-feedback-body :deep(ol) {
+  margin: 3px 0;
+  padding-left: 14px;
+}
+
+.review-feedback-body :deep(li) {
+  margin: 1px 0;
+}
+
+.review-feedback-body :deep(code) {
+  background: #f1f5f9;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+}
+
+.review-feedback-body :deep(pre) {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 4px 0;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.review-feedback-body :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.review-feedback-body :deep(hr) {
+  margin: 6px 0;
+  border-color: #e2e8f0;
 }
 </style>

@@ -1039,7 +1039,7 @@ const latestAgentReply = computed(() => {
     const msg = log.message.replace(/^>\s*/, '')
     if (
       msg &&
-      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with|Chat session ended|Posted summary/i.test(msg) &&
+      !/Waiting for opencode|Process exited|Done|Step (started|completed)|Exited with|Chat session ended|Posted summary|opencode version:|opencode not found/i.test(msg) &&
       !/Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Pushed|No changes|Push failed|Including PR feedback|Including user message/i.test(msg) &&
       !/^User:/.test(msg) &&
       !/Agent .+ assigned (to|from)/i.test(msg) &&

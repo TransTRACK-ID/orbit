@@ -186,7 +186,6 @@
                     {{ a.initials }}
                   </span>
                   <span class="truncate">{{ a.name }}</span>
-                  <span class="ml-auto text-[9px] text-primary-500 font-semibold uppercase">{{ a.runtime }}</span>
                 </button>
               </div>
             </div>

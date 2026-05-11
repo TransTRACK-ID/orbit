@@ -83,20 +83,6 @@
         </div>
 
         <div class="flex items-center gap-2.5 flex-wrap mb-2.5">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-semibold bg-surface-100 border border-surface-200">
-            <Icon :name="runtimeIcon(agent.runtime)" class="w-2.5 h-2.5 text-accent" />
-            {{ runtimeName(agent.runtime) }}
-            <span
-              v-if="runtimeReachable && agent.runtime === 'opencode'"
-              class="w-[5px] h-[5px] rounded-full bg-green-500 animate-pulse ml-0.5"
-              title="Runtime CLI is connected"
-            />
-            <span
-              v-else-if="!runtimeReachable && agent.runtime === 'opencode'"
-              class="w-[5px] h-[5px] rounded-full bg-red-500 ml-0.5"
-              title="Runtime CLI is offline"
-            />
-          </span>
           <span class="text-[9px] font-semibold flex items-center gap-1">
             <span
               class="w-[6px] h-[6px] rounded-full"

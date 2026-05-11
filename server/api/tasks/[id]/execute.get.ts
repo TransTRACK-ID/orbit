@@ -55,7 +55,7 @@ function sanitizeDirName(name: string): string {
     || 'repo'
 }
 
-/** Resolve the actual clone directory, handling renames and spaces */
+/** Resolve the main repository clone directory (shared across tasks) */
 function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string | null): string {
   const urlName = sanitizeDirName(extractRepoName(repoUrl))
   const displayName = repoName ? sanitizeDirName(repoName) : null
@@ -91,6 +91,11 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
 
   // Fall back to URL-derived name
   return `${projectsDir}/${urlName}`
+}
+
+/** Resolve the task-specific worktree directory */
+function resolveWorktreeDir(cloneDir: string, taskId: string): string {
+  return `${cloneDir}/.task-${taskId}`
 }
 
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
@@ -534,15 +539,17 @@ export default defineEventHandler(async (event) => {
       }
 
       if (repoUrl) {
-        const cloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+        const mainCloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+        const worktreeDir = resolveWorktreeDir(mainCloneDir, id)
 
-        if (!existsSync(cloneDir)) {
+        // ── Clone the main repo (bare or full) if it doesn't exist ──
+        if (!existsSync(mainCloneDir)) {
           await pushAndPersist(`Cloning ${repoUrl}...`)
           try {
             mkdirSync(projectsDir, { recursive: true })
             const authUrl = injectTokenIntoRemoteUrl(repoUrl, repoPlatform, repoToken)
             await new Promise<void>((resolve, reject) => {
-              const git = spawn('git', ['clone', authUrl, cloneDir], {
+              const git = spawn('git', ['clone', authUrl, mainCloneDir], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: false,
               })
@@ -551,89 +558,113 @@ export default defineEventHandler(async (event) => {
               })
               git.on('error', reject)
             })
-            await pushAndPersist(`Cloned to ${cloneDir}`)
+            await pushAndPersist(`Cloned to ${mainCloneDir}`)
           } catch (err: any) {
             await pushAndPersist(`Clone failed: ${err.message}`)
           }
         }
 
-        workDir = cloneDir
-
         // If clone failed, the directory doesn't exist — stop here
-        if (!existsSync(workDir)) {
-          await pushAndPersist(`Work directory does not exist: ${workDir}. Cannot start agent.`)
+        if (!existsSync(mainCloneDir)) {
+          await pushAndPersist(`Work directory does not exist: ${mainCloneDir}. Cannot start agent.`)
           stream.close()
           return
         }
 
         // Ensure git identity is configured so commits don't fail
         try {
-          await execAsync('git config user.email "agent@orbit.dev"', { cwd: workDir })
-          await execAsync('git config user.name "Orbit Agent"', { cwd: workDir })
+          await execAsync('git config user.email "agent@orbit.dev"', { cwd: mainCloneDir })
+          await execAsync('git config user.name "Orbit Agent"', { cwd: mainCloneDir })
         } catch {}
 
         // Inject auth token into the remote URL so push works non-interactively
-        await configureGitAuth(workDir, repoUrl, repoPlatform, repoToken)
+        await configureGitAuth(mainCloneDir, repoUrl, repoPlatform, repoToken)
 
-        if (createBranch) {
-          branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
+        branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
+
+        // ── Create or reuse the task-specific worktree ──
+        if (!existsSync(worktreeDir)) {
+          await pushAndPersist(`Creating worktree for task in ${worktreeDir}...`)
           try {
-            const { stdout: branchCheck } = await execAsync(`git branch --list ${branchName}`, { cwd: workDir })
-            if (!branchCheck.trim()) {
-              // First run: branch doesn't exist — create fresh from clean default
-              await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: workDir })
-              await execAsync(`git checkout ${repoDefaultBranch}`, { cwd: workDir })
-              await execAsync(`git reset --hard origin/${repoDefaultBranch}`, { cwd: workDir })
-              await pushAndPersist(`Reset ${repoDefaultBranch} to origin state`)
-              await execAsync(`git checkout -b ${branchName}`, { cwd: workDir })
-              await pushAndPersist(`Created fresh branch "${branchName}" from ${repoDefaultBranch}`)
+            // Ensure the branch exists locally (fetch remote first)
+            await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: mainCloneDir })
+
+            // Check if branch already exists on remote
+            try {
+              await execAsync(`git fetch origin ${branchName}`, { cwd: mainCloneDir })
+            } catch {}
+
+            const { stdout: localBranches } = await execAsync('git branch --list', { cwd: mainCloneDir })
+            const hasLocal = localBranches.split('\n').some(b => b.trim().replace(/^\*\s*/, '') === branchName)
+
+            if (hasLocal) {
+              // Branch exists locally — create worktree pointing to it
+              await execAsync(`git worktree add "${worktreeDir}" ${branchName}`, { cwd: mainCloneDir })
             } else {
-              // Follow-up run: branch exists — continue working on it (preserve progress)
-              // Check for any leftover uncommitted changes from a crashed previous run
-              const { stdout: leftoverStatus } = await execAsync('git status --porcelain', { cwd: workDir }).catch(() => ({ stdout: '' }))
-              if (leftoverStatus.trim()) {
-                await pushAndPersist(`Uncommitted changes detected — auto-committing WIP before continuing...`)
-                await execAsync('git add -A', { cwd: workDir })
-                await execAsync('git commit -m "wip: autosave before next agent run"', { cwd: workDir })
-                await pushAndPersist(`Auto-committed WIP. Previous work is now saved on branch.`)
-              }
-              // Ensure default branch is up to date before continuing work
-              try {
-                await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: workDir })
-                await execAsync(`git checkout ${repoDefaultBranch}`, { cwd: workDir })
-                await execAsync(`git reset --hard origin/${repoDefaultBranch}`, { cwd: workDir })
-                await pushAndPersist(`Updated ${repoDefaultBranch} to latest origin state`)
-              } catch (updateErr: any) {
-                await pushAndPersist(`Warning: could not update ${repoDefaultBranch}: ${updateErr.message}`)
-              }
-
-              await execAsync(`git checkout ${branchName}`, { cwd: workDir })
-
-              // Try to rebase the task branch onto latest default branch so agent works on freshest code
-              try {
-                await execAsync(`git rebase origin/${repoDefaultBranch}`, { cwd: workDir })
-                await pushAndPersist(`Rebased ${branchName} onto latest ${repoDefaultBranch}`)
-              } catch (rebaseErr: any) {
-                await pushAndPersist(`Rebase failed: ${rebaseErr.message}. Aborting rebase and continuing on branch as-is.`)
-                try { await execAsync('git rebase --abort', { cwd: workDir }) } catch {}
-              }
-
-              const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: workDir })
-              const actualBranch = currentBranch.trim()
-              if (actualBranch !== branchName) {
-                await pushAndPersist(`WARNING: Expected branch ${branchName} but on ${actualBranch}. Retrying checkout...`)
-                await execAsync(`git fetch origin ${branchName}`, { cwd: workDir })
-                await execAsync(`git checkout -B ${branchName} origin/${branchName}`, { cwd: workDir })
-              }
-              // Verify branch state
-              const { stdout: verifyLog } = await execAsync('git log --oneline -3', { cwd: workDir })
-              await pushAndPersist(`Continuing on ${branchName}. Recent commits: ${verifyLog.replace(/\n/g, ' | ')}`)
+              // Branch doesn't exist — create from default branch
+              await execAsync(`git worktree add -b ${branchName} "${worktreeDir}" origin/${repoDefaultBranch}`, { cwd: mainCloneDir })
             }
+            await pushAndPersist(`Worktree created for branch "${branchName}"`)
           } catch (err: any) {
-            await pushAndPersist(`Branch setup failed: ${err.message}`)
+            await pushAndPersist(`Worktree creation failed: ${err.message}`)
           }
         } else {
-          // User disabled auto-branching: ensure we start from their configured default branch, clean
+          // Worktree already exists — verify branch and pull latest
+          await pushAndPersist(`Reusing existing worktree for task...`)
+          try {
+            // Check current branch in worktree
+            const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: worktreeDir })
+            const actualBranch = currentBranch.trim()
+            if (actualBranch !== branchName) {
+              await pushAndPersist(`Worktree was on ${actualBranch}, switching to ${branchName}...`)
+              // Ensure branch exists
+              const { stdout: branches } = await execAsync('git branch --list', { cwd: mainCloneDir })
+              const hasLocal = branches.split('\n').some(b => b.trim().replace(/^\*\s*/, '') === branchName)
+              if (!hasLocal) {
+                await execAsync(`git branch ${branchName} origin/${repoDefaultBranch}`, { cwd: mainCloneDir })
+              }
+              await execAsync(`git checkout ${branchName}`, { cwd: worktreeDir })
+            }
+
+            // Rebase onto latest default branch
+            try {
+              await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: worktreeDir })
+              await execAsync(`git rebase origin/${repoDefaultBranch}`, { cwd: worktreeDir })
+              await pushAndPersist(`Rebased ${branchName} onto latest ${repoDefaultBranch}`)
+            } catch (rebaseErr: any) {
+              await pushAndPersist(`Rebase failed: ${rebaseErr.message}. Aborting and continuing as-is.`)
+              try { await execAsync('git rebase --abort', { cwd: worktreeDir }) } catch {}
+            }
+          } catch (err: any) {
+            await pushAndPersist(`Worktree update failed: ${err.message}`)
+          }
+        }
+
+        workDir = worktreeDir
+
+        // Verify we're on the right branch before agent starts
+        try {
+          const { stdout: verifyBranch } = await execAsync('git branch --show-current', { cwd: workDir })
+          const actual = verifyBranch.trim()
+          if (actual !== branchName) {
+            await pushAndPersist(`WARNING: Expected branch ${branchName} but on ${actual}. Switching...`)
+            await execAsync(`git checkout ${branchName}`, { cwd: workDir })
+          }
+        } catch {}
+
+        // Auto-commit any leftover uncommitted changes from a crashed previous run
+        try {
+          const { stdout: leftoverStatus } = await execAsync('git status --porcelain', { cwd: workDir }).catch(() => ({ stdout: '' }))
+          if (leftoverStatus.trim()) {
+            await pushAndPersist(`Uncommitted changes detected — auto-committing WIP before continuing...`)
+            await execAsync('git add -A', { cwd: workDir })
+            await execAsync('git commit -m "wip: autosave before next agent run"', { cwd: workDir })
+            await pushAndPersist(`Auto-committed WIP.`)
+          }
+        } catch {}
+
+        if (!createBranch) {
+          // User disabled auto-branching: agent works on default branch directly in worktree
           branchName = repoDefaultBranch
           try {
             await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: workDir })

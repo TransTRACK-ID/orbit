@@ -71,6 +71,10 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
   return `${projectsDir}/${urlName}`
 }
 
+function resolveWorktreeDir(cloneDir: string, taskId: string): string {
+  return `${cloneDir}/.task-${taskId}`
+}
+
 function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
   const envToken = platform === 'github'
     ? (process.env.GITHUB_TOKEN || '')
@@ -144,10 +148,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'No repository configured for this task' })
   }
 
-  const repoDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+  const mainCloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+  const repoDir = resolveWorktreeDir(mainCloneDir, id)
 
   if (!existsSync(repoDir)) {
-    throw createError({ statusCode: 400, statusMessage: 'Repository not cloned yet. Run the agent first.' })
+    throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
   }
 
   const branch = sanitizeBranchName(task.title)

@@ -292,18 +292,24 @@ export default defineEventHandler(async (event) => {
     
     let prUrl = ''
     let lastError = ''
+    const safeTitle = (prTitle || 'Task update').trim()
     if (cli === 'glab') {
       const bodyArg = prBody ? `--description ${shEscape(readFileSync('/tmp/pr-body.md', 'utf-8'))}` : ''
+      const titleArg = `--title ${shEscape(safeTitle)}`
+      const cmd = `glab mr create ${titleArg} ${bodyArg} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y 2>&1 || true`
+      console.log(`[pr.post] Running glab command: ${cmd}`)
       const { stdout, stderr } = await execAsync(
-        `glab mr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyArg} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y 2>&1 || true`,
+        cmd,
         { cwd: repoDir, env: gitlabEnv }
       )
       const output = (stdout + stderr).trim()
+      console.log(`[pr.post] glab output: ${output.slice(0, 500)}`)
       const urlMatch = output.match(/https?:\/\/[^\s]+/)
       prUrl = urlMatch ? urlMatch[0] : ''
-      if (!prUrl) lastError = output.slice(0, 300)
+      if (!prUrl) lastError = output.slice(0, 600)
 
       if (!prUrl) {
+        console.log(`[pr.post] glab create failed, trying fallback mr view for branch ${branch}`)
         const { stdout: fallback } = await execAsync(
           `glab mr view ${branch} -F json 2>/dev/null | jq -r '.web_url // empty' || true`,
           { cwd: repoDir, env: gitlabEnv }
@@ -311,7 +317,7 @@ export default defineEventHandler(async (event) => {
         prUrl = fallback.trim()
         if (prUrl === 'null' || prUrl === '') {
           prUrl = ''
-          if (!lastError) lastError = (output || fallback).slice(0, 300)
+          if (!lastError) lastError = (output || fallback).slice(0, 600)
         }
       }
     } else {

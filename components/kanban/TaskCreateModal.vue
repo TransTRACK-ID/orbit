@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="$emit('close')">
-      <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
+    <div class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto" @click.self="$emit('close')">
+      <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-[calc(100vw-32px)] sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6 animate-scale-in my-auto">
         <div class="flex items-center justify-between mb-5">
           <h3 class="text-lg font-semibold text-surface-900">Create Task</h3>
-          <button class="text-surface-400 hover:text-surface-600 transition-colors p-1" @click="$emit('close')">
+          <button class="text-surface-400 hover:text-surface-600 transition-colors p-1 flex-shrink-0" @click="$emit('close')">
             <Close class="w-5 h-5" />
           </button>
         </div>

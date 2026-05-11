@@ -626,7 +626,8 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     }
 
     await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}`)
-    await pushAndPersist(`CWD: ${workDir} | HOME: ${fakeHome}`)
+    // Stream CWD/HOME for live debugging but do NOT persist — avoid leaking paths in comments
+    await stream.push(JSON.stringify({ step: `CWD: ${workDir} | HOME: ${fakeHome}`, timestamp: Date.now() }))
 
     // Build a minimal environment to avoid leaking secrets or config paths
     const minimalEnv: NodeJS.ProcessEnv = {

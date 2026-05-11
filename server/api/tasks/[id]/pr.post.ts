@@ -26,6 +26,22 @@ function extractRepoName(url: string): string {
   return match ? match[1] : 'repo'
 }
 
+function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
+  const envToken = platform === 'github'
+    ? (process.env.GITHUB_TOKEN || '')
+    : (process.env.GITLAB_TOKEN || '')
+  const effectiveToken = token || envToken
+  if (!effectiveToken) return url
+
+  if (platform === 'github') {
+    if (!url.startsWith('https://github.com/')) return url
+    return url.replace(/^https:\/\/github\.com\//, `https://${effectiveToken}@github.com/`)
+  }
+
+  if (!url.startsWith('https://')) return url
+  return url.replace(/^https:\/\//, `https://oauth2:${effectiveToken}@`)
+}
+
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
 export default defineEventHandler(async (event) => {
@@ -43,6 +59,8 @@ export default defineEventHandler(async (event) => {
   let repoUrl = ''
   let repoDefaultBranch = 'main'
   let repoName = ''
+  let repoToken: string | null = null
+  let repoPlatform: 'github' | 'gitlab' | 'gitlab-self-hosted' = 'github'
 
   if (task.repositoryId) {
     const repo = await db.query.repositories.findFirst({
@@ -52,6 +70,8 @@ export default defineEventHandler(async (event) => {
       repoUrl = repo.url
       repoDefaultBranch = repo.defaultBranch || 'main'
       repoName = repo.name
+      repoToken = repo.token
+      repoPlatform = (repo.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
     }
   }
 
@@ -69,6 +89,8 @@ export default defineEventHandler(async (event) => {
         repoUrl = workspaceRepos[0].url
         repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
         repoName = workspaceRepos[0].name
+        repoToken = workspaceRepos[0].token
+        repoPlatform = (workspaceRepos[0].platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
       }
     }
   }
@@ -121,6 +143,14 @@ export default defineEventHandler(async (event) => {
       await execAsync('git add -A', { cwd: repoDir })
       await execAsync(`git commit -m "${prTitle.replace(/"/g, '\\"')}"`, { cwd: repoDir })
     }
+    // Inject auth token into remote URL so push works non-interactively
+    const authUrl = injectTokenIntoRemoteUrl(repoUrl, repoPlatform, repoToken)
+    if (authUrl !== repoUrl) {
+      try {
+        await execAsync(`git remote set-url origin ${authUrl}`, { cwd: repoDir })
+      } catch {}
+    }
+
     // Try normal push first — only force-push on explicit failure
     try {
       await execAsync(`git push -u origin ${branch}`, { cwd: repoDir })

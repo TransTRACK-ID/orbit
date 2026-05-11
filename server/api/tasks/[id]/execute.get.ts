@@ -308,21 +308,36 @@ const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
 
 /**
- * Inject GITHUB_TOKEN into an HTTPS remote URL so git push works
+ * Inject auth token into an HTTPS remote URL so git operations work
  * inside the container without interactive username/password prompts.
+ * Supports GitHub and GitLab (including self-hosted).
  */
-function injectTokenIntoRemoteUrl(url: string): string {
-  const token = process.env.GITHUB_TOKEN || ''
-  if (!token) return url
-  // Only rewrite https://github.com/... URLs
-  if (!url.startsWith('https://github.com/')) return url
-  return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
+function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
+  const envToken = platform === 'github'
+    ? (process.env.GITHUB_TOKEN || '')
+    : (process.env.GITLAB_TOKEN || '')
+  const effectiveToken = token || envToken
+  if (!effectiveToken) return url
+
+  if (platform === 'github') {
+    if (!url.startsWith('https://github.com/')) return url
+    return url.replace(/^https:\/\/github\.com\//, `https://${effectiveToken}@github.com/`)
+  }
+
+  // GitLab — self-hosted or gitlab.com
+  if (!url.startsWith('https://')) return url
+  // Inject token into any https:// URL for GitLab
+  return url.replace(/^https:\/\//, `https://oauth2:${effectiveToken}@`)
 }
 
-async function configureGitAuth(workDir: string, repoUrl: string) {
-  const token = process.env.GITHUB_TOKEN || ''
-  if (!token || !repoUrl.startsWith('https://github.com/')) return
-  const authUrl = injectTokenIntoRemoteUrl(repoUrl)
+async function configureGitAuth(workDir: string, repoUrl: string, platform: string, token?: string | null) {
+  const envToken = platform === 'github'
+    ? (process.env.GITHUB_TOKEN || '')
+    : (process.env.GITLAB_TOKEN || '')
+  const effectiveToken = token || envToken
+  if (!effectiveToken) return
+  const authUrl = injectTokenIntoRemoteUrl(repoUrl, platform, effectiveToken)
+  if (authUrl === repoUrl) return
   try {
     await execAsync(`git remote set-url origin ${authUrl}`, { cwd: workDir })
   } catch {}
@@ -430,6 +445,7 @@ export default defineEventHandler(async (event) => {
     let repoDefaultBranch = 'main'
     let repoUrl = ''
     let repoName = ''
+    let repoToken: string | null = null
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -448,6 +464,7 @@ export default defineEventHandler(async (event) => {
           repoDefaultBranch = repo.defaultBranch || 'main'
           createBranch = repo.createBranch
           repoName = repo.name
+          repoToken = repo.token
           repoPlatform = (repo.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
         }
       }
@@ -462,6 +479,7 @@ export default defineEventHandler(async (event) => {
           repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
           createBranch = workspaceRepos[0].createBranch
           repoName = workspaceRepos[0].name
+          repoToken = workspaceRepos[0].token
           repoPlatform = (workspaceRepos[0].platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
         }
       }
@@ -474,8 +492,9 @@ export default defineEventHandler(async (event) => {
           await pushAndPersist(`Cloning ${repoUrl}...`)
           try {
             mkdirSync(projectsDir, { recursive: true })
+            const authUrl = injectTokenIntoRemoteUrl(repoUrl, repoPlatform, repoToken)
             await new Promise<void>((resolve, reject) => {
-              const git = spawn('git', ['clone', repoUrl, cloneDir], {
+              const git = spawn('git', ['clone', authUrl, cloneDir], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: false,
               })
@@ -492,14 +511,21 @@ export default defineEventHandler(async (event) => {
 
         workDir = cloneDir
 
+        // If clone failed, the directory doesn't exist — stop here
+        if (!existsSync(workDir)) {
+          await pushAndPersist(`Work directory does not exist: ${workDir}. Cannot start agent.`)
+          stream.close()
+          return
+        }
+
         // Ensure git identity is configured so commits don't fail
         try {
           await execAsync('git config user.email "agent@orbit.dev"', { cwd: workDir })
           await execAsync('git config user.name "Orbit Agent"', { cwd: workDir })
         } catch {}
 
-        // Inject GITHUB_TOKEN into the remote URL so push works non-interactively
-        await configureGitAuth(workDir, repoUrl)
+        // Inject auth token into the remote URL so push works non-interactively
+        await configureGitAuth(workDir, repoUrl, repoPlatform, repoToken)
 
         if (createBranch) {
           branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
@@ -823,7 +849,7 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
             await pushToStreams(entry, JSON.stringify({ step: `Committed: ${commitMsg}`, timestamp: Date.now() }))
 
             // Ensure remote URL has auth token before pushing
-            await configureGitAuth(workDir, repoUrl)
+            await configureGitAuth(workDir, repoUrl, repoPlatform, repoToken)
 
             // Try normal push first — only force-push on explicit failure with logging
             try {

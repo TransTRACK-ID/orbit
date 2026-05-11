@@ -177,7 +177,7 @@
               />
             </div>
             <!-- Runtime CLI hidden — always defaults to opencode -->
-            <input v-model="form.runtime" type="hidden" value="opencode" />
+              <input v-model="form.runtime" type="hidden" />
             <div class="mb-4">
               <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Specialization / Purpose</label>
               <textarea

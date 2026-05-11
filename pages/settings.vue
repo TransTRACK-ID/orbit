@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 overflow-y-auto py-7 px-8">
+  <div class="flex-1 overflow-y-auto py-5 px-4 sm:py-7 sm:px-8">
     <div class="max-w-3xl mx-auto">
       <h1 class="text-2xl font-bold text-surface-900 mb-8">Settings</h1>
 

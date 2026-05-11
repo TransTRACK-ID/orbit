@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-50 flex">
     <div class="absolute inset-0 bg-surface-900/20 backdrop-blur-sm" @click="$emit('close')" />
 
-    <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
+    <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[100vw] sm:max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
       <!-- Agent runtime indicator — floating top-right, only when CLI is actively processing -->
       <div
         v-if="runtimeActive"

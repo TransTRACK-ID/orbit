@@ -82,7 +82,14 @@
 
   .kanban-column {
     @apply bg-surface-50 rounded-lg border border-surface-200
-           min-w-[220px] max-w-[330px] flex flex-col;
+           min-w-[260px] max-w-[330px] flex flex-col;
+  }
+
+  @media (max-width: 640px) {
+    .kanban-column {
+      min-width: 280px;
+      max-width: 85vw;
+    }
   }
 
   .kanban-column-body {
@@ -153,13 +160,27 @@
     @apply bg-surface-300 rounded-full;
   }
 
+  .board-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (max-width: 640px) {
+    .board-scroll {
+      scroll-snap-type: x mandatory;
+    }
+
+    .board-scroll > div > .kanban-column {
+      scroll-snap-align: start;
+    }
+  }
+
   /* ─── Modal ─── */
   .modal-overlay {
     @apply fixed inset-0 bg-black/35 z-50 flex items-center justify-center;
   }
 
   .modal-box {
-    @apply bg-white rounded-xl w-[440px] max-w-[calc(100vw-40px)]
+    @apply bg-white rounded-xl w-[440px] max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-40px)]
            shadow-lg max-h-[90vh] overflow-y-auto;
   }
 
@@ -202,7 +223,7 @@
   }
 
   .drawer-panel {
-    @apply fixed top-0 right-0 bottom-0 w-[440px] max-w-[90vw]
+    @apply fixed top-0 right-0 bottom-0 w-[440px] max-w-[100vw] sm:max-w-[90vw]
            bg-white z-50 shadow-lg
            translate-x-full transition-transform duration-200 ease-out
            flex flex-col;
@@ -210,6 +231,13 @@
 
   .drawer-panel.open {
     @apply translate-x-0;
+  }
+
+  /* Mobile responsive utilities */
+  @media (max-width: 640px) {
+    .page-container {
+      @apply px-4 py-5;
+    }
   }
 
 }

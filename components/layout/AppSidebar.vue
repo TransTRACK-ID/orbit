@@ -3,7 +3,6 @@
     id="sidebar"
     class="w-60 bg-white border-r border-surface-200 flex flex-col flex-shrink-0 overflow-hidden max-lg:fixed max-lg:top-[52px] max-lg:bottom-0 max-lg:z-40 max-lg:shadow-lg max-lg:transition-transform max-lg:duration-200"
     :class="sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'"
-    @click="closeOnMobile"
   >
     <div class="flex-1 overflow-y-auto py-3">
       <!-- Agents link -->
@@ -12,7 +11,7 @@
           class="sidebar-item"
           :class="{ active: route.path === '/agents' }"
           style="margin-bottom: 4px"
-          @click="navigateTo('/agents')"
+          @click="navigateTo('/agents'); closeOnMobile()"
         >
           <div
             class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
@@ -31,7 +30,7 @@
           <select
             :value="activeWorkspaceSlug"
             class="w-full text-xs font-semibold rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 pr-8 appearance-none cursor-pointer focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
-            @change="switchWorkspace(($event.target as HTMLSelectElement).value)"
+            @change="switchWorkspace(($event.target as HTMLSelectElement).value); closeOnMobile()"
           >
             <option value="" disabled>Select workspace</option>
             <option
@@ -51,7 +50,7 @@
 
       <!-- Projects for active workspace -->
       <div v-if="activeWorkspace" class="sidebar-group">
-        <div class="sidebar-group-header px-3 py-1.5" @click="navigateTo(`/workspaces/${activeWorkspace.slug}`)">
+        <div class="sidebar-group-header px-3 py-1.5" @click="navigateTo(`/workspaces/${activeWorkspace.slug}`); closeOnMobile()">
           <span class="text-xs font-semibold text-surface-700">{{ activeWorkspace.name }}</span>
           <span class="ml-auto text-[10px] text-surface-400">{{ projects.length }} projects</span>
         </div>
@@ -65,7 +64,7 @@
           :key="proj.id"
           class="sidebar-item"
           :class="{ active: route.params.projectId === proj.id && route.path.includes('/board') }"
-          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/projects/${proj.id}/board`)"
+          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/projects/${proj.id}/board`); closeOnMobile()"
         >
           <div
             class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
@@ -82,7 +81,7 @@
       <div v-for="ws in otherWorkspaces" :key="ws.id" class="sidebar-group">
         <div
           class="sidebar-item !rounded-none !border-l-0 !border-r-0"
-          @click="navigateTo(`/workspaces/${ws.slug}`)"
+          @click="navigateTo(`/workspaces/${ws.slug}`); closeOnMobile()"
         >
           <div
             class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
@@ -99,7 +98,7 @@
       <div v-if="activeWorkspace" class="mt-2 px-3">
         <div
           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] text-surface-400 hover:text-surface-600 hover:bg-surface-50 transition-colors cursor-pointer"
-          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/settings`)"
+          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/settings`); closeOnMobile()"
         >
           <Icon name="lucide:settings" class="w-3 h-3" />
           Workspace settings

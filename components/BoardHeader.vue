@@ -1,8 +1,8 @@
 <template>
-  <div class="flex items-center gap-3 px-5 py-3.5 border-b border-surface-200 bg-white flex-shrink-0">
-    <div class="flex items-center gap-2.5">
-      <h2 class="text-sm font-semibold text-surface-900">Board</h2>
-      <span class="text-[10px] text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full">{{ taskCount }} tasks</span>
+  <div class="flex items-center gap-3 px-3 sm:px-5 py-3.5 border-b border-surface-200 bg-white flex-shrink-0">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <h2 class="text-sm font-semibold text-surface-900 flex-shrink-0">Board</h2>
+      <span class="text-[10px] text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0">{{ taskCount }} tasks</span>
     </div>
     <div class="flex items-center gap-1.5 ml-auto">
       <button
@@ -20,7 +20,7 @@
         <span class="max-sm:hidden">Auto-Assign</span>
       </button>
       <button
-        class="px-2 py-1.5 rounded-lg border border-surface-200 text-[11px] hover:bg-surface-50 transition-colors max-sm:flex"
+        class="px-2 py-1.5 rounded-lg border border-surface-200 text-[11px] hover:bg-surface-50 transition-colors flex"
         @click="toggleAgentPanel"
         title="Agents"
       >

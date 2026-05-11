@@ -170,7 +170,7 @@ function formatTime(ts: number) {
 <template>
   <div
     class="log-panel-fixed fixed bottom-0 left-0 right-0 bg-white border-t border-surface-200 z-50 flex flex-col overflow-hidden transition-all duration-200"
-    :class="isOpen ? 'open h-[280px]' : 'h-0'"
+    :class="isOpen ? 'open h-[280px] max-lg:h-[60vh]' : 'h-0'"
   >
     <div class="flex items-center gap-2.5 px-4 py-1.5 border-b border-surface-200 flex-shrink-0">
       <Icon name="lucide:terminal" class="w-3 h-3 text-accent" />

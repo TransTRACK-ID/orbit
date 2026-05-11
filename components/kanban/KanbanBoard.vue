@@ -6,8 +6,8 @@
       @create-task="$emit('createTask')"
     />
 
-    <div class="flex-1 overflow-x-auto board-scroll px-5 pb-4">
-      <div class="flex gap-3.5 h-full min-h-0">
+    <div class="flex-1 overflow-x-auto overflow-y-hidden board-scroll px-3 sm:px-5 pb-4">
+      <div class="flex gap-3 h-full min-h-0">
         <KanbanColumn
           v-for="col in columns"
           :key="col.status.id"

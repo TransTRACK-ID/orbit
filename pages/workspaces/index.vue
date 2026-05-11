@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 overflow-y-auto py-7 px-8">
+  <div class="flex-1 overflow-y-auto py-5 px-4 sm:py-7 sm:px-8">
     <div class="flex items-center gap-3 mb-1">
       <h1 class="text-xl font-bold text-surface-900">Workspaces</h1>
       <button
@@ -61,7 +61,7 @@
         </div>
 
         <!-- Stats cards in a row -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <NuxtLink
             :to="`/workspaces/${ws.slug}`"
             class="bg-white border border-surface-200 rounded-xl p-[18px] cursor-pointer hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150 flex items-center gap-3"

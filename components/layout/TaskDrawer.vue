@@ -5,7 +5,7 @@
       <div class="absolute inset-0 bg-black/25" @click="closeDrawer" />
 
       <!-- Drawer panel -->
-      <div class="absolute right-0 top-0 bottom-0 w-[440px] max-w-[90vw] bg-white shadow-lg flex flex-col">
+      <div class="absolute right-0 top-0 bottom-0 w-[440px] max-w-[100vw] sm:max-w-[90vw] bg-white shadow-lg flex flex-col">
         <!-- Header -->
         <div class="flex items-center gap-3 px-5 py-3.5 border-b border-surface-200 flex-shrink-0">
           <h3 class="text-sm font-semibold flex-1 min-w-0 truncate">

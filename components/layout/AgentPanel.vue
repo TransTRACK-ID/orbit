@@ -1,7 +1,7 @@
 <template>
   <div
-    class="agent-panel flex-shrink-0 border-l border-surface-200 bg-white flex flex-col overflow-hidden transition-all duration-200"
-    :class="agentPanelOpen ? 'w-[220px]' : 'w-0'"
+    class="agent-panel flex-shrink-0 border-l border-surface-200 bg-white flex flex-col overflow-hidden transition-all duration-200 max-lg:fixed max-lg:right-0 max-lg:top-[52px] max-lg:bottom-0 max-lg:z-40 max-lg:shadow-xl"
+    :class="agentPanelOpen ? 'w-[220px] max-lg:translate-x-0' : 'w-0 max-lg:translate-x-full'"
   >
     <div class="flex items-center gap-2 px-3.5 py-3 border-b border-surface-200 flex-shrink-0">
       <Icon name="lucide:bot" class="w-3.5 h-3.5 text-accent" />

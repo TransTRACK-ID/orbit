@@ -1,19 +1,19 @@
 <template>
-  <div class="flex-1 overflow-y-auto py-7 px-8">
-    <div class="flex items-center gap-3 mb-1">
+  <div class="flex-1 overflow-y-auto py-5 px-4 sm:py-7 sm:px-8">
+    <div class="flex items-center gap-3 mb-1 flex-wrap">
       <h1 class="text-xl font-bold text-surface-900">Agents</h1>
       <button
         class="px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
         @click="openCreateModal()"
       >
         <Icon name="lucide:plus" class="w-3 h-3" />
-        Add Agent
+        <span class="max-sm:hidden">Add Agent</span>
       </button>
     </div>
     <p class="text-xs text-surface-400 mb-6">{{ agentCounts.total }} agents across all workspaces</p>
 
     <!-- Stats bar -->
-    <div class="flex gap-5 mb-6 p-3.5 bg-white border border-surface-200 rounded-xl flex-wrap">
+    <div class="flex gap-3 sm:gap-5 mb-6 p-3.5 bg-white border border-surface-200 rounded-xl flex-wrap">
       <div class="flex items-center gap-2">
         <span class="w-[9px] h-[9px] rounded-full bg-green-500" />
         <span class="font-bold text-sm">{{ agentCounts.idle }}</span>
@@ -29,7 +29,7 @@
         <span class="font-bold text-sm">{{ agentCounts.offline }}</span>
         <span class="text-[10px] text-surface-400">Offline</span>
       </div>
-      <div class="flex items-center gap-2 ml-auto">
+      <div class="flex items-center gap-2 sm:ml-auto">
         <span class="font-bold text-sm">{{ agentCounts.total }}</span>
         <span class="text-[10px] text-surface-400">Total</span>
       </div>
@@ -53,7 +53,7 @@
     </div>
 
     <!-- Agent grid -->
-    <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3.5">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3.5">
       <div
         v-for="agent in agents"
         :key="agent.id"
@@ -122,7 +122,7 @@
         class="fixed inset-0 bg-black/35 z-50 flex items-center justify-center p-4"
         @click.self="closeModal"
       >
-        <div class="bg-white rounded-xl w-[440px] max-w-[calc(100vw-40px)] shadow-lg max-h-[90vh] overflow-y-auto">
+        <div class="bg-white rounded-xl w-[440px] max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-40px)] shadow-lg max-h-[90vh] overflow-y-auto">
           <div class="flex items-center gap-3 px-5 py-4 border-b border-surface-200">
             <h3 class="text-sm font-semibold flex-1">{{ editingAgent ? 'Edit Agent' : 'New Agent' }}</h3>
             <button

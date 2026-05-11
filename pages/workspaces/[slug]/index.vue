@@ -1,21 +1,21 @@
 <template>
-  <div class="flex-1 overflow-y-auto py-7 px-8">
+  <div class="flex-1 overflow-y-auto py-5 px-4 sm:py-7 sm:px-8">
     <div v-if="workspace">
-      <div class="flex items-center justify-between mb-6">
-        <div>
+      <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div class="min-w-0">
           <h1 class="text-xl font-bold text-surface-900">{{ workspace.name }}</h1>
           <p v-if="workspace.description" class="text-xs text-surface-400 mt-1">{{ workspace.description }}</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-shrink-0">
           <NuxtLink :to="`/workspaces/${workspace.slug}/settings`">
-            <OutlinedButton>
+            <OutlinedButton class="max-sm:px-2 max-sm:py-1">
               <Icon name="lucide:settings" class="w-3.5 h-3.5" />
-              Settings
+              <span class="max-sm:hidden">Settings</span>
             </OutlinedButton>
           </NuxtLink>
-          <Button @click="showCreateProject = true">
+          <Button @click="showCreateProject = true" class="max-sm:px-2 max-sm:py-1">
             <Icon name="lucide:plus" class="w-3.5 h-3.5" />
-            New Project
+            <span class="max-sm:hidden">New Project</span>
           </Button>
         </div>
       </div>

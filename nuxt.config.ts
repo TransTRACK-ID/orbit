@@ -2,6 +2,12 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
 
+  app: {
+    head: {
+      viewport: 'width=device-width, initial-scale=1',
+    },
+  },
+
   modules: [
     '@sidebase/nuxt-auth',
     'nuxt-icon',

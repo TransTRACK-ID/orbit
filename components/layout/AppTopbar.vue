@@ -6,32 +6,32 @@
     </button>
 
     <!-- Brand + Breadcrumb -->
-    <div class="flex items-center gap-2.5">
-      <div class="brand flex items-center gap-1.5 font-bold text-sm tracking-tight text-surface-900">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="brand flex items-center gap-1.5 font-bold text-sm tracking-tight text-surface-900 flex-shrink-0">
         <Icon name="lucide:bolt" class="w-4 h-4 text-accent" />
-        Kanvas
+        <span class="max-sm:hidden">Kanvas</span>
       </div>
-      <div class="flex items-center gap-1.5 text-xs text-surface-400">
+      <div class="flex items-center gap-1.5 text-xs text-surface-400 min-w-0 overflow-hidden">
         <span
-          class="cursor-pointer px-1.5 py-0.5 rounded hover:text-surface-900 hover:bg-surface-100 transition-colors"
+          class="cursor-pointer px-1.5 py-0.5 rounded hover:text-surface-900 hover:bg-surface-100 transition-colors truncate"
           @click="navigateTo('/workspaces')"
         >Workspaces</span>
-        <Icon v-if="breadcrumbWs" name="lucide:chevron-right" class="w-2.5 h-2.5 text-surface-200" />
+        <Icon v-if="breadcrumbWs" name="lucide:chevron-right" class="w-2.5 h-2.5 text-surface-200 flex-shrink-0" />
         <span
           v-if="breadcrumbWs"
-          class="cursor-pointer px-1.5 py-0.5 rounded hover:text-surface-900 hover:bg-surface-100 transition-colors"
+          class="cursor-pointer px-1.5 py-0.5 rounded hover:text-surface-900 hover:bg-surface-100 transition-colors truncate max-w-[80px] sm:max-w-[120px]"
           @click="navigateTo(`/workspaces/${breadcrumbWsSlug}`)"
         >{{ breadcrumbWs }}</span>
-        <Icon v-if="breadcrumbProject" name="lucide:chevron-right" class="w-2.5 h-2.5 text-surface-200" />
+        <Icon v-if="breadcrumbProject" name="lucide:chevron-right" class="w-2.5 h-2.5 text-surface-200 flex-shrink-0" />
         <span
           v-if="breadcrumbProject"
-          class="font-semibold text-surface-900 cursor-default px-1.5 py-0.5 rounded"
+          class="font-semibold text-surface-900 cursor-default px-1.5 py-0.5 rounded truncate max-w-[80px] sm:max-w-[120px]"
         >{{ breadcrumbProject }}</span>
       </div>
     </div>
 
     <!-- Search -->
-    <div class="flex-1 flex justify-center max-w-xs ml-auto">
+    <div class="flex-1 flex justify-center max-w-xs ml-auto max-sm:hidden">
       <div class="relative w-full max-w-[280px]">
         <Icon name="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400" />
         <input
@@ -47,7 +47,7 @@
     <!-- Actions -->
     <div class="flex items-center gap-2 ml-auto">
       <button
-        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold hover:bg-surface-50 transition-colors"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold hover:bg-surface-50 transition-colors max-sm:px-2 max-sm:py-1.5"
         @click="navigateTo('/agents')"
       >
         <Icon name="lucide:bot" class="w-3 h-3" />

@@ -1,7 +1,7 @@
 import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getRequestHeaders } from 'h3'
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
-import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
@@ -567,12 +567,15 @@ export default defineEventHandler(async (event) => {
     const platformRule = `[GIT PLATFORM: ${repoPlatform}]
 CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" for ALL git hosting operations (clone, push, PRs/MRs, status, etc.). NEVER use "${wrongCli}" — it will fail.`
 
+    const securityRule = `[SECURITY BOUNDARIES]
+CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
+
     const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
     const labelsContext = labels.length > 0
       ? `\n\n[TASK TYPE: ${labels.join(', ')}]`
       : '\n\n[TASK TYPE: none — no labels assigned]'
 
-    let message = `${platformRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    let message = `${platformRule}\n\n${securityRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
 
     if (feedback) {
       if (feedback.includes('[USER MESSAGE]')) {
@@ -598,16 +601,45 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
 
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including user message: ${feedbackTail}`)
-        message = `${platformRule}\n\n${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
+        message = `${platformRule}\n\n${securityRule}\n\n${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
-        message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\nCRITICAL: The PR feedback above was given by a code reviewer. You MUST examine each item carefully and make the necessary code changes to fix ALL reported issues. Do NOT skip any item. Do NOT assume issues are already resolved — verify by making actual code changes. Your goal is to modify the codebase to satisfy each piece of feedback.`
+        message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\n${securityRule}\n\nCRITICAL: The PR feedback above was given by a code reviewer. You MUST examine each item carefully and make the necessary code changes to fix ALL reported issues. Do NOT skip any item. Do NOT assume issues are already resolved — verify by making actual code changes. Your goal is to modify the codebase to satisfy each piece of feedback.`
       }
     }
 
+    // Set up an isolated home directory for the agent so it cannot easily discover
+    // or access sensitive configuration files (e.g. ~/.config/opencode/opencode.json).
+    const fakeHome = `${projectsDir}/.agent-homes/${task.id}`
+    const fakeConfigDir = `${fakeHome}/.config/opencode`
+    try {
+      mkdirSync(fakeConfigDir, { recursive: true })
+      // Copy AGENTS.md into the fake home so opencode still loads its system prompt
+      const realAgentsPath = `${process.env.HOME || '/root'}/.config/opencode/AGENTS.md`
+      if (existsSync(realAgentsPath)) {
+        const agentsContent = readFileSync(realAgentsPath, 'utf-8')
+        writeFileSync(`${fakeConfigDir}/AGENTS.md`, agentsContent, 'utf-8')
+      }
+    } catch (err: any) {
+      await pushAndPersist(`Warning: could not set up isolated home: ${err.message}`)
+    }
+
     await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}`)
-    await pushAndPersist(`CWD: ${workDir} | HOME: ${process.env.HOME || 'undefined'}`)
+    await pushAndPersist(`CWD: ${workDir} | HOME: ${fakeHome}`)
+
+    // Build a minimal environment to avoid leaking secrets or config paths
+    const minimalEnv: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      HOME: fakeHome,
+      GIT_PLATFORM: repoPlatform,
+      NODE_ENV: process.env.NODE_ENV,
+      LANG: process.env.LANG,
+      LC_ALL: process.env.LC_ALL,
+      GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+      GITLAB_TOKEN: process.env.GITLAB_TOKEN,
+      GITLAB_HOST: process.env.GITLAB_HOST,
+    }
 
     const proc = spawn(opencodePath, [
       'run',
@@ -619,7 +651,7 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
       cwd: workDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
-      env: { ...process.env, GIT_PLATFORM: repoPlatform },
+      env: minimalEnv,
     })
 
     const entry: ProcState = { proc, streams: [], heartbeat: null }

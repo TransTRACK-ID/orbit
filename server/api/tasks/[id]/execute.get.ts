@@ -486,6 +486,7 @@ export default defineEventHandler(async (event) => {
     let lastActivity = Date.now()
     let editCount = 0
     let editedFiles: string[] = []
+    let agentReplyContent = ''
 
     let workDir = defaultProjectDir
     let branchName = ''
@@ -596,7 +597,27 @@ export default defineEventHandler(async (event) => {
                 await execAsync('git commit -m "wip: autosave before next agent run"', { cwd: workDir })
                 await pushAndPersist(`Auto-committed WIP. Previous work is now saved on branch.`)
               }
+              // Ensure default branch is up to date before continuing work
+              try {
+                await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: workDir })
+                await execAsync(`git checkout ${repoDefaultBranch}`, { cwd: workDir })
+                await execAsync(`git reset --hard origin/${repoDefaultBranch}`, { cwd: workDir })
+                await pushAndPersist(`Updated ${repoDefaultBranch} to latest origin state`)
+              } catch (updateErr: any) {
+                await pushAndPersist(`Warning: could not update ${repoDefaultBranch}: ${updateErr.message}`)
+              }
+
               await execAsync(`git checkout ${branchName}`, { cwd: workDir })
+
+              // Try to rebase the task branch onto latest default branch so agent works on freshest code
+              try {
+                await execAsync(`git rebase origin/${repoDefaultBranch}`, { cwd: workDir })
+                await pushAndPersist(`Rebased ${branchName} onto latest ${repoDefaultBranch}`)
+              } catch (rebaseErr: any) {
+                await pushAndPersist(`Rebase failed: ${rebaseErr.message}. Aborting rebase and continuing on branch as-is.`)
+                try { await execAsync('git rebase --abort', { cwd: workDir }) } catch {}
+              }
+
               const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: workDir })
               const actualBranch = currentBranch.trim()
               if (actualBranch !== branchName) {
@@ -773,12 +794,25 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
             logMsg = 'Step started'
             break
           case 'text':
-            logMsg = formatTextEvent(part)
             fullText = typeof part === 'string' ? part : part.text || part.content || ''
-            // NOTE: We intentionally do NOT save intermediate text chunks as
-            // 'agent_reply' comments.  The live stream already shows them in the
-            // runtime panel.  Only the final summary (saved in the proc.on('exit')
-            // handler) is persisted as a single agent comment.
+            // Detect [AGENT_REPLY] marker — save full content as a comment,
+            // but do NOT stream the raw text as a runtime log.
+            if (fullText && fullText.includes('[AGENT_REPLY]')) {
+              const replyBody = fullText.split('[AGENT_REPLY]')[1]?.trim() || fullText.trim()
+              agentReplyContent = replyBody
+              // Persist immediately so the full reply is stored even if the process crashes
+              try {
+                await db.insert(schema.activityLogs).values({
+                  taskId: id,
+                  userId: user.id,
+                  action: 'agent_reply',
+                  newValue: { message: replyBody },
+                })
+              } catch {}
+              logMsg = '[AGENT_REPLY] received'
+              break
+            }
+            logMsg = formatTextEvent(part)
             break
           case 'step_finish':
             logMsg = 'Step completed'
@@ -964,22 +998,25 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
             await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${err.message}`, timestamp: Date.now() }))
           }
 
-          // Save the diff summary as the single agent_reply comment.
-          // Intermediate text chunks are intentionally NOT persisted as comments
-          // (they only appear in the live runtime feed).
-          try {
-            const summary = await getDiffSummary(workDir, repoDefaultBranch, task.title, task.description)
-            if (summary) {
-              await db.insert(schema.activityLogs).values({
-                taskId: id,
-                userId: user.id,
-                action: 'agent_reply',
-                newValue: { message: `Summary: ${summary}` },
-              })
-              await pushToStreams(entry, JSON.stringify({ step: 'Posted summary to task comments', timestamp: Date.now() }))
+          // If the agent produced a [AGENT_REPLY] during the run, it was already
+          // persisted in real-time. Otherwise, fall back to the diff summary.
+          if (!agentReplyContent) {
+            try {
+              const summary = await getDiffSummary(workDir, repoDefaultBranch, task.title, task.description)
+              if (summary) {
+                await db.insert(schema.activityLogs).values({
+                  taskId: id,
+                  userId: user.id,
+                  action: 'agent_reply',
+                  newValue: { message: `Summary: ${summary}` },
+                })
+                await pushToStreams(entry, JSON.stringify({ step: 'Posted summary to task comments', timestamp: Date.now() }))
+              }
+            } catch (err: any) {
+              await pushToStreams(entry, JSON.stringify({ step: `Summary post failed: ${err.message}`, timestamp: Date.now() }))
             }
-          } catch (err: any) {
-            await pushToStreams(entry, JSON.stringify({ step: `Summary post failed: ${err.message}`, timestamp: Date.now() }))
+          } else {
+            await pushToStreams(entry, JSON.stringify({ step: 'Agent reply already posted to comments', timestamp: Date.now() }))
           }
         } catch (err: any) {
           await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))

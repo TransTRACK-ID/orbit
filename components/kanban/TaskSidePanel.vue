@@ -71,10 +71,11 @@
         <div class="flex-1 overflow-y-auto p-6">
           <div class="mb-4">
             <TextInput
-              :model-value="task.title"
+              v-model="editingTitle"
               placeholder="Task title"
               class="text-lg font-semibold !border-transparent !bg-transparent !px-0"
-              @update:model-value="handleUpdate('title', $event)"
+              @focus="isTitleFocused = true"
+              @blur="handleTitleBlur"
             />
           </div>
 
@@ -824,6 +825,8 @@ async function ensureDefaultLabels() {
 // ─── Description editor ───
 const descTab = ref<'write' | 'preview'>('preview')
 const editingDescription = ref('')
+const editingTitle = ref('')
+const isTitleFocused = ref(false)
 
 const isAgentInProgress = computed(() => {
   return (
@@ -1243,6 +1246,11 @@ watch(latestAgentReply, (reply) => {
   }
 })
 
+watch(() => props.taskId, () => {
+  debouncedSaveTitle.cancel()
+  isTitleFocused.value = false
+})
+
 const remotePrUrl = ref('')
 
 const prUrl = computed(() => {
@@ -1517,6 +1525,7 @@ onMounted(async () => {
   } finally {
     loading.value = false
     editingDescription.value = task.value?.description || ''
+    editingTitle.value = task.value?.title || ''
   }
 
   if (task.value && isAgentInProgress.value && !isRunning(task.value.id)) {
@@ -1566,6 +1575,8 @@ onMounted(async () => {
 
 async function handleUpdate(field: string, value: any) {
   if (!task.value) return
+  // Title is handled separately via debouncedSaveTitle / handleTitleBlur
+  if (field === 'title') return
   const old = { ...task.value }
   const updated = await updateTaskApi(task.value.id, { [field]: value })
   if (updated && field === 'statusId' && old.statusId !== value) {
@@ -1596,6 +1607,42 @@ function handleDescriptionBlur() {
   task.value.description = plain
   debouncedSave('description', plain)
 }
+
+const debouncedSaveTitle = useDebounceFn(async (value: string) => {
+  if (!task.value) return
+  try {
+    const updated = await updateTaskApi(task.value.id, { title: value })
+    if (updated && !isTitleFocused.value) {
+      task.value = updated
+      emit('updated', updated)
+    }
+  } catch (err) {
+    console.error('Failed to save title:', err)
+  }
+}, 800)
+
+function handleTitleBlur() {
+  isTitleFocused.value = false
+  if (!task.value) return
+  const value = editingTitle.value.trim()
+  if (value && value !== task.value.title) {
+    debouncedSaveTitle.cancel()
+    updateTaskApi(task.value.id, { title: value }).then((updated) => {
+      if (updated) {
+        task.value = updated
+        emit('updated', updated)
+      }
+    }).catch((err) => {
+      console.error('Failed to save title on blur:', err)
+    })
+  }
+}
+
+watch(editingTitle, (value) => {
+  if (isTitleFocused.value && task.value && value !== task.value.title) {
+    debouncedSaveTitle(value)
+  }
+})
 
 function toggleLabel(labelId: string) {
   if (!task.value) return

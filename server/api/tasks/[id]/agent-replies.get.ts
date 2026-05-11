@@ -1,13 +1,12 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, desc, inArray, and } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
 
 /**
  * Returns persisted agent runtime responses for a task.
  *
- * Returns ALL agent_reply entries without session collapsing.
- * Filters runtime_log entries to avoid step-level noise in the conversation view
- * while keeping meaningful runtime output (e.g. commit messages, errors).
+ * Returns ONLY agent_reply entries. Runtime logs are intentionally excluded
+ * from the conversation view — they belong in the live runtime stream panel.
  */
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -31,36 +30,20 @@ export default defineEventHandler(async (event) => {
     : '#6366f1'
 
   const logs = await db.query.activityLogs.findMany({
-    where: (al, { eq, and, inArray }) => and(
+    where: (al, { eq, and }) => and(
       eq(al.taskId, id),
-      inArray(al.action, ['runtime_log', 'agent_reply']),
+      eq(al.action, 'agent_reply'),
     ),
     orderBy: [desc(schema.activityLogs.createdAt)],
     limit: 500,
   })
 
-  // Keep ALL agent_reply entries (conversational responses) — no compression
-  const agentReplies = logs.filter(l => l.action === 'agent_reply')
-
-  // For runtime_log, filter out step-level noise that would clutter the conversation view
-  const skipPattern = /^(User:|Waiting for opencode|Process exited|Done|Step (started|completed)|Spawning opencode|Cloning|Cloned to|Switched to|Checked out|Including PR|Including user message|Pushed|No changes|Push failed|Exited with|Reading |Writing to |Editing |Running:|Searching:|Searching for|Listing |Notification:|Question:|Creating directory|Tool:|Agent completed your request|Agent .+ assigned (to|from)|Continuing on|Reset .* to origin state|Created fresh branch|Branch commits|Git status|HEAD:|Committed:|Auto-stash|Checkout failed|Clone failed|Branch setup failed|Created PR:|Created MR:|PR created:|MR created:|Exec:|CWD:|HOME:|Summary:|opencode version:|opencode not found)/i
-
-  const runtimeLogs = logs.filter(l => {
-    if (l.action !== 'runtime_log') return false
-    const msg: string = l.newValue?.message || ''
-    const trimmed = msg.trim()
-    if (!trimmed) return false
-    // Drop boilerplate step logs
-    if (/^(Done\.?|Step completed|Step started|Process exited)$/i.test(trimmed)) return false
-    return !skipPattern.test(trimmed)
-  })
-
-  // Merge and return ALL entries — no session collapsing, no representatives
-  const allEntries = [...agentReplies, ...runtimeLogs]
+  // Only return agent_reply entries — runtime logs belong in the live stream panel only
+  const allEntries = [...logs]
   allEntries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return allEntries.map(log => ({
-    id: log.action === 'agent_reply' ? `agent-${log.id}` : `runtime-${log.id}`,
+    id: `agent-${log.id}`,
     body: (log.newValue as { message: string }).message,
     createdAt: log.createdAt,
     agentName: defaultAgentName,

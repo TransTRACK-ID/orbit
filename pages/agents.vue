@@ -176,15 +176,8 @@
                 class="w-full py-2 px-3 rounded-lg border border-surface-200 bg-surface-50 text-xs outline-none focus:border-accent focus:bg-white transition-colors"
               />
             </div>
-            <div class="mb-4">
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Runtime CLI</label>
-              <select
-                v-model="form.runtime"
-                class="w-full py-2 px-3 rounded-lg border border-surface-200 bg-surface-50 text-xs outline-none focus:border-accent focus:bg-white transition-colors"
-              >
-                <option v-for="rt in runtimes" :key="rt.id" :value="rt.id">{{ rt.name }}</option>
-              </select>
-            </div>
+            <!-- Runtime CLI hidden — always defaults to opencode -->
+            <input v-model="form.runtime" type="hidden" value="opencode" />
             <div class="mb-4">
               <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Specialization / Purpose</label>
               <textarea

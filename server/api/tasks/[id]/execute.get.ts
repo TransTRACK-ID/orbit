@@ -840,7 +840,9 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
                   newValue: { message: replyBody },
                 })
               } catch {}
-              logMsg = '[AGENT_REPLY] received'
+              // Prefix the runtime log with [AGENT_REPLY] so the frontend can
+              // identify it as an agent reply and show it in comments.
+              logMsg = `[AGENT_REPLY] ${replyBody.slice(0, 200)}`
               break
             }
             logMsg = formatTextEvent(part)

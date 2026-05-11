@@ -9,6 +9,30 @@
         <Icon name="lucide:plus" class="w-3 h-3" />
         <span class="max-sm:hidden">Add Agent</span>
       </button>
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] text-surface-400 max-sm:hidden">Quick add:</span>
+        <button
+          class="px-2.5 py-1 rounded-md bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20 text-[10px] font-semibold flex items-center gap-1 hover:bg-[#2563EB]/20 transition-colors"
+          @click="openCreateModalWithTemplate('raihan')"
+        >
+          <Icon name="lucide:user" class="w-2.5 h-2.5" />
+          Raihan
+        </button>
+        <button
+          class="px-2.5 py-1 rounded-md bg-[#0891B2]/10 text-[#0891B2] border border-[#0891B2]/20 text-[10px] font-semibold flex items-center gap-1 hover:bg-[#0891B2]/20 transition-colors"
+          @click="openCreateModalWithTemplate('ayu')"
+        >
+          <Icon name="lucide:pen-tool" class="w-2.5 h-2.5" />
+          Ayu
+        </button>
+        <button
+          class="px-2.5 py-1 rounded-md bg-[#16A34A]/10 text-[#16A34A] border border-[#16A34A]/20 text-[10px] font-semibold flex items-center gap-1 hover:bg-[#16A34A]/20 transition-colors"
+          @click="openCreateModalWithTemplate('martin')"
+        >
+          <Icon name="lucide:bug" class="w-2.5 h-2.5" />
+          Martin
+        </button>
+      </div>
     </div>
     <p class="text-xs text-surface-400 mb-6">{{ agentCounts.total }} agents across all workspaces</p>
 
@@ -252,6 +276,46 @@ const form = reactive({
 function openCreateModal() {
   editingAgent.value = null
   resetForm()
+  showModal.value = true
+}
+
+const agentTemplates: Record<string, Partial<typeof form>> = {
+  raihan: {
+    name: 'Raihan',
+    role: 'Software Engineer',
+    runtime: 'opencode',
+    purpose: 'Expert software engineer specializing in full-stack development, code review, debugging, and system architecture. Writes clean, maintainable code and provides technical guidance on best practices.',
+    status: 'idle',
+    color: '#2563EB',
+  },
+  ayu: {
+    name: 'Ayu',
+    role: 'Technical Writer',
+    runtime: 'opencode',
+    purpose: 'Skilled technical writer focused on creating clear documentation, API guides, user manuals, and release notes. Translates complex technical concepts into accessible content for diverse audiences.',
+    status: 'idle',
+    color: '#0891B2',
+  },
+  martin: {
+    name: 'Martin',
+    role: 'QA Engineer',
+    runtime: 'opencode',
+    purpose: 'Detail-oriented QA engineer responsible for test planning, automated testing, bug triage, and quality assurance workflows. Ensures software reliability through rigorous testing and clear defect reporting.',
+    status: 'idle',
+    color: '#16A34A',
+  },
+}
+
+function openCreateModalWithTemplate(templateKey: string) {
+  const template = agentTemplates[templateKey]
+  if (!template) return
+  editingAgent.value = null
+  form.name = template.name || ''
+  form.role = template.role || 'Custom Agent'
+  form.runtime = template.runtime || 'opencode'
+  form.purpose = template.purpose || ''
+  form.status = (template.status as AgentStatus) || 'idle'
+  form.color = template.color || '#7C3AED'
   showModal.value = true
 }
 

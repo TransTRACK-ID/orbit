@@ -80,7 +80,7 @@ export const createTaskSchema = z.object({
   assigneeId: z.string().uuid().nullable().optional(),
   assigneeType: z.enum(['user', 'agent']).nullable().optional(),
   observerId: z.string().uuid().nullable().optional(),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   priority: z.enum(['none', 'urgent', 'high', 'medium', 'low']).optional(),
   repositoryId: z.string().uuid().nullable().optional(),
   parentTaskId: z.string().uuid().nullable().optional(),

@@ -8,6 +8,8 @@ services:
       args:
         - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
     container_name: orbit-web
+    ports:
+      - "3031:3000"
     environment:
       - POSTGRES_URL=${POSTGRES_URL}
       - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}

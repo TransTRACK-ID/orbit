@@ -26,6 +26,51 @@ function extractRepoName(url: string): string {
   return match ? match[1] : 'repo'
 }
 
+function sanitizeDirName(name: string): string {
+  return name
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .replace(/^-+|-+$/g, '')
+    || 'repo'
+}
+
+function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string | null): string {
+  const urlName = sanitizeDirName(extractRepoName(repoUrl))
+  const displayName = repoName ? sanitizeDirName(repoName) : null
+  const rawDisplayName = repoName ? repoName.trim() : null
+
+  // Prefer exact display name if directory already exists (preserves existing clones)
+  if (rawDisplayName) {
+    const rawDisplayDir = `${projectsDir}/${rawDisplayName}`
+    if (existsSync(rawDisplayDir)) return rawDisplayDir
+  }
+
+  // Try sanitized display name
+  if (displayName) {
+    const displayDir = `${projectsDir}/${displayName}`
+    if (existsSync(displayDir)) return displayDir
+  }
+
+  // If repo was renamed in UI, scan existing directories for one with matching remote URL
+  try {
+    const entries = require('fs').readdirSync(projectsDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      const gitConfigPath = `${projectsDir}/${entry.name}/.git/config`
+      if (existsSync(gitConfigPath)) {
+        const config = readFileSync(gitConfigPath, 'utf-8')
+        if (config.includes(`url = ${repoUrl}`) || config.includes(repoUrl)) {
+          return `${projectsDir}/${entry.name}`
+        }
+      }
+    }
+  } catch {}
+
+  // Fall back to URL-derived name
+  return `${projectsDir}/${urlName}`
+}
+
 function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
   const envToken = platform === 'github'
     ? (process.env.GITHUB_TOKEN || '')
@@ -99,7 +144,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'No repository configured for this task' })
   }
 
-  const repoDir = `${projectsDir}/${repoName || extractRepoName(repoUrl)}`
+  const repoDir = resolveCloneDir(projectsDir, repoUrl, repoName)
 
   if (!existsSync(repoDir)) {
     throw createError({ statusCode: 400, statusMessage: 'Repository not cloned yet. Run the agent first.' })

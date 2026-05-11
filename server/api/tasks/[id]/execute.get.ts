@@ -993,9 +993,14 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
               } else if (prResult?.noChanges) {
                 await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
               }
+            } else {
+              const errorBody = await res.text().catch(() => '')
+              const errorMsg = errorBody.slice(0, 400) || `HTTP ${res.status}`
+              await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${errorMsg}`, timestamp: Date.now() }))
             }
           } catch (err: any) {
-            await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${err.message}`, timestamp: Date.now() }))
+            const msg = err?.message || String(err)
+            await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${msg}`, timestamp: Date.now() }))
           }
 
           // If the agent produced a [AGENT_REPLY] during the run, it was already

@@ -232,14 +232,17 @@ export default defineEventHandler(async (event) => {
     if (cli === 'glab') {
       try {
         const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: repoDir })
-        const match = remoteUrl.trim().match(/^(https?:\/\/[^\/]+)/)
-        if (match && !match[1].includes('github.com')) {
-          gitlabHost = match[1]
+        // Extract hostname only (drop scheme, auth, port) — glab expects just the host
+        const hostMatch = remoteUrl.trim().match(/^https?:\/\/(?:[^@]+@)?([^\/]+)/)
+        if (hostMatch) {
+          gitlabHost = hostMatch[1]
         }
       } catch {}
     }
 
-    const gitlabEnv = gitlabHost ? { ...process.env, GITLAB_HOST: gitlabHost } : process.env
+    const gitlabEnv: NodeJS.ProcessEnv = gitlabHost
+      ? { ...process.env, GITLAB_HOST: gitlabHost, ...(repoToken ? { GITLAB_TOKEN: repoToken } : {}) }
+      : process.env
 
     // Check if PR/MR already exists for this branch
     let existingPrUrl = ''

@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     ca-certificates \
     gnupg \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install bun in the runner (needed for agent runtime / opencode)

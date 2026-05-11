@@ -694,6 +694,12 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
         const agentsContent = readFileSync(realAgentsPath, 'utf-8')
         writeFileSync(`${fakeConfigDir}/AGENTS.md`, agentsContent, 'utf-8')
       }
+      // Copy opencode.json so the agent can authenticate with the AI API
+      const realConfigPath = `${process.env.HOME || '/root'}/.config/opencode/opencode.json`
+      if (existsSync(realConfigPath)) {
+        const configContent = readFileSync(realConfigPath, 'utf-8')
+        writeFileSync(`${fakeConfigDir}/opencode.json`, configContent, 'utf-8')
+      }
     } catch (err: any) {
       await pushAndPersist(`Warning: could not set up isolated home: ${err.message}`)
     }

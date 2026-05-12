@@ -9,6 +9,60 @@ import { eq, asc } from 'drizzle-orm'
 
 const execAsync = promisify(exec)
 
+const MAX_DIFF_CHARS = 12000
+
+/** Build a context block with latest code changes (stats + actual diffs) for the agent */
+async function getLatestChangesContext(workDir: string, repoDefaultBranch: string): Promise<string> {
+  try {
+    const sections: string[] = []
+
+    // 1. Git status — list modified/new/deleted files
+    const { stdout: statusOut } = await execAsync('git status --short', { cwd: workDir }).catch(() => ({ stdout: '' }))
+    if (statusOut.trim()) {
+      sections.push(`Modified/uncommitted files:\n${statusOut.trim()}`)
+    }
+
+    // 2. Diff stat — show how many lines changed per file
+    const { stdout: statOut } = await execAsync(`git diff --stat origin/${repoDefaultBranch}...HEAD 2>/dev/null || git diff --cached --stat || true`, { cwd: workDir }).catch(() => ({ stdout: '' }))
+    if (statOut.trim()) {
+      sections.push(`Change statistics:\n${statOut.trim()}`)
+    }
+
+    // 3. Recent commit messages on this branch
+    const { stdout: logOut } = await execAsync(`git log origin/${repoDefaultBranch}..HEAD --format="%h %s" --no-merges 2>/dev/null || true`, { cwd: workDir }).catch(() => ({ stdout: '' }))
+    if (logOut.trim()) {
+      sections.push(`Commits on this branch:\n${logOut.trim()}`)
+    }
+
+    // 4. Actual diff of committed changes on this branch (truncated)
+    const { stdout: committedDiff } = await execAsync(
+      `git diff origin/${repoDefaultBranch}...HEAD 2>/dev/null || true`,
+      { cwd: workDir }
+    ).catch(() => ({ stdout: '' }))
+    if (committedDiff.trim()) {
+      const truncated = committedDiff.length > MAX_DIFF_CHARS
+        ? committedDiff.slice(0, MAX_DIFF_CHARS) + '\n\n... (diff truncated)'
+        : committedDiff
+      sections.push(`Committed diff (latest branch changes):\n\`\`\`diff\n${truncated}\n\`\`\``)
+    }
+
+    // 5. Actual diff of uncommitted changes (truncated)
+    const { stdout: uncommittedDiff } = await execAsync('git diff 2>/dev/null || true', { cwd: workDir }).catch(() => ({ stdout: '' }))
+    if (uncommittedDiff.trim()) {
+      const truncated = uncommittedDiff.length > MAX_DIFF_CHARS
+        ? uncommittedDiff.slice(0, MAX_DIFF_CHARS) + '\n\n... (diff truncated)'
+        : uncommittedDiff
+      sections.push(`Uncommitted diff (not yet committed):\n\`\`\`diff\n${truncated}\n\`\`\``)
+    }
+
+    if (sections.length === 0) return ''
+
+    return `\n\n[CURRENT CODEBASE STATE — latest changes]\n${sections.join('\n\n')}\n\nWhen answering the user's question, ALWAYS examine the actual diffs above. Reference specific code, file paths, and line numbers from the diffs to give an accurate, detailed answer about what was implemented.`
+  } catch {
+    return ''
+  }
+}
+
 function formatToolEvent(part: any): string {
   if (!part) return ''
   const tool = part.tool
@@ -707,11 +761,24 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
 
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including user message: ${feedbackTail}`)
-        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
+
+        // Always include the latest codebase changes so the agent can answer accurately
+        const changesContext = await getLatestChangesContext(workDir, repoDefaultBranch)
+        if (changesContext) {
+          await pushAndPersist(`Included latest codebase changes in context`)
+        }
+
+        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${changesContext}\n\n${historyContext}${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`}
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
-        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}`
+
+        const changesContext = await getLatestChangesContext(workDir, repoDefaultBranch)
+        if (changesContext) {
+          await pushAndPersist(`Included latest codebase changes in context`)
+        }
+
+        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}`
       }
     }
 

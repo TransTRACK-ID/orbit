@@ -828,26 +828,11 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
             break
           case 'text':
             fullText = typeof part === 'string' ? part : part.text || part.content || ''
-            // Detect [AGENT_REPLY] marker — save full content as a comment,
-            // but do NOT stream the raw text as a runtime log.
-            if (fullText && fullText.includes('[AGENT_REPLY]')) {
-              const replyBody = fullText.split('[AGENT_REPLY]')[1]?.trim() || fullText.trim()
-              agentReplyContent = replyBody
-              // Persist immediately so the full reply is stored even if the process crashes
-              try {
-                await db.insert(schema.activityLogs).values({
-                  taskId: id,
-                  userId: user.id,
-                  action: 'agent_reply',
-                  newValue: { message: replyBody },
-                })
-              } catch (err: any) {
-                console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
-              }
-              // Prefix the runtime log with [AGENT_REPLY] so the frontend can
-              // identify it as an agent reply and show it in comments.
-              logMsg = `[AGENT_REPLY] ${replyBody.slice(0, 200)}`
-              break
+            // Capture agent text responses for persistence.
+            // The [AGENT_REPLY] marker is added by the frontend, not by opencode,
+            // so we track the latest text as the agent's reply.
+            if (fullText) {
+              agentReplyContent = fullText.trim()
             }
             logMsg = formatTextEvent(part)
             break
@@ -1053,6 +1038,21 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       const msg = code === 0 ? 'Done' : `Exited with code ${code}`
       await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       persistLog(msg)
+
+      // Persist the agent's final text response so it survives page refresh.
+      if (agentReplyContent) {
+        try {
+          await db.insert(schema.activityLogs).values({
+            taskId: id,
+            userId: user.id,
+            action: 'agent_reply',
+            newValue: { message: agentReplyContent },
+          })
+        } catch (err: any) {
+          console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+        }
+      }
+
       activeProcesses.delete(id)
       for (const s of entry.streams) {
         try { s.close() } catch {}

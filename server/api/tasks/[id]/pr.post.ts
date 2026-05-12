@@ -201,16 +201,35 @@ export default defineEventHandler(async (event) => {
       return { url: null, noChanges: true }
     }
 
-    // Generate a Conventional Commits title from the actual diff
+    // Build PR title & body from agent commits (preferred) or diff (fallback)
     try {
-      const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: repoDir })
-      const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: repoDir })
-      const changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
-      if (changedFiles.length > 0) {
-        prTitle = generateConventionalCommit(diffOutput, changedFiles)
+      // Try to read the actual commit messages the agent created
+      const { stdout: commitLog } = await execAsync(
+        `git log origin/${repoDefaultBranch}..HEAD --format="%s" --no-merges`,
+        { cwd: repoDir }
+      )
+      const commits = commitLog.trim().split('\n').filter(Boolean)
+      if (commits.length > 0) {
+        // Use the most recent commit as PR title, all commits as body bullets
+        prTitle = commits[0]
+        prBody = await getDiffSummary(repoDir, repoDefaultBranch, prTitle, task.description)
+        prBody += '\n\n## Commits\n\n'
+        for (const c of commits) {
+          prBody += `- ${c}\n`
+        }
+      } else {
+        // No commits yet (uncommitted changes) — generate from diff
+        const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: repoDir })
+        const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: repoDir })
+        const changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
+        if (changedFiles.length > 0) {
+          prTitle = generateConventionalCommit(diffOutput, changedFiles)
+        }
+        prBody = await getDiffSummary(repoDir, repoDefaultBranch, prTitle, task.description)
       }
     } catch {
-      // Fallback to task title
+      // Fallback to task title + diff summary
+      prBody = await getDiffSummary(repoDir, repoDefaultBranch, prTitle, task.description)
     }
   } else {
     // No local worktree — check if the branch exists on remote
@@ -231,6 +250,28 @@ export default defineEventHandler(async (event) => {
     // Branch exists on remote — we can create PR from main clone dir
     prCwd = mainCloneDir
     hasCommittedChanges = true
+
+    // Build PR title & body from remote branch commits
+    try {
+      const { stdout: commitLog } = await execAsync(
+        `git log origin/${repoDefaultBranch}..origin/${branch} --format="%s" --no-merges`,
+        { cwd: mainCloneDir }
+      )
+      const commits = commitLog.trim().split('\n').filter(Boolean)
+      if (commits.length > 0) {
+        prTitle = commits[0]
+        prBody = `## Summary\n\n**${prTitle}**\n\n`
+        if (task.description) {
+          prBody += `${task.description}\n\n`
+        }
+        prBody += `## Commits\n\n`
+        for (const c of commits) {
+          prBody += `- ${c}\n`
+        }
+      }
+    } catch {
+      // Fallback to task title
+    }
   }
 
   try {
@@ -352,15 +393,14 @@ export default defineEventHandler(async (event) => {
       return { url: existingPrUrl, branch }
     }
 
-    if (prBody) {
-      writeFileSync('/tmp/pr-body.md', prBody, 'utf-8')
-    }
+    // Always write body file (even if empty) so CLI always has a body source
+    writeFileSync('/tmp/pr-body.md', prBody || '', 'utf-8')
     
     let prUrl = ''
     let lastError = ''
     const safeTitle = (prTitle || 'Task update').trim()
     if (cli === 'glab') {
-      const bodyArg = prBody ? `--description ${shEscape(readFileSync('/tmp/pr-body.md', 'utf-8'))}` : ''
+      const bodyArg = prBody ? `--description ${shEscape(readFileSync('/tmp/pr-body.md', 'utf-8'))}` : `--description "${''}"`
       const titleArg = `--title ${shEscape(safeTitle)}`
       const cmd = `glab mr create ${titleArg} ${bodyArg} --target-branch ${repoDefaultBranch || 'main'} --source-branch ${branch} -y 2>&1 || true`
       console.log(`[pr.post] Running glab command: ${cmd}`)
@@ -387,9 +427,8 @@ export default defineEventHandler(async (event) => {
         }
       }
     } else {
-      const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
       const { stdout, stderr } = await execAsync(
-        `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
+        `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" --body-file /tmp/pr-body.md --base ${repoDefaultBranch || 'main'} --head ${branch}`,
         { cwd: prCwd, env: githubEnv }
       )
       prUrl = (stdout + stderr).trim()

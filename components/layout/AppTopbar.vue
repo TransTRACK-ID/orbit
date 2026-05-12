@@ -92,6 +92,16 @@
               <p v-if="userEmail" class="text-[10px] text-surface-500 truncate mt-0.5">{{ userEmail }}</p>
             </div>
 
+            <!-- Admin -->
+            <button
+              v-if="isSuperAdmin"
+              class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-accent hover:bg-accent/5 transition-colors"
+              @click="navigateTo('/admin')"
+            >
+              <Icon name="lucide:shield" class="w-3.5 h-3.5" />
+              Admin Dashboard
+            </button>
+
             <!-- Settings -->
             <button
               class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-surface-700 hover:bg-surface-50 transition-colors"
@@ -155,6 +165,7 @@ onMounted(() => {
 
 const { data: session, signOut } = useAuth()
 const user = computed(() => (session.value?.user as any) || { name: 'Alex Chen' })
+const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
 const userName = computed(() => user.value?.name || 'Alex Chen')
 const userEmail = computed(() => user.value?.email || '')
 const userInitials = computed(() => {

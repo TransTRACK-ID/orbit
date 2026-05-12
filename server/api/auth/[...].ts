@@ -56,6 +56,7 @@ export default NuxtAuthHandler({
           email: user.email,
           name: user.name,
           avatarUrl: user.avatarUrl,
+          role: user.role,
         }
       },
     }),
@@ -67,6 +68,21 @@ export default NuxtAuthHandler({
         token.email = user.email
         token.name = user.name
         token.picture = user.avatarUrl || null
+        token.role = user.role || 'user'
+      } else if (token.id) {
+        // Refresh role from DB so changes take effect without re-login
+        try {
+          const db = getDb()
+          const dbUser = await db.query.users.findFirst({
+            where: eq(schema.users.id, token.id),
+            columns: { role: true },
+          })
+          if (dbUser) {
+            token.role = dbUser.role
+          }
+        } catch {
+          // keep existing token role on error
+        }
       }
       return token
     },
@@ -76,6 +92,7 @@ export default NuxtAuthHandler({
         session.user.email = token.email
         session.user.name = token.name
         session.user.avatarUrl = token.picture || null
+        session.user.role = token.role || 'user'
       }
       return session
     },

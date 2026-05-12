@@ -672,12 +672,15 @@ CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" fo
     const securityRule = `[SECURITY BOUNDARIES]
 CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
 
+    const databaseRule = `[DATABASE CONSTRAINTS]
+CRITICAL: You do NOT have access to database credentials, .env files, or any database connection. You must NEVER attempt to run database migrations, schema generation, or any database-related CLI commands (such as drizzle-kit generate, drizzle-kit push, db:migrate, prisma migrate, etc.). You must NEVER create or modify files in any migrations/ directory. If a task involves database schema changes, ONLY update the TypeScript schema definition files — do NOT attempt to generate or run migrations. The user will handle all database operations separately.`
+
     const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
     const labelsContext = labels.length > 0
       ? `\n\n[TASK TYPE: ${labels.join(', ')}]`
       : '\n\n[TASK TYPE: none — no labels assigned]'
 
-    let message = `${platformRule}\n\n${securityRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
 
     if (feedback) {
       if (feedback.includes('[USER MESSAGE]')) {
@@ -703,11 +706,11 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
 
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including user message: ${feedbackTail}`)
-        message = `${platformRule}\n\n${securityRule}\n\n${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
+        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${historyContext}${feedback}\n\nRead the user message carefully and respond accordingly. You are in a chat context.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
-        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}`
+        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}`
       }
     }
 

@@ -1036,24 +1036,9 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
             await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${msg}`, timestamp: Date.now() }))
           }
 
-          // If the agent produced a [AGENT_REPLY] during the run, it was already
-          // persisted in real-time. Otherwise, fall back to the diff summary.
-          if (!agentReplyContent) {
-            try {
-              const summary = await getDiffSummary(workDir, repoDefaultBranch, task.title, task.description)
-              if (summary) {
-                await db.insert(schema.activityLogs).values({
-                  taskId: id,
-                  userId: user.id,
-                  action: 'agent_reply',
-                  newValue: { message: `Summary: ${summary}` },
-                })
-                await pushToStreams(entry, JSON.stringify({ step: 'Posted summary to task comments', timestamp: Date.now() }))
-              }
-            } catch (err: any) {
-              await pushToStreams(entry, JSON.stringify({ step: `Summary post failed: ${err.message}`, timestamp: Date.now() }))
-            }
-          } else {
+          // Agent reply was already persisted in real-time if [AGENT_REPLY] was detected.
+          // We no longer post auto-generated diff summaries to avoid replacing actual agent comments.
+          if (agentReplyContent) {
             await pushToStreams(entry, JSON.stringify({ step: 'Agent reply already posted to comments', timestamp: Date.now() }))
           }
         } catch (err: any) {

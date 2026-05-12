@@ -5,6 +5,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { getDiffSummary } from '~/server/utils/git-summary'
+import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 
 const execAsync = promisify(exec)
 
@@ -104,7 +105,7 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true },
+    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true, branchName: true },
   })
 
   if (!task) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
@@ -159,8 +160,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
   }
 
-  const branch = sanitizeBranchName(task.title)
-  const prTitle = task.title
+  const branch = task.branchName || sanitizeBranchName(task.title)
 
   let prBody = await getDiffSummary(repoDir, repoDefaultBranch, task.title, task.description)
 
@@ -181,6 +181,19 @@ export default defineEventHandler(async (event) => {
 
   if (!hasUncommitted && !hasCommittedChanges) {
     return { url: null, noChanges: true }
+  }
+
+  // Generate a Conventional Commits title from the actual diff
+  let prTitle = task.title
+  try {
+    const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: repoDir })
+    const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: repoDir })
+    const changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
+    if (changedFiles.length > 0) {
+      prTitle = generateConventionalCommit(diffOutput, changedFiles)
+    }
+  } catch {
+    // Fallback to task title
   }
 
   try {

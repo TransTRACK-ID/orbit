@@ -26,6 +26,7 @@ export const tasks = pgTable('tasks', {
   parentTaskId: uuid('parent_task_id').references((): typeof tasks.id => tasks.id, { onDelete: 'cascade' }),
   dueDate: timestamp('due_date'),
   estimate: integer('estimate'),
+  branchName: varchar('branch_name', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

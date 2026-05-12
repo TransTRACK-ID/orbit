@@ -268,6 +268,14 @@
             <p class="text-[10px] text-surface-400 mt-1">Repository cannot be changed after task creation</p>
           </div>
 
+          <div v-if="task.branchName" class="mb-4">
+            <label class="block text-xs font-medium text-surface-500 mb-1">Branch</label>
+            <div class="flex items-center gap-2 text-sm text-surface-700 bg-surface-50 rounded-lg border border-surface-200 px-3 py-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+              <code class="font-mono text-xs">{{ task.branchName }}</code>
+            </div>
+          </div>
+
           <div class="mb-6">
             <div class="flex items-center justify-between mb-2">
               <label class="block text-xs font-medium text-surface-500">Description</label>
@@ -1500,7 +1508,6 @@ const renderedDescription = computed(() => {
 })
 
 onMounted(async () => {
-  lastCompletionTimestamp.value = Date.now()
   try {
     await ensureDefaultLabels()
     task.value = await fetchTaskDetail(props.taskId)
@@ -1513,6 +1520,24 @@ onMounted(async () => {
     loading.value = false
     editingDescription.value = task.value?.description || ''
     editingTitle.value = task.value?.title || ''
+  }
+
+  // Initialize lastCompletionTimestamp from the most recent "Done" log
+  // so the watch only reacts to NEW completions, not old persisted ones.
+  const doneLog = runtimeLogsForTask.value.find(log => />?\s*Done$/.test(log.message))
+  lastCompletionTimestamp.value = doneLog ? doneLog.timestamp : Date.now()
+
+  // Handle runtime that already completed while the panel was closed
+  if (task.value && !runtimeActive.value && runtimeCompleted.value && !hasAdvanced.value) {
+    if (!isReviewStatus.value && !/done/i.test(task.value.status?.name || '')) {
+      await autoCreatePr()
+      const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
+      if (reviewStatus && task.value.statusId !== reviewStatus.id) {
+        await handleUpdate('statusId', reviewStatus.id)
+        activityLogs.value = await fetchActivity(props.taskId)
+      }
+      hasAdvanced.value = true
+    }
   }
 
   if (task.value && isAgentInProgress.value && !isRunning(task.value.id)) {
@@ -1756,6 +1781,7 @@ async function handleDuplicate() {
     assigneeId: null,
     assigneeType: null,
     repositoryId: task.value.repositoryId,
+    branchName: task.value.branchName,
     labelIds: task.value.labels?.map(l => l.id),
   })
 

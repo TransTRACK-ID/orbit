@@ -181,6 +181,15 @@
             <p class="text-[10px] text-surface-400 mt-1">Links this task to a repository for agent context</p>
           </div>
 
+          <div>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
+            <TextInput
+              v-model="form.branchName"
+              placeholder="feature/my-branch-name"
+            />
+            <p class="text-[10px] text-surface-400 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
+          </div>
+
           <KanbanMarkdownEditor v-model="form.description" :rows="3" />
 
           <div>
@@ -251,6 +260,7 @@ const form = reactive({
   observerId: null as string | null,
   description: '',
   repositoryId: props.repositories?.[0]?.id || null as string | null,
+  branchName: '' as string | null,
 })
 
   const showAssigneePicker = ref(false)
@@ -371,6 +381,7 @@ async function handleCreate() {
       description: form.description || undefined,
       repositoryId: form.repositoryId || undefined,
       labelIds: selectedLabels.value,
+      branchName: form.branchName || null,
     })
     emit('created', task)
   } catch (err: any) {

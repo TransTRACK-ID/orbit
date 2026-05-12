@@ -30,6 +30,7 @@ export const useTask = () => {
     repositoryId?: string | null
     labelIds?: string[]
     parentTaskId?: string | null
+    branchName?: string | null
   }) {
     const task = await $fetch<Task>(`/api/projects/${projectId}/tasks`, {
       method: 'POST',

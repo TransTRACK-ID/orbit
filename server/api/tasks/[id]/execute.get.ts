@@ -104,148 +104,10 @@ function resolveWorktreeDir(cloneDir: string, taskId: string): string {
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
 import { getDiffSummary } from '~/server/utils/git-summary'
+import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 
-/**
- * Generate a human-readable commit message from the actual git diff.
- * Describes WHAT changed (content / behavior) instead of just WHICH files.
- */
 function generateCommitMessageFromDiff(diffContent: string, changedFiles: string[]): string {
-  const files = changedFiles.filter(f => f.trim())
-  if (files.length === 0) return 'update files'
-
-  // --- Parse diff lines into added / removed meaningful content ---
-  const addedLines: string[] = []
-  const removedLines: string[] = []
-
-  for (const line of diffContent.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      const content = line.slice(1).trim()
-      if (content && !content.startsWith('//') && !content.startsWith('*')) {
-        addedLines.push(content)
-      }
-    } else if (line.startsWith('-') && !line.startsWith('---')) {
-      const content = line.slice(1).trim()
-      if (content && !content.startsWith('//') && !content.startsWith('*')) {
-        removedLines.push(content)
-      }
-    }
-  }
-
-  // --- Helper: extract meaningful tokens ---
-  const extractTokens = (lines: string[]): string[] => {
-    const tokens: string[] = []
-    for (const line of lines) {
-      // Tailwind / CSS color classes: bg-red-500, text-blue-600, etc.
-      const colorMatch = line.match(/\b(bg|text|border|color|fill|stroke|ring|shadow|outline|decoration)-([a-z]+-[0-9]+|current|transparent|white|black|inherit|primary|secondary)\b/)
-      if (colorMatch) tokens.push(`${colorMatch[1]} color ${colorMatch[2]}`)
-
-      // Hex colors
-      const hexMatch = line.match(/#([0-9a-fA-F]{3,8})\b/)
-      if (hexMatch) tokens.push(`color #${hexMatch[1]}`)
-
-      // New component / element tags: <NewComponent or <div class="...">
-      const tagMatch = line.match(/<([A-Z][a-zA-Z0-9_-]+)/)
-      if (tagMatch) tokens.push(`component ${tagMatch[1]}`)
-
-      // Attribute / prop changes
-      const propMatch = line.match(/\b([a-zA-Z0-9-:]+)=/)
-      if (propMatch) tokens.push(`property ${propMatch[1]}`)
-
-      // Variable / function names (rough heuristic)
-      const funcMatch = line.match(/\b(function|const|let|var|def|class)\s+([a-zA-Z0-9_]+)/)
-      if (funcMatch) tokens.push(`${funcMatch[1]} ${funcMatch[2]}`)
-
-      // Import additions
-      const importMatch = line.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/)
-      if (importMatch) tokens.push(`import ${importMatch[1].split('/').pop()}`)
-
-      // Event handlers / callbacks
-      const eventMatch = line.match(/\b(on[A-Z][a-zA-Z0-9]+|@click|@submit|@change|@input|v-on:)/)
-      if (eventMatch) tokens.push(`event handler`)
-
-      // Conditional logic
-      const logicMatch = line.match(/\b(if|else|while|for|switch|try|catch)\b/)
-      if (logicMatch) tokens.push(`${logicMatch[1]} logic`)
-    }
-    return tokens
-  }
-
-  const addedTokens = extractTokens(addedLines)
-  const removedTokens = extractTokens(removedLines)
-
-  // --- Detect specific change patterns ---
-
-  // 1. Color / style change (most common in Vue + Tailwind)
-  const addedColors = addedTokens.filter(t => t.includes('color'))
-  const removedColors = removedTokens.filter(t => t.includes('color'))
-  if (addedColors.length > 0 || removedColors.length > 0) {
-    const colorDesc = addedColors.length > 0
-      ? `to ${addedColors[0].replace('color ', '')}`
-      : 'styling'
-    const area = files.some(f => f.includes('Sidebar')) ? 'sidebar'
-      : files.some(f => f.includes('Header')) ? 'header'
-      : files.some(f => f.includes('Footer')) ? 'footer'
-      : files.some(f => f.includes('Button')) ? 'button'
-      : files.some(f => f.includes('Card')) ? 'card'
-      : files.some(f => f.includes('Modal')) ? 'modal'
-      : files.some(f => f.includes('Page')) ? 'page'
-      : files.some(f => f.includes('Layout')) ? 'layout'
-      : 'component'
-    return `change ${area} ${removedColors.length > 0 ? `from ${removedColors[0].replace('color ', '')} ` : ''}${colorDesc}`
-  }
-
-  // 2. New component / element added
-  const addedComponents = addedTokens.filter(t => t.startsWith('component '))
-  if (addedComponents.length > 0) {
-    return `add ${addedComponents[0].replace('component ', '')} component`
-  }
-
-  // 3. New function / method
-  const addedFuncs = addedTokens.filter(t => t.startsWith('function '))
-  if (addedFuncs.length > 0) {
-    return `add ${addedFuncs[0].replace('function ', '')} function`
-  }
-
-  // 4. Import changes
-  const addedImports = addedTokens.filter(t => t.startsWith('import '))
-  if (addedImports.length > 0) {
-    return `add ${addedImports[0].replace('import ', '')} import`
-  }
-
-  // 5. Event / interaction changes
-  if (addedTokens.some(t => t.includes('event handler'))) {
-    return 'add event handling'
-  }
-
-  // 6. Logic / conditional changes
-  const logicChanges = addedTokens.filter(t => t.includes('logic'))
-  if (logicChanges.length > 0) {
-    return `update ${logicChanges[0]} logic`
-  }
-
-  // 7. Text content changes (fallback for string modifications)
-  const addedStrings = addedLines.filter(l => l.match(/["']([^"']{3,})["']/))
-  const removedStrings = removedLines.filter(l => l.match(/["']([^"']{3,})["']/))
-  if (addedStrings.length > 0 || removedStrings.length > 0) {
-    const addedText = addedStrings[0]?.match(/["']([^"']{3,})["']/)?.[1] || ''
-    const removedText = removedStrings[0]?.match(/["']([^"']{3,})["']/)?.[1] || ''
-    if (addedText && removedText) {
-      return `update text from "${removedText.slice(0, 20)}" to "${addedText.slice(0, 20)}"`
-    } else if (addedText) {
-      return `add "${addedText.slice(0, 30)}" text`
-    }
-  }
-
-  // 8. Fallback: describe file scope with count
-  if (files.length === 1) {
-    const name = files[0].split('/').pop()?.replace(/\.(vue|ts|js|css|scss)$/i, '') || 'file'
-    return `update ${name}`
-  } else if (files.length <= 3) {
-    const names = files.map(f => f.split('/').pop()?.replace(/\.(vue|ts|js|css|scss)$/i, '') || '').join(', ')
-    return `update ${names}`
-  } else {
-    return `update ${files.length} files`
-  }
+  return generateConventionalCommit(diffContent, changedFiles)
 }
 
 /**
@@ -410,15 +272,19 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, description: true, projectId: true, repositoryId: true, agentAssigneeId: true },
+    columns: {
+      id: true,
+      title: true,
+      description: true,
+      statusId: true,
+      projectId: true,
+      repositoryId: true,
+      assigneeType: true,
+      branchName: true,
+    },
     with: {
-      agentAssignee: {
-        columns: { userId: true },
-      },
       taskLabels: {
-        with: {
-          label: true,
-        },
+        with: { label: true },
       },
     },
   })
@@ -585,7 +451,8 @@ export default defineEventHandler(async (event) => {
         // Inject auth token into the remote URL so push works non-interactively
         await configureGitAuth(mainCloneDir, repoUrl, repoPlatform, repoToken)
 
-        branchName = `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
+        branchName = task.branchName
+          || `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
 
         // ── Create or reuse the task-specific worktree ──
         if (!existsSync(worktreeDir)) {

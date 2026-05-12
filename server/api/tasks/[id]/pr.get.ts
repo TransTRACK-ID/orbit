@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, title: true, projectId: true, repositoryId: true },
+    columns: { id: true, title: true, projectId: true, repositoryId: true, branchName: true },
   })
 
   if (!task) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
@@ -72,7 +72,7 @@ export default defineEventHandler(async (event) => {
     return { url: null }
   }
 
-  const branch = sanitizeBranchName(task.title)
+  const branch = task.branchName || sanitizeBranchName(task.title)
 
   // Detect which CLI to use
   let cli = 'gh'

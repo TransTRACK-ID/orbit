@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
       parentTaskId: body.parentTaskId || null,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       estimate: body.estimate || null,
+      branchName: body.branchName || null,
     })
     .returning()
 

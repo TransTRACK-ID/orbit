@@ -103,6 +103,7 @@ export interface Task {
   parentTaskId: string | null
   dueDate: string | null
   estimate: number | null
+  branchName: string | null
   createdAt: string
   updatedAt: string
   assignee?: TaskAssignee | null

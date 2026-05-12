@@ -114,37 +114,34 @@ const classInput = computed(() => {
   return `${baseClass} ${hideSpinButton} ${cursor}`;
 });
 
-watch(() => props.modelValue, (value: any) => {
-    let formattedValue = "";
+function formatValue(value: any): string {
+  if (!value && value !== 0) return '';
 
-    if (value) {
-      if (props.type === 'number') {
-        const number = Number(value);
-        formattedValue = String(
-        (props.max && number > props.max)
-          ? props.max
-          : (props.min && number < props.min)
-              ? props.min
-              : value,
-        );
-      } else if (
-        props.type === "text" ||
-        props.type === "email" ||
-        props.type === "password"
-      ) {
-        formattedValue = value.slice(0, props.max);
-      } else {
-        formattedValue = value.replace(/\D/g, "");
-      }
-    }
-
-    emit("update:modelValue", formattedValue);
+  if (props.type === 'number') {
+    const number = Number(value);
+    return String(
+      (props.max !== undefined && number > props.max)
+        ? props.max
+        : (props.min !== undefined && number < props.min)
+            ? props.min
+            : value,
+    );
   }
-);
+
+  if (props.type === "text" || props.type === "email" || props.type === "password") {
+    if (props.max !== undefined) {
+      return String(value).slice(0, props.max);
+    }
+    return String(value);
+  }
+
+  return String(value).replace(/\D/g, "");
+}
 
 function onInput(value: any) {
-  emit("on-input", value);
-  emit("update:modelValue", value);
+  const formatted = formatValue(value);
+  emit("on-input", formatted);
+  emit("update:modelValue", formatted);
 }
 </script>
 

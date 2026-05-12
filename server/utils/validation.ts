@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidBranchName } from '~/utils/branch-validation'
 
 // ─── Auth ───
 export const loginSchema = z.object({
@@ -74,6 +75,14 @@ export const updateLabelSchema = z.object({
 })
 
 // ─── Task ───
+const validBranchName = z.string()
+  .max(100)
+  .nullable()
+  .optional()
+  .refine(isValidBranchName, {
+    message: 'Invalid branch name. Cannot start with ., -, or /, end with / or .lock, contain .., spaces, or special characters.'
+  })
+
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
   statusId: z.string().uuid(),
@@ -87,7 +96,7 @@ export const createTaskSchema = z.object({
   dueDate: z.string().datetime().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),
   labelIds: z.array(z.string().uuid()).optional(),
-  branchName: z.string().max(100).nullable().optional(),
+  branchName: validBranchName,
 })
 
 export const updateTaskSchema = z.object({
@@ -103,7 +112,7 @@ export const updateTaskSchema = z.object({
   dueDate: z.string().datetime().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),
   labelIds: z.array(z.string().uuid()).optional(),
-  branchName: z.string().max(100).nullable().optional(),
+  branchName: validBranchName,
 })
 
 // ─── Agent ───

@@ -186,8 +186,10 @@
             <TextInput
               v-model="form.branchName"
               placeholder="feature/my-branch-name"
+              :class="{ 'border-error-500': branchNameError }"
             />
-            <p class="text-[10px] text-surface-400 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
+            <p v-if="branchNameError" class="text-[10px] text-error-500 mt-1">{{ branchNameError }}</p>
+            <p v-else class="text-[10px] text-surface-400 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
           </div>
 
           <KanbanMarkdownEditor v-model="form.description" :rows="3" />
@@ -231,6 +233,7 @@
 <script setup lang="ts">
 import type { Status, Label, Task, ProjectMember, Repository } from '~/types'
 import type { Agent } from '~/types'
+import { validateBranchName } from '~/utils/branch-validation'
 
 const props = defineProps<{
   statuses: Status[]
@@ -270,6 +273,11 @@ const form = reactive({
   const selectedLabels = ref<string[]>([])
   const creating = ref(false)
   const error = ref('')
+  const branchNameError = ref('')
+
+  watch(() => form.branchName, () => {
+    branchNameError.value = ''
+  })
 
   const DEFAULT_LABELS = [
     { name: 'bug', color: '#ef4444' },
@@ -366,6 +374,9 @@ async function handleCreate() {
     error.value = 'At least one label (type) is required'
     return
   }
+  const branchError = validateBranchName(form.branchName || '')
+  branchNameError.value = branchError
+  if (branchError) return
 
   creating.value = true
   error.value = ''

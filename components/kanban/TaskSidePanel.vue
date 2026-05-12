@@ -78,19 +78,23 @@
               @blur="handleTitleBlur"
               @keydown.enter.prevent="handleTitleEnter"
             />
-            <div v-if="task.branchName || isBacklog" class="flex items-center gap-2 mt-2 text-sm text-surface-600">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
-              <span class="text-[11px] text-surface-500">Branch</span>
-              <input
-                v-if="isBacklog"
-                v-model="editingBranchName"
-                type="text"
-                placeholder="feature/my-branch"
-                class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200 outline-none focus:border-primary-500 w-48"
-                @blur="handleBranchNameBlur"
-                @keydown.enter.prevent="handleBranchNameBlur"
-              />
-              <code v-else class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded">{{ task.branchName || '—' }}</code>
+            <div v-if="task.branchName || isBacklog" class="flex flex-col gap-1 mt-2">
+              <div class="flex items-center gap-2 text-sm text-surface-600">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                <span class="text-[11px] text-surface-500">Branch</span>
+                <input
+                  v-if="isBacklog"
+                  v-model="editingBranchName"
+                  type="text"
+                  placeholder="feature/my-branch"
+                  class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200 outline-none focus:border-primary-500 w-48"
+                  :class="{ '!border-error-500': branchNameError }"
+                  @blur="handleBranchNameBlur"
+                  @keydown.enter.prevent="handleBranchNameBlur"
+                />
+                <code v-else class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded">{{ task.branchName || '—' }}</code>
+              </div>
+              <p v-if="branchNameError" class="text-[10px] text-error-500 ml-5">{{ branchNameError }}</p>
             </div>
           </div>
 
@@ -754,6 +758,7 @@
 <script setup lang="ts">
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment } from '~/types'
 import type { Agent } from '~/types'
+import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
 import { nextTick } from 'vue'
 
@@ -845,6 +850,7 @@ const descTab = ref<'write' | 'preview'>('preview')
 const editingDescription = ref('')
 const editingTitle = ref('')
 const editingBranchName = ref('')
+const branchNameError = ref('')
 const isTitleFocused = ref(false)
 
 const isAgentInProgress = computed(() => {
@@ -1255,6 +1261,7 @@ watch(() => props.taskId, () => {
   debouncedSaveTitle.cancel()
   isTitleFocused.value = false
   editingBranchName.value = task.value?.branchName || ''
+  branchNameError.value = ''
 })
 
 const remotePrUrl = ref('')
@@ -1713,7 +1720,9 @@ async function saveBranchName(value: string) {
 function handleBranchNameBlur() {
   if (!task.value || !isBacklog.value) return
   const value = editingBranchName.value.trim()
-  if (value !== (task.value.branchName || '')) {
+  const error = validateBranchName(value)
+  branchNameError.value = error
+  if (!error && value !== (task.value.branchName || '')) {
     saveBranchName(value)
   }
 }

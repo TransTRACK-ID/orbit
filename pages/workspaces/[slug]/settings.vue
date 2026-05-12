@@ -90,10 +90,21 @@
                 </button>
               </div>
             </div>
-            <div v-if="newRepo.platform !== 'github'">
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Access Token <span class="text-red-400">*</span></label>
-              <TextInput v-model="newRepo.token" placeholder="glpat-xxxxxxxx or personal access token" type="password" />
-              <p class="text-[10px] text-surface-400 mt-1">Required for GitLab API access. Create one in your GitLab profile → Access Tokens.</p>
+            <div>
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">
+                Access Token
+                <span v-if="newRepo.platform !== 'github'" class="text-red-400">*</span>
+                <span v-else class="text-surface-300 font-normal normal-case">(optional)</span>
+              </label>
+              <TextInput v-model="newRepo.token" :placeholder="newRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
+              <p class="text-[10px] text-surface-400 mt-1">
+                <template v-if="newRepo.platform === 'github'">
+                  Optional for public repos. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
+                </template>
+                <template v-else>
+                  Required for GitLab API access. Create one in your GitLab profile → Access Tokens.
+                </template>
+              </p>
             </div>
             <div class="flex items-start gap-3">
               <input
@@ -223,10 +234,21 @@
                     </button>
                   </div>
                 </div>
-                <div v-if="editRepo.platform !== 'github'">
-                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Access Token <span class="text-red-400">*</span></label>
-                  <TextInput v-model="editRepo.token" placeholder="glpat-xxxxxxxx or personal access token" type="password" />
-                  <p class="text-[10px] text-surface-400 mt-1">Required for GitLab API access. Create one in your GitLab profile → Access Tokens.</p>
+                <div>
+                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">
+                    Access Token
+                    <span v-if="editRepo.platform !== 'github'" class="text-red-400">*</span>
+                    <span v-else class="text-surface-300 font-normal normal-case">(optional)</span>
+                  </label>
+                  <TextInput v-model="editRepo.token" :placeholder="editRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
+                  <p class="text-[10px] text-surface-400 mt-1">
+                    <template v-if="editRepo.platform === 'github'">
+                      Optional for public repos. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
+                    </template>
+                    <template v-else>
+                      Required for GitLab API access. Create one in your GitLab profile → Access Tokens.
+                    </template>
+                  </p>
                 </div>
                 <div class="flex items-start gap-3">
                   <input
@@ -369,6 +391,7 @@ async function handleAddRepo() {
     newRepo.defaultBranch = 'main'
     newRepo.createBranch = true
     newRepo.platform = 'github'
+    newRepo.token = ''
     showAddRepo.value = false
   } finally {
     addRepoLoading.value = false

@@ -249,6 +249,10 @@ export default defineEventHandler(async (event) => {
       ? { ...process.env, GITLAB_HOST: gitlabHost, ...(repoToken ? { GITLAB_TOKEN: repoToken } : {}) }
       : process.env
 
+    const githubEnv: NodeJS.ProcessEnv = repoToken && cli === 'gh'
+      ? { ...process.env, GITHUB_TOKEN: repoToken }
+      : process.env
+
     // Check if PR/MR already exists for this branch
     let existingPrUrl = ''
     try {
@@ -262,7 +266,7 @@ export default defineEventHandler(async (event) => {
       } else {
         const { stdout: existing } = await execAsync(
           `gh pr view ${branch} --json url --jq '.url // empty' 2>/dev/null || true`,
-          { cwd: repoDir }
+          { cwd: repoDir, env: githubEnv }
         )
         existingPrUrl = existing.trim()
       }
@@ -276,7 +280,7 @@ export default defineEventHandler(async (event) => {
             const bodyContent = readFileSync('/tmp/pr-body.md', 'utf-8')
             await execAsync(`glab mr update ${branch} --description ${shEscape(bodyContent)}`, { cwd: repoDir, env: gitlabEnv })
           } else {
-            await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir })
+            await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir, env: githubEnv })
           }
         } catch {}
       }
@@ -329,7 +333,7 @@ export default defineEventHandler(async (event) => {
       const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
       const { stdout, stderr } = await execAsync(
         `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
-        { cwd: repoDir }
+        { cwd: repoDir, env: githubEnv }
       )
       prUrl = (stdout + stderr).trim()
     }

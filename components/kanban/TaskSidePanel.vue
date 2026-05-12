@@ -1601,20 +1601,33 @@ async function handleUpdate(field: string, value: any) {
   emit('updated', updated)
 }
 
-const debouncedSave = useDebounceFn(async (field: string, value: any) => {
+// ── Debounced saves with race protection ──
+
+let lastDescriptionSaveCounter = 0
+
+async function saveDescription(value: string) {
   if (!task.value) return
+  const currentSave = ++lastDescriptionSaveCounter
   try {
-    await updateTaskApi(task.value.id, { [field]: value })
+    const updated = await updateTaskApi(task.value.id, { description: value })
+    if (updated && lastDescriptionSaveCounter === currentSave) {
+      task.value = updated
+      emit('updated', updated)
+    }
   } catch (err) {
-    console.error(`Failed to save ${field}:`, err)
+    console.error('Failed to save description:', err)
   }
-}, 500)
+}
+
+const debouncedSaveDescription = useDebounceFn((value: string) => saveDescription(value), 800)
 
 function handleDescriptionBlur() {
   if (!task.value) return
   const plain = editingDescription.value
-  task.value.description = plain
-  debouncedSave('description', plain)
+  if (plain !== task.value.description) {
+    debouncedSaveDescription.cancel()
+    saveDescription(plain)
+  }
 }
 
 // Counter to prevent stale debounced saves from overwriting newer ones.
@@ -1652,6 +1665,12 @@ function handleTitleBlur() {
 watch(editingTitle, (value) => {
   if (isTitleFocused.value && task.value && value !== task.value.title) {
     debouncedSaveTitle(value)
+  }
+})
+
+watch(editingDescription, (value) => {
+  if (task.value && value !== task.value.description) {
+    debouncedSaveDescription(value)
   }
 })
 

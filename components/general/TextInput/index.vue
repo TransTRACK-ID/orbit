@@ -65,7 +65,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["on-input", "on-click-clear", "update:modelValue"]);
+const emit = defineEmits(["on-input", "on-click-clear", "update:modelValue", "blur", "focus"]);
 
 const isFocused = ref(false);
 
@@ -180,8 +180,8 @@ function onInput(value: any) {
         :readonly="props.readonly"
         :disabled="props.disabled"
         :class="classInput"
-        @focusin="isFocused = true"
-        @focusout="isFocused = false"
+        @focusin="isFocused = true; emit('focus', $event)"
+        @focusout="isFocused = false; emit('blur', $event)"
         @input.prevent="onInput(($event.target as HTMLInputElement)?.value)"
       />
 

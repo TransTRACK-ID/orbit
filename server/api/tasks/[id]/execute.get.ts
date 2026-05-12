@@ -768,7 +768,7 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
           await pushAndPersist(`Included latest codebase changes in context`)
         }
 
-        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${changesContext}\n\n${historyContext}${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`}
+        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${changesContext}\n\n${historyContext}${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)

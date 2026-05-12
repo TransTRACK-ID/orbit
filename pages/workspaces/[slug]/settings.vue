@@ -99,7 +99,7 @@
               <TextInput v-model="newRepo.token" :placeholder="newRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
               <p class="text-[10px] text-surface-400 mt-1">
                 <template v-if="newRepo.platform === 'github'">
-                  Optional for public repos. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
+                  Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
                 </template>
                 <template v-else>
                   Required for GitLab API access. Create one in your GitLab profile → Access Tokens.
@@ -243,7 +243,7 @@
                   <TextInput v-model="editRepo.token" :placeholder="editRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
                   <p class="text-[10px] text-surface-400 mt-1">
                     <template v-if="editRepo.platform === 'github'">
-                      Optional for public repos. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
+                      Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
                     </template>
                     <template v-else>
                       Required for GitLab API access. Create one in your GitLab profile → Access Tokens.

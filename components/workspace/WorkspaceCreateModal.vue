@@ -16,7 +16,7 @@
               v-model="form.name"
               placeholder="My Workspace"
               required
-              @update:model-value="generateSlug"
+              @update:model-value="handleNameChange"
             />
           </div>
 
@@ -27,6 +27,7 @@
               placeholder="my-workspace"
               required
               :error="slugError"
+              @update:model-value="handleSlugChange"
             />
             <p class="text-xs text-surface-400 mt-1">URL: /workspaces/{{ form.slug || '...' }}</p>
           </div>
@@ -71,11 +72,17 @@ const form = reactive({
 const creating = ref(false)
 const error = ref('')
 const slugError = ref('')
+const slugTouched = ref(false)
 
-function generateSlug(name: string) {
-  if (!form.slug || form.slug === slugify(form.name.replace(name, ''))) {
+function handleNameChange(name: string) {
+  if (!slugTouched.value) {
     form.slug = slugify(name)
   }
+}
+
+function handleSlugChange(slug: string) {
+  slugTouched.value = true
+  form.slug = slugify(slug)
 }
 
 function slugify(text: string) {

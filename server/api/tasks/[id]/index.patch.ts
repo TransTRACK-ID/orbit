@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  const { labelIds, assigneeId, assigneeType, ...restData } = body
+  const { labelIds, assigneeId, assigneeType, repositoryId, ...restData } = body
   const dataToUpdate: any = { ...restData }
 
   if (dataToUpdate.dueDate) {

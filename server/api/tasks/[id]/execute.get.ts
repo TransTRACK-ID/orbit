@@ -926,14 +926,8 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
               diffContent = diffOutput
             } catch {}
 
-            // Create a unique commit message so each run is distinguishable in history
-            let commitNum = 1
-            try {
-              const { stdout: aheadCount } = await execAsync(`git rev-list --count ${repoDefaultBranch}..HEAD`, { cwd: workDir })
-              commitNum = parseInt(aheadCount.trim() || '0') + 1
-            } catch {}
             const generatedMsg = generateCommitMessageFromDiff(diffContent, changedFiles)
-            commitMsg = `${generatedMsg} (#${commitNum})`
+            commitMsg = generatedMsg
 
             await execAsync(`git commit -m "${commitMsg}"`, { cwd: workDir })
             await pushToStreams(entry, JSON.stringify({ step: `Committed: ${commitMsg}`, timestamp: Date.now() }))

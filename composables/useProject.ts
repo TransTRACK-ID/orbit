@@ -41,7 +41,7 @@ export const useProject = () => {
       method: 'POST',
       body: data,
     })
-    projects.value.push(project)
+    projects.value = [...projects.value, project]
     return project
   }
 

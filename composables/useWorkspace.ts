@@ -16,10 +16,12 @@ export const useWorkspace = () => {
   }
 
   async function createWorkspace(data: { name: string; slug: string; description?: string }) {
-    return await $fetch<Workspace>('/api/workspaces', {
+    const workspace = await $fetch<Workspace>('/api/workspaces', {
       method: 'POST',
       body: data,
     })
+    workspaces.value = [...workspaces.value, workspace]
+    return workspace
   }
 
   async function updateWorkspace(id: string, data: Partial<Workspace>) {

@@ -5,6 +5,5 @@ dist/
 .env
 *.log
 .transtrack/
-server/database/migrations/
 
 **/opencode.json

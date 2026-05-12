@@ -1,10 +1,9 @@
-export default defineNuxtRouteMiddleware((to) => {
-  const { data: session, status } = useAuth()
+export default defineNuxtRouteMiddleware(async (to) => {
+  const { status, data: session, getSession } = useAuth()
 
-  // If auth is still loading, don't redirect yet — the page will re-evaluate
-  // once the session is ready. The API endpoints enforce server-side protection.
+  // Wait for auth to resolve before deciding
   if (status.value === 'loading') {
-    return
+    await getSession()
   }
 
   const user = (session.value?.user as any) || {}

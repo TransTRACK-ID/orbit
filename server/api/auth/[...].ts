@@ -56,6 +56,7 @@ export default NuxtAuthHandler({
           email: user.email,
           name: user.name,
           avatarUrl: user.avatarUrl,
+          role: user.role,
         }
       },
     }),
@@ -67,6 +68,7 @@ export default NuxtAuthHandler({
         token.email = user.email
         token.name = user.name
         token.picture = user.avatarUrl || null
+        token.role = user.role || 'user'
       }
       return token
     },
@@ -76,6 +78,7 @@ export default NuxtAuthHandler({
         session.user.email = token.email
         session.user.name = token.name
         session.user.avatarUrl = token.picture || null
+        session.user.role = token.role || 'user'
       }
       return session
     },

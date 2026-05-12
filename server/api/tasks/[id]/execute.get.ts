@@ -610,6 +610,15 @@ export default defineEventHandler(async (event) => {
         branchName = actualBranchName
         workDir = actualWorktreeDir
 
+        // Persist the actual branch name to the database so PR creation can find it later
+        try {
+          await db.update(schema.tasks)
+            .set({ branchName: actualBranchName })
+            .where(eq(schema.tasks.id, id))
+        } catch (dbErr: any) {
+          await pushAndPersist(`Warning: failed to save branch name to database: ${dbErr.message}`)
+        }
+
         // Verify we're on the right branch before agent starts
         try {
           const { stdout: verifyBranch } = await execAsync('git branch --show-current', { cwd: workDir })

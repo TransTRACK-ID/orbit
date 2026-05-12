@@ -77,7 +77,20 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
 }
 
 function resolveWorktreeDir(cloneDir: string, taskId: string): string {
-  return `${cloneDir}/.task-${taskId}`
+  const standardPath = `${cloneDir}/.task-${taskId}`
+  if (existsSync(standardPath)) return standardPath
+
+  // Look for suffixed worktrees (e.g. .task-<id>-4lrebp)
+  try {
+    const entries = require('fs').readdirSync(cloneDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith(`.task-${taskId}`)) {
+        return `${cloneDir}/${entry.name}`
+      }
+    }
+  } catch {}
+
+  return standardPath
 }
 
 function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
@@ -156,80 +169,107 @@ export default defineEventHandler(async (event) => {
   const mainCloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
   const repoDir = resolveWorktreeDir(mainCloneDir, id)
 
-  if (!existsSync(repoDir)) {
-    throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
-  }
-
   const branch = task.branchName || sanitizeBranchName(task.title)
 
-  let prBody = await getDiffSummary(repoDir, repoDefaultBranch, task.title, task.description)
-
-  const { stdout: status } = await execAsync('git status --porcelain', { cwd: repoDir })
-  const hasUncommitted = !!status.trim()
-
-  let hasCommittedChanges = false
-  if (!hasUncommitted) {
-    try {
-      await execAsync(`git fetch origin ${repoDefaultBranch} 2>/dev/null`, { cwd: repoDir })
-      const { stdout: ahead } = await execAsync(
-        `git rev-list --count HEAD ^origin/${repoDefaultBranch} 2>/dev/null || echo "0"`,
-        { cwd: repoDir }
-      )
-      hasCommittedChanges = parseInt(ahead.trim()) > 0
-    } catch {}
-  }
-
-  if (!hasUncommitted && !hasCommittedChanges) {
-    return { url: null, noChanges: true }
-  }
-
-  // Generate a Conventional Commits title from the actual diff
+  let prBody = ''
   let prTitle = task.title
-  try {
-    const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: repoDir })
-    const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: repoDir })
-    const changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
-    if (changedFiles.length > 0) {
-      prTitle = generateConventionalCommit(diffOutput, changedFiles)
-    }
-  } catch {
-    // Fallback to task title
-  }
+  let hasUncommitted = false
+  let hasCommittedChanges = false
 
-  try {
-    // Ensure we start from a clean default branch before creating the task branch
-    const { stdout: branchCheck } = await execAsync(`git branch --list ${branch}`, { cwd: repoDir })
-    if (!branchCheck.trim()) {
-      // Branch doesn't exist yet: reset default to origin to avoid inheriting old local commits
-      await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: repoDir })
-      await execAsync(`git checkout ${repoDefaultBranch}`, { cwd: repoDir })
-      await execAsync(`git reset --hard origin/${repoDefaultBranch}`, { cwd: repoDir })
-    }
-    await execAsync(`git checkout -b ${branch} 2>/dev/null || git checkout ${branch}`, { cwd: repoDir })
-    if (hasUncommitted) {
-      await execAsync('git add -A', { cwd: repoDir })
-      await execAsync(`git commit -m "${prTitle.replace(/"/g, '\\"')}"`, { cwd: repoDir })
-    }
-    // Inject auth token into remote URL so push works non-interactively
-    const authUrl = injectTokenIntoRemoteUrl(repoUrl, repoPlatform, repoToken)
-    if (authUrl !== repoUrl) {
+  // ── Determine if we have a local worktree with changes ──
+  const hasWorktree = existsSync(repoDir)
+  let prCwd = repoDir
+
+  if (hasWorktree) {
+    prBody = await getDiffSummary(repoDir, repoDefaultBranch, task.title, task.description)
+
+    const { stdout: status } = await execAsync('git status --porcelain', { cwd: repoDir })
+    hasUncommitted = !!status.trim()
+
+    if (!hasUncommitted) {
       try {
-        await execAsync(`git remote set-url origin ${authUrl}`, { cwd: repoDir })
+        await execAsync(`git fetch origin ${repoDefaultBranch} 2>/dev/null`, { cwd: repoDir })
+        const { stdout: ahead } = await execAsync(
+          `git rev-list --count HEAD ^origin/${repoDefaultBranch} 2>/dev/null || echo "0"`,
+          { cwd: repoDir }
+        )
+        hasCommittedChanges = parseInt(ahead.trim()) > 0
       } catch {}
     }
 
-    // Try normal push first — only force-push on explicit failure
+    if (!hasUncommitted && !hasCommittedChanges) {
+      return { url: null, noChanges: true }
+    }
+
+    // Generate a Conventional Commits title from the actual diff
     try {
-      await execAsync(`git push -u origin ${branch}`, { cwd: repoDir })
-    } catch (pushErr: any) {
-      console.warn(`[pr.post] Push rejected for ${branch}: ${pushErr.message}. Force pushing...`)
-      await execAsync(`git push --force -u origin ${branch}`, { cwd: repoDir })
+      const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: repoDir })
+      const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: repoDir })
+      const changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
+      if (changedFiles.length > 0) {
+        prTitle = generateConventionalCommit(diffOutput, changedFiles)
+      }
+    } catch {
+      // Fallback to task title
+    }
+  } else {
+    // No local worktree — check if the branch exists on remote
+    let branchExistsOnRemote = false
+    try {
+      await execAsync(`git fetch origin ${branch} 2>/dev/null`, { cwd: mainCloneDir })
+      const { stdout } = await execAsync(
+        `git ls-remote --heads origin ${branch} 2>/dev/null || true`,
+        { cwd: mainCloneDir }
+      )
+      branchExistsOnRemote = !!stdout.trim()
+    } catch {}
+
+    if (!branchExistsOnRemote) {
+      throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
+    }
+
+    // Branch exists on remote — we can create PR from main clone dir
+    prCwd = mainCloneDir
+    hasCommittedChanges = true
+  }
+
+  try {
+    // ── Commit & push only if we have a local worktree with changes ──
+    if (hasWorktree && (hasUncommitted || hasCommittedChanges)) {
+      // Ensure we start from a clean default branch before creating the task branch
+      const { stdout: branchCheck } = await execAsync(`git branch --list ${branch}`, { cwd: repoDir })
+      if (!branchCheck.trim()) {
+        // Branch doesn't exist yet: reset default to origin to avoid inheriting old local commits
+        await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: repoDir })
+        await execAsync(`git checkout ${repoDefaultBranch}`, { cwd: repoDir })
+        await execAsync(`git reset --hard origin/${repoDefaultBranch}`, { cwd: repoDir })
+      }
+      await execAsync(`git checkout -b ${branch} 2>/dev/null || git checkout ${branch}`, { cwd: repoDir })
+      if (hasUncommitted) {
+        await execAsync('git add -A', { cwd: repoDir })
+        await execAsync(`git commit -m "${prTitle.replace(/"/g, '\\"')}"`, { cwd: repoDir })
+      }
+      // Inject auth token into remote URL so push works non-interactively
+      const authUrl = injectTokenIntoRemoteUrl(repoUrl, repoPlatform, repoToken)
+      if (authUrl !== repoUrl) {
+        try {
+          await execAsync(`git remote set-url origin ${authUrl}`, { cwd: repoDir })
+        } catch {}
+      }
+
+      // Try normal push first — only force-push on explicit failure
+      try {
+        await execAsync(`git push -u origin ${branch}`, { cwd: repoDir })
+      } catch (pushErr: any) {
+        console.warn(`[pr.post] Push rejected for ${branch}: ${pushErr.message}. Force pushing...`)
+        await execAsync(`git push --force -u origin ${branch}`, { cwd: repoDir })
+      }
     }
 
     let cli = 'gh'
     let gitlabHost = ''
     try {
-      const { stdout: remotes } = await execAsync('git remote -v', { cwd: repoDir })
+      const { stdout: remotes } = await execAsync('git remote -v', { cwd: prCwd })
       if (remotes.includes('gitlab')) {
         cli = 'glab'
       }
@@ -237,10 +277,10 @@ export default defineEventHandler(async (event) => {
 
     if (cli === 'gh') {
       try {
-        await execAsync('gh repo view >/dev/null 2>&1', { cwd: repoDir })
+        await execAsync('gh repo view >/dev/null 2>&1', { cwd: prCwd })
       } catch {
         try {
-          await execAsync('glab repo view >/dev/null 2>&1', { cwd: repoDir })
+          await execAsync('glab repo view >/dev/null 2>&1', { cwd: prCwd })
           cli = 'glab'
         } catch {
           if (repoUrl && !repoUrl.includes('github.com')) {
@@ -253,7 +293,7 @@ export default defineEventHandler(async (event) => {
     // For self-hosted GitLab: extract host and set GITLAB_HOST so glab knows where to connect
     if (cli === 'glab') {
       try {
-        const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: repoDir })
+        const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: prCwd })
         // Extract hostname only (drop scheme, auth, port) — glab expects just the host
         const hostMatch = remoteUrl.trim().match(/^https?:\/\/(?:[^@]+@)?([^\/]+)/)
         if (hostMatch) {
@@ -276,14 +316,14 @@ export default defineEventHandler(async (event) => {
       if (cli === 'glab') {
         const { stdout: existing } = await execAsync(
           `glab mr view ${branch} -F json 2>/dev/null | jq -r '.web_url // empty' || true`,
-          { cwd: repoDir, env: gitlabEnv }
+          { cwd: prCwd, env: gitlabEnv }
         )
         existingPrUrl = existing.trim()
         if (existingPrUrl === 'null' || !existingPrUrl) existingPrUrl = ''
       } else {
         const { stdout: existing } = await execAsync(
           `gh pr view ${branch} --json url --jq '.url // empty' 2>/dev/null || true`,
-          { cwd: repoDir, env: githubEnv }
+          { cwd: prCwd, env: githubEnv }
         )
         existingPrUrl = existing.trim()
       }
@@ -295,9 +335,9 @@ export default defineEventHandler(async (event) => {
         try {
           if (cli === 'glab') {
             const bodyContent = readFileSync('/tmp/pr-body.md', 'utf-8')
-            await execAsync(`glab mr update ${branch} --description ${shEscape(bodyContent)}`, { cwd: repoDir, env: gitlabEnv })
+            await execAsync(`glab mr update ${branch} --description ${shEscape(bodyContent)}`, { cwd: prCwd, env: gitlabEnv })
           } else {
-            await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: repoDir, env: githubEnv })
+            await execAsync(`gh pr edit ${branch} --body-file /tmp/pr-body.md`, { cwd: prCwd, env: githubEnv })
           }
         } catch {}
       }
@@ -326,7 +366,7 @@ export default defineEventHandler(async (event) => {
       console.log(`[pr.post] Running glab command: ${cmd}`)
       const { stdout, stderr } = await execAsync(
         cmd,
-        { cwd: repoDir, env: gitlabEnv }
+        { cwd: prCwd, env: gitlabEnv }
       )
       const output = (stdout + stderr).trim()
       console.log(`[pr.post] glab output: ${output.slice(0, 500)}`)
@@ -338,7 +378,7 @@ export default defineEventHandler(async (event) => {
         console.log(`[pr.post] glab create failed, trying fallback mr view for branch ${branch}`)
         const { stdout: fallback } = await execAsync(
           `glab mr view ${branch} -F json 2>/dev/null | jq -r '.web_url // empty' || true`,
-          { cwd: repoDir, env: gitlabEnv }
+          { cwd: prCwd, env: gitlabEnv }
         )
         prUrl = fallback.trim()
         if (prUrl === 'null' || prUrl === '') {
@@ -350,7 +390,7 @@ export default defineEventHandler(async (event) => {
       const bodyFlag = prBody ? '--body-file /tmp/pr-body.md' : ''
       const { stdout, stderr } = await execAsync(
         `gh pr create --title "${prTitle.replace(/"/g, '\\"')}" ${bodyFlag} --base ${repoDefaultBranch || 'main'} --head ${branch}`,
-        { cwd: repoDir, env: githubEnv }
+        { cwd: prCwd, env: githubEnv }
       )
       prUrl = (stdout + stderr).trim()
     }

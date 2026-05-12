@@ -454,65 +454,161 @@ export default defineEventHandler(async (event) => {
         branchName = task.branchName
           || `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
 
-        // ── Create or reuse the task-specific worktree ──
-        if (!existsSync(worktreeDir)) {
-          await pushAndPersist(`Creating worktree for task in ${worktreeDir}...`)
+        // Helper: clean branch name from `git branch --list` output
+        function cleanBranchName(b: string): string {
+          return b.trim().replace(/^[+*\s]+/, '')
+        }
+
+        // Helper: check if branch exists locally (handles *, + prefixes)
+        async function hasLocalBranch(branch: string, cwd: string): Promise<boolean> {
           try {
-            // Ensure the branch exists locally (fetch remote first)
-            await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: mainCloneDir })
-
-            // Check if branch already exists on remote
-            try {
-              await execAsync(`git fetch origin ${branchName}`, { cwd: mainCloneDir })
-            } catch {}
-
-            const { stdout: localBranches } = await execAsync('git branch --list', { cwd: mainCloneDir })
-            const hasLocal = localBranches.split('\n').some(b => b.trim().replace(/^\*\s*/, '') === branchName)
-
-            if (hasLocal) {
-              // Branch exists locally — create worktree pointing to it
-              await execAsync(`git worktree add "${worktreeDir}" ${branchName}`, { cwd: mainCloneDir })
-            } else {
-              // Branch doesn't exist — create from default branch
-              await execAsync(`git worktree add -b ${branchName} "${worktreeDir}" origin/${repoDefaultBranch}`, { cwd: mainCloneDir })
-            }
-            await pushAndPersist(`Worktree created for branch "${branchName}"`)
-          } catch (err: any) {
-            await pushAndPersist(`Worktree creation failed: ${err.message}`)
-          }
-        } else {
-          // Worktree already exists — verify branch and pull latest
-          await pushAndPersist(`Reusing existing worktree for task...`)
-          try {
-            // Check current branch in worktree
-            const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: worktreeDir })
-            const actualBranch = currentBranch.trim()
-            if (actualBranch !== branchName) {
-              await pushAndPersist(`Worktree was on ${actualBranch}, switching to ${branchName}...`)
-              // Ensure branch exists
-              const { stdout: branches } = await execAsync('git branch --list', { cwd: mainCloneDir })
-              const hasLocal = branches.split('\n').some(b => b.trim().replace(/^\*\s*/, '') === branchName)
-              if (!hasLocal) {
-                await execAsync(`git branch ${branchName} origin/${repoDefaultBranch}`, { cwd: mainCloneDir })
-              }
-              await execAsync(`git checkout ${branchName}`, { cwd: worktreeDir })
-            }
-
-            // Rebase onto latest default branch
-            try {
-              await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: worktreeDir })
-              await execAsync(`git rebase origin/${repoDefaultBranch}`, { cwd: worktreeDir })
-              await pushAndPersist(`Rebased ${branchName} onto latest ${repoDefaultBranch}`)
-            } catch (rebaseErr: any) {
-              await pushAndPersist(`Rebase failed: ${rebaseErr.message}. Aborting and continuing as-is.`)
-              try { await execAsync('git rebase --abort', { cwd: worktreeDir }) } catch {}
-            }
-          } catch (err: any) {
-            await pushAndPersist(`Worktree update failed: ${err.message}`)
+            const { stdout } = await execAsync('git branch --list', { cwd })
+            return stdout.split('\n').some(b => cleanBranchName(b) === branch)
+          } catch {
+            return false
           }
         }
 
-        workDir = worktreeDir
+        // ── Resolve worktree directory ──
+        let actualWorktreeDir = worktreeDir
+        let actualBranchName = branchName
+
+        // If the standard worktree dir already exists on disk but isn't a valid worktree,
+        // or if git reports it as locked/pruned, we'll retry with unique names.
+        async function tryCreateWorktree(
+          targetDir: string,
+          targetBranch: string,
+          attempt: number
+        ): Promise<boolean> {
+          await pushAndPersist(
+            `Creating worktree (attempt ${attempt}): dir=${targetDir} branch=${targetBranch}`
+          )
+
+          try {
+            // Ensure default branch is up to date
+            await execAsync(`git fetch origin ${repoDefaultBranch}`, { cwd: mainCloneDir })
+
+            const branchExists = await hasLocalBranch(targetBranch, mainCloneDir)
+
+            if (branchExists) {
+              // Branch exists locally — try to point worktree to it
+              try {
+                await execAsync(
+                  `git worktree add "${targetDir}" ${targetBranch}`,
+                  { cwd: mainCloneDir }
+                )
+              } catch (pointErr: any) {
+                // If pointing fails because branch is already checked out elsewhere,
+                // we'll need a unique branch name on the next attempt
+                if (pointErr.message?.includes('already checked out')) {
+                  await pushAndPersist(
+                    `Branch ${targetBranch} is already checked out in another worktree.`
+                  )
+                  return false
+                }
+                throw pointErr
+              }
+            } else {
+              // Branch doesn't exist — create from default branch
+              try {
+                await execAsync(
+                  `git worktree add -b ${targetBranch} "${targetDir}" origin/${repoDefaultBranch}`,
+                  { cwd: mainCloneDir }
+                )
+              } catch (createErr: any) {
+                // If -b failed because branch exists (race / stale state), retry pointing
+                if (createErr.message?.includes('already exists')) {
+                  await pushAndPersist(
+                    `Branch ${targetBranch} reported missing but exists. Retrying...`
+                  )
+                  await execAsync(
+                    `git worktree add "${targetDir}" ${targetBranch}`,
+                    { cwd: mainCloneDir }
+                  )
+                } else {
+                  throw createErr
+                }
+              }
+            }
+
+            await pushAndPersist(
+              `Worktree created for branch "${targetBranch}" at ${targetDir}`
+            )
+            return true
+          } catch (err: any) {
+            await pushAndPersist(
+              `Worktree creation failed: ${err.message}`
+            )
+            return false
+          }
+        }
+
+        // Clean up stale worktree entries where the directory no longer exists
+        try {
+          const { stdout: worktreeList } = await execAsync(
+            'git worktree list --porcelain',
+            { cwd: mainCloneDir }
+          )
+          const entries = worktreeList.split('\n\n')
+          for (const entry of entries) {
+            const worktreePathMatch = entry.match(/worktree\s+(.+)/)
+            const branchMatch = entry.match(/branch\s+(.+)/)
+            if (worktreePathMatch && branchMatch) {
+              const path = worktreePathMatch[1].trim()
+              const branchRef = branchMatch[1].trim()
+              const branchInEntry = branchRef.replace('refs/heads/', '')
+              if (branchInEntry === branchName && !existsSync(path)) {
+                await pushAndPersist(
+                  `Removing stale worktree entry for ${branchName}...`
+                )
+                try {
+                  await execAsync(
+                    `git worktree remove --force "${path}"`,
+                    { cwd: mainCloneDir }
+                  )
+                } catch {
+                  try {
+                    await execAsync('git worktree prune', { cwd: mainCloneDir })
+                  } catch {}
+                }
+              }
+            }
+          }
+        } catch {}
+
+        // Attempt 1: standard names
+        let worktreeCreated = await tryCreateWorktree(
+          actualWorktreeDir,
+          actualBranchName,
+          1
+        )
+
+        // Attempt 2+: unique random suffix on both directory and branch
+        let attempt = 2
+        const maxAttempts = 5
+        while (!worktreeCreated && attempt <= maxAttempts) {
+          const suffix = Math.random().toString(36).substring(2, 8)
+          actualWorktreeDir = `${worktreeDir}-${suffix}`
+          actualBranchName = `${branchName}-${suffix}`
+          worktreeCreated = await tryCreateWorktree(
+            actualWorktreeDir,
+            actualBranchName,
+            attempt
+          )
+          attempt++
+        }
+
+        if (!worktreeCreated) {
+          await pushAndPersist(
+            `All ${maxAttempts} worktree creation attempts failed. Cannot start agent.`
+          )
+          stream.close()
+          return
+        }
+
+        // Update branchName to the actual one we ended up using
+        branchName = actualBranchName
+        workDir = actualWorktreeDir
 
         // Verify we're on the right branch before agent starts
         try {
@@ -892,6 +988,43 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
           })
         } catch (err: any) {
           console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+        }
+      }
+
+      // ── Clean up worktree after completion ──
+      if (workDir && mainCloneDir && workDir !== mainCloneDir) {
+        try {
+          await pushAndPersist(`Cleaning up worktree...`)
+          // Remove the worktree from git's tracking
+          try {
+            await execAsync(`git worktree remove --force "${workDir}"`, { cwd: mainCloneDir })
+            await pushAndPersist(`Worktree removed from git`)
+          } catch (removeErr: any) {
+            // If git worktree remove fails, force-delete the directory
+            await pushAndPersist(`Git worktree remove failed: ${removeErr.message}. Force-deleting directory...`)
+            try {
+              await execAsync(`rm -rf "${workDir}"`)
+              await pushAndPersist(`Worktree directory force-deleted`)
+            } catch (rmErr: any) {
+              await pushAndPersist(`Failed to delete worktree directory: ${rmErr.message}`)
+            }
+          }
+          // Prune any stale worktree references
+          try {
+            await execAsync('git worktree prune', { cwd: mainCloneDir })
+          } catch {}
+          // Clean up the local branch if it exists and is fully merged
+          if (branchName && branchName !== repoDefaultBranch) {
+            try {
+              await execAsync(`git branch -d ${branchName}`, { cwd: mainCloneDir })
+              await pushAndPersist(`Local branch ${branchName} deleted`)
+            } catch (branchErr: any) {
+              // Branch might not be fully merged or doesn't exist — log and continue
+              await pushAndPersist(`Could not delete local branch ${branchName}: ${branchErr.message}`)
+            }
+          }
+        } catch (cleanupErr: any) {
+          await pushAndPersist(`Worktree cleanup failed: ${cleanupErr.message}`)
         }
       }
 

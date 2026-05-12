@@ -1,20 +1,21 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-50 via-white to-primary-50/30 px-4">
+  <div class="min-h-screen flex items-center justify-center bg-surface-50 px-4">
     <div class="w-full max-w-sm animate-scale-in">
-      <!-- Logo / Brand -->
+      <!-- Brand -->
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary-500 text-white text-xl font-bold mb-4">
-          O
+        <div class="inline-flex items-center justify-center gap-1.5 mb-3">
+          <Icon name="lucide:bolt" class="w-5 h-5 text-accent" />
+          <span class="text-sm font-bold tracking-tight text-surface-900">Kanvas</span>
         </div>
-        <h1 class="text-2xl font-bold text-surface-900">Create account</h1>
-        <p class="text-surface-500 mt-1 text-sm">Start organizing your projects</p>
+        <h1 class="text-lg font-semibold text-surface-900">Create account</h1>
+        <p class="text-[11px] text-surface-500 mt-1">Start organizing your projects</p>
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
+      <div class="bg-white rounded-xl border border-surface-200 p-5">
         <form @submit.prevent="handleRegister" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Full name</label>
+            <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Full name</label>
             <TextInput
               v-model="name"
               type="text"
@@ -25,7 +26,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Email</label>
+            <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Email</label>
             <TextInput
               v-model="email"
               type="email"
@@ -36,7 +37,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Password</label>
+            <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Password</label>
             <TextInput
               v-model="password"
               type="password"
@@ -50,13 +51,13 @@
             Create account
           </Button>
 
-          <p v-if="authError" class="text-error-500 text-sm text-center">{{ authError }}</p>
+          <p v-if="authError" class="text-error-500 text-xs text-center">{{ authError }}</p>
         </form>
 
-        <div class="mt-6 pt-4 border-t border-surface-100 text-center">
-          <p class="text-sm text-surface-500">
+        <div class="mt-5 pt-4 border-t border-surface-100 text-center">
+          <p class="text-[11px] text-surface-500">
             Already have an account?
-            <NuxtLink to="/login" class="text-primary-600 font-medium hover:text-primary-700 transition-colors">
+            <NuxtLink to="/login" class="text-accent font-semibold hover:text-accent-hover transition-colors">
               Sign in
             </NuxtLink>
           </p>

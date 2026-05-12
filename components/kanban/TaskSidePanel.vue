@@ -1617,18 +1617,27 @@ function handleDescriptionBlur() {
   debouncedSave('description', plain)
 }
 
-const debouncedSaveTitle = useDebounceFn(async (value: string) => {
+// Counter to prevent stale debounced saves from overwriting newer ones.
+// Each save attempt increments the counter; only the most recent one applies.
+let lastTitleSaveCounter = 0
+
+async function saveTitle(value: string) {
   if (!task.value) return
+  const currentSave = ++lastTitleSaveCounter
   try {
     const updated = await updateTaskApi(task.value.id, { title: value })
-    if (updated && !isTitleFocused.value) {
+    // Only apply if this is still the most recent save attempt.
+    // This prevents an in-flight debounced save from overwriting a newer blur save.
+    if (updated && lastTitleSaveCounter === currentSave) {
       task.value = updated
       emit('updated', updated)
     }
   } catch (err) {
     console.error('Failed to save title:', err)
   }
-}, 800)
+}
+
+const debouncedSaveTitle = useDebounceFn((value: string) => saveTitle(value), 800)
 
 function handleTitleBlur() {
   isTitleFocused.value = false
@@ -1636,14 +1645,7 @@ function handleTitleBlur() {
   const value = editingTitle.value.trim()
   if (value && value !== task.value.title) {
     debouncedSaveTitle.cancel()
-    updateTaskApi(task.value.id, { title: value }).then((updated) => {
-      if (updated) {
-        task.value = updated
-        emit('updated', updated)
-      }
-    }).catch((err) => {
-      console.error('Failed to save title on blur:', err)
-    })
+    saveTitle(value)
   }
 }
 

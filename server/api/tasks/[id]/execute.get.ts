@@ -478,7 +478,9 @@ export default defineEventHandler(async (event) => {
           action: 'runtime_log',
           newValue: { message: msg },
         })
-      } catch {}
+      } catch (err: any) {
+        console.error('[execute.get] Failed to persist runtime_log:', err?.message || err)
+      }
     }
 
     async function pushAndPersist(msg: string) {
@@ -839,7 +841,9 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
                   action: 'agent_reply',
                   newValue: { message: replyBody },
                 })
-              } catch {}
+              } catch (err: any) {
+                console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+              }
               // Prefix the runtime log with [AGENT_REPLY] so the frontend can
               // identify it as an agent reply and show it in comments.
               logMsg = `[AGENT_REPLY] ${replyBody.slice(0, 200)}`

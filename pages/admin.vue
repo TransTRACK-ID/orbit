@@ -86,9 +86,20 @@
                 </td>
                 <td class="px-4 py-2.5 text-surface-500">{{ u.email }}</td>
                 <td class="px-4 py-2.5">
+                  <select
+                    v-if="u.id !== currentUserId"
+                    :value="u.role"
+                    :disabled="updatingUserId === u.id"
+                    class="text-[9px] font-semibold border rounded px-1.5 py-0.5 outline-none cursor-pointer bg-white"
+                    :class="u.role === 'super_admin' ? 'text-accent border-accent/30' : 'text-surface-500 border-surface-200'"
+                    @change="updateRole(u.id, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="user">user</option>
+                    <option value="super_admin">super_admin</option>
+                  </select>
                   <span
-                    class="px-1.5 py-0.5 rounded text-[9px] font-semibold border"
-                    :class="u.role === 'super_admin' ? 'bg-accent/10 text-accent border-accent/20' : 'bg-surface-100 text-surface-500 border-surface-200'"
+                    v-else
+                    class="px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-accent/10 text-accent border-accent/20"
                   >
                     {{ u.role }}
                   </span>
@@ -435,8 +446,12 @@ const tabs = [
   { key: 'project-analytics', label: 'Project Analytics' },
 ]
 
+const { data: session } = useAuth()
+const currentUserId = computed(() => (session.value?.user as any)?.id)
+
 const activeTab = ref('users')
 const loading = ref(true)
+const updatingUserId = ref<string | null>(null)
 
 const stats = ref({
   users: 0,
@@ -510,6 +525,28 @@ function healthScoreClass(score: number) {
   if (score >= 40) return 'bg-amber-100 text-amber-700 border border-amber-200'
   if (score > 0) return 'bg-rose-100 text-rose-700 border border-rose-200'
   return 'bg-surface-100 text-surface-500 border border-surface-200'
+}
+
+async function updateRole(userId: string, newRole: string) {
+  if (!userId || !newRole) return
+  updatingUserId.value = userId
+  try {
+    await $fetch(`/api/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      body: { role: newRole },
+    })
+    // Refresh users list
+    const usersData = await $fetch('/api/admin/users')
+    users.value = usersData as any[]
+  } catch (err: any) {
+    console.error('Failed to update role:', err)
+    alert(err?.statusMessage || 'Failed to update role')
+    // Refresh to restore correct state
+    const usersData = await $fetch('/api/admin/users')
+    users.value = usersData as any[]
+  } finally {
+    updatingUserId.value = null
+  }
 }
 
 onMounted(async () => {

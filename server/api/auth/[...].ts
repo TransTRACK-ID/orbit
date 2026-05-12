@@ -69,6 +69,20 @@ export default NuxtAuthHandler({
         token.name = user.name
         token.picture = user.avatarUrl || null
         token.role = user.role || 'user'
+      } else if (token.id) {
+        // Refresh role from DB so changes take effect without re-login
+        try {
+          const db = getDb()
+          const dbUser = await db.query.users.findFirst({
+            where: eq(schema.users.id, token.id),
+            columns: { role: true },
+          })
+          if (dbUser) {
+            token.role = dbUser.role
+          }
+        } catch {
+          // keep existing token role on error
+        }
       }
       return token
     },

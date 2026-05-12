@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
+import { eq, count } from 'drizzle-orm'
 import { getDb, schema } from '~/server/database'
 import { registerSchema } from '~/server/utils/validation'
 
@@ -23,6 +23,10 @@ export default defineEventHandler(async (event) => {
   // Hash password
   const passwordHash = await bcrypt.hash(body.password, 12)
 
+  // First user becomes super_admin automatically
+  const [userCountResult] = await db.select({ value: count() }).from(schema.users)
+  const isFirstUser = userCountResult.value === 0
+
   // Create user
   const [user] = await db
     .insert(schema.users)
@@ -30,12 +34,14 @@ export default defineEventHandler(async (event) => {
       email: body.email.toLowerCase(),
       name: body.name,
       passwordHash,
+      role: isFirstUser ? 'super_admin' : 'user',
     })
     .returning({
       id: schema.users.id,
       email: schema.users.email,
       name: schema.users.name,
       avatarUrl: schema.users.avatarUrl,
+      role: schema.users.role,
     })
 
   return { user }

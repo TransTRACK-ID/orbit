@@ -154,6 +154,10 @@ export const changePasswordSchema = z.object({
   newPassword: z.string().min(6, 'New password must be at least 6 characters'),
 })
 
+export const updateUserRoleSchema = z.object({
+  role: z.enum(['user', 'super_admin']),
+})
+
 // ─── Comment ───
 export const createCommentSchema = z.object({
   body: z.string().min(1, 'Comment cannot be empty'),

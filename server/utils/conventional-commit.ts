@@ -69,7 +69,7 @@ export function detectCommitType(
     if (/\b(if|else|while|for|switch|try|catch|throw|error)\b/.test(line)) logicChangeCount++
     if (/\b(try|catch|throw|Error|error|handleError|onError)\b/.test(line)) errorHandlingCount++
     if (/\b(describe|it\(|test\(|expect\(|beforeEach|afterEach)\b/.test(line)) testChangeCount++
-    if (/\b(//|/\*|\*|#)\s*(TODO|FIXME|NOTE|docs?|readme)/i.test(line)) docChangeCount++
+    if (/\b(\/\/|\/\*|\*|#)\s*(TODO|FIXME|NOTE|docs?|readme)/i.test(line)) docChangeCount++
   }
 
   for (const line of removedLines) {
@@ -207,10 +207,10 @@ export function generateConventionalCommit(
   // 8. Text / content changes
   const addedStrings = addedLines
     .map(l => l.match(/["']([^"']{4,})["']/)?.[1])
-    .filter((s): s is string => !!s && !s.includes('class=') && !s.includes('style='))
+    .filter((s): s is string => !!s && !s.includes('class=') && !s.includes('style=')) as string[]
   const removedStrings = removedLines
     .map(l => l.match(/["']([^"']{4,})["']/)?.[1])
-    .filter((s): s is string => !!s && !s.includes('class=') && !s.includes('style='))
+    .filter((s): s is string => !!s && !s.includes('class=') && !s.includes('style=')) as string[]
   if (addedStrings.length > 0 || removedStrings.length > 0) {
     const text = addedStrings[0] || removedStrings[0]
     const shortText = text.slice(0, 25)

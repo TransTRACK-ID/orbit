@@ -371,6 +371,7 @@ export default defineEventHandler(async (event) => {
     let repoUrl = ''
     let repoName = ''
     let repoToken: string | null = null
+    let mainCloneDir = ''
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -410,7 +411,7 @@ export default defineEventHandler(async (event) => {
       }
 
       if (repoUrl) {
-        const mainCloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+        mainCloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
         const worktreeDir = resolveWorktreeDir(mainCloneDir, id)
 
         // ── Clone the main repo (bare or full) if it doesn't exist ──

@@ -236,3 +236,6 @@ export interface PaginatedResponse<T> {
   page: number
   pageSize: number
 }
+
+// ─── Admin ───
+export * from './admin'

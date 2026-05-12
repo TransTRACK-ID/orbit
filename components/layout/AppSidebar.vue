@@ -24,6 +24,25 @@
         </div>
       </div>
 
+      <!-- Admin link (super admin only) -->
+      <div v-if="isSuperAdmin" class="sidebar-group mb-1">
+        <div
+          class="sidebar-item"
+          :class="{ active: route.path === '/admin' }"
+          style="margin-bottom: 4px"
+          @click="navigateTo('/admin'); closeOnMobile()"
+        >
+          <div
+            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
+            style="background: #7C3AED"
+          >
+            <Icon name="lucide:shield" class="w-2.5 h-2.5" />
+          </div>
+          <span class="name flex-1 min-w-0 truncate text-xs" :class="{ 'font-semibold': route.path === '/admin' }">Admin</span>
+          <span class="text-[10px] text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">SA</span>
+        </div>
+      </div>
+
       <!-- Workspace switcher -->
       <div class="px-3 mb-2">
         <div class="relative">
@@ -113,6 +132,7 @@ import type { Workspace } from '~/types'
 
 const route = useRoute()
 const router = useRouter()
+const { data: session } = useAuth()
 
 const { workspaces, fetchWorkspaces } = useWorkspace()
 const { agents, fetchAgents } = useAgent()
@@ -120,6 +140,7 @@ const { projects, fetchProjects, loading: projectsLoading } = useProject()
 const { isOpen: sidebarOpen, close: closeSidebar } = useSidebar()
 
 const agentCount = computed(() => agents.value.length)
+const isSuperAdmin = computed(() => (session.value?.user as any)?.role === 'super_admin')
 
 const activeWorkspaceSlug = computed(() => route.params.slug as string || '')
 

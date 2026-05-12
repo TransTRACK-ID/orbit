@@ -81,8 +81,11 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
       const gitConfigPath = `${projectsDir}/${entry.name}/.git/config`
       if (existsSync(gitConfigPath)) {
         const config = readFileSync(gitConfigPath, 'utf-8')
-        // Match either the exact URL or the token-injected variant
-        if (config.includes(`url = ${repoUrl}`) || config.includes(repoUrl)) {
+        // Extract the remote URL from config and normalize by stripping auth tokens for comparison
+        const urlMatch = config.match(/url\s*=\s*(.+)/)
+        const storedUrl = urlMatch ? urlMatch[1].trim() : ''
+        const normalize = (u: string) => u.replace(/^https?:\/\/[^@]+@/, 'https://').replace(/\.git$/, '')
+        if (storedUrl && normalize(storedUrl) === normalize(repoUrl)) {
           return `${projectsDir}/${entry.name}`
         }
       }
@@ -732,40 +735,18 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
-        message = `[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK]\n${message}\n\n${securityRule}\n\nCRITICAL: The PR feedback above was given by a code reviewer. You MUST examine each item carefully and make the necessary code changes to fix ALL reported issues. Do NOT skip any item. Do NOT assume issues are already resolved — verify by making actual code changes. Your goal is to modify the codebase to satisfy each piece of feedback.`
+        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}`
       }
-    }
-
-    // Set up an isolated home directory for the agent so it cannot easily discover
-    // or access sensitive configuration files (e.g. ~/.config/opencode/opencode.json).
-    const fakeHome = `${projectsDir}/.agent-homes/${task.id}`
-    const fakeConfigDir = `${fakeHome}/.config/opencode`
-    try {
-      mkdirSync(fakeConfigDir, { recursive: true })
-      // Copy AGENTS.md into the fake home so opencode still loads its system prompt
-      const realAgentsPath = `${process.env.HOME || '/root'}/.config/opencode/AGENTS.md`
-      if (existsSync(realAgentsPath)) {
-        const agentsContent = readFileSync(realAgentsPath, 'utf-8')
-        writeFileSync(`${fakeConfigDir}/AGENTS.md`, agentsContent, 'utf-8')
-      }
-      // Copy opencode.json so the agent can authenticate with the AI API
-      const realConfigPath = `${process.env.HOME || '/root'}/.config/opencode/opencode.json`
-      if (existsSync(realConfigPath)) {
-        const configContent = readFileSync(realConfigPath, 'utf-8')
-        writeFileSync(`${fakeConfigDir}/opencode.json`, configContent, 'utf-8')
-      }
-    } catch (err: any) {
-      await pushAndPersist(`Warning: could not set up isolated home: ${err.message}`)
     }
 
     await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}`)
-    // Stream CWD/HOME for live debugging but do NOT persist — avoid leaking paths in comments
-    await stream.push(JSON.stringify({ step: `CWD: ${workDir} | HOME: ${fakeHome}`, timestamp: Date.now() }))
+    // Stream CWD for live debugging but do NOT persist — avoid leaking paths in comments
+    await stream.push(JSON.stringify({ step: `CWD: ${workDir}`, timestamp: Date.now() }))
 
     // Build a minimal environment to avoid leaking secrets or config paths
     const minimalEnv: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,
-      HOME: fakeHome,
+      HOME: process.env.HOME,
       GIT_PLATFORM: repoPlatform,
       NODE_ENV: process.env.NODE_ENV,
       LANG: process.env.LANG,

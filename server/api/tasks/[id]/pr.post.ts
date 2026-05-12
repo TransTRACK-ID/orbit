@@ -60,7 +60,11 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
       const gitConfigPath = `${projectsDir}/${entry.name}/.git/config`
       if (existsSync(gitConfigPath)) {
         const config = readFileSync(gitConfigPath, 'utf-8')
-        if (config.includes(`url = ${repoUrl}`) || config.includes(repoUrl)) {
+        // Extract the remote URL from config and normalize by stripping auth tokens for comparison
+        const urlMatch = config.match(/url\s*=\s*(.+)/)
+        const storedUrl = urlMatch ? urlMatch[1].trim() : ''
+        const normalize = (u: string) => u.replace(/^https?:\/\/[^@]+@/, 'https://').replace(/\.git$/, '')
+        if (storedUrl && normalize(storedUrl) === normalize(repoUrl)) {
           return `${projectsDir}/${entry.name}`
         }
       }

@@ -20,13 +20,27 @@ export default defineEventHandler(async (event) => {
 
   const existing = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
+    with: { status: true },
   })
 
   if (!existing) {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  const { labelIds, assigneeId, assigneeType, repositoryId, ...restData } = body
+  const isBacklog = /backlog/i.test(existing.status?.name || '')
+
+  if (!isBacklog) {
+    const forbiddenFields = ['repositoryId', 'branchName']
+    const attempted = forbiddenFields.filter((f) => body[f as keyof typeof body] !== undefined)
+    if (attempted.length > 0) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: `Cannot change ${attempted.join(', ')} when task is not in backlog status`,
+      })
+    }
+  }
+
+  const { labelIds, assigneeId, assigneeType, ...restData } = body
   const dataToUpdate: any = { ...restData }
 
   if (dataToUpdate.dueDate) {

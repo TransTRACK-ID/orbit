@@ -78,10 +78,19 @@
               @blur="handleTitleBlur"
               @keydown.enter.prevent="handleTitleEnter"
             />
-            <div v-if="task.branchName" class="flex items-center gap-2 mt-2 text-sm text-surface-600">
+            <div v-if="task.branchName || isBacklog" class="flex items-center gap-2 mt-2 text-sm text-surface-600">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
               <span class="text-[11px] text-surface-500">Branch</span>
-              <code class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded">{{ task.branchName }}</code>
+              <input
+                v-if="isBacklog"
+                v-model="editingBranchName"
+                type="text"
+                placeholder="feature/my-branch"
+                class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200 outline-none focus:border-primary-500 w-48"
+                @blur="handleBranchNameBlur"
+                @keydown.enter.prevent="handleBranchNameBlur"
+              />
+              <code v-else class="font-mono text-xs text-surface-700 bg-surface-100 px-1.5 py-0.5 rounded">{{ task.branchName || '—' }}</code>
             </div>
           </div>
 
@@ -264,14 +273,18 @@
             <label class="block text-xs font-medium text-surface-500 mb-1">Repository</label>
             <select
               :value="task.repositoryId"
-              disabled
-              class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 text-surface-500 px-3 py-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none cursor-not-allowed"
+              :disabled="!isBacklog"
+              class="w-full text-sm rounded-lg border border-surface-200 px-3 py-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+              :class="isBacklog ? 'bg-white cursor-pointer' : 'bg-surface-50 text-surface-500 cursor-not-allowed'"
+              @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value)"
             >
               <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
                 {{ repo.name }} — {{ repo.defaultBranch }}
               </option>
             </select>
-            <p class="text-[10px] text-surface-400 mt-1">Repository cannot be changed after task creation</p>
+            <p class="text-[10px] text-surface-400 mt-1">
+              {{ isBacklog ? 'Repository can only be changed while task is in backlog' : 'Repository cannot be changed after task leaves backlog' }}
+            </p>
           </div>
 
           <div class="mb-6">
@@ -831,6 +844,7 @@ async function ensureDefaultLabels() {
 const descTab = ref<'write' | 'preview'>('preview')
 const editingDescription = ref('')
 const editingTitle = ref('')
+const editingBranchName = ref('')
 const isTitleFocused = ref(false)
 
 const isAgentInProgress = computed(() => {
@@ -841,6 +855,10 @@ const isAgentInProgress = computed(() => {
     /progress/i.test(task.value.status.name)
   )
 })
+
+const isBacklog = computed(() =>
+  task.value?.status?.name && /backlog/i.test(task.value.status.name)
+)
 
 /** Tracks when we are sending a comment to the agent runtime */
 const isSendingToAgent = ref(false)
@@ -1236,6 +1254,7 @@ watch(latestAgentReply, (reply) => {
 watch(() => props.taskId, () => {
   debouncedSaveTitle.cancel()
   isTitleFocused.value = false
+  editingBranchName.value = task.value?.branchName || ''
 })
 
 const remotePrUrl = ref('')
@@ -1512,6 +1531,7 @@ onMounted(async () => {
     loading.value = false
     editingDescription.value = task.value?.description || ''
     editingTitle.value = task.value?.title || ''
+    editingBranchName.value = task.value?.branchName || ''
   }
 
   // Initialize lastCompletionTimestamp from the most recent "Done" log
@@ -1582,18 +1602,26 @@ async function handleUpdate(field: string, value: any) {
   // Title is handled separately via debouncedSaveTitle / handleTitleBlur
   if (field === 'title') return
   const old = { ...task.value }
-  const updated = await updateTaskApi(task.value.id, { [field]: value })
-  if (updated && field === 'statusId' && old.statusId !== value) {
-    const newStatus = props.statuses.find((s) => s.id === value)
-    const oldStatus = props.statuses.find((s) => s.id === old.statusId)
-    persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
-    if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
-      addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
-      await startRuntime(updated.id)
+  try {
+    const updated = await updateTaskApi(task.value.id, { [field]: value })
+    if (updated && field === 'statusId' && old.statusId !== value) {
+      const newStatus = props.statuses.find((s) => s.id === value)
+      const oldStatus = props.statuses.find((s) => s.id === old.statusId)
+      persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
+      if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
+        addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
+        await startRuntime(updated.id)
+      }
+    }
+    task.value = updated
+    emit('updated', updated)
+  } catch {
+    // Revert local state on error so the UI stays in sync
+    if (field === 'repositoryId') {
+      // Force a re-render of the select by reassigning task
+      task.value = { ...old }
     }
   }
-  task.value = updated
-  emit('updated', updated)
 }
 
 // ── Debounced saves with race protection ──
@@ -1667,6 +1695,27 @@ function handleTitleEnter() {
   // Blur the input so focus moves away and user sees the save happened
   const input = document.querySelector('.mb-4 input[type="text"]') as HTMLInputElement
   input?.blur()
+}
+
+async function saveBranchName(value: string) {
+  if (!task.value) return
+  try {
+    const updated = await updateTaskApi(task.value.id, { branchName: value || null })
+    task.value = updated
+    emit('updated', updated)
+  } catch (err: any) {
+    console.error('Failed to save branch name:', err)
+    // Revert on error
+    editingBranchName.value = task.value.branchName || ''
+  }
+}
+
+function handleBranchNameBlur() {
+  if (!task.value || !isBacklog.value) return
+  const value = editingBranchName.value.trim()
+  if (value !== (task.value.branchName || '')) {
+    saveBranchName(value)
+  }
 }
 
 watch(editingTitle, (value) => {

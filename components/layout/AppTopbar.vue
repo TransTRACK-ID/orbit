@@ -92,6 +92,16 @@
               <p v-if="userEmail" class="text-[10px] text-surface-500 truncate mt-0.5">{{ userEmail }}</p>
             </div>
 
+            <!-- Admin -->
+            <button
+              v-if="isSuperAdmin"
+              class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-surface-700 hover:bg-surface-50 transition-colors"
+              @click="navigateTo('/admin')"
+            >
+              <Icon name="lucide:shield" class="w-3.5 h-3.5 text-surface-400" />
+              Admin
+            </button>
+
             <!-- Settings -->
             <button
               class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-surface-700 hover:bg-surface-50 transition-colors"
@@ -161,6 +171,7 @@ const userInitials = computed(() => {
   const name = userName.value
   return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 })
+const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
 
 const userMenuRef = ref<HTMLElement | null>(null)
 const userMenuOpen = ref(false)

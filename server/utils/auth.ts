@@ -7,7 +7,7 @@ export async function requireAuth(event: any) {
   if (!session?.user?.id) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
   }
-  return session.user as { id: string; email: string; name: string }
+  return session.user as { id: string; email: string; name: string; role: string }
 }
 
 export async function requireWorkspaceAccess(event: any, workspaceId: string) {
@@ -50,4 +50,14 @@ export async function requireProjectAccess(event: any, projectId: string) {
   }
 
   return { user, project, workspace: project.workspace }
+}
+
+export async function requireSuperAdmin(event: any) {
+  const user = await requireAuth(event)
+
+  if (user.role !== 'super_admin') {
+    throw createError({ statusCode: 403, statusMessage: 'Forbidden: super admin access required' })
+  }
+
+  return user
 }

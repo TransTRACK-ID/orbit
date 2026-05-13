@@ -1,6 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, and, or, like, desc, inArray } from 'drizzle-orm'
+import { eq, and, desc, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -19,6 +19,10 @@ export default defineEventHandler(async (event) => {
   const statusFilter = query.status as string | undefined
   const reviewStateFilter = query.reviewState as string | undefined
   const search = query.search as string | undefined
+
+  if (taskIds.length === 0) {
+    return { pullRequests: [] }
+  }
 
   const conditions: any[] = [inArray(schema.pullRequests.taskId, taskIds)]
 

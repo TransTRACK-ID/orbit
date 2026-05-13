@@ -16,6 +16,12 @@ function parseGithubUrl(url: string): { host: string; owner: string; repo: strin
   return { host: 'https://github.com', owner: match[1], repo: match[2].replace(/\.git$/, ''), number: parseInt(match[4], 10), isEnterprise: false }
 }
 
+export function parseGitlabUrl(url: string): { host: string; projectPath: string; iid: number } | null {
+  const match = url.match(/^(https?:\/\/[^\/]+)\/(.+?)\/\-\/merge_requests\/(\d+)/i)
+  if (match) return { host: match[1], projectPath: match[2], iid: parseInt(match[3], 10) }
+  return null
+}
+
 export { parseGithubUrl }
 
 export async function githubApiGet(path: string, host: string, isEnterprise: boolean, token?: string) {

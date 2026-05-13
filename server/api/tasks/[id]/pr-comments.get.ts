@@ -1,34 +1,14 @@
-import { exec } from 'child_process'
-import { promisify } from 'util'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, desc } from 'drizzle-orm'
-
-const execAsync = promisify(exec)
-
-function parseGitlabUrl(url: string): { host: string; projectPath: string; iid: number } | null {
-  // Self-hosted GitLab: https://my-gitlab.example.com/owner/repo/-/merge_requests/123
-  const match = url.match(/^(https?:\/\/[^\/]+)\/(.+?)\/\-\/merge_requests\/(\d+)/i)
-  if (match) return { host: match[1], projectPath: match[2], iid: parseInt(match[3], 10) }
-  return null
-}
-
-function parseGithubUrl(url: string): { host: string; owner: string; repo: string; number: number; isEnterprise: boolean } | null {
-  // Self-hosted GitHub Enterprise: https://my-github.example.com/owner/repo/pull/123
-  const enterpriseMatch = url.match(/^(https?:\/\/[^\/]+)\/([^/]+)\/([^/]+?)(\/pull|\/issues)\/(\d+)/i)
-  if (enterpriseMatch) {
-    const host = enterpriseMatch[1]
-    if (!host.includes('github.com')) {
-      return { host, owner: enterpriseMatch[2], repo: enterpriseMatch[3].replace(/\.git$/, ''), number: parseInt(enterpriseMatch[5], 10), isEnterprise: true }
-    }
-  }
-  // Public GitHub: https://github.com/owner/repo/pull/123
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+?)(\/pull|\/issues)\/(\d+)/i)
-  if (!match) return null
-  return { host: 'https://github.com', owner: match[1], repo: match[2].replace(/\.git$/, ''), number: parseInt(match[4], 10), isEnterprise: false }
-}
-
-
+import {
+  parseGithubUrl,
+  parseGitlabUrl,
+  fetchPullRequestComments,
+  fetchIssueComments,
+  determineReviewState,
+  fetchPullRequestReviews,
+} from '~/server/utils/github-api'
 
 export interface PrComment {
   id: number
@@ -40,28 +20,9 @@ export interface PrComment {
   isReview: boolean
 }
 
-async function githubApiGet(path: string, host: string, isEnterprise: boolean, token?: string) {
-  const base = isEnterprise ? `${host}/api/v3` : 'https://api.github.com'
-  const url = `${base}${path}`
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'orbit-app',
-  }
-  // Prefer repository-specific token, fall back to global env token
-  const authToken = token || process.env.GITHUB_TOKEN
-  if (authToken) headers.Authorization = `Bearer ${authToken}`
-  const res = await fetch(url, { headers })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`)
-  }
-  return res.json()
-}
-
 async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string, token?: string): Promise<any[]> {
   const encodedPath = encodeURIComponent(projectPath)
   const host = gitlabHost || 'https://gitlab.com'
-  // Prefer direct HTTP API with the repository token
   const url = `${host}/api/v4/projects/${encodedPath}/merge_requests/${iid}/discussions`
   const headers: Record<string, string> = { 'User-Agent': 'orbit-app', 'Content-Type': 'application/json' }
   if (token) headers['PRIVATE-TOKEN'] = token
@@ -73,12 +34,12 @@ async function gitlabApiGet(projectPath: string, iid: number, gitlabHost: string
   return res.json()
 }
 
-async function fetchGithubComments(owner: string, repo: string, number: number, host: string, isEnterprise: boolean, token?: string): Promise<{ comments: PrComment[]; errors: string[] }> {
+async function fetchGithubComments(owner: string, repo: string, number: number, host: string, isEnterprise: boolean, token?: string): Promise<{ comments: PrComment[]; errors: string[]; reviewState: string }> {
   const comments: PrComment[] = []
   const errors: string[] = []
 
   try {
-    const reviewData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/comments`, host, isEnterprise, token)
+    const reviewData: any[] = await fetchPullRequestComments(owner, repo, number, host, isEnterprise, token)
     for (const c of reviewData) {
       comments.push({
         id: c.id,
@@ -93,7 +54,7 @@ async function fetchGithubComments(owner: string, repo: string, number: number, 
   } catch (e: any) { errors.push(`review: ${e.message}`) }
 
   try {
-    const issueData: any[] = await githubApiGet(`/repos/${owner}/${repo}/issues/${number}/comments`, host, isEnterprise, token)
+    const issueData: any[] = await fetchIssueComments(owner, repo, number, host, isEnterprise, token)
     for (const c of issueData) {
       if (!comments.some(ex => ex.body === c.body && ex.author === (c.user?.login || 'unknown'))) {
         comments.push({
@@ -109,8 +70,10 @@ async function fetchGithubComments(owner: string, repo: string, number: number, 
     }
   } catch (e: any) { errors.push(`issue: ${e.message}`) }
 
+  let reviewState = 'pending'
   try {
-    const reviewsData: any[] = await githubApiGet(`/repos/${owner}/${repo}/pulls/${number}/reviews`, host, isEnterprise, token)
+    const reviewsData: any[] = await fetchPullRequestReviews(owner, repo, number, host, isEnterprise, token)
+    reviewState = determineReviewState(reviewsData)
     for (const r of reviewsData) {
       if (!r.body) continue
       if (comments.some(ex => ex.body === r.body && ex.author === (r.user?.login || 'unknown'))) continue
@@ -126,7 +89,7 @@ async function fetchGithubComments(owner: string, repo: string, number: number, 
     }
   } catch (e: any) { errors.push(`reviews: ${e.message}`) }
 
-  return { comments, errors }
+  return { comments, errors, reviewState }
 }
 
 async function fetchGitlabComments(projectPath: string, iid: number, gitlabHost: string, token?: string): Promise<{ comments: PrComment[]; errors: string[] }> {
@@ -220,6 +183,7 @@ export default defineEventHandler(async (event) => {
 
   let comments: PrComment[] = []
   let errors: string[] = []
+  let reviewState = 'pending'
 
   // Detect platform from URL
   const ghParsed = parseGithubUrl(prUrl)
@@ -230,6 +194,7 @@ export default defineEventHandler(async (event) => {
     const result = await fetchGithubComments(ghParsed.owner, ghParsed.repo, ghParsed.number, ghParsed.host, ghParsed.isEnterprise, repoToken)
     comments = result.comments
     errors = result.errors
+    reviewState = result.reviewState
   } else if (glParsed) {
     const repoToken = task.repository?.token
     if (!repoToken) {
@@ -269,9 +234,17 @@ export default defineEventHandler(async (event) => {
         path: c.path,
         line: c.line,
         isReview: c.isReview,
+        reviewState,
         createdAt: c.createdAt,
       }))
     )
+
+    // Also update the pull request review state if we have a linked PR row
+    if (prRow) {
+      await db.update(schema.pullRequests)
+        .set({ reviewState, lastSyncedAt: new Date() })
+        .where(eq(schema.pullRequests.id, prRow.id))
+    }
   }
 
   return { comments, prUrl, errors: errors.length > 0 ? errors : undefined, cached: false }

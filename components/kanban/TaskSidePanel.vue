@@ -1639,29 +1639,20 @@ async function handleFixFeedback() {
   feedbackFixed.value = false
   fixingFeedback.value = true
   try {
-    // Strip HTML from feedback to avoid confusing the agent CLI
-    function stripHtml(html: string) {
-      return html
-        .replace(/<[^>]*>/g, '')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim()
-    }
+    // Delegate to the server endpoint which refreshes comments from GitHub,
+    // persists them to the database, and stores feedback for the runtime.
+    const res = await $fetch<{ success: true; taskId: string; commentCount: number; feedbackLength: number }>(
+      `/api/tasks/${task.value.id}/fix-feedback`,
+      { method: 'POST' }
+    )
 
-    const feedbackText = prComments.value
-      .map(c => {
-        const location = c.path ? ` (File: ${c.path}${c.line ? `, line ${c.line}` : ''})` : ''
-        return `[Comment by ${c.author}]${location}\n${stripHtml(c.body)}`
-      })
-      .join('\n\n---\n\n')
-      .slice(0, 5000) // Cap at 5000 chars to keep CLI args manageable
-
-    persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: task.value.title, action: 'fix_feedback', message: `Agent fixing ${prComments.value.length} feedback items from PR review` })
+    persistLog(props.workspaceId, {
+      entityType: 'task',
+      entityId: props.taskId,
+      entityName: task.value.title,
+      action: 'fix_feedback',
+      message: `Agent fixing ${res.commentCount} feedback items from PR review`,
+    })
 
     prSkipped.value = false
     isFixRun = true
@@ -1670,8 +1661,10 @@ async function handleFixFeedback() {
     // Expand runtime logs so user can see the agent working
     runtimeLogsExpanded.value = true
 
-    await startRuntime(task.value.id, feedbackText)
-  } catch {
+    // The server already stored the feedback; we just need to start the runtime stream
+    await startRuntime(res.taskId)
+  } catch (err: any) {
+    console.error('Failed to fix feedback:', err)
   } finally {
     fixingFeedback.value = false
   }

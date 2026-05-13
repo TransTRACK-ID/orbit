@@ -1,6 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, and, or, like, desc, inArray } from 'drizzle-orm'
+import { eq, and, or, desc, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -34,14 +34,24 @@ export default defineEventHandler(async (event) => {
   const reviewStateFilter = query.reviewState as string | undefined
   const repoFilter = query.repositoryId as string | undefined
   const search = query.search as string | undefined
-  const assigneeFilter = query.assigneeType as string | undefined
 
-  const conditions: any[] = [
-    or(
-      inArray(schema.pullRequests.repositoryId, repoIds),
-      inArray(schema.pullRequests.taskId, taskIds)
-    )!,
-  ]
+  const conditions: any[] = []
+
+  if (repoIds.length > 0 && taskIds.length > 0) {
+    conditions.push(
+      or(
+        inArray(schema.pullRequests.repositoryId, repoIds),
+        inArray(schema.pullRequests.taskId, taskIds)
+      )!
+    )
+  } else if (repoIds.length > 0) {
+    conditions.push(inArray(schema.pullRequests.repositoryId, repoIds))
+  } else if (taskIds.length > 0) {
+    conditions.push(inArray(schema.pullRequests.taskId, taskIds))
+  } else {
+    // No repos or tasks in workspace — return empty
+    return { pullRequests: [] }
+  }
 
   if (statusFilter) {
     conditions.push(eq(schema.pullRequests.status, statusFilter))
@@ -51,13 +61,6 @@ export default defineEventHandler(async (event) => {
   }
   if (repoFilter) {
     conditions.push(eq(schema.pullRequests.repositoryId, repoFilter))
-  }
-  if (assigneeFilter) {
-    if (assigneeFilter === 'agent') {
-      conditions.push(eq(schema.tasks.assigneeType, 'agent'))
-    } else if (assigneeFilter === 'user') {
-      conditions.push(eq(schema.tasks.assigneeType, 'user'))
-    }
   }
 
   const prs = await db.query.pullRequests.findMany({

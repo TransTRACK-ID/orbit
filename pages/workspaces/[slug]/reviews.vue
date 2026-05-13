@@ -52,6 +52,7 @@ const slug = computed(() => route.params.slug as string)
 
 const { getWorkspaceBySlug } = useWorkspace()
 const { fetchRepositories } = useRepository()
+const { startRuntime } = useAgentRuntime()
 
 const workspace = ref<Workspace | null>(null)
 const repositories = ref<Repository[]>([])
@@ -73,19 +74,7 @@ const diffLoading = ref(false)
 const bottleneckStats = ref<any>(null)
 const bottlenecksLoading = ref(false)
 
-const filteredPullRequests = computed(() => {
-  let list = pullRequests.value
-  if (filterSearch.value) {
-    const q = filterSearch.value.toLowerCase()
-    list = list.filter(
-      (pr) =>
-        pr.title.toLowerCase().includes(q) ||
-        pr.task?.title?.toLowerCase().includes(q) ||
-        pr.repository?.name?.toLowerCase().includes(q)
-    )
-  }
-  return list
-})
+const filteredPullRequests = computed(() => pullRequests.value)
 
 async function loadWorkspace() {
   workspace.value = await getWorkspaceBySlug(slug.value)
@@ -123,7 +112,7 @@ async function loadBottlenecks() {
   bottlenecksLoading.value = true
   try {
     const res = await $fetch(`/api/workspaces/${workspace.value.id}/review-bottlenecks`)
-    bottleneckStats.value = res
+    bottleneckStats.value = res.stats || null
   } catch (err) {
     console.error('Failed to load bottlenecks:', err)
   } finally {
@@ -172,7 +161,6 @@ async function fixFeedback(id: string) {
   try {
     const res = await $fetch<{ success: true; taskId: string; commentCount: number; feedbackLength: number }>(`/api/pull-requests/${id}/fix-feedback`, { method: 'POST' })
     if (res.success && res.taskId) {
-      const { startRuntime } = useAgentRuntime()
       // The server already stored the feedback; we just need to start the runtime stream
       await startRuntime(res.taskId)
 
@@ -187,7 +175,7 @@ async function fixFeedback(id: string) {
   }
 }
 
-watch([filterStatus, filterReviewState, filterRepositoryId], () => {
+watch([filterStatus, filterReviewState, filterRepositoryId, filterSearch], () => {
   loadPullRequests()
 }, { immediate: false })
 

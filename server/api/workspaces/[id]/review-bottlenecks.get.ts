@@ -1,6 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, and, or, inArray, sql, desc } from 'drizzle-orm'
+import { eq, and, or, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -27,13 +27,41 @@ export default defineEventHandler(async (event) => {
   })
   const taskIds = tasks.map((t) => t.id)
 
-  const allPrs = await db.query.pullRequests.findMany({
-    where: and(
+  if (repoIds.length === 0 && taskIds.length === 0) {
+    return {
+      stats: {
+        totalOpen: 0,
+        awaitingReview: 0,
+        needsAgentFix: 0,
+        stale: 0,
+        agentBacklog: 0,
+        mergeBlocked: 0,
+        highFriction: 0,
+        avgReviewTimeMs: 0,
+      },
+      staleReviews: [],
+      agentBacklog: [],
+      mergeBlocked: [],
+      highFriction: [],
+    }
+  }
+
+  const prConditions: any[] = []
+  if (repoIds.length > 0 && taskIds.length > 0) {
+    prConditions.push(
       or(
         inArray(schema.pullRequests.repositoryId, repoIds),
         inArray(schema.pullRequests.taskId, taskIds)
       )!
-    ),
+    )
+  } else if (repoIds.length > 0) {
+    prConditions.push(inArray(schema.pullRequests.repositoryId, repoIds))
+  } else if (taskIds.length > 0) {
+    prConditions.push(inArray(schema.pullRequests.taskId, taskIds))
+  }
+
+  const allPrs = await db.query.pullRequests.findMany({
+    where: and(...prConditions),
     with: {
       task: {
         columns: { id: true, title: true, assigneeType: true, agentAssigneeId: true },

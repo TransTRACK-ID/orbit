@@ -79,18 +79,11 @@
         <div v-if="pullRequest.comments && pullRequest.comments.length > 0">
           <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider mb-2">Review Comments</h3>
           <div class="space-y-2">
-            <div
+            <ReviewsReviewComment
               v-for="comment in pullRequest.comments"
               :key="comment.id"
-              class="rounded-lg bg-surface-50 p-3"
-            >
-              <div class="flex items-center gap-1.5 mb-1">
-                <span class="text-[10px] font-semibold text-surface-700 bg-surface-200 rounded-full px-1.5 py-0.5">{{ comment.author }}</span>
-                <span v-if="comment.path" class="text-[9px] text-surface-400 font-mono truncate">{{ comment.path }}{{ comment.line ? `:${comment.line}` : '' }}</span>
-                <span v-if="comment.isReview" class="text-[9px] text-amber-500 ml-auto">review</span>
-              </div>
-              <div class="text-[11px] text-surface-600 leading-relaxed whitespace-pre-wrap">{{ comment.body }}</div>
-            </div>
+              :comment="comment"
+            />
           </div>
         </div>
 
@@ -132,7 +125,7 @@ import type { PullRequest } from '~/types'
 
 const route = useRoute()
 
-defineProps<{
+const props = defineProps<{
   pullRequest: PullRequest | null
   diff: { files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string } | null
   loading?: boolean
@@ -150,7 +143,7 @@ const statusBadgeClass = computed(() => {
     closed: 'bg-red-50 text-red-700',
     merged: 'bg-purple-50 text-purple-700',
   }
-  return map[pullRequest?.status] || 'bg-surface-100 text-surface-600'
+  return map[props.pullRequest?.status] || 'bg-surface-100 text-surface-600'
 })
 
 const reviewStateBadgeClass = computed(() => {
@@ -160,7 +153,7 @@ const reviewStateBadgeClass = computed(() => {
     changes_requested: 'bg-red-50 text-red-700',
     commented: 'bg-blue-50 text-blue-700',
   }
-  return map[pullRequest?.reviewState] || 'bg-surface-100 text-surface-600'
+  return map[props.pullRequest?.reviewState] || 'bg-surface-100 text-surface-600'
 })
 
 function formatReviewState(state: string): string {

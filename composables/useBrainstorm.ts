@@ -1,4 +1,4 @@
-import type { Brainstorm, BrainstormMessage } from '~/types'
+import type { Brainstorm, BrainstormMessage, Task } from '~/types'
 
 const brainstorms = ref<Brainstorm[]>([])
 const currentBrainstorm = ref<Brainstorm | null>(null)
@@ -186,6 +186,19 @@ export const useBrainstorm = () => {
     chatSteps.value = { ...chatSteps.value, [brainstormId]: '' }
   }
 
+  async function convertToTask(brainstormId: string, messageId: string, projectId: string) {
+    try {
+      const task = await $fetch<Task>(`/api/brainstorms/${brainstormId}/tasks`, {
+        method: 'POST',
+        body: { messageId, projectId },
+      })
+      return task
+    } catch (err) {
+      console.error('Failed to convert message to task:', err)
+      throw err
+    }
+  }
+
   return {
     brainstorms,
     currentBrainstorm,
@@ -208,5 +221,6 @@ export const useBrainstorm = () => {
     clearChatReply,
     getChatStep,
     clearChatStep,
+    convertToTask,
   }
 }

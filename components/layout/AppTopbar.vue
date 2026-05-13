@@ -90,6 +90,7 @@
             <div class="px-3 py-2 border-b border-surface-100">
               <p class="text-xs font-semibold text-surface-900 truncate">{{ userName }}</p>
               <p v-if="userEmail" class="text-[10px] text-surface-500 truncate mt-0.5">{{ userEmail }}</p>
+              <p v-if="userRole" class="text-[10px] text-accent font-medium truncate mt-0.5">{{ userRole }}</p>
             </div>
 
             <!-- Admin -->
@@ -167,6 +168,7 @@ const { data: session, signOut } = useAuth()
 const user = computed(() => (session.value?.user as any) || { name: 'Alex Chen' })
 const userName = computed(() => user.value?.name || 'Alex Chen')
 const userEmail = computed(() => user.value?.email || '')
+const userRole = computed(() => user.value?.role || '')
 const userInitials = computed(() => {
   const name = userName.value
   return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)

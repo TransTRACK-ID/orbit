@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   })
 
   // Daily signup counts (last 30 days)
-  const dailySignups = await db.execute(sql`
+  const dailySignupsResult = await db.execute(sql`
     SELECT DATE(created_at) as date, COUNT(*) as count
     FROM ${schema.users}
     WHERE created_at >= NOW() - INTERVAL '30 days'
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   `)
 
   // Daily task creation counts (last 30 days)
-  const dailyTasks = await db.execute(sql`
+  const dailyTasksResult = await db.execute(sql`
     SELECT DATE(created_at) as date, COUNT(*) as count
     FROM ${schema.tasks}
     WHERE created_at >= NOW() - INTERVAL '30 days'
@@ -32,15 +32,20 @@ export default defineEventHandler(async (event) => {
   `)
 
   // Workspace counts
-  const workspaceCount = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.workspaces}`).then(r => Number(r[0]?.count || 0))
-  const projectCount = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.projects}`).then(r => Number(r[0]?.count || 0))
-  const taskCount = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.tasks}`).then(r => Number(r[0]?.count || 0))
-  const userCount = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.users}`).then(r => Number(r[0]?.count || 0))
+  const workspaceCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.workspaces}`)
+  const projectCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.projects}`)
+  const taskCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.tasks}`)
+  const userCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM ${schema.users}`)
 
-  return {
+  const workspaceCount = Number(workspaceCountResult.rows[0]?.count || 0)
+  const projectCount = Number(projectCountResult.rows[0]?.count || 0)
+  const taskCount = Number(taskCountResult.rows[0]?.count || 0)
+  const userCount = Number(userCountResult.rows[0]?.count || 0)
+
+  const result = {
     recentActivity,
-    dailySignups: dailySignups.rows || dailySignups,
-    dailyTasks: dailyTasks.rows || dailyTasks,
+    dailySignups: dailySignupsResult.rows,
+    dailyTasks: dailyTasksResult.rows,
     stats: {
       users: userCount,
       workspaces: workspaceCount,
@@ -48,4 +53,8 @@ export default defineEventHandler(async (event) => {
       tasks: taskCount,
     },
   }
+
+  console.log('[Admin Activity API] Response:', JSON.stringify(result, null, 2))
+
+  return result
 })

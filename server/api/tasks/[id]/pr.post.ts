@@ -95,19 +95,15 @@ function resolveWorktreeDir(cloneDir: string, taskId: string): string {
 }
 
 function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
-  const envToken = platform === 'github'
-    ? (process.env.GITHUB_TOKEN || '')
-    : (process.env.GITLAB_TOKEN || '')
-  const effectiveToken = token || envToken
-  if (!effectiveToken) return url
+  if (!token) return url
 
   if (platform === 'github') {
     if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${effectiveToken}@github.com/`)
+    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
   }
 
   if (!url.startsWith('https://')) return url
-  return url.replace(/^https:\/\//, `https://oauth2:${effectiveToken}@`)
+  return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
 }
 
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
@@ -350,7 +346,7 @@ export default defineEventHandler(async (event) => {
 
     const githubEnv: NodeJS.ProcessEnv = repoToken && cli === 'gh'
       ? { ...process.env, GITHUB_TOKEN: repoToken }
-      : process.env
+      : { ...process.env }
 
     // Check if PR/MR already exists for this branch
     let existingPrUrl = ''

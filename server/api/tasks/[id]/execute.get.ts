@@ -307,30 +307,22 @@ const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
  * Supports GitHub and GitLab (including self-hosted).
  */
 function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
-  const envToken = platform === 'github'
-    ? (process.env.GITHUB_TOKEN || '')
-    : (process.env.GITLAB_TOKEN || '')
-  const effectiveToken = token || envToken
-  if (!effectiveToken) return url
+  if (!token) return url
 
   if (platform === 'github') {
     if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${effectiveToken}@github.com/`)
+    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
   }
 
   // GitLab — self-hosted or gitlab.com
   if (!url.startsWith('https://')) return url
   // Inject token into any https:// URL for GitLab
-  return url.replace(/^https:\/\//, `https://oauth2:${effectiveToken}@`)
+  return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
 }
 
 async function configureGitAuth(workDir: string, repoUrl: string, platform: string, token?: string | null) {
-  const envToken = platform === 'github'
-    ? (process.env.GITHUB_TOKEN || '')
-    : (process.env.GITLAB_TOKEN || '')
-  const effectiveToken = token || envToken
-  if (!effectiveToken) return
-  const authUrl = injectTokenIntoRemoteUrl(repoUrl, platform, effectiveToken)
+  if (!token) return
+  const authUrl = injectTokenIntoRemoteUrl(repoUrl, platform, token)
   if (authUrl === repoUrl) return
   try {
     await execAsync(`git remote set-url origin ${authUrl}`, { cwd: workDir })
@@ -926,9 +918,9 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
       NODE_ENV: process.env.NODE_ENV,
       LANG: process.env.LANG,
       LC_ALL: process.env.LC_ALL,
-      GITHUB_TOKEN: process.env.GITHUB_TOKEN,
       GITLAB_TOKEN: process.env.GITLAB_TOKEN,
       GITLAB_HOST: process.env.GITLAB_HOST,
+      ...(repoToken ? { GITHUB_TOKEN: repoToken } : {}),
     }
 
     // Build args: include --file for each attachment so opencode passes them

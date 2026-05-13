@@ -46,7 +46,7 @@ export const createProjectFromTemplateSchema = z.object({
   repositoryName: z.string().min(1).max(255),
   repositoryUrl: z.string().url().optional(),
   platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']).default('github'),
-  gitlabHost: z.string().url().optional(),
+  gitlabHost: z.preprocess((val) => (val === '' ? undefined : val), z.string().url().optional()),
   token: z.string().optional(),
   createRemoteRepo: z.boolean().default(true),
   isPrivate: z.boolean().default(true),

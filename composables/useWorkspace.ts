@@ -1,8 +1,9 @@
 import type { Workspace, WorkspaceMember } from '~/types'
 
+const workspaces = ref<Workspace[]>([])
+const loading = ref(false)
+
 export const useWorkspace = () => {
-  const workspaces = ref<Workspace[]>([])
-  const loading = ref(false)
 
   async function fetchWorkspaces() {
     loading.value = true

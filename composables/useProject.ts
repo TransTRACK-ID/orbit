@@ -1,11 +1,12 @@
 import type { Project, ProjectMember, Status, Label } from '~/types'
 
+const projects = ref<Project[]>([])
+const currentProject = ref<Project | null>(null)
+const projectStatuses = ref<Status[]>([])
+const projectLabels = ref<Label[]>([])
+const loading = ref(false)
+
 export const useProject = () => {
-  const projects = ref<Project[]>([])
-  const currentProject = ref<Project | null>(null)
-  const projectStatuses = ref<Status[]>([])
-  const projectLabels = ref<Label[]>([])
-  const loading = ref(false)
 
   async function fetchProjects(workspaceId: string) {
     loading.value = true

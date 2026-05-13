@@ -90,19 +90,33 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
   }
 }
 
-async function waitForPort(port: number, timeoutMs = 30000): Promise<boolean> {
+async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeoutMs = 90000): Promise<boolean> {
   const start = Date.now()
+  let lastStatus = ''
   while (Date.now() - start < timeoutMs) {
+    // Check if process died
+    if (proc.killed || proc.exitCode !== null) {
+      console.error(`[dev-server] Process died before port ${port} was ready (exitCode=${proc.exitCode})`)
+      return false
+    }
+
     try {
       const { stdout } = await execAsync(`curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}`, { timeout: 2000 })
-      if (stdout.trim() === '200' || stdout.trim() === '404') {
+      const status = stdout.trim()
+      if (status === '200' || status === '404') {
+        console.log(`[dev-server] Port ${port} ready (HTTP ${status})`)
         return true
+      }
+      if (status !== lastStatus) {
+        lastStatus = status
+        console.log(`[dev-server] Port ${port} not ready yet (HTTP ${status}), elapsed: ${Date.now() - start}ms`)
       }
     } catch {
       // Port not ready yet
     }
-    await new Promise(r => setTimeout(r, 500))
+    await new Promise(r => setTimeout(r, 1000))
   }
+  console.error(`[dev-server] Port ${port} did not become ready within ${timeoutMs}ms`)
   return false
 }
 
@@ -214,11 +228,11 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     activeDevServers.delete(worktreeDir)
   })
 
-  const ready = await waitForPort(port, 30000)
+  const ready = await waitForPort(port, proc, 90000)
   if (!ready) {
     try { proc.kill('SIGTERM') } catch {}
     activeDevServers.delete(worktreeDir)
-    throw new Error(`Dev server failed to start on port ${port} within 30s`)
+    throw new Error(`Dev server failed to start on port ${port} within 90s`)
   }
 
   info.ready = true

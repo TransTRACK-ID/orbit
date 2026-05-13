@@ -252,10 +252,17 @@ export default defineEventHandler(async (event) => {
 
   // Persist comments to DB
   if (comments.length > 0) {
+    // Find the pull request for this task so comments can be linked
+    const prRow = await db.query.pullRequests.findFirst({
+      where: eq(schema.pullRequests.taskId, id),
+      columns: { id: true },
+    })
+
     await db.delete(schema.prComments).where(eq(schema.prComments.taskId, id))
     await db.insert(schema.prComments).values(
       comments.map(c => ({
         taskId: id,
+        pullRequestId: prRow?.id || null,
         githubCommentId: c.id,
         author: c.author,
         body: c.body,

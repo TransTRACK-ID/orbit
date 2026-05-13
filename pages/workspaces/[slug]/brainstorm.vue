@@ -62,7 +62,9 @@
             :messages="messages"
             :is-running="chatRunningState"
             :is-sending="sending"
+            :messages-loading="messagesLoading"
             :chat-reply="currentChatReply"
+            :current-step="currentChatStep"
             @send="handleSend"
             @start="handleStart"
             @stop="handleStop"
@@ -151,6 +153,7 @@ const {
   messages,
   loading,
   sending,
+  messagesLoading,
   fetchBrainstorms,
   createBrainstorm,
   fetchBrainstorm,
@@ -162,6 +165,8 @@ const {
   isChatRunning,
   getChatReply,
   clearChatReply,
+  getChatStep,
+  clearChatStep,
 } = useBrainstorm()
 
 const workspace = ref<Workspace | null | undefined>(null)
@@ -180,7 +185,14 @@ const currentChatReply = computed(() => {
   return getChatReply(currentBrainstorm.value.id)
 })
 
+const currentChatStep = computed(() => {
+  if (!currentBrainstorm.value) return ''
+  return getChatStep(currentBrainstorm.value.id)
+})
+
 onMounted(async () => {
+  // Reset any stuck loading state from previous sessions
+  messagesLoading.value = false
   workspace.value = await getWorkspaceBySlug(slug.value)
   if (workspace.value) {
     await fetchRepositories(workspace.value.id)
@@ -200,6 +212,11 @@ function selectBrainstorm(id: string) {
 }
 
 async function loadBrainstorm(id: string) {
+  messagesLoading.value = false
+  messages.value = []
+  clearChatReply(id)
+  clearChatStep(id)
+  chatRunningState.value = false
   await fetchBrainstorm(id)
   await fetchMessages(id)
   startChatCheck()
@@ -207,19 +224,28 @@ async function loadBrainstorm(id: string) {
 
 function startChatCheck() {
   if (chatCheckInterval) clearInterval(chatCheckInterval)
-  chatCheckInterval = setInterval(() => {
-    if (currentBrainstorm.value) {
-      const running = isChatRunning(currentBrainstorm.value.id)
-      if (chatRunningState.value && !running) {
-        // Chat just finished
-        const reply = getChatReply(currentBrainstorm.value.id)
-        if (reply.trim()) {
-          saveAssistantMessage(currentBrainstorm.value.id, reply.trim())
+  let isSaving = false
+  chatCheckInterval = setInterval(async () => {
+    if (!currentBrainstorm.value || isSaving) return
+    const bsId = currentBrainstorm.value.id
+    const running = isChatRunning(bsId)
+
+    if (chatRunningState.value && !running) {
+      // Chat just finished — save reply before clearing
+      const reply = getChatReply(bsId)
+      clearChatReply(bsId)
+      clearChatStep(bsId)
+
+      if (reply.trim()) {
+        isSaving = true
+        try {
+          await saveAssistantMessage(bsId, reply.trim())
+        } finally {
+          isSaving = false
         }
-        clearChatReply(currentBrainstorm.value.id)
       }
-      chatRunningState.value = running
     }
+    chatRunningState.value = running
   }, 500)
 }
 
@@ -249,8 +275,15 @@ async function handleSend(content: string) {
   if (!currentBrainstorm.value) return
   const bsId = currentBrainstorm.value.id
 
+  // Save any in-progress reply before starting a new chat
+  const existingReply = getChatReply(bsId)
+  if (existingReply.trim()) {
+    await saveAssistantMessage(bsId, existingReply.trim())
+    clearChatReply(bsId)
+  }
+  clearChatStep(bsId)
+
   await sendMessage(bsId, content)
-  clearChatReply(bsId)
   chatRunningState.value = true
   await startChat(bsId, content)
 }

@@ -340,7 +340,7 @@
                 />
                 <div
                   v-else
-                  class="text-sm text-surface-700 min-h-[80px] prose prose-sm max-w-none"
+                  class="text-sm text-surface-700 min-h-[80px] max-h-[400px] overflow-y-auto prose prose-sm max-w-none"
                   v-html="renderedDescription"
                 />
               </div>

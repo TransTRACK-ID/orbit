@@ -36,13 +36,35 @@ export const useProject = () => {
     return data
   }
 
-  async function createProject(workspaceId: string, data: { name: string; description?: string; color?: string; icon?: string }) {
+  async function createProject(workspaceId: string, data: { name: string; description?: string; color?: string; icon?: string; templateId?: string; stack?: string }) {
     const project = await $fetch<Project>(`/api/workspaces/${workspaceId}/projects`, {
       method: 'POST',
       body: data,
     })
     projects.value = [...projects.value, project]
     return project
+  }
+
+  async function createProjectFromTemplate(workspaceId: string, data: {
+    name: string
+    description?: string
+    color?: string
+    icon?: string
+    templateId: string
+    repositoryName: string
+    repositoryUrl?: string
+    platform?: 'github' | 'gitlab' | 'gitlab-self-hosted'
+    token?: string
+    createRemoteRepo?: boolean
+    isPrivate?: boolean
+    variables?: Record<string, string>
+  }) {
+    const result = await $fetch<{ project: Project }>(`/api/workspaces/${workspaceId}/projects.from-template`, {
+      method: 'POST',
+      body: data,
+    })
+    projects.value = [...projects.value, result.project]
+    return result.project
   }
 
   async function updateProject(id: string, data: Partial<Project>) {

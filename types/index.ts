@@ -50,9 +50,42 @@ export interface Project {
   description: string | null
   color: string
   icon: string | null
+  templateId: string | null
+  stack: string | null
   createdAt: string
   updatedAt: string
   _count?: { tasks: number; doneTasks: number; members: number }
+}
+
+export interface TemplateConfig {
+  id: string
+  name: string
+  description: string
+  category: string
+  stack: string
+  sourceType: 'local_path' | 'git' | 'npx' | 'command'
+  sourcePath: string
+  branch?: string
+  variables: Array<{
+    key: string
+    label: string
+    required: boolean
+    default?: string
+    autoGenerate?: boolean
+    length?: number
+  }>
+  fileSubstitutions: Array<{
+    path: string
+    replacements: Record<string, string>
+  }>
+  renameFiles?: Array<{ from: string; to: string }>
+  postInitCommands: Array<{
+    command: string
+    timeout?: number
+    description: string
+  }>
+  gitInit: boolean
+  initialCommitMessage: string
 }
 
 export interface ProjectMember {

@@ -50,8 +50,15 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
 
 async function installDependencies(worktreeDir: string): Promise<boolean> {
   const nodeModulesPath = path.join(worktreeDir, 'node_modules')
-  if (existsSync(nodeModulesPath)) {
-    return false // already installed
+  const nuxtBinPath = path.join(worktreeDir, 'node_modules', '.bin', 'nuxt')
+
+  // Check if node_modules exists AND has the nuxt binary
+  if (existsSync(nodeModulesPath) && existsSync(nuxtBinPath)) {
+    return false // already installed and ready
+  }
+
+  if (existsSync(nodeModulesPath) && !existsSync(nuxtBinPath)) {
+    console.warn(`[dev-server] node_modules exists but nuxt binary is missing in ${worktreeDir}. Reinstalling...`)
   }
 
   const pm = detectPackageManager(worktreeDir)
@@ -62,14 +69,23 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
 
   console.log(`[dev-server] Installing dependencies with ${pm.cmd} in ${worktreeDir}...`)
   try {
-    await execAsync(`${pm.cmd} ${pm.args.join(' ')}`, {
+    const { stdout, stderr } = await execAsync(`${pm.cmd} ${pm.args.join(' ')}`, {
       cwd: worktreeDir,
-      timeout: 120000,
+      timeout: 180000,
+      env: { ...process.env, CI: 'true' },
     })
+    if (stderr) console.warn(`[dev-server] Install stderr: ${stderr.slice(0, 500)}`)
     console.log(`[dev-server] Dependencies installed in ${worktreeDir}`)
+
+    // Verify the binary exists after install
+    if (!existsSync(nuxtBinPath)) {
+      console.warn(`[dev-server] Warning: nuxt binary still not found after install`)
+    }
+
     return true
   } catch (err: any) {
     console.error(`[dev-server] Dependency installation failed: ${err.message}`)
+    if (err.stderr) console.error(`[dev-server] Install error output: ${err.stderr.slice(0, 500)}`)
     return false
   }
 }

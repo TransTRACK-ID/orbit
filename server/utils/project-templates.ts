@@ -2,11 +2,40 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { readFile, writeFile, cp, mkdir, rename } from 'fs/promises'
 import { existsSync } from 'fs'
+import { join } from 'path'
 import { injectTokenIntoRemoteUrl } from './git-helpers'
-import templates from '~/server/data/templates.json'
 
 const execAsync = promisify(exec)
 const projectsDir = `${process.env.HOME || '/root'}/orbit-projects`
+const templatesFilePath = join(process.cwd(), 'server/data/templates.json')
+
+let cachedTemplates: TemplateConfig[] | null = null
+let cacheTimestamp = 0
+const CACHE_TTL_MS = 5000 // 5 seconds
+
+async function loadTemplates(): Promise<TemplateConfig[]> {
+  try {
+    const data = await readFile(templatesFilePath, 'utf-8')
+    return JSON.parse(data) as TemplateConfig[]
+  } catch {
+    return []
+  }
+}
+
+export async function getTemplates(): Promise<TemplateConfig[]> {
+  const now = Date.now()
+  if (!cachedTemplates || now - cacheTimestamp > CACHE_TTL_MS) {
+    cachedTemplates = await loadTemplates()
+    cacheTimestamp = now
+  }
+  return cachedTemplates
+}
+
+export async function saveTemplates(templates: TemplateConfig[]) {
+  await writeFile(templatesFilePath, JSON.stringify(templates, null, 2) + '\n', 'utf-8')
+  cachedTemplates = templates
+  cacheTimestamp = Date.now()
+}
 
 export interface TemplateConfig {
   id: string
@@ -39,12 +68,14 @@ export interface TemplateConfig {
   initialCommitMessage: string
 }
 
-export function getTemplateById(id: string): TemplateConfig | undefined {
-  return (templates as TemplateConfig[]).find(t => t.id === id)
+export async function getTemplateById(id: string): Promise<TemplateConfig | undefined> {
+  const templates = await getTemplates()
+  return templates.find(t => t.id === id)
 }
 
-export function listTemplates() {
-  return (templates as TemplateConfig[]).map(t => ({
+export async function listTemplates() {
+  const templates = await getTemplates()
+  return templates.map(t => ({
     id: t.id,
     name: t.name,
     description: t.description,
@@ -101,7 +132,7 @@ export async function initializeFromTemplate(
   token?: string,
   platform?: string
 ): Promise<{ targetDir: string; remoteUrl?: string }> {
-  const template = getTemplateById(templateId)
+  const template = await getTemplateById(templateId)
   if (!template) throw new Error(`Template not found: ${templateId}`)
 
   // Resolve target directory

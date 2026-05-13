@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, createProjectFromTemplateSchema.parse)
   const db = getDb()
 
-  const template = getTemplateById(body.templateId)
+  const template = await getTemplateById(body.templateId)
   if (!template) throw createError({ statusCode: 400, message: 'Template not found' })
 
   // ─── 1. Create project record ───

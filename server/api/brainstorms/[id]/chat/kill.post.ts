@@ -12,10 +12,12 @@ export default defineEventHandler(async (event) => {
 
   if (entry.heartbeat) clearInterval(entry.heartbeat)
 
-  try { entry.proc.kill('SIGTERM') } catch {}
-  setTimeout(() => {
-    try { entry.proc.kill('SIGKILL') } catch {}
-  }, 3000)
+  if (entry.proc) {
+    try { entry.proc.kill('SIGTERM') } catch {}
+    setTimeout(() => {
+      try { entry.proc?.kill('SIGKILL') } catch {}
+    }, 3000)
+  }
 
   for (const s of entry.streams) {
     try { s.close() } catch {}

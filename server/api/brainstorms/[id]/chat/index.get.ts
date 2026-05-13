@@ -148,6 +148,12 @@ export default defineEventHandler(async (event) => {
 
     const existing = activeBrainstormProcesses.get(id)
     if (existing) {
+      if (existing.proc === null) {
+        // Session already completed — notify reconnecting client and close
+        await stream.push(JSON.stringify({ step: existing.exitMessage || 'Brainstorm session completed', timestamp: Date.now() }))
+        stream.close()
+        return
+      }
       addStreamToBrainstormProc(id, stream, existing)
       return
     }
@@ -401,24 +407,51 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     })
 
     proc.on('error', async (err) => {
+      if (entry.proc === null) return // Already finalized
       clearInterval(heartbeat)
       clearTimeout(runtimeTimeout)
       hasOutput = true
       const msg = `Failed to start opencode: ${err.message}`
       await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+      for (const s of entry.streams) {
+        try { s.close() } catch {}
+      }
+      entry.proc = null
+      entry.completedAt = Date.now()
+      entry.exitMessage = msg
+      setTimeout(() => {
+        if (activeBrainstormProcesses.get(id) === entry) {
+          activeBrainstormProcesses.delete(id)
+        }
+      }, 30000)
     })
 
-    proc.on('exit', async (code) => {
+    proc.on('close', async (code, signal) => {
+      if (entry.proc === null) return // Already finalized
       clearInterval(heartbeat)
       clearTimeout(runtimeTimeout)
       hasOutput = true
-      const msg = code === 0 ? 'Brainstorm session completed' : `Exited with code ${code}`
+      let msg: string
+      if (signal) {
+        msg = `Terminated by ${signal}`
+      } else {
+        msg = code === 0 ? 'Brainstorm session completed' : `Exited with code ${code}`
+      }
       await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       // Close all streams so the client EventSource disconnects cleanly
       for (const s of entry.streams) {
         try { s.close() } catch {}
       }
-      activeBrainstormProcesses.delete(id)
+      // Mark as completed to prevent reconnection loops
+      entry.proc = null
+      entry.completedAt = Date.now()
+      entry.exitMessage = msg
+      // Clean up after 30 seconds
+      setTimeout(() => {
+        if (activeBrainstormProcesses.get(id) === entry) {
+          activeBrainstormProcesses.delete(id)
+        }
+      }, 30000)
     })
   }, 0)
 

@@ -2,9 +2,11 @@ import type { ChildProcess } from 'child_process'
 import type { EventStream } from 'h3'
 
 export type BrainstormProcState = {
-  proc: ChildProcess
+  proc: ChildProcess | null
   streams: EventStream[]
   heartbeat: NodeJS.Timeout | null
+  completedAt?: number
+  exitMessage?: string
 }
 
 export const activeBrainstormProcesses = new Map<string, BrainstormProcState>()
@@ -18,9 +20,15 @@ export function addStreamToBrainstormProc(brainstormId: string, stream: EventStr
     entry.streams = entry.streams.filter(s => s !== stream)
     if (entry.streams.length === 0) {
       if (entry.heartbeat) clearInterval(entry.heartbeat)
-      try { entry.proc.kill('SIGTERM') } catch {}
-      setTimeout(() => { try { entry.proc.kill('SIGKILL') } catch {} }, 5000)
-      activeBrainstormProcesses.delete(brainstormId)
+      if (entry.proc) {
+        try { entry.proc.kill('SIGTERM') } catch {}
+        setTimeout(() => { try { entry.proc?.kill('SIGKILL') } catch {} }, 5000)
+      }
+      // Only delete immediately if process is still running.
+      // For completed entries, let the grace-period timeout handle cleanup.
+      if (entry.proc !== null) {
+        activeBrainstormProcesses.delete(brainstormId)
+      }
     }
   }
 }

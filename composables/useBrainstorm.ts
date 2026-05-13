@@ -127,6 +127,12 @@ export const useBrainstorm = () => {
           chatSteps.value = { ...chatSteps.value, [brainstormId]: data.step }
           if (/>?\s*Done$/.test(data.step) || />?\s*Brainstorm session completed/.test(data.step) || />?\s*Exited with code/.test(data.step)) {
             receivedDone = true
+            // Immediately mark as not running so UI updates and auto-save can persist the reply
+            activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: false }
+            chatEventSources.delete(brainstormId)
+            es.close()
+            // Intentionally no return here — if this event also carries a final agentReply,
+            // we want to process it below before the connection closes.
           }
         }
         if (data.agentReply) {
@@ -137,6 +143,9 @@ export const useBrainstorm = () => {
     }
 
     es.onerror = () => {
+      // Only clean up when the session is actually done or the connection is permanently
+      // closed. This preserves EventSource auto-reconnect for transient network errors
+      // while the agent is still actively running on the server.
       if (receivedDone || es.readyState === EventSource.CLOSED) {
         chatEventSources.delete(brainstormId)
         activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: false }

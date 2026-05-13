@@ -24,8 +24,16 @@ RUN bun install --frozen-lockfile && rm -rf /tmp/*
 COPY . .
 
 # Build the Nuxt application with Node (not Bun) to avoid hangs
+# Temporarily move server/templates out of the way so Nuxt doesn't scan
+# the embedded starter projects (which have their own app.vue, pages/, etc.)
+# during the build. Restored after build for runtime template copying.
+RUN mv server/templates /tmp/templates-stash
+
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npx nuxt build
+
+# Restore templates after build
+RUN mv /tmp/templates-stash server/templates
 
 # Stage 2: Run the Nuxt application and the agent runtime
 # Using node image for production runtime (better compatibility with auth packages like jose/openid-client)

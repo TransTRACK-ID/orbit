@@ -2,6 +2,14 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
 
+  // Explicitly ignore template directories that contain their own Nuxt projects
+  // (redundant with .nuxtignore but ensures they're excluded during all build phases)
+  ignore: [
+    '**/server/templates/**',
+    '**/*.test.ts',
+    '**/vitest.config.ts',
+  ],
+
   app: {
     head: {
       viewport: 'width=device-width, initial-scale=1',

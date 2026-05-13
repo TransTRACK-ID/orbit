@@ -2,7 +2,7 @@ import { requireWorkspaceAccess } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { createProjectFromTemplateSchema } from '~/server/utils/validation'
 import { initializeFromTemplate, getTemplateById } from '~/server/utils/project-templates'
-import { createGitHubRepo } from '~/server/utils/github-api'
+import { createGitHubRepo, createGitLabRepo } from '~/server/utils/github-api'
 
 const DEFAULT_STATUSES = [
   { name: 'Backlog', color: '#94a3b8', position: 0, isDefault: true },
@@ -45,10 +45,16 @@ export default defineEventHandler(async (event) => {
   // ─── 2. Create remote repo (if requested) ───
   let remoteUrl = body.repositoryUrl
   if (body.createRemoteRepo && !remoteUrl) {
-    if (body.platform === 'github' && body.token) {
+    if (!body.token) {
+      throw createError({ statusCode: 400, message: 'Access token is required to create a remote repository.' })
+    }
+    if (body.platform === 'github') {
       remoteUrl = await createGitHubRepo(body.token, body.repositoryName, body.isPrivate, body.description)
+    } else if (body.platform === 'gitlab' || body.platform === 'gitlab-self-hosted') {
+      const host = body.gitlabHost || 'https://gitlab.com'
+      remoteUrl = await createGitLabRepo(body.token, body.repositoryName, body.isPrivate, body.description, host)
     } else {
-      throw createError({ statusCode: 400, message: 'Auto-create only supported for GitHub with a token. Provide a repositoryUrl for other platforms.' })
+      throw createError({ statusCode: 400, message: 'Auto-create not supported for this platform. Provide a repositoryUrl.' })
     }
   }
 

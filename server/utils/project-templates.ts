@@ -165,10 +165,12 @@ export async function initializeFromTemplate(
     }
   }
 
+  const execOptions = { cwd: targetDir, maxBuffer: 10 * 1024 * 1024 } // 10MB buffer
+
   // Run post-init commands
   for (const cmd of template.postInitCommands) {
     await execAsync(cmd.command, {
-      cwd: targetDir,
+      ...execOptions,
       timeout: cmd.timeout || 120000,
       env: { ...process.env, FORCE_COLOR: '0' }, // Prevent ANSI color codes in logs
     })
@@ -176,15 +178,15 @@ export async function initializeFromTemplate(
 
   // Git init
   if (template.gitInit) {
-    await execAsync('git init', { cwd: targetDir })
-    await execAsync('git add -A', { cwd: targetDir })
-    await execAsync(`git commit -m "${template.initialCommitMessage}"`, { cwd: targetDir })
+    await execAsync('git init', execOptions)
+    await execAsync('git add -A', execOptions)
+    await execAsync(`git commit -m "${template.initialCommitMessage}"`, execOptions)
 
     if (remoteUrl) {
       const authUrl = token && platform ? injectTokenIntoRemoteUrl(remoteUrl, platform, token) : remoteUrl
-      await execAsync(`git remote add origin ${authUrl}`, { cwd: targetDir })
-      await execAsync(`git branch -M ${template.branch || 'main'}`, { cwd: targetDir })
-      await execAsync('git push -u origin main', { cwd: targetDir })
+      await execAsync(`git remote add origin ${authUrl}`, execOptions)
+      await execAsync(`git branch -M ${template.branch || 'main'}`, execOptions)
+      await execAsync('git push -u origin main', execOptions)
     }
   }
 

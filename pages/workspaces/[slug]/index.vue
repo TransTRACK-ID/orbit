@@ -41,14 +41,22 @@
         <div
           v-for="project in projects"
           :key="project.id"
-          class="bg-white border border-surface-200 rounded-xl p-[18px] cursor-pointer hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150"
+          class="bg-white border border-surface-200 rounded-xl p-[18px] cursor-pointer hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150 group relative"
           @click="navigateTo(`/workspaces/${workspace.slug}/projects/${project.id}/board`)"
         >
-          <div
-            class="w-[36px] h-[36px] rounded-lg flex items-center justify-center text-xs text-white mb-3"
-            :style="{ background: project.color }"
-          >
-            <span class="text-[10px] font-bold">{{ projectInitials(project.name) }}</span>
+          <div class="flex items-start justify-between mb-3">
+            <div
+              class="w-[36px] h-[36px] rounded-lg flex items-center justify-center text-xs text-white"
+              :style="{ background: project.color }"
+            >
+              <span class="text-[10px] font-bold">{{ projectInitials(project.name) }}</span>
+            </div>
+            <button
+              class="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-surface-400 hover:text-red-500"
+              @click.stop="openDeleteConfirm(project)"
+            >
+              <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+            </button>
           </div>
           <h3 class="text-sm font-semibold mb-1">{{ project.name }}</h3>
           <p v-if="project.description" class="text-[11px] text-surface-400 leading-snug mb-3 line-clamp-2">
@@ -81,6 +89,33 @@
       @close="showCreateProject = false"
       @created="onProjectCreated"
     />
+
+    <!-- Delete project confirmation -->
+    <ModalConfirmation
+      v-if="projectToDelete"
+      title="Delete Project"
+      :message="`Type '${projectToDelete.name}' to confirm deletion. This cannot be undone.`"
+      confirm-text="Delete"
+      variant="danger"
+      :is-loading="deleteLoading"
+      :confirm-disabled="deleteConfirmName !== projectToDelete.name"
+      @confirm="handleDelete"
+      @cancel="projectToDelete = null; deleteConfirmName = ''"
+    >
+      <template #icon>
+        <Icon name="lucide:trash-2" class="w-5 h-5" />
+      </template>
+      <div class="w-full text-left mt-3">
+        <TextInput
+          v-model="deleteConfirmName"
+          :placeholder="`Type ${projectToDelete.name} to confirm`"
+          class="w-full"
+        />
+      </div>
+      <template v-if="deleteConfirmName !== projectToDelete.name">
+        <p class="text-[11px] text-error-500 mt-1">You must type the project name exactly to confirm.</p>
+      </template>
+    </ModalConfirmation>
   </div>
 </template>
 
@@ -94,11 +129,14 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const { getWorkspaceBySlug, loading: wsLoading } = useWorkspace()
-const { projects, loading, fetchProjects } = useProject()
+const { projects, loading, fetchProjects, deleteProject } = useProject()
 
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<Workspace | null>(null)
 const showCreateProject = ref(false)
+const projectToDelete = ref<Project | null>(null)
+const deleteConfirmName = ref('')
+const deleteLoading = ref(false)
 
 onMounted(async () => {
   workspace.value = await getWorkspaceBySlug(slug.value)
@@ -110,6 +148,23 @@ onMounted(async () => {
 function onProjectCreated(project: Project) {
   showCreateProject.value = false
   router.push(`/workspaces/${workspace.value?.slug}/projects/${project.id}/board`)
+}
+
+function openDeleteConfirm(project: Project) {
+  projectToDelete.value = project
+  deleteConfirmName.value = ''
+}
+
+async function handleDelete() {
+  if (!projectToDelete.value || deleteConfirmName.value !== projectToDelete.value.name) return
+  deleteLoading.value = true
+  try {
+    await deleteProject(projectToDelete.value.id)
+    projectToDelete.value = null
+    deleteConfirmName.value = ''
+  } finally {
+    deleteLoading.value = false
+  }
 }
 
 function projectInitials(name: string) {

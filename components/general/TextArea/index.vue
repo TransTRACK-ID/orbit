@@ -27,6 +27,10 @@ const props = defineProps({
   maxLength: {
     type: Number || undefined,
     default: undefined
+  },
+  rows: {
+    type: [Number, String],
+    default: 3
   }
 });
 
@@ -51,12 +55,12 @@ const emit = defineEmits(["on-input", "update:modelValue"]);
 
       <textarea
         :id="props.id"
-        rows="3"
+        :rows="props.rows"
         :value="props.modelValue"
         :type="props.type"
         :placeholder="props.placeholder"
         :maxlength="props.maxLength"
-        class="py-2.5 px-3.5 block w-full border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-500 focus:border-primary-500 resize-none"
+        class="py-2.5 px-3.5 block w-full border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-500 focus:border-primary-500 resize-y"
         :class="$slots.prefix ? 'pl-10' : ''"
         @input="emit('update:modelValue', $event.target?.value)"
       />

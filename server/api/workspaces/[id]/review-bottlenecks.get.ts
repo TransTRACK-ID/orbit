@@ -157,12 +157,15 @@ export default defineEventHandler(async (event) => {
           })
           inserted = true
         } catch (e: any) {
+          const msg = e.message || ''
+          // Race condition: another request already inserted this PR
+          if (msg.includes('pull_requests_task_id_unique')) continue
           const hasRepoToken = !!task?.repository?.token
           const tokenSource = hasRepoToken ? 'repository token' : 'no token'
           console.error(
             `[review-bottlenecks.get] Backfill failed for task ${taskId} ` +
             `(auth: ${tokenSource}, repoId: ${task?.repositoryId || 'none'}):`,
-            e.message
+            msg
           )
         }
       }

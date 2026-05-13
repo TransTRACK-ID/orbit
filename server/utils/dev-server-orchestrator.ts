@@ -1,7 +1,8 @@
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, readFileSync, rmSync } from 'fs'
+import { existsSync, readFileSync, rmSync, copyFileSync } from 'fs'
 import path from 'path'
+import http from 'http'
 
 const execAsync = promisify(exec)
 
@@ -30,6 +31,31 @@ export function getBrowserQueueStatus(): { isRunning: boolean; queued: number; n
 function getAvailablePort(): number {
   // Use a random port in the 9000-9999 range
   return 9000 + Math.floor(Math.random() * 1000)
+}
+
+function copyEnvToWorktree(worktreeDir: string): void {
+  // Try to find .env in the git repo root (parent of the worktree or sibling)
+  const possibleEnvPaths = [
+    path.join(worktreeDir, '.env'), // already there?
+    path.join(path.dirname(worktreeDir), '.env'), // sibling
+    path.join(path.dirname(path.dirname(worktreeDir)), '.env'), // grandparent (repo root)
+    path.join(process.cwd(), '.env'), // server cwd
+  ]
+
+  const worktreeEnv = path.join(worktreeDir, '.env')
+  if (existsSync(worktreeEnv)) return // already exists
+
+  for (const envPath of possibleEnvPaths) {
+    if (existsSync(envPath) && envPath !== worktreeEnv) {
+      try {
+        copyFileSync(envPath, worktreeEnv)
+        console.log(`[dev-server] Copied .env from ${envPath} to worktree`)
+        return
+      } catch (err: any) {
+        console.warn(`[dev-server] Failed to copy .env: ${err.message}`)
+      }
+    }
+  }
 }
 
 function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
@@ -90,10 +116,9 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
   }
 }
 
-async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeoutMs = 90000): Promise<boolean> {
+async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeoutMs = 120000): Promise<boolean> {
   const start = Date.now()
   let lastStatus = ''
-  let curlAvailable: boolean | null = null
 
   while (Date.now() - start < timeoutMs) {
     // Check if process died
@@ -105,34 +130,26 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
     try {
       let status = ''
 
-      if (curlAvailable !== false) {
-        try {
-          const { stdout, stderr } = await execAsync(
-            `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}`,
-            { timeout: 3000 }
-          )
-          status = stdout.trim()
-          curlAvailable = true
-          if (stderr) console.warn(`[dev-server] curl stderr: ${stderr.slice(0, 200)}`)
-        } catch (curlErr: any) {
-          if (curlErr.message?.includes('command not found') || curlErr.code === 127) {
-            curlAvailable = false
-            console.warn(`[dev-server] curl not available, falling back to Node http`)
-          }
-        }
-      }
-
-      if (curlAvailable === false) {
-        // Fallback: use Node's native http module
-        status = await new Promise<string>((resolve) => {
-          const http = require('http')
-          const req = http.get(`http://localhost:${port}`, { timeout: 3000 }, (res: any) => {
-            resolve(String(res.statusCode))
-          })
-          req.on('error', () => resolve(''))
-          req.on('timeout', () => { req.destroy(); resolve('') })
+      // Primary: use Node's native http module (works everywhere, no curl dependency)
+      status = await new Promise<string>((resolve) => {
+        const req = http.get(`http://127.0.0.1:${port}`, { timeout: 3000 }, (res: any) => {
+          resolve(String(res.statusCode))
+          // consume response to free the socket
+          res.resume()
         })
-      }
+        req.on('error', (err: any) => {
+          // Expected before server is ready: ECONNREFUSED, ECONNRESET
+          resolve('')
+        })
+        req.on('timeout', () => {
+          req.destroy()
+          resolve('')
+        })
+        req.setTimeout(3000, () => {
+          req.destroy()
+          resolve('')
+        })
+      })
 
       // ANY non-empty HTTP status code means the server is accepting connections
       if (status && status !== '000' && !isNaN(Number(status))) {
@@ -147,7 +164,7 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
     } catch (err: any) {
       console.warn(`[dev-server] Port check error: ${err.message}`)
     }
-    await new Promise(r => setTimeout(r, 1000))
+    await new Promise(r => setTimeout(r, 1500))
   }
   console.error(`[dev-server] Port ${port} did not become ready within ${timeoutMs}ms`)
   return false
@@ -200,6 +217,9 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
 
   const port = getAvailablePort()
   const baseUrl = `http://localhost:${port}`
+
+  // Copy .env from repo root to worktree if missing
+  copyEnvToWorktree(worktreeDir)
 
   // Install dependencies if missing (temporary — will be cleaned up on stop)
   const installedDeps = await installDependencies(worktreeDir)

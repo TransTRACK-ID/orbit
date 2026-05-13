@@ -31,7 +31,12 @@ export async function githubApiGet(path: string, host: string, isEnterprise: boo
     Accept: 'application/vnd.github.v3+json',
     'User-Agent': 'orbit-app',
   }
-  const authToken = token || process.env.GITHUB_TOKEN
+
+  // Avoid sending placeholder tokens (e.g. copied from .env.example) which cause 401
+  const envToken = process.env.GITHUB_TOKEN
+  const effectiveEnvToken = envToken && !envToken.includes('your_') ? envToken : undefined
+  const authToken = token || effectiveEnvToken
+
   if (authToken) headers.Authorization = `Bearer ${authToken}`
   const res = await fetch(url, { headers })
   if (!res.ok) {

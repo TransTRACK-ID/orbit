@@ -3,6 +3,7 @@ node_modules/
 .output/
 dist/
 .env
+.env.*
 *.log
 .transtrack/
 server/database/migrations/

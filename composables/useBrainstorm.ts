@@ -5,10 +5,12 @@ const currentBrainstorm = ref<Brainstorm | null>(null)
 const messages = ref<BrainstormMessage[]>([])
 const loading = ref(false)
 const sending = ref(false)
+const messagesLoading = ref(false)
 
 const activeChatRuntimes = ref<Record<string, boolean>>({})
 const chatEventSources = new Map<string, EventSource>()
 const chatReplies = ref<Record<string, string>>({})
+const chatSteps = ref<Record<string, string>>({})
 
 export const useBrainstorm = () => {
 
@@ -41,10 +43,23 @@ export const useBrainstorm = () => {
   }
 
   async function fetchMessages(brainstormId: string) {
+    messagesLoading.value = true
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     try {
-      messages.value = await $fetch<BrainstormMessage[]>(`/api/brainstorms/${brainstormId}/messages`)
+      // Safety timeout: never let loading get stuck
+      timeoutId = setTimeout(() => {
+        console.warn('[brainstorm] fetchMessages timeout — forcing loading false')
+        messagesLoading.value = false
+      }, 8000)
+
+      const data = await $fetch<BrainstormMessage[]>(`/api/brainstorms/${brainstormId}/messages`)
+      messages.value = Array.isArray(data) ? data : []
     } catch (err) {
       console.error('Failed to fetch messages:', err)
+      messages.value = []
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
+      messagesLoading.value = false
     }
   }
 
@@ -109,6 +124,7 @@ export const useBrainstorm = () => {
       try {
         const data = JSON.parse(e.data)
         if (data.step) {
+          chatSteps.value = { ...chatSteps.value, [brainstormId]: data.step }
           if (/>?\s*Done$/.test(data.step) || />?\s*Brainstorm session completed/.test(data.step) || />?\s*Exited with code/.test(data.step)) {
             receivedDone = true
           }
@@ -162,12 +178,21 @@ export const useBrainstorm = () => {
     chatReplies.value = { ...chatReplies.value, [brainstormId]: '' }
   }
 
+  function getChatStep(brainstormId: string): string {
+    return chatSteps.value[brainstormId] || ''
+  }
+
+  function clearChatStep(brainstormId: string) {
+    chatSteps.value = { ...chatSteps.value, [brainstormId]: '' }
+  }
+
   return {
     brainstorms,
     currentBrainstorm,
     messages,
     loading,
     sending,
+    messagesLoading,
     activeChatRuntimes,
     fetchBrainstorms,
     createBrainstorm,
@@ -181,5 +206,7 @@ export const useBrainstorm = () => {
     isChatRunning,
     getChatReply,
     clearChatReply,
+    getChatStep,
+    clearChatStep,
   }
 }

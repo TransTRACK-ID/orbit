@@ -411,6 +411,10 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       hasOutput = true
       const msg = code === 0 ? 'Brainstorm session completed' : `Exited with code ${code}`
       await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+      // Close all streams so the client EventSource disconnects cleanly
+      for (const s of entry.streams) {
+        try { s.close() } catch {}
+      }
       activeBrainstormProcesses.delete(id)
     })
   }, 0)

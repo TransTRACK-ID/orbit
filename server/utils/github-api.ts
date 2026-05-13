@@ -1,4 +1,5 @@
 import { exec } from 'child_process'
+import { existsSync } from 'fs'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -109,12 +110,12 @@ export function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?:
 
   if (rawDisplayName) {
     const rawDisplayDir = `${projectsDir}/${rawDisplayName}`
-    if (require('fs').existsSync(rawDisplayDir)) return rawDisplayDir
+    if (existsSync(rawDisplayDir)) return rawDisplayDir
   }
 
   if (displayName) {
     const displayDir = `${projectsDir}/${displayName}`
-    if (require('fs').existsSync(displayDir)) return displayDir
+    if (existsSync(displayDir)) return displayDir
   }
 
   return `${projectsDir}/${urlName}`

@@ -93,6 +93,8 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
 async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeoutMs = 90000): Promise<boolean> {
   const start = Date.now()
   let lastStatus = ''
+  let curlAvailable: boolean | null = null
+
   while (Date.now() - start < timeoutMs) {
     // Check if process died
     if (proc.killed || proc.exitCode !== null) {
@@ -101,18 +103,49 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
     }
 
     try {
-      const { stdout } = await execAsync(`curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}`, { timeout: 2000 })
-      const status = stdout.trim()
-      if (status === '200' || status === '404') {
+      let status = ''
+
+      if (curlAvailable !== false) {
+        try {
+          const { stdout, stderr } = await execAsync(
+            `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}`,
+            { timeout: 3000 }
+          )
+          status = stdout.trim()
+          curlAvailable = true
+          if (stderr) console.warn(`[dev-server] curl stderr: ${stderr.slice(0, 200)}`)
+        } catch (curlErr: any) {
+          if (curlErr.message?.includes('command not found') || curlErr.code === 127) {
+            curlAvailable = false
+            console.warn(`[dev-server] curl not available, falling back to Node http`)
+          }
+        }
+      }
+
+      if (curlAvailable === false) {
+        // Fallback: use Node's native http module
+        status = await new Promise<string>((resolve) => {
+          const http = require('http')
+          const req = http.get(`http://localhost:${port}`, { timeout: 3000 }, (res: any) => {
+            resolve(String(res.statusCode))
+          })
+          req.on('error', () => resolve(''))
+          req.on('timeout', () => { req.destroy(); resolve('') })
+        })
+      }
+
+      // ANY non-empty HTTP status code means the server is accepting connections
+      if (status && status !== '000' && !isNaN(Number(status))) {
         console.log(`[dev-server] Port ${port} ready (HTTP ${status})`)
         return true
       }
+
       if (status !== lastStatus) {
         lastStatus = status
-        console.log(`[dev-server] Port ${port} not ready yet (HTTP ${status}), elapsed: ${Date.now() - start}ms`)
+        console.log(`[dev-server] Port ${port} not ready yet (HTTP ${status || 'no-response'}), elapsed: ${Date.now() - start}ms`)
       }
-    } catch {
-      // Port not ready yet
+    } catch (err: any) {
+      console.warn(`[dev-server] Port check error: ${err.message}`)
     }
     await new Promise(r => setTimeout(r, 1000))
   }

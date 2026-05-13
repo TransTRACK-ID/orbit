@@ -104,11 +104,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Brainstorm not found' })
   }
 
-  // Fetch conversation history for context
-  const historyMessages = await db.query.brainstormMessages.findMany({
+  // Fetch conversation history for context (limit to last 20 messages to avoid
+  // E2BIG "Argument list too long" when spawning opencode with large history)
+  const MAX_HISTORY_MESSAGES = 20
+  const allHistoryMessages = await db.query.brainstormMessages.findMany({
     where: eq(schema.brainstormMessages.brainstormId, id),
     orderBy: [asc(schema.brainstormMessages.createdAt)],
   })
+  const historyMessages = allHistoryMessages.slice(-MAX_HISTORY_MESSAGES)
 
   // Build conversation history context
   let conversationHistory = ''

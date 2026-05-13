@@ -88,13 +88,18 @@ export async function runBrowserContainer(
   const dockerArgs: string[] = [
     'run',
     '--rm',
-    '--network', 'host',
     '-e', `FIREWORKS_API_KEY=${apiKey}`,
     '-e', `FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1`,
     '-e', `LLM_MODEL=accounts/fireworks/routers/kimi-k2p6-turbo`,
     '-e', `HEADED=${config.headed}`,
     '-v', `${config.outputDir}:/output`,
   ]
+
+  if (process.env.WEB_CONTAINER_NAME) {
+    dockerArgs.push('--network', `container:${process.env.WEB_CONTAINER_NAME}`)
+  } else {
+    dockerArgs.push('--network', 'host')
+  }
 
   if (config.headed) {
     // Expose VNC port when in headed mode

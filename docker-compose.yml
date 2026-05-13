@@ -19,10 +19,24 @@ services:
       - OPENCODE_PATH=/root/.opencode/bin/opencode
       # Base64-encoded opencode.json (use: base64 -i opencode/opencode.json)
       - OPENCODE_CONFIG_BASE64=${OPENCODE_CONFIG_BASE64:-}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WEB_CONTAINER_NAME=orbit-web
     volumes:
       # Mount the orbit-projects directory to preserve git clones between restarts
       - ~/orbit-projects:/root/orbit-projects
+      # Mount Docker socket so the web container can spawn sibling browser-agent containers
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
+
+  # Build-only service: ensures orbit/browser-agent:latest image exists on the host
+  browser-agent:
+    build:
+      context: ./docker/browser-agent
+      dockerfile: Dockerfile
+    image: orbit/browser-agent:latest
+    entrypoint: ["sh", "-c", "echo 'Browser agent image built successfully' && exit 0"]
+    restart: "no"
 
 volumes:
   orbit-pgdata:

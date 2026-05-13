@@ -1,5 +1,5 @@
 # Stage 1: Build the Nuxt application
-# Using official bun image (smaller, no need to install bun separately)
+# Install deps with Bun (fast), build with Node (reliable)
 FROM oven/bun:1-slim AS builder
 
 WORKDIR /app
@@ -8,6 +8,14 @@ WORKDIR /app
 ARG AUTH_ORIGIN
 ENV AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
 
+# Install Node.js 20 in the builder — needed for reliable Nuxt/Vite builds
+# Bun uses JavaScriptCore and doesn't respect NODE_OPTIONS / V8 flags,
+# which causes hangs during Vite transform on large apps.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package files and install dependencies
 COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile && rm -rf /tmp/*
@@ -15,10 +23,9 @@ RUN bun install --frozen-lockfile && rm -rf /tmp/*
 # Copy the rest of the application code
 COPY . .
 
-# Build the Nuxt application
-# Increase Node memory limit to prevent OOM/hanging during Vite transform
+# Build the Nuxt application with Node (not Bun) to avoid hangs
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-RUN bun run build
+RUN npx nuxt build
 
 # Stage 2: Run the Nuxt application and the agent runtime
 # Using node image for production runtime (better compatibility with auth packages like jose/openid-client)

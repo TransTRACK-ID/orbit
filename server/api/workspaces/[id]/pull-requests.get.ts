@@ -63,21 +63,26 @@ export default defineEventHandler(async (event) => {
     conditions.push(eq(schema.pullRequests.repositoryId, repoFilter))
   }
 
-  const prs = await db.query.pullRequests.findMany({
-    where: and(...conditions),
-    with: {
-      task: {
-        columns: { id: true, title: true, assigneeType: true, agentAssigneeId: true, assigneeId: true, branchName: true },
-        with: {
-          agentAssignee: { columns: { id: true, name: true, color: true, initials: true } },
-          assignee: { columns: { id: true, name: true } },
-          project: { columns: { id: true, name: true, color: true } },
+  let prs: any[] = []
+  try {
+    prs = await db.query.pullRequests.findMany({
+      where: and(...conditions),
+      with: {
+        task: {
+          columns: { id: true, title: true, assigneeType: true, agentAssigneeId: true, assigneeId: true, branchName: true },
+          with: {
+            agentAssignee: { columns: { id: true, name: true, color: true, initials: true } },
+            assignee: { columns: { id: true, name: true } },
+            project: { columns: { id: true, name: true, color: true } },
+          },
         },
+        repository: { columns: { id: true, name: true, url: true } },
       },
-      repository: { columns: { id: true, name: true, url: true } },
-    },
-    orderBy: [desc(schema.pullRequests.createdAt)],
-  })
+      orderBy: [desc(schema.pullRequests.createdAt)],
+    })
+  } catch (err: any) {
+    console.error('Failed to query pull requests:', err)
+  }
 
   // Filter by search text post-query since we need to match task title or PR title
   let filtered = prs

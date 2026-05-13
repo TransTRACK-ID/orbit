@@ -67,7 +67,7 @@
       </div>
 
       <!-- Repository -->
-      <div v-if="repositories.length > 0" class="mb-3">
+      <div v-if="repositories?.length > 0" class="mb-3">
         <label class="block text-[10px] font-semibold text-surface-500 uppercase tracking-wider mb-1">Repository</label>
         <div class="space-y-1">
           <label class="flex items-center gap-2 cursor-pointer">
@@ -108,10 +108,12 @@
 <script setup lang="ts">
 import type { Repository } from '~/types'
 
-const props = defineProps<{
-  repositories: Repository[]
+const props = withDefaults(defineProps<{
+  repositories?: Repository[]
   loading?: boolean
-}>()
+}>(), {
+  repositories: () => [],
+})
 
 defineEmits<{
   refresh: []

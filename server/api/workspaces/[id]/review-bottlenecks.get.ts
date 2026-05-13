@@ -60,17 +60,22 @@ export default defineEventHandler(async (event) => {
     prConditions.push(inArray(schema.pullRequests.taskId, taskIds))
   }
 
-  const allPrs = await db.query.pullRequests.findMany({
-    where: and(...prConditions),
-    with: {
-      task: {
-        columns: { id: true, title: true, assigneeType: true, agentAssigneeId: true },
-        with: {
-          agentAssignee: { columns: { id: true, name: true, color: true, initials: true } },
+  let allPrs: any[] = []
+  try {
+    allPrs = await db.query.pullRequests.findMany({
+      where: and(...prConditions),
+      with: {
+        task: {
+          columns: { id: true, title: true, assigneeType: true, agentAssigneeId: true },
+          with: {
+            agentAssignee: { columns: { id: true, name: true, color: true, initials: true } },
+          },
         },
       },
-    },
-  })
+    })
+  } catch (err: any) {
+    console.error('Failed to query pull requests for bottlenecks:', err)
+  }
 
   const now = Date.now()
   const dayMs = 24 * 60 * 60 * 1000

@@ -1,6 +1,6 @@
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, rmSync } from 'fs'
 import path from 'path'
 
 const execAsync = promisify(exec)
@@ -11,6 +11,7 @@ export type DevServerInfo = {
   port: number
   baseUrl: string
   ready: boolean
+  installedDeps: boolean
 }
 
 const activeDevServers = new Map<string, DevServerInfo>()
@@ -29,6 +30,48 @@ export function getBrowserQueueStatus(): { isRunning: boolean; queued: number; n
 function getAvailablePort(): number {
   // Use a random port in the 9000-9999 range
   return 9000 + Math.floor(Math.random() * 1000)
+}
+
+function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
+  if (existsSync(path.join(worktreeDir, 'pnpm-lock.yaml'))) {
+    return { cmd: 'pnpm', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
+    return { cmd: 'yarn', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
+    return { cmd: 'bun', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'package-lock.json')) || existsSync(path.join(worktreeDir, 'package.json'))) {
+    return { cmd: 'npm', args: ['install'] }
+  }
+  return null
+}
+
+async function installDependencies(worktreeDir: string): Promise<boolean> {
+  const nodeModulesPath = path.join(worktreeDir, 'node_modules')
+  if (existsSync(nodeModulesPath)) {
+    return false // already installed
+  }
+
+  const pm = detectPackageManager(worktreeDir)
+  if (!pm) {
+    console.warn(`[dev-server] No package manager detected in ${worktreeDir}`)
+    return false
+  }
+
+  console.log(`[dev-server] Installing dependencies with ${pm.cmd} in ${worktreeDir}...`)
+  try {
+    await execAsync(`${pm.cmd} ${pm.args.join(' ')}`, {
+      cwd: worktreeDir,
+      timeout: 120000,
+    })
+    console.log(`[dev-server] Dependencies installed in ${worktreeDir}`)
+    return true
+  } catch (err: any) {
+    console.error(`[dev-server] Dependency installation failed: ${err.message}`)
+    return false
+  }
 }
 
 async function waitForPort(port: number, timeoutMs = 30000): Promise<boolean> {
@@ -95,6 +138,9 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
   const port = getAvailablePort()
   const baseUrl = `http://localhost:${port}`
 
+  // Install dependencies if missing (temporary — will be cleaned up on stop)
+  const installedDeps = await installDependencies(worktreeDir)
+
   const devCmd = detectDevCommand(worktreeDir, port)
   if (!devCmd) {
     throw new Error(`No dev command detected in ${worktreeDir}. Ensure package.json with a "dev" script exists.`)
@@ -122,6 +168,7 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     port,
     baseUrl,
     ready: false,
+    installedDeps,
   }
 
   activeDevServers.set(worktreeDir, info)
@@ -173,6 +220,17 @@ export function stopDevServer(worktreeDir: string): void {
       }, 5000)
     } catch {}
     activeDevServers.delete(worktreeDir)
+
+    // Remove temporary node_modules if we installed them this session
+    if (info.installedDeps) {
+      const nodeModulesPath = path.join(worktreeDir, 'node_modules')
+      try {
+        rmSync(nodeModulesPath, { recursive: true, force: true })
+        console.log(`[dev-server] Cleaned up temporary node_modules in ${worktreeDir}`)
+      } catch (err: any) {
+        console.warn(`[dev-server] Failed to clean up node_modules: ${err.message}`)
+      }
+    }
   }
 }
 

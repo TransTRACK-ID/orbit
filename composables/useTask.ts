@@ -1,4 +1,4 @@
-import type { Task, Comment, ActivityLog } from '~/types'
+import type { Task, Comment, ActivityLog, Attachment } from '~/types'
 
 const tasks = ref<Task[]>([])
 const currentTask = ref<Task | null>(null)
@@ -75,6 +75,49 @@ export const useTask = () => {
     return comment
   }
 
+  async function fetchAttachments(taskId: string) {
+    return await $fetch<Attachment[]>(`/api/tasks/${taskId}/attachments`)
+  }
+
+  async function uploadAttachment(
+    taskId: string,
+    file: File,
+    onProgress?: (percent: number) => void
+  ): Promise<Attachment> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      })
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText))
+        } else {
+          reject(new Error(xhr.responseText || 'Upload failed'))
+        }
+      })
+
+      xhr.addEventListener('error', () => reject(new Error('Upload failed')))
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')))
+
+      xhr.open('POST', `/api/tasks/${taskId}/attachments`)
+      xhr.send(formData)
+    })
+  }
+
+  async function deleteAttachment(taskId: string, attachmentId: string) {
+    await $fetch(`/api/tasks/${taskId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    })
+  }
+
   async function fetchActivity(taskId: string) {
     activityLogs.value = await $fetch<ActivityLog[]>(`/api/tasks/${taskId}/activity`)
     return activityLogs.value
@@ -101,6 +144,9 @@ export const useTask = () => {
     fetchTaskDetail,
     fetchComments,
     addComment,
+    fetchAttachments,
+    uploadAttachment,
+    deleteAttachment,
     fetchActivity,
     calculatePosition,
   }

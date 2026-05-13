@@ -123,6 +123,18 @@ export interface TaskAssignee {
   avatarUrl?: string | null
 }
 
+// ─── Attachment ───
+export interface Attachment {
+  id: string
+  taskId: string
+  filename: string
+  originalName: string
+  mimeType: string
+  size: number
+  path: string
+  createdAt: string
+}
+
 // ─── Comment ───
 export interface Comment {
   id: string

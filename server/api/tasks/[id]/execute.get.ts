@@ -1,7 +1,7 @@
 import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getRequestHeaders } from 'h3'
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'fs'
 import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
@@ -162,6 +162,28 @@ import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 
 function generateCommitMessageFromDiff(diffContent: string, changedFiles: string[]): string {
   return generateConventionalCommit(diffContent, changedFiles)
+}
+
+/**
+ * Build an attachment prompt section for the agent.
+ * The actual files are passed to opencode via --file flags, so this just
+ * tells the model what files are attached and instructs it to analyze them.
+ */
+function buildAttachmentPrompt(
+  attachments: typeof schema.taskAttachments.$inferSelect[],
+): string {
+  if (attachments.length === 0) return ''
+
+  const lines = attachments.map((att, idx) => {
+    const safeName = att.originalName
+      .replace(/[\n\r]/g, ' ')
+      .replace(/[[\]]/g, '')
+      .replace(/`/g, "'")
+      .slice(0, 100)
+    return `${idx + 1}. ${safeName} (${att.mimeType})`
+  })
+
+  return `[ATTACHED FILES]\nThe user has attached ${attachments.length} file(s) to this message. You can see and analyze them. When the user asks about these files, describe exactly what you see in them: colors, layouts, UI elements, text content, design details, people, objects, scenes, or any visual information. Do NOT say you cannot see them — these files ARE visible to you as message attachments.\n\n${lines.join('\n')}`
 }
 
 /**
@@ -426,6 +448,7 @@ export default defineEventHandler(async (event) => {
     let repoName = ''
     let repoToken: string | null = null
     let mainCloneDir = ''
+    let attachments: typeof schema.taskAttachments.$inferSelect[] = []
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -730,6 +753,34 @@ export default defineEventHandler(async (event) => {
         branchName = actualBranchName
         workDir = actualWorktreeDir
 
+        // ── Copy task attachments into worktree ──
+        attachments = await db.query.taskAttachments.findMany({
+          where: eq(schema.taskAttachments.taskId, id),
+        })
+
+        if (attachments.length > 0) {
+          const attachmentsDir = `${workDir}/.orbit-attachments`
+          mkdirSync(attachmentsDir, { recursive: true })
+
+          // Prevent git from tracking attachments
+          const gitignorePath = `${attachmentsDir}/.gitignore`
+          if (!existsSync(gitignorePath)) {
+            writeFileSync(gitignorePath, '*\n', 'utf-8')
+          }
+
+          for (const att of attachments) {
+            const source = att.path
+            const dest = `${attachmentsDir}/${att.filename}`
+            if (existsSync(source) && !existsSync(dest)) {
+              try {
+                copyFileSync(source, dest)
+              } catch (copyErr: any) {
+                await pushAndPersist(`Attachment copy failed: ${att.originalName} — ${copyErr.message}`)
+              }
+            }
+          }
+        }
+
         // Persist the actual branch name to the database so PR creation can find it later
         try {
           await db.update(schema.tasks)
@@ -801,6 +852,7 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
       : '\n\n[TASK TYPE: none — no labels assigned]'
 
     let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    let attachmentsInjected = false
 
     if (feedback) {
       if (feedback.includes('[USER MESSAGE]')) {
@@ -833,7 +885,14 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
           await pushAndPersist(`Included latest codebase changes in context`)
         }
 
-        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${changesContext}\n\n${historyContext}${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
+        // For follow-up user messages, embed attached images RIGHT BEFORE the user's question
+        // so the model sees them in immediate context when asked about visual content.
+        const attachmentPrompt = buildAttachmentPrompt(attachments)
+        if (attachmentPrompt) {
+          attachmentsInjected = true
+        }
+
+        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
@@ -847,7 +906,15 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
       }
     }
 
-    await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}`)
+    // For initial runs and PR feedback, append attachments at the end.
+    // For user-message follow-ups, attachments were already injected above (before the question).
+    if (attachments.length > 0 && !attachmentsInjected) {
+      const attachmentPrompt = buildAttachmentPrompt(attachments)
+      if (attachmentPrompt) {
+        message += `\n\n${attachmentPrompt}`
+      }
+    }
+
     // Stream CWD for live debugging but do NOT persist — avoid leaking paths in comments
     await stream.push(JSON.stringify({ step: `CWD: ${workDir}`, timestamp: Date.now() }))
 
@@ -864,13 +931,32 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
       GITLAB_HOST: process.env.GITLAB_HOST,
     }
 
-    const proc = spawn(opencodePath, [
+    // Build args: include --file for each attachment so opencode passes them
+    // to the underlying model (Kimi k2.6) as message attachments.
+    // IMPORTANT: use `--` before the message to prevent opencode from treating
+    // the message text as additional file paths when --file flags are present.
+    const spawnArgs = [
       'run',
       '--format', 'json',
       '--dangerously-skip-permissions',
       '--dir', workDir,
-      message,
-    ], {
+    ]
+    const attachmentFilePaths: string[] = []
+    if (attachments.length > 0) {
+      const attachmentDir = `${workDir}/.orbit-attachments`
+      for (const att of attachments) {
+        const filePath = `${attachmentDir}/${att.filename}`
+        if (existsSync(filePath)) {
+          spawnArgs.push('--file', filePath)
+          attachmentFilePaths.push(filePath)
+        }
+      }
+    }
+    spawnArgs.push('--', message)
+
+    await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}${attachmentFilePaths.length > 0 ? ' --file ' + attachmentFilePaths.join(' --file ') : ''} -- "<message>"`)
+
+    const proc = spawn(opencodePath, spawnArgs, {
       cwd: workDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,

@@ -347,6 +347,65 @@
             </div>
           </div>
 
+          <!-- Attachments -->
+          <div v-if="attachments.length > 0 || isBacklog" class="mb-6">
+            <label class="block text-xs font-medium text-surface-500 mb-2">
+              Attachments ({{ attachments.length }})
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <div
+                v-for="att in attachments"
+                :key="att.id"
+                class="relative group cursor-pointer"
+                @click="openLightbox(att)"
+              >
+                <div class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+                  <img
+                    :src="`/api/tasks/${props.taskId}/attachments/${att.id}`"
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                    @error="hideImage($event)"
+                  />
+                </div>
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors" />
+                <button
+                  v-if="isBacklog"
+                  type="button"
+                  class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-surface-700 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  @click.stop="removeAttachment(att)"
+                >
+                  <Close class="w-3 h-3" />
+                </button>
+              </div>
+
+              <!-- Upload slot (backlog only) -->
+              <div
+                v-if="isBacklog && attachments.length < 3"
+                class="w-16 h-16 rounded-lg border-2 border-dashed border-surface-300 bg-surface-50 flex items-center justify-center cursor-pointer hover:border-primary-400 hover:bg-surface-100 transition-colors"
+                :class="{ 'opacity-50 cursor-not-allowed': isUploadingAttachment }"
+                @click="attachmentInput?.click()"
+                @dragover.prevent
+                @drop.prevent="handleAttachmentDrop"
+              >
+                <svg v-if="!isUploadingAttachment" class="w-5 h-5 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <svg v-else class="animate-spin w-5 h-5 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <input
+                  ref="attachmentInput"
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  class="hidden"
+                  @change="handleAttachmentFileSelect"
+                />
+              </div>
+            </div>
+            <p class="text-[10px] text-surface-400 mt-1">PNG, JPEG — max 10 MB</p>
+          </div>
+
           <div>
             <label class="block text-xs font-medium text-surface-500 mb-3">
               Comments ({{ allComments.length }})
@@ -557,7 +616,6 @@
                   :key="log.id"
                   class="flex items-start gap-1.5 py-0.5 text-[11px] leading-snug"
                 >
-                  <span class="text-primary-400 mt-0.5 flex-shrink-0">&#8250;</span>
                   <span class="text-surface-600 font-mono flex-1 min-w-0">{{ log.message }}</span>
                   <span class="text-surface-400 flex-shrink-0 whitespace-nowrap">{{ log.displayTime }}</span>
                 </div>
@@ -741,9 +799,33 @@
           </div>
         </div>
       </template>
-    </div>
+  </div>
 
-    <ModalConfirmation
+  <!-- Lightbox -->
+  <div
+    v-if="lightboxImage"
+    class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+    @click.self="closeLightbox"
+  >
+    <div class="relative max-w-full max-h-full">
+                <img
+                    :src="`/api/tasks/${props.taskId}/attachments/${lightboxImage.id}`"
+                    class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain"
+                    loading="lazy"
+                  />
+      <button
+        class="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-surface-600 hover:text-surface-900 transition-colors"
+        @click="closeLightbox"
+      >
+        <Close class="w-4 h-4" />
+      </button>
+      <p class="text-center text-white text-sm mt-2 font-medium">
+        {{ lightboxImage.originalName }}
+      </p>
+    </div>
+  </div>
+
+  <ModalConfirmation
       v-if="confirmDelete"
       title="Delete Task"
       message="Are you sure you want to delete this task? This action cannot be undone."
@@ -756,11 +838,11 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment } from '~/types'
+import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment } from '~/types'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
-import { nextTick } from 'vue'
+import { nextTick, onUnmounted } from 'vue'
 
 const { addLog, persistLog, logs: runtimeLogs } = useLog()
 const { createLabel } = useProject()
@@ -792,6 +874,8 @@ const {
   createTask: createTaskApi,
   updateTask: updateTaskApi,
   deleteTask: deleteTaskApi,
+  uploadAttachment,
+  deleteAttachment,
 } = useTask()
 
 const loading = ref(true)
@@ -1164,6 +1248,88 @@ const commentsHasMore = computed(() => allComments.value.length > COMMENTS_COLLA
 const { startRuntime, stopRuntime, isRunning } = useAgentRuntime()
 const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)
 
+// ─── Attachments ───
+const { fetchAttachments } = useTask()
+const attachments = ref<Attachment[]>([])
+const lightboxImage = ref<Attachment | null>(null)
+const attachmentInput = ref<HTMLInputElement | null>(null)
+const isUploadingAttachment = ref(false)
+
+async function loadAttachments() {
+  if (!task.value) return
+  try {
+    attachments.value = await fetchAttachments(task.value.id)
+  } catch {
+    attachments.value = []
+  }
+}
+
+function openLightbox(att: Attachment) {
+  lightboxImage.value = att
+}
+
+function closeLightbox() {
+  lightboxImage.value = null
+}
+
+function hideImage(e: Event) {
+  const target = e.target as HTMLImageElement
+  if (target) {
+    target.style.display = 'none'
+  }
+}
+
+async function handleAttachmentFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0 || !task.value) return
+  await uploadAttachmentFile(input.files[0])
+  input.value = ''
+}
+
+async function handleAttachmentDrop(event: DragEvent) {
+  event.preventDefault()
+  if (!event.dataTransfer?.files.length || !task.value) return
+  await uploadAttachmentFile(event.dataTransfer.files[0])
+}
+
+async function uploadAttachmentFile(file: File) {
+  if (!task.value) return
+  if (attachments.value.length >= 3) {
+    alert('Attachment limit reached (max 3)')
+    return
+  }
+  isUploadingAttachment.value = true
+  try {
+    const newAtt = await uploadAttachment(task.value.id, file)
+    attachments.value.push(newAtt)
+  } catch (err: any) {
+    alert(err?.message || 'Failed to upload attachment')
+  } finally {
+    isUploadingAttachment.value = false
+  }
+}
+
+async function removeAttachment(att: Attachment) {
+  if (!task.value) return
+  if (!confirm('Are you sure you want to delete this attachment?')) return
+  try {
+    await deleteAttachment(task.value.id, att.id)
+    attachments.value = attachments.value.filter((a) => a.id !== att.id)
+  } catch {
+    alert('Failed to delete attachment')
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && lightboxImage.value) {
+    closeLightbox()
+  }
+}
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
+
 /** In-memory store for the last agent chat reply that survives runtime completion */
 const lastChatReplyText = ref<string | null>(null)
 const lastChatReplyAuthor = ref<string>('Agent')
@@ -1526,12 +1692,14 @@ const renderedDescription = computed(() => {
 })
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeydown)
   try {
     await ensureDefaultLabels()
     task.value = await fetchTaskDetail(props.taskId)
     comments.value = await fetchComments(props.taskId)
     activityLogs.value = await fetchActivity(props.taskId)
     await fetchAgentReplies()
+    await loadAttachments()
   } catch (err) {
     console.error('Failed to load task detail:', err)
   } finally {

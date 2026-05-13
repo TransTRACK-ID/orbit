@@ -194,6 +194,82 @@
 
           <KanbanMarkdownEditor v-model="form.description" :rows="3" />
 
+          <!-- Image Upload -->
+          <div>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">
+              Attachments
+              <span class="text-surface-400 font-normal">({{ pendingImages.length }} / 3)</span>
+            </label>
+
+            <!-- Drag & drop zone -->
+            <div
+              v-if="pendingImages.length < 3"
+              class="border-2 border-dashed border-surface-300 rounded-lg p-4 text-center cursor-pointer hover:border-primary-400 hover:bg-surface-50 transition-colors"
+              @click="fileInput?.click()"
+              @dragover.prevent
+              @drop.prevent="handleDrop"
+            >
+              <div class="flex flex-col items-center gap-1">
+                <svg class="w-6 h-6 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M12 16h.01M8 16h.01M16 16h.01" />
+                </svg>
+                <span class="text-xs text-surface-500">Drop images here or click to upload</span>
+                <span class="text-[10px] text-surface-400">PNG, JPEG, JPG — max 10 MB</span>
+              </div>
+              <input
+                ref="fileInput"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg"
+                multiple
+                class="hidden"
+                @change="handleFileSelect"
+              />
+            </div>
+
+            <!-- Image previews with progress -->
+            <div v-if="pendingImages.length > 0" class="flex flex-wrap gap-2 mt-2">
+              <div
+                v-for="(img, idx) in pendingImages"
+                :key="img.id"
+                class="relative group"
+              >
+                <div class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+                  <img :src="img.preview" class="w-full h-full object-cover" />
+                </div>
+
+                <!-- Progress overlay -->
+                <div
+                  v-if="img.status === 'uploading'"
+                  class="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center"
+                >
+                  <div class="w-10 h-1 bg-surface-300 rounded-full overflow-hidden">
+                    <div
+                      class="h-full bg-primary-500 transition-all duration-200"
+                      :style="{ width: img.progress + '%' }"
+                    />
+                  </div>
+                </div>
+
+                <!-- Error overlay -->
+                <div
+                  v-if="img.status === 'error'"
+                  class="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center"
+                >
+                  <span class="text-[10px] text-error-300 font-medium">Failed</span>
+                </div>
+
+                <!-- Remove button -->
+                <button
+                  type="button"
+                  class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-surface-700 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click="removeImage(idx)"
+                >
+                  <Close class="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label class="block text-sm font-medium text-surface-700 mb-1.5">Labels <span class="text-error-500">*</span></label>
             <div v-if="uniqueAvailableLabels.length > 0" class="flex flex-wrap gap-2">
@@ -249,10 +325,21 @@ const emit = defineEmits<{
   created: [task: Task]
 }>()
 
-const { createTask } = useTask()
+const { createTask, uploadAttachment } = useTask()
 const { createLabel } = useProject()
 
 const titleInput = ref<InstanceType<typeof TextInput> | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+interface PendingImage {
+  id: string
+  file: File
+  preview: string
+  status: 'pending' | 'uploading' | 'done' | 'error'
+  progress: number
+}
+
+const pendingImages = ref<PendingImage[]>([])
 
 const form = reactive({
   title: '',
@@ -357,6 +444,74 @@ function toggleLabel(labelId: string) {
   }
 }
 
+function validateImage(file: File): string | null {
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg']
+  if (!allowedTypes.includes(file.type)) {
+    return 'Only PNG, JPEG, and JPG images are allowed.'
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return 'File too large (max 10 MB).'
+  }
+  return null
+}
+
+function addImageFiles(files: FileList | null) {
+  if (!files) return
+  for (const file of Array.from(files)) {
+    if (pendingImages.value.length >= 3) break
+    const validationError = validateImage(file)
+    if (validationError) {
+      error.value = validationError
+      continue
+    }
+    pendingImages.value.push({
+      id: Math.random().toString(36).substring(2, 9),
+      file,
+      preview: URL.createObjectURL(file),
+      status: 'pending',
+      progress: 0,
+    })
+  }
+}
+
+function handleFileSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  addImageFiles(target.files)
+  target.value = ''
+}
+
+function handleDrop(e: DragEvent) {
+  addImageFiles(e.dataTransfer?.files ?? null)
+}
+
+function removeImage(idx: number) {
+  const img = pendingImages.value[idx]
+  if (img) {
+    URL.revokeObjectURL(img.preview)
+    pendingImages.value.splice(idx, 1)
+  }
+}
+
+async function uploadAllImages(taskId: string): Promise<number> {
+  let failures = 0
+  for (const img of pendingImages.value) {
+    if (img.status === 'done') continue
+    img.status = 'uploading'
+    img.progress = 0
+    try {
+      await uploadAttachment(taskId, img.file, (percent) => {
+        img.progress = percent
+      })
+      img.status = 'done'
+    } catch (err: any) {
+      img.status = 'error'
+      failures++
+      console.error('Failed to upload image:', err)
+    }
+  }
+  return failures
+}
+
 async function handleCreate() {
   if (!form.title.trim()) {
     error.value = 'Title is required'
@@ -394,6 +549,17 @@ async function handleCreate() {
       labelIds: selectedLabels.value,
       branchName: form.branchName || null,
     })
+
+    // Upload images after task is created
+    let uploadFailures = 0
+    if (pendingImages.value.length > 0) {
+      uploadFailures = await uploadAllImages(task.id)
+    }
+
+    if (uploadFailures > 0) {
+      error.value = `${uploadFailures} image(s) failed to upload. You can retry by editing the task.`
+    }
+
     emit('created', task)
   } catch (err: any) {
     error.value = err?.data?.message || 'Failed to create task'

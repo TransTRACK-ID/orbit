@@ -7,4 +7,4 @@ dist/
 .transtrack/
 server/database/migrations/
 
-**/opencode.json
+**/opencode.json.opencode/

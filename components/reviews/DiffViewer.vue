@@ -48,7 +48,12 @@
             v-if="expandedFiles.includes(idx)"
             class="mt-2 rounded bg-slate-50 border border-slate-200 overflow-auto max-h-80"
           >
-            <pre class="text-[10px] leading-relaxed p-2 font-mono"><code>{{ fileDiffPreview(file.path) }}</code></pre>
+            <pre class="text-[10px] leading-relaxed p-2 font-mono"><code><span
+                v-for="(line, lineIdx) in fileDiffPreviewLines(file.path)"
+                :key="lineIdx"
+                :class="diffLineClass(line)"
+                class="block"
+              >{{ line }}</span></code></pre>
           </div>
         </div>
       </div>
@@ -83,8 +88,8 @@ function barWidth(value: number, total: number): number {
   return Math.max(2, Math.round((value / total) * 40))
 }
 
-function fileDiffPreview(filePath: string): string {
-  if (!props.diff?.rawDiff) return ''
+function fileDiffPreviewLines(filePath: string): string[] {
+  if (!props.diff?.rawDiff) return []
   const lines = props.diff.rawDiff.split('\n')
   let collecting = false
   const out: string[] = []
@@ -101,8 +106,18 @@ function fileDiffPreview(filePath: string): string {
   }
   // Limit preview length
   if (out.length > 60) {
-    return out.slice(0, 60).join('\n') + '\n... (truncated)'
+    return out.slice(0, 60).concat(['... (truncated)'])
   }
-  return out.join('\n')
+  return out
+}
+
+function diffLineClass(line: string): string {
+  if (line.startsWith('+')) return 'text-green-700 bg-green-50'
+  if (line.startsWith('-')) return 'text-red-700 bg-red-50'
+  if (line.startsWith('@@')) return 'text-blue-600 bg-blue-50 font-semibold'
+  if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('new file') || line.startsWith('deleted file') || line.startsWith('similarity index') || line.startsWith('rename ')) {
+    return 'text-surface-500 bg-slate-100 font-semibold'
+  }
+  return 'text-surface-700'
 }
 </script>

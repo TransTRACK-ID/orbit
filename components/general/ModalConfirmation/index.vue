@@ -23,7 +23,7 @@
           </button>
           <button
             :class="confirmClass"
-            :disabled="isLoading"
+            :disabled="isLoading || confirmDisabled"
             class="flex-1 py-2.5 px-3.5 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50"
             @click="$emit('confirm')"
           >
@@ -45,6 +45,7 @@ const props = defineProps({
   confirmText: { type: String, default: '' },
   variant: { type: String as () => 'danger' | 'warning' | 'primary' | 'default', default: 'primary' },
   isLoading: { type: Boolean, default: false },
+  confirmDisabled: { type: Boolean, default: false },
   icon: { type: String, default: '' },
 })
 

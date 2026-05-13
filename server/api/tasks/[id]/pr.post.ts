@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
+import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 
 const execAsync = promisify(exec)
 
@@ -92,18 +93,6 @@ function resolveWorktreeDir(cloneDir: string, taskId: string): string {
   } catch {}
 
   return standardPath
-}
-
-function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
-  if (!token) return url
-
-  if (platform === 'github') {
-    if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
-  }
-
-  if (!url.startsWith('https://')) return url
-  return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
 }
 
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`

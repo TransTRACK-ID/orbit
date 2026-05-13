@@ -156,6 +156,55 @@ export function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?:
   return `${projectsDir}/${urlName}`
 }
 
+export async function createGitLabRepo(token: string, name: string, isPrivate: boolean = true, description?: string, host: string = 'https://gitlab.com'): Promise<string> {
+  const res = await fetch(`${host}/api/v4/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'PRIVATE-TOKEN': token,
+    },
+    body: JSON.stringify({
+      name,
+      visibility: isPrivate ? 'private' : 'public',
+      description: description || '',
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`GitLab API ${res.status}: ${text.slice(0, 300)}`)
+  }
+
+  const data = await res.json() as { web_url: string; http_url_to_repo: string }
+  return data.http_url_to_repo || data.web_url
+}
+
+export async function createGitHubRepo(token: string, name: string, isPrivate: boolean = true, description?: string): Promise<string> {
+  const res = await fetch('https://api.github.com/user/repos', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/vnd.github.v3+json',
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'orbit-app',
+    },
+    body: JSON.stringify({
+      name,
+      private: isPrivate,
+      description: description || '',
+      auto_init: false,
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`GitHub API ${res.status}: ${text.slice(0, 300)}`)
+  }
+
+  const data = await res.json() as { html_url: string; clone_url: string }
+  return data.clone_url || data.html_url
+}
+
 export async function getGitDiff(repoDir: string, baseBranch: string, headBranch: string): Promise<{ files: { path: string; additions: number; deletions: number }[]; totalAdditions: number; totalDeletions: number; rawDiff: string }> {
   try {
     const { stdout: diffStat } = await execAsync(`git diff --stat ${baseBranch}...${headBranch}`, { cwd: repoDir })

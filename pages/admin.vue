@@ -225,11 +225,21 @@
             <div class="w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">
               {{ userInitials(item.user?.name || '?') }}
             </div>
-            <div class="min-w-0">
-              <p class="text-[11px] text-surface-700">
+            <div class="min-w-0 flex-1">
+              <div class="text-[11px] text-surface-700">
                 <span class="font-semibold">{{ item.user?.name || 'Unknown' }}</span>
-                {{ item.message }}
-              </p>
+                <span
+                  :class="{ 'line-clamp-3': !isExpanded(item.id) }"
+                  class="whitespace-pre-wrap break-words"
+                >{{ item.message }}</span>
+              </div>
+              <button
+                v-if="item.message.length > 200"
+                class="text-[10px] text-accent hover:text-accent/80 mt-1 font-medium"
+                @click="toggleExpand(item.id)"
+              >
+                {{ isExpanded(item.id) ? 'Show less' : 'Show more' }}
+              </button>
               <p class="text-[10px] text-surface-400 mt-0.5">
                 {{ item.workspace?.name || 'Unknown workspace' }} · {{ formatDate(item.createdAt) }}
               </p>
@@ -556,6 +566,19 @@ function formatShortDate(date: string | Date | null) {
 
 function userInitials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
+const expandedIds = ref<Set<string>>(new Set())
+
+function isExpanded(id: string) {
+  return expandedIds.value.has(id)
+}
+
+function toggleExpand(id: string) {
+  const next = new Set(expandedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedIds.value = next
 }
 
 function signupBarHeight(count: number | string) {

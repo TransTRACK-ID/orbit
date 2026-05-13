@@ -75,6 +75,45 @@ export async function listRepositoryPulls(owner: string, repo: string, host: str
   return githubApiGet(`/repos/${owner}/${repo}/pulls?state=${state}&per_page=100`, host, isEnterprise, token)
 }
 
+// ─── GitLab API ───
+
+export async function gitlabApiGet(path: string, host: string, token?: string) {
+  const url = `${host}/api/v4${path}`
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'orbit-app',
+  }
+  if (token) headers['PRIVATE-TOKEN'] = token
+  const res = await fetch(url, { headers })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`)
+  }
+  return res.json()
+}
+
+export async function fetchGitlabMergeRequestDetails(projectPath: string, iid: number, host: string, token?: string) {
+  const encodedPath = encodeURIComponent(projectPath)
+  const mr: any = await gitlabApiGet(`/projects/${encodedPath}/merge_requests/${iid}`, host, token)
+  return {
+    githubNumber: mr.iid,
+    title: mr.title || '',
+    url: mr.web_url || '',
+    status: mr.state === 'opened' ? 'open' : mr.state || 'open',
+    draft: mr.draft || false,
+    mergeableState: mr.detailed_merge_status || mr.merge_status || null,
+    headBranch: mr.source_branch || null,
+    baseBranch: mr.target_branch || null,
+    createdAt: mr.created_at ? new Date(mr.created_at) : new Date(),
+    updatedAt: mr.updated_at ? new Date(mr.updated_at) : new Date(),
+  }
+}
+
+export async function fetchGitlabMergeRequestNotes(projectPath: string, iid: number, host: string, token?: string): Promise<any[]> {
+  const encodedPath = encodeURIComponent(projectPath)
+  return gitlabApiGet(`/projects/${encodedPath}/merge_requests/${iid}/notes`, host, token)
+}
+
 export function determineReviewState(reviews: any[]): 'pending' | 'approved' | 'changes_requested' | 'commented' {
   if (reviews.length === 0) return 'pending'
   const states = reviews.map((r: any) => r.state?.toLowerCase())

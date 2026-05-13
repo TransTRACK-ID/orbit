@@ -50,7 +50,7 @@
               class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center gap-1.5 no-underline"
             >
               <Icon name="lucide:external-link" class="w-3.5 h-3.5" />
-              Open in GitHub
+              {{ platformLabel }}
             </a>
           </div>
         </div>
@@ -165,4 +165,10 @@ function formatReviewState(state: string): string {
   }
   return map[state] || state
 }
+
+const platformLabel = computed(() => {
+  const p = props.pullRequest?.repository?.platform
+  if (p === 'gitlab' || p === 'gitlab-self-hosted') return 'Open in GitLab'
+  return 'Open in GitHub'
+})
 </script>

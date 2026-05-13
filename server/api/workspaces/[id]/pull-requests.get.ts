@@ -1,7 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, and, or, desc, inArray } from 'drizzle-orm'
-import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
+import { parseGithubUrl, parseGitlabUrl, fetchPullRequestDetails, fetchPullRequestReviews, fetchGitlabMergeRequestDetails, fetchGitlabMergeRequestNotes, determineReviewState } from '~/server/utils/github-api'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -112,8 +112,9 @@ export default defineEventHandler(async (event) => {
 
       let inserted = false
       for (const [taskId, prUrl] of taskUrlMap) {
-        const parsed = parseGithubUrl(prUrl)
-        if (!parsed) continue
+        const gh = parseGithubUrl(prUrl)
+        const gl = !gh ? parseGitlabUrl(prUrl) : null
+        if (!gh && !gl) continue
 
         const task = await db.query.tasks.findFirst({
           where: eq(schema.tasks.id, taskId),
@@ -129,23 +130,25 @@ export default defineEventHandler(async (event) => {
         if (alreadyExists) continue
 
         try {
-          const details = await fetchPullRequestDetails(
-            parsed.owner,
-            parsed.repo,
-            parsed.number,
-            parsed.host,
-            parsed.isEnterprise,
-            task?.repository?.token
-          )
-          const reviews = await fetchPullRequestReviews(
-            parsed.owner,
-            parsed.repo,
-            parsed.number,
-            parsed.host,
-            parsed.isEnterprise,
-            task?.repository?.token
-          )
-          const reviewState = determineReviewState(reviews)
+          let details: { githubNumber: number; title: string; url: string; status: string; draft: boolean; mergeableState: string | null; headBranch: string | null; baseBranch: string | null }
+          let reviewState: 'pending' | 'approved' | 'changes_requested' | 'commented' = 'pending'
+
+          if (gh) {
+            details = await fetchPullRequestDetails(
+              gh.owner, gh.repo, gh.number, gh.host, gh.isEnterprise,
+              task?.repository?.token
+            )
+            const reviews = await fetchPullRequestReviews(
+              gh.owner, gh.repo, gh.number, gh.host, gh.isEnterprise,
+              task?.repository?.token
+            )
+            reviewState = determineReviewState(reviews)
+          } else if (gl) {
+            details = await fetchGitlabMergeRequestDetails(
+              gl.projectPath, gl.iid, gl.host, task?.repository?.token
+            )
+            // GitLab notes don't map cleanly to GitHub review states; keep pending
+          }
 
           await db.insert(schema.pullRequests).values({
             taskId,

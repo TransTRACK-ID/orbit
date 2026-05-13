@@ -114,6 +114,13 @@ export default defineEventHandler(async (event) => {
           with: { repository: { columns: { token: true, defaultBranch: true } } },
         })
 
+        // Guard against race conditions / duplicates: re-check right before insert
+        const alreadyExists = await db.query.pullRequests.findFirst({
+          where: eq(schema.pullRequests.taskId, taskId),
+          columns: { id: true },
+        })
+        if (alreadyExists) continue
+
         try {
           const details = await fetchPullRequestDetails(
             parsed.owner,
@@ -177,6 +184,16 @@ export default defineEventHandler(async (event) => {
       }
     }
   }
+
+  // Deduplicate by taskId — keep the most recent row per task
+  const deduped: typeof allPrs = []
+  const seenTaskIds = new Set<string>()
+  for (const pr of allPrs) {
+    if (!pr.taskId || seenTaskIds.has(pr.taskId)) continue
+    seenTaskIds.add(pr.taskId)
+    deduped.push(pr)
+  }
+  allPrs = deduped
 
   const now = Date.now()
   const dayMs = 24 * 60 * 60 * 1000

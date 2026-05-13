@@ -54,8 +54,9 @@
       </div>
     </div>
 
-    <div v-else class="text-center py-6 text-sm text-surface-400">
-      No diff available
+    <div v-else class="text-center py-6 text-sm">
+      <p class="text-surface-400">No diff available</p>
+      <p v-if="diff?.error" class="text-error-500 mt-1 text-xs">{{ diff.error }}</p>
     </div>
   </div>
 </template>

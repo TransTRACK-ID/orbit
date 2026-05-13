@@ -11,7 +11,7 @@
       </div>
 
       <!-- File list -->
-      <div class="divide-y divide-surface-100">
+      <div class="divide-y divide-surface-100 max-h-96 overflow-y-auto">
         <div
           v-for="(file, idx) in diff.files"
           :key="file.path"
@@ -46,7 +46,7 @@
           <!-- File diff preview -->
           <div
             v-if="expandedFiles.includes(idx)"
-            class="mt-2 rounded bg-slate-50 border border-slate-200 overflow-x-auto"
+            class="mt-2 rounded bg-slate-50 border border-slate-200 overflow-auto max-h-80"
           >
             <pre class="text-[10px] leading-relaxed p-2 font-mono"><code>{{ fileDiffPreview(file.path) }}</code></pre>
           </div>

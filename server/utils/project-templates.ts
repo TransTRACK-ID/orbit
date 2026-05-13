@@ -2,12 +2,15 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { readFile, writeFile, cp, mkdir, rename } from 'fs/promises'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { injectTokenIntoRemoteUrl } from './git-helpers'
 
 const execAsync = promisify(exec)
 const projectsDir = `${process.env.HOME || '/root'}/orbit-projects`
-const templatesFilePath = join(process.cwd(), 'server/data/templates.json')
+const currentFileDir = dirname(fileURLToPath(import.meta.url))
+const templatesFilePath = join(currentFileDir, '../data/templates.json')
+const projectRoot = join(currentFileDir, '../..')
 
 let cachedTemplates: TemplateConfig[] | null = null
 let cacheTimestamp = 0
@@ -144,7 +147,7 @@ export async function initializeFromTemplate(
   await mkdir(targetDir, { recursive: true })
 
   // Copy template
-  const templatePath = `${process.cwd()}/${template.sourcePath}`
+  const templatePath = join(projectRoot, template.sourcePath)
   await cp(templatePath, targetDir, {
     recursive: true,
     filter: (src) => !src.includes('node_modules') && !src.includes('.git') && !src.includes('vendor') && !src.includes('build') && !src.includes('dist') && !src.includes('.nuxt'),

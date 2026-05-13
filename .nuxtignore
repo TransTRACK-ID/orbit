@@ -1,0 +1,3 @@
+# Ignore template directories that contain their own Nuxt projects
+# These are runtime templates, not part of the main app build
+server/templates/

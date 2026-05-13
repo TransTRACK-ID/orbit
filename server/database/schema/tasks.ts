@@ -9,6 +9,7 @@ import { comments } from './comments'
 import { activityLogs } from './activity-logs'
 import { repositories } from './repositories'
 import { taskAttachments } from './task-attachments'
+import { pullRequests } from './pull-requests'
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -71,6 +72,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   comments: many(comments),
   activityLogs: many(activityLogs),
   attachments: many(taskAttachments),
+  pullRequests: many(pullRequests),
 }))
 
 export type Task = typeof tasks.$inferSelect

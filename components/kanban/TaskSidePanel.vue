@@ -55,17 +55,26 @@
         <!-- Floating Open PR banner -->
         <div
           v-if="prUrl"
-          class="sticky top-0 z-20 px-6 py-2 bg-green-50 border-b border-green-100 flex items-center justify-between"
+          class="sticky top-0 z-20 px-6 py-2 bg-green-50 border-b border-green-100 flex items-center justify-between gap-2"
         >
           <span class="text-xs font-medium text-green-700">This task has an open pull request</span>
-          <a
-            :href="prUrl"
-            target="_blank"
-            class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 no-underline"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            Open PR
-          </a>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <NuxtLink
+              :to="`/workspaces/${route.params.slug}/reviews?task=${task.id}`"
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-green-200 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1.5 no-underline"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open in Reviews
+            </NuxtLink>
+            <a
+              :href="prUrl"
+              target="_blank"
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 no-underline"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open PR
+            </a>
+          </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-6">

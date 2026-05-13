@@ -137,7 +137,7 @@ async function selectPr(id: string) {
   }
 
   try {
-    const diffRes = await $fetch<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string }>(`/api/pull-requests/${id}/diff`)
+    const diffRes = await $fetch<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string; error?: string }>(`/api/pull-requests/${id}/diff`)
     prDiff.value = diffRes
   } catch (err) {
     console.error('Failed to load diff:', err)

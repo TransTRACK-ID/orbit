@@ -30,12 +30,14 @@ export default defineEventHandler(async (event) => {
       email: body.email.toLowerCase(),
       name: body.name,
       passwordHash,
+      role: 'user',
     })
     .returning({
       id: schema.users.id,
       email: schema.users.email,
       name: schema.users.name,
       avatarUrl: schema.users.avatarUrl,
+      role: schema.users.role,
     })
 
   return { user }

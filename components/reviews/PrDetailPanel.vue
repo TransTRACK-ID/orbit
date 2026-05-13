@@ -104,7 +104,7 @@
             :to="`/workspaces/${route.params.slug}/projects/${pullRequest.task.projectId}/board?task=${pullRequest.task.id}`"
             class="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1.5"
           >
-            <Icon name="lucide:layout-kanban" class="w-3.5 h-3.5" />
+            <Icon name="lucide:kanban" class="w-3.5 h-3.5" />
             View Task in Board
           </NuxtLink>
         </div>

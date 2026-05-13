@@ -63,6 +63,10 @@ WORKDIR /app
 # Copy built application from builder stage
 COPY --from=builder /app/.output /app/.output
 
+# Copy server data and templates (required by project-templates.ts at runtime)
+COPY --from=builder /app/server/data /app/server/data
+COPY --from=builder /app/server/templates /app/server/templates
+
 # Copy opencode AGENTS.md (non-sensitive, can stay as a file)
 COPY opencode/AGENTS.md /root/.config/opencode/AGENTS.md
 

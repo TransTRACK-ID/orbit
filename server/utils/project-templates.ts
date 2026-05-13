@@ -8,9 +8,52 @@ import { injectTokenIntoRemoteUrl } from './git-helpers'
 
 const execAsync = promisify(exec)
 const projectsDir = `${process.env.HOME || '/root'}/orbit-projects`
-const currentFileDir = dirname(fileURLToPath(import.meta.url))
-const templatesFilePath = join(currentFileDir, '../data/templates.json')
-const projectRoot = join(currentFileDir, '../..')
+
+/**
+ * Resolve the project root directory by checking multiple strategies.
+ * Works in:
+ *   - Local dev (process.cwd() is project root)
+ *   - Docker production (process.cwd() is /app, files copied to /app/server/)
+ *   - Vercel/serverless (process.cwd() may be .output/server/, falls back to import.meta.url)
+ */
+function resolveProjectRoot(): string {
+  // Strategy 1: process.cwd() (works in local dev and Docker where WORKDIR=/app)
+  const cwd = process.cwd()
+  if (existsSync(join(cwd, 'server/data/templates.json'))) {
+    return cwd
+  }
+
+  // Strategy 2: relative to current file (works in production builds where code is bundled)
+  try {
+    const currentFileDir = dirname(fileURLToPath(import.meta.url))
+
+    // From server/utils/ → project root (dev)
+    const devRoot = join(currentFileDir, '../..')
+    if (existsSync(join(devRoot, 'server/data/templates.json'))) {
+      return devRoot
+    }
+
+    // From .output/server/ or deeper → .output/ (production build)
+    const prodRoot = join(currentFileDir, '..')
+    if (existsSync(join(prodRoot, 'server/data/templates.json'))) {
+      return prodRoot
+    }
+
+    // From .output/server/chunks/nitro/ → .output/ (deep nested production build)
+    const deepProdRoot = join(currentFileDir, '../..')
+    if (existsSync(join(deepProdRoot, 'server/data/templates.json'))) {
+      return deepProdRoot
+    }
+  } catch {
+    // import.meta.url may not be available in some environments
+  }
+
+  // Fallback: assume process.cwd() even if file doesn't exist yet
+  return cwd
+}
+
+const projectRoot = resolveProjectRoot()
+const templatesFilePath = join(projectRoot, 'server/data/templates.json')
 
 let cachedTemplates: TemplateConfig[] | null = null
 let cacheTimestamp = 0

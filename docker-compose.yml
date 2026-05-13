@@ -14,7 +14,6 @@ services:
       - POSTGRES_URL=${POSTGRES_URL}
       - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}
       - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - PROJECT_DIR=/app
       - HOME=/root
       - OPENCODE_PATH=/root/.opencode/bin/opencode

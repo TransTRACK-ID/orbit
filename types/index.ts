@@ -236,6 +236,7 @@ export interface Brainstorm {
   title: string
   createdAt: string
   updatedAt: string
+  repository?: Repository | null
 }
 
 export interface BrainstormMessage {

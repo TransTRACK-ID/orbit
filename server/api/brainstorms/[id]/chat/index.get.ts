@@ -158,12 +158,13 @@ export default defineEventHandler(async (event) => {
     let repoPlatform: 'github' | 'gitlab' | 'gitlab-self-hosted' = 'github'
     let repoDefaultBranch = 'main'
 
-    if (brainstorm.repository) {
-      repoUrl = brainstorm.repository.url
-      repoDefaultBranch = brainstorm.repository.defaultBranch || 'main'
-      repoName = brainstorm.repository.name
-      repoToken = brainstorm.repository.token
-      repoPlatform = (brainstorm.repository.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
+    const repo = brainstorm.repository as (typeof schema.repositories.$inferSelect) | null
+    if (repo) {
+      repoUrl = repo.url
+      repoDefaultBranch = repo.defaultBranch || 'main'
+      repoName = repo.name
+      repoToken = repo.token
+      repoPlatform = (repo.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
     }
 
     if (!repoUrl) {

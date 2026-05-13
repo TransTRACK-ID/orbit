@@ -39,7 +39,7 @@
 
     <!-- Messages -->
     <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
-      <div v-if="messages.length === 0 && !isRunning" class="flex flex-col items-center justify-center h-full text-surface-400">
+      <div v-if="displayMessages.length === 0 && !isRunning" class="flex flex-col items-center justify-center h-full text-surface-400">
         <Icon name="lucide:messages-square" class="w-10 h-10 mb-3 opacity-40" />
         <p class="text-sm">Start a conversation about your codebase</p>
         <p class="text-[11px] mt-1">The agent will read and analyze files without making changes</p>
@@ -51,7 +51,11 @@
           <div class="max-w-[80%] bg-primary-500 text-white rounded-2xl rounded-tr-md px-3.5 py-2.5 text-sm leading-relaxed">
             {{ msg.content }}
           </div>
-          <Avatar :name="userName" size="sm" class="flex-shrink-0 mt-1" />
+          <div
+            class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-1 bg-primary-400"
+          >
+            {{ userInitials }}
+          </div>
         </div>
 
         <!-- Assistant message -->
@@ -71,7 +75,7 @@
       </template>
 
       <!-- Typing indicator -->
-      <div v-if="isRunning" class="flex gap-2.5">
+      <div v-if="isRunning && !chatReply.trim()" class="flex gap-2.5">
         <div
           class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
           style="background: #8B5CF6"
@@ -127,6 +131,7 @@ const props = defineProps<{
   messages: BrainstormMessage[]
   isRunning: boolean
   isSending: boolean
+  chatReply: string
 }>()
 
 const emit = defineEmits<{
@@ -139,14 +144,30 @@ const newMessage = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
 const { data: authData } = useAuth()
 const userName = computed(() => authData.value?.user?.name || 'You')
+const userInitials = computed(() => {
+  return userName.value.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+})
 
 // Combine persisted messages with the live streaming reply
 const displayMessages = computed(() => {
   const result = [...props.messages]
+  if (props.chatReply.trim()) {
+    result.push({
+      id: 'live-reply',
+      brainstormId: props.brainstorm.id,
+      role: 'assistant',
+      content: props.chatReply.trim(),
+      createdAt: new Date().toISOString(),
+    })
+  }
   return result
 })
 
 watch(() => props.messages.length, () => {
+  scrollToBottom()
+})
+
+watch(() => props.chatReply, () => {
   scrollToBottom()
 })
 

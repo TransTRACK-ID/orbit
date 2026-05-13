@@ -65,9 +65,11 @@
             :messages-loading="messagesLoading"
             :chat-reply="currentChatReply"
             :current-step="currentChatStep"
+            :projects="workspaceProjects"
             @send="handleSend"
             @start="handleStart"
             @stop="handleStop"
+            @create-task="handleCreateTask"
           />
           <div v-else class="h-full flex flex-col items-center justify-center text-surface-400 bg-white border border-surface-200 rounded-xl">
             <Icon name="lucide:lightbulb" class="w-12 h-12 mb-3 opacity-30" />
@@ -167,9 +169,11 @@ const {
   clearChatReply,
   getChatStep,
   clearChatStep,
+  convertToTask,
 } = useBrainstorm()
 
 const workspace = ref<Workspace | null | undefined>(null)
+const workspaceProjects = ref<Array<{ id: string; name: string }>>([])
 const selectedBrainstormId = ref<string | null>(null)
 const showCreate = ref(false)
 const createTitle = ref('')
@@ -197,6 +201,12 @@ onMounted(async () => {
   if (workspace.value) {
     await fetchRepositories(workspace.value.id)
     await fetchBrainstorms(workspace.value.id)
+    try {
+      const projects = await $fetch<Array<{ id: string; name: string }>>(`/api/workspaces/${workspace.value.id}/projects`)
+      workspaceProjects.value = projects || []
+    } catch {
+      workspaceProjects.value = []
+    }
   }
 })
 
@@ -298,5 +308,17 @@ function handleStop() {
   if (!currentBrainstorm.value) return
   killChat(currentBrainstorm.value.id)
   chatRunningState.value = false
+}
+
+const { success: toastSuccess, error: toastError } = useToast()
+
+async function handleCreateTask(messageId: string, projectId: string) {
+  if (!currentBrainstorm.value) return
+  try {
+    const task = await convertToTask(currentBrainstorm.value.id, messageId, projectId)
+    toastSuccess(`Task "${task.title}" was created with the improvement label and added to the backlog.`, 'Task created')
+  } catch (err: any) {
+    toastError(err?.data?.message || 'Failed to create task', 'Error')
+  }
 }
 </script>

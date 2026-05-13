@@ -24,18 +24,6 @@
       {{ task.description }}
     </div>
 
-    <!-- Labels -->
-    <div v-if="task.labels && task.labels.length > 0" class="flex gap-1 flex-wrap mb-1.5">
-      <span
-        v-for="label in task.labels"
-        :key="label.id"
-        class="px-1.5 py-0.5 rounded text-[8px] font-semibold"
-        :style="{ backgroundColor: label.color + '20', color: label.color }"
-      >
-        {{ label.name }}
-      </span>
-    </div>
-
     <!-- Agentic In Progress badge -->
     <div v-if="isAgentInProgress" class="flex items-center gap-1.5 mb-1.5">
       <span class="agentic-badge">
@@ -46,10 +34,18 @@
 
     <!-- Footer -->
     <div class="flex items-center gap-2 text-[9px] text-surface-400">
-      <!-- Type -->
-      <span class="card-type px-1.5 py-0.5 text-[8px]" :class="typeStyle(task)">
-        {{ typeLabel(task) }}
-      </span>
+      <!-- Actual Labels (first 2) -->
+      <template v-if="task.labels && task.labels.length > 0">
+        <span
+          v-for="label in task.labels.slice(0, 2)"
+          :key="label.id"
+          class="px-1.5 py-0.5 rounded text-[8px] font-semibold"
+          :style="{ backgroundColor: label.color + '20', color: label.color }"
+        >
+          {{ label.name }}
+        </span>
+      </template>
+      <span v-else class="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-surface-100 text-surface-400">No label</span>
 
       <!-- Comments -->
       <span v-if="task._count?.comments" class="flex items-center gap-0.5">
@@ -135,20 +131,7 @@ function priorityStyle(priority: string) {
   }
 }
 
-function typeStyle(task: Task) {
-  const typeMap: Record<string, string> = {
-    feature: 'card-type feature',
-    fix: 'card-type fix',
-    review: 'card-type review',
-  }
-  return typeMap[task.priority] || typeMap[task._count?.comments ? 'review' : 'feature'] || 'card-type feature'
-}
 
-function typeLabel(task: Task) {
-  if (task.priority === 'urgent' || task.priority === 'high') return 'Fix'
-  if (task.priority === 'medium') return 'Review'
-  return 'Feature'
-}
 </script>
 
 <style scoped>

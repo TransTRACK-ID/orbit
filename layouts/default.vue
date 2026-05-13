@@ -43,6 +43,9 @@
 
     <!-- Task Drawer (right, fixed) -->
     <LayoutTaskDrawer />
+
+    <!-- Toast Notifications -->
+    <ToastContainer />
   </div>
 </template>
 

@@ -88,6 +88,17 @@
             <div class="bg-surface-50 border border-surface-100 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-sm text-surface-800 leading-relaxed max-w-none brainstorm-markdown">
               <div v-html="parseMarkdown(msg.content)" />
             </div>
+            <!-- Create task action -->
+            <div class="flex items-center gap-2 mt-1.5 ml-1">
+              <button
+                v-if="msg.id !== 'live-reply'"
+                class="text-[10px] font-medium text-surface-500 hover:text-primary-600 flex items-center gap-1 transition-colors"
+                @click="openCreateTaskModal(msg)"
+              >
+                <Icon name="lucide:square-plus" class="w-3 h-3" />
+                Create task
+              </button>
+            </div>
           </div>
         </div>
       </template>
@@ -109,6 +120,71 @@
         </div>
       </div>
     </div>
+
+    <!-- Create Task Modal -->
+    <Teleport to="body">
+      <div v-if="showCreateTaskModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showCreateTaskModal = false">
+        <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="text-lg font-semibold text-surface-900">Create Task from Message</h3>
+            <button class="text-surface-400 hover:text-surface-600 transition-colors p-1" @click="showCreateTaskModal = false">
+              <Icon name="lucide:x" class="w-4 h-4" />
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-surface-700 mb-1.5">Select Project</label>
+              <div class="relative">
+                <select
+                  v-model="selectedProjectId"
+                  class="w-full text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 pr-8 appearance-none cursor-pointer focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
+                >
+                  <option value="" disabled>Choose a project</option>
+                  <option v-for="project in projects" :key="project.id" :value="project.id">
+                    {{ project.name }}
+                  </option>
+                </select>
+                <Icon
+                  name="lucide:chevron-down"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400 pointer-events-none"
+                />
+              </div>
+              <p class="text-xs text-surface-400 mt-1">Task will be placed in the project's backlog</p>
+            </div>
+
+            <div class="bg-surface-50 rounded-lg border border-surface-100 p-3">
+              <p class="text-[11px] font-semibold text-surface-500 uppercase tracking-wide mb-1">Message preview</p>
+              <p class="text-xs text-surface-700 line-clamp-4">{{ selectedMessage?.content || '' }}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-5 mt-2 border-t border-surface-100">
+            <button
+              type="button"
+              class="px-3 py-1.5 rounded-lg border border-surface-200 text-sm font-medium text-surface-600 hover:bg-surface-50 transition-colors"
+              @click="showCreateTaskModal = false"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="px-3 py-1.5 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              :disabled="!selectedProjectId || creatingTask"
+              @click="handleCreateTask"
+            >
+              <span v-if="creatingTask" class="flex items-center gap-1.5">
+                <Icon name="lucide:loader-2" class="w-3.5 h-3.5 animate-spin" />
+                Creating...
+              </span>
+              <span v-else>Create Task</span>
+            </button>
+          </div>
+
+          <p v-if="createTaskError" class="text-error-500 text-sm mt-3">{{ createTaskError }}</p>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Input -->
     <div class="border-t border-surface-100 flex-shrink-0">
@@ -173,12 +249,14 @@ const props = defineProps<{
   messagesLoading: boolean
   chatReply: string
   currentStep: string
+  projects: Array<{ id: string; name: string }>
 }>()
 
 const emit = defineEmits<{
   send: [content: string]
   start: []
   stop: []
+  createTask: [messageId: string, projectId: string]
 }>()
 
 const newMessage = ref('')
@@ -188,6 +266,36 @@ const userName = computed(() => authData.value?.user?.name || 'You')
 const userInitials = computed(() => {
   return userName.value.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 })
+
+// Create task modal state
+const showCreateTaskModal = ref(false)
+const selectedMessage = ref<BrainstormMessage | null>(null)
+const selectedProjectId = ref('')
+const creatingTask = ref(false)
+const createTaskError = ref('')
+
+
+
+function openCreateTaskModal(msg: BrainstormMessage) {
+  selectedMessage.value = msg
+  selectedProjectId.value = ''
+  createTaskError.value = ''
+  showCreateTaskModal.value = true
+}
+
+async function handleCreateTask() {
+  if (!selectedMessage.value || !selectedProjectId.value) return
+  creatingTask.value = true
+  createTaskError.value = ''
+  try {
+    emit('createTask', selectedMessage.value.id, selectedProjectId.value)
+    showCreateTaskModal.value = false
+  } catch (err: any) {
+    createTaskError.value = err?.data?.message || 'Failed to create task'
+  } finally {
+    creatingTask.value = false
+  }
+}
 
 // Combine persisted messages with the live streaming reply
 const displayMessages = computed(() => {

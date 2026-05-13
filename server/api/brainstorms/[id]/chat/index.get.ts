@@ -4,7 +4,7 @@ import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import {
   activeBrainstormProcesses,
   addStreamToBrainstormProc,
@@ -117,6 +117,22 @@ export default defineEventHandler(async (event) => {
 
   if (!brainstorm) {
     throw createError({ statusCode: 404, statusMessage: 'Brainstorm not found' })
+  }
+
+  // Fetch conversation history for context
+  const historyMessages = await db.query.brainstormMessages.findMany({
+    where: eq(schema.brainstormMessages.brainstormId, id),
+    orderBy: [asc(schema.brainstormMessages.createdAt)],
+  })
+
+  // Build conversation history context
+  let conversationHistory = ''
+  if (historyMessages.length > 0) {
+    const historyLines = historyMessages.map((msg) => {
+      const roleLabel = msg.role === 'user' ? 'User' : 'Assistant'
+      return `[${roleLabel}]: ${msg.content}`
+    })
+    conversationHistory = `[CONVERSATION HISTORY]\n${historyLines.join('\n\n')}\n\n`
   }
 
   let opencodeOk = false
@@ -264,9 +280,11 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
 
     const chatMessage = message
       ? `[USER MESSAGE]\n${message}\n\nPlease respond to this message. Remember: read-only mode — do NOT edit any files.`
-      : 'Please give a brief summary of this codebase and ask how you can help.'
+      : historyMessages.length > 0
+        ? 'Please continue the conversation based on the history above. Remember: read-only mode — do NOT edit any files.'
+        : 'Please give a brief summary of this codebase and ask how you can help.'
 
-    const fullMessage = `${platformRule}\n\n${readOnlyRule}\n\n${securityRule}\n\n${chatMessage}`
+    const fullMessage = `${platformRule}\n\n${readOnlyRule}\n\n${securityRule}\n\n${conversationHistory}${chatMessage}`
 
     const minimalEnv: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,

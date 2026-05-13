@@ -54,7 +54,5 @@ export default defineEventHandler(async (event) => {
     },
   }
 
-  console.log('[Admin Activity API] Response:', JSON.stringify(result, null, 2))
-
   return result
 })

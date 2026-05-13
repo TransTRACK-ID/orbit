@@ -134,12 +134,13 @@
           <!-- Daily signups chart (simple bar) -->
           <div class="bg-white border border-surface-200 rounded-xl p-4">
             <p class="text-xs font-semibold text-surface-700 mb-3">Daily Signups (30d)</p>
-            <div v-if="activityData?.dailySignups?.length" class="flex items-end gap-1 h-32">
+            <div v-if="activityData?.dailySignups?.length" class="flex gap-1 h-32">
               <div
                 v-for="day in activityData.dailySignups"
                 :key="day.date"
-                class="flex-1 flex flex-col items-center gap-1"
+                class="flex-1 flex flex-col items-center justify-end gap-1 h-full"
               >
+                <span class="text-[9px] text-accent font-bold">{{ day.count }}</span>
                 <div
                   class="w-full bg-accent/80 rounded-sm min-h-[4px]"
                   :style="{ height: signupBarHeight(day.count) }"
@@ -153,12 +154,13 @@
           <!-- Daily tasks chart (simple bar) -->
           <div class="bg-white border border-surface-200 rounded-xl p-4">
             <p class="text-xs font-semibold text-surface-700 mb-3">Daily Tasks Created (30d)</p>
-            <div v-if="activityData?.dailyTasks?.length" class="flex items-end gap-1 h-32">
+            <div v-if="activityData?.dailyTasks?.length" class="flex gap-1 h-32">
               <div
                 v-for="day in activityData.dailyTasks"
                 :key="day.date"
-                class="flex-1 flex flex-col items-center gap-1"
+                class="flex-1 flex flex-col items-center justify-end gap-1 h-full"
               >
+                <span class="text-[9px] text-accent font-bold">{{ day.count }}</span>
                 <div
                   class="w-full bg-accent/60 rounded-sm min-h-[4px]"
                   :style="{ height: taskBarHeight(day.count) }"
@@ -255,9 +257,9 @@ const tabs = [
 ]
 const activeTab = ref('users')
 
-const { data: usersData, pending: usersPending } = await useFetch<{ users: AdminUser[]; total: number }>('/api/admin/users')
-const { data: projectsData, pending: projectsPending } = await useFetch<{ projects: AdminProject[]; total: number }>('/api/admin/projects')
-const { data: activityData, pending: activityPending } = await useFetch<ActivityData>('/api/admin/activity')
+const { data: usersData, pending: usersPending } = await useFetch<{ users: AdminUser[]; total: number }>('/api/admin/users', { key: 'admin-users' })
+const { data: projectsData, pending: projectsPending } = await useFetch<{ projects: AdminProject[]; total: number }>('/api/admin/projects', { key: 'admin-projects' })
+const { data: activityData, pending: activityPending } = await useFetch<ActivityData>('/api/admin/activity', { key: 'admin-activity' })
 
 const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value)
 
@@ -275,13 +277,19 @@ function userInitials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
-function signupBarHeight(count: number) {
-  const max = Math.max(...(activityData.value?.dailySignups || []).map(d => Number(d.count)), 1)
-  return `${Math.max((Number(count) / max) * 100, 4)}%`
+function signupBarHeight(count: number | string) {
+  const numCount = Number(count)
+  const dailySignups = activityData.value?.dailySignups || []
+  const max = Math.max(...dailySignups.map((d: any) => Number(d.count)), 1)
+  const pct = max > 0 ? (numCount / max) * 100 : 4
+  return `${Math.max(Math.round(pct), 4)}%`
 }
 
-function taskBarHeight(count: number) {
-  const max = Math.max(...(activityData.value?.dailyTasks || []).map(d => Number(d.count)), 1)
-  return `${Math.max((Number(count) / max) * 100, 4)}%`
+function taskBarHeight(count: number | string) {
+  const numCount = Number(count)
+  const dailyTasks = activityData.value?.dailyTasks || []
+  const max = Math.max(...dailyTasks.map((d: any) => Number(d.count)), 1)
+  const pct = max > 0 ? (numCount / max) * 100 : 4
+  return `${Math.max(Math.round(pct), 4)}%`
 }
 </script>

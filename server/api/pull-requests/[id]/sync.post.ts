@@ -1,7 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
-import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
+import { parseGithubUrl, parseGitlabUrl, fetchPullRequestDetails, fetchPullRequestReviews, fetchGitlabMergeRequestDetails, determineReviewState } from '~/server/utils/github-api'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -16,31 +16,31 @@ export default defineEventHandler(async (event) => {
 
   if (!pr) throw createError({ statusCode: 404, statusMessage: 'Pull request not found' })
 
-  const parsed = parseGithubUrl(pr.url)
-  if (!parsed) {
+  const gh = parseGithubUrl(pr.url)
+  const gl = !gh ? parseGitlabUrl(pr.url) : null
+  if (!gh && !gl) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid PR URL format' })
   }
 
   try {
-    const details = await fetchPullRequestDetails(
-      parsed.owner,
-      parsed.repo,
-      parsed.number,
-      parsed.host,
-      parsed.isEnterprise,
-      pr.repository?.token
-    )
+    let details: { title: string; status: string; draft: boolean; mergeableState: string | null; headBranch: string | null; baseBranch: string | null; createdAt: Date; updatedAt: Date }
+    let reviewState: 'pending' | 'approved' | 'changes_requested' | 'commented' = 'pending'
 
-    const reviews = await fetchPullRequestReviews(
-      parsed.owner,
-      parsed.repo,
-      parsed.number,
-      parsed.host,
-      parsed.isEnterprise,
-      pr.repository?.token
-    )
-
-    const reviewState = determineReviewState(reviews)
+    if (gh) {
+      details = await fetchPullRequestDetails(
+        gh.owner, gh.repo, gh.number, gh.host, gh.isEnterprise,
+        pr.repository?.token
+      )
+      const reviews = await fetchPullRequestReviews(
+        gh.owner, gh.repo, gh.number, gh.host, gh.isEnterprise,
+        pr.repository?.token
+      )
+      reviewState = determineReviewState(reviews)
+    } else if (gl) {
+      details = await fetchGitlabMergeRequestDetails(
+        gl.projectPath, gl.iid, gl.host, pr.repository?.token
+      )
+    }
 
     const updated = await db.update(schema.pullRequests)
       .set({

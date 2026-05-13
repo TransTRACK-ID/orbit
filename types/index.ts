@@ -228,6 +228,24 @@ export interface ActivityFeedItem {
   }
 }
 
+// ─── Brainstorm ───
+export interface Brainstorm {
+  id: string
+  workspaceId: string
+  repositoryId: string | null
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BrainstormMessage {
+  id: string
+  brainstormId: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
 // ─── Queue Item (unassigned tasks) ───
 export interface QueueItem {
   id: string

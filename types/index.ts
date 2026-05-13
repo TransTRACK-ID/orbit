@@ -211,6 +211,7 @@ export interface Agent {
   runtime: string
   purpose: string
   tasks: number
+  headed?: boolean
   projectName?: string
   wsName?: string
 }

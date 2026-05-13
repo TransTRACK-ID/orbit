@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
       purpose: body.purpose || null,
       status: body.status || 'idle',
       color: body.color || '#7C3AED',
+      headed: body.headed ?? false,
     })
     .returning()
 

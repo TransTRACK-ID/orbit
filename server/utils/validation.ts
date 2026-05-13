@@ -139,6 +139,7 @@ export const createAgentSchema = z.object({
   purpose: z.string().max(2000).optional(),
   status: z.enum(['idle', 'busy', 'offline']).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid color hex').optional(),
+  headed: z.boolean().optional(),
 })
 
 export const updateAgentSchema = z.object({
@@ -149,6 +150,7 @@ export const updateAgentSchema = z.object({
   status: z.enum(['idle', 'busy', 'offline']).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   tasks: z.number().int().min(0).optional(),
+  headed: z.boolean().optional(),
 })
 
 // ─── Repository ───

@@ -52,19 +52,15 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
 }
 
 function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
-  const envToken = platform === 'github'
-    ? (process.env.GITHUB_TOKEN || '')
-    : (process.env.GITLAB_TOKEN || '')
-  const effectiveToken = token || envToken
-  if (!effectiveToken) return url
+  if (!token) return url
 
   if (platform === 'github') {
     if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${effectiveToken}@github.com/`)
+    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
   }
 
   if (!url.startsWith('https://')) return url
-  return url.replace(/^https:\/\//, `https://oauth2:${effectiveToken}@`)
+  return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
 }
 
 function formatToolEvent(part: any): string {
@@ -293,9 +289,9 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       NODE_ENV: process.env.NODE_ENV,
       LANG: process.env.LANG,
       LC_ALL: process.env.LC_ALL,
-      GITHUB_TOKEN: process.env.GITHUB_TOKEN,
       GITLAB_TOKEN: process.env.GITLAB_TOKEN,
       GITLAB_HOST: process.env.GITLAB_HOST,
+      ...(repoToken ? { GITHUB_TOKEN: repoToken } : {}),
     }
 
     const spawnArgs = [

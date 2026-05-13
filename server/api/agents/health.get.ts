@@ -2,6 +2,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { activeProcesses } from '~/server/utils/runtime'
+import { getQueueStatus } from '~/server/utils/browser-queue'
 import { accessSync, constants } from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -47,7 +48,19 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 4. Build health map
+  // 4. Check browser QA queue for busy agents
+  const browserQueue = getQueueStatus()
+  if (browserQueue.isRunning && browserQueue.nextJob) {
+    const task = await db.query.tasks.findFirst({
+      where: eq(schema.tasks.id, browserQueue.nextJob),
+      columns: { agentAssigneeId: true },
+    })
+    if (task?.agentAssigneeId) {
+      busyAgentIds.add(task.agentAssigneeId)
+    }
+  }
+
+  // 5. Build health map
   const health: Record<string, 'idle' | 'busy' | 'offline'> = {}
   for (const agent of agents) {
     if (!runtimeReachable) {
@@ -59,5 +72,5 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return { runtimeReachable, health }
+  return { runtimeReachable, health, browserQueue }
 })

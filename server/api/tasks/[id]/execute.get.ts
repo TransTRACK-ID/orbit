@@ -158,6 +158,8 @@ function resolveWorktreeDir(cloneDir: string, taskId: string): string {
 
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
+import { enqueueBrowserJob } from '~/server/utils/browser-queue'
+import type { BrowserRunConfig } from '~/server/utils/browser-runtime'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 
@@ -330,12 +332,14 @@ export default defineEventHandler(async (event) => {
       projectId: true,
       repositoryId: true,
       assigneeType: true,
+      agentAssigneeId: true,
       branchName: true,
     },
     with: {
       taskLabels: {
         with: { label: true },
       },
+      agentAssignee: true,
     },
   })
 
@@ -805,6 +809,62 @@ export default defineEventHandler(async (event) => {
       stream.close()
       return
     }
+    // ── Browser QA runtime branch ──
+    if (task.agentAssignee?.runtime === 'browser-qa') {
+      await pushAndPersist(`Browser QA agent assigned — preparing dev server and browser container...`)
+
+      const outputDir = `${workDir}/.orbit-browser-output/${id}`
+      mkdirSync(outputDir, { recursive: true })
+
+      const browserConfig: BrowserRunConfig = {
+        taskId: id,
+        workspaceId: project?.workspaceId || '',
+        agentId: task.agentAssigneeId || '',
+        worktreeDir: workDir,
+        taskTitle: task.title,
+        taskDescription: task.description,
+        headed: task.agentAssignee?.headed ?? false,
+        outputDir,
+        maxRuntimeMs: MAX_RUNTIME_MS,
+      }
+
+      try {
+        const result = await enqueueBrowserJob({
+          taskId: id,
+          workspaceId: browserConfig.workspaceId,
+          agentId: browserConfig.agentId,
+          config: browserConfig,
+          stream,
+          resolve: () => {},
+          reject: () => {},
+        })
+
+        await pushAndPersist(`Browser QA ${result.status}: ${result.summary || ''}`)
+
+        // Persist browser session record
+        try {
+          await db.insert(schema.browserSessions).values({
+            taskId: id,
+            agentId: task.agentAssigneeId,
+            status: result.status,
+            summary: result.summary,
+            error: result.error,
+            outputDir: result.outputDir,
+            headed: browserConfig.headed,
+          })
+        } catch (dbErr: any) {
+          console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)
+        }
+
+        // Note: task status is not auto-updated — user manually reviews QA results
+      } catch (err: any) {
+        await pushAndPersist(`Browser QA failed: ${err.message}`)
+      }
+
+      stream.close()
+      return
+    }
+
     await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)
 
     const isGitLab = repoPlatform === 'gitlab' || repoPlatform === 'gitlab-self-hosted'

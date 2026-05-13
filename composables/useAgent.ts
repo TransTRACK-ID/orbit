@@ -11,6 +11,7 @@ export const useAgent = () => {
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
     'opencode':    { name:'OpenCode',    icon:'lucide:code',     color:'#2563EB', desc:'Open-source coding agent with multi-file editing' },
+    'browser-qa':  { name:'Browser QA',  icon:'lucide:globe',    color:'#059669', desc:'Automated browser testing with AI agent' },
   }
 
   const runtimes = Object.entries(runtimeInfo).map(([id, r]) => ({ id, ...r }))

@@ -3,6 +3,7 @@
 .env.*.local
 .nuxt
 .output
+dist
 node_modules
 *.log
 .DS_Store
@@ -13,3 +14,23 @@ docker-compose.yml
 docker-compose.*.yml
 Dockerfile
 .dockerignore
+
+# Temporary / cache directories
+.transtrack/
+.task-*
+.opencode/
+
+# Large data files that shouldn't be in build context
+*.mp4
+*.mov
+*.avi
+*.zip
+*.tar.gz
+*.tar
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

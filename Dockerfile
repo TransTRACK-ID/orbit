@@ -16,6 +16,8 @@ RUN bun install --frozen-lockfile && rm -rf /tmp/*
 COPY . .
 
 # Build the Nuxt application
+# Increase Node memory limit to prevent OOM/hanging during Vite transform
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN bun run build
 
 # Stage 2: Run the Nuxt application and the agent runtime

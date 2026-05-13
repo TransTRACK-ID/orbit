@@ -1,0 +1,31 @@
+[
+  {
+    "id": "nuxt3-spa-starter",
+    "name": "Nuxt 3 SPA Starter",
+    "description": "Full-featured Nuxt 3 SPA with auth, Pinia, Tailwind, PWA, and testing",
+    "category": "frontend",
+    "stack": "node",
+    "sourceType": "local_path",
+    "sourcePath": "server/templates/nuxt3-spa-starter",
+    "branch": "main",
+    "variables": [
+      { "key": "projectName", "label": "Project Name", "required": true },
+      { "key": "projectDescription", "label": "Description", "required": false },
+      { "key": "apiBaseUrl", "label": "API Base URL", "required": true, "default": "https://api.example.com" },
+      { "key": "appKey", "label": "App Encryption Key", "required": true, "autoGenerate": true, "length": 32 }
+    ],
+    "fileSubstitutions": [
+      { "path": "package.json", "replacements": { "PROJECT_NAME": "{{projectName}}", "PROJECT_DESCRIPTION": "{{projectDescription}}" } },
+      { "path": ".env.example", "replacements": { "API_BASE_URL": "{{apiBaseUrl}}", "APP_KEY": "{{appKey}}" } }
+    ],
+    "renameFiles": [
+      { "from": ".env.example", "to": ".env" }
+    ],
+    "postInitCommands": [
+      { "command": "npm install", "timeout": 300000, "description": "Installing Node dependencies..." },
+      { "command": "npm run postinstall", "timeout": 120000, "description": "Running Nuxt prepare..." }
+    ],
+    "gitInit": true,
+    "initialCommitMessage": "chore: initialize from Orbit template"
+  }
+]

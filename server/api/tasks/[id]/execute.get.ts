@@ -6,6 +6,7 @@ import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
+import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 
 const execAsync = promisify(exec)
 
@@ -300,25 +301,6 @@ const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
-
-/**
- * Inject auth token into an HTTPS remote URL so git operations work
- * inside the container without interactive username/password prompts.
- * Supports GitHub and GitLab (including self-hosted).
- */
-function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
-  if (!token) return url
-
-  if (platform === 'github') {
-    if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
-  }
-
-  // GitLab — self-hosted or gitlab.com
-  if (!url.startsWith('https://')) return url
-  // Inject token into any https:// URL for GitLab
-  return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
-}
 
 async function configureGitAuth(workDir: string, repoUrl: string, platform: string, token?: string | null) {
   if (!token) return

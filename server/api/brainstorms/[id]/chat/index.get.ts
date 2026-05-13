@@ -5,6 +5,7 @@ import { accessSync, constants, existsSync, mkdirSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
+import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import {
   activeBrainstormProcesses,
   addStreamToBrainstormProc,
@@ -49,18 +50,6 @@ function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string
   }
 
   return `${projectsDir}/${urlName}`
-}
-
-function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
-  if (!token) return url
-
-  if (platform === 'github') {
-    if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
-  }
-
-  if (!url.startsWith('https://')) return url
-  return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
 }
 
 function formatToolEvent(part: any): string {

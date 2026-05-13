@@ -13,6 +13,8 @@ export const projects = pgTable('projects', {
   description: text('description'),
   color: varchar('color', { length: 7 }).notNull().default('#F14848'),
   icon: varchar('icon', { length: 50 }),
+  templateId: varchar('template_id', { length: 50 }),
+  stack: varchar('stack', { length: 20 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

@@ -21,10 +21,7 @@
     "renameFiles": [
       { "from": ".env.example", "to": ".env" }
     ],
-    "postInitCommands": [
-      { "command": "npm install", "timeout": 300000, "description": "Installing Node dependencies..." },
-      { "command": "npm run postinstall", "timeout": 120000, "description": "Running Nuxt prepare..." }
-    ],
+    "postInitCommands": [],
     "gitInit": true,
     "initialCommitMessage": "chore: initialize from Orbit template"
   }

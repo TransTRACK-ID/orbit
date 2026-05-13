@@ -17,14 +17,14 @@
             <button
               class="px-3 py-1.5 text-sm rounded-md transition-colors"
               :class="mode === 'blank' ? 'bg-surface-900 text-white' : 'bg-surface-100 text-surface-600 hover:bg-surface-200'"
-              @click="mode = 'blank'"
+              @click="mode = 'blank'; error = ''"
             >
               Blank Project
             </button>
             <button
               class="px-3 py-1.5 text-sm rounded-md transition-colors"
               :class="mode === 'template' ? 'bg-surface-900 text-white' : 'bg-surface-100 text-surface-600 hover:bg-surface-200'"
-              @click="mode = 'template'"
+              @click="mode = 'template'; error = ''"
             >
               From Template
             </button>
@@ -58,7 +58,7 @@
               <Loading class="w-6 h-6 mx-auto animate-spin text-surface-400" />
               <p class="text-sm text-surface-500 mt-2">Loading templates...</p>
             </div>
-            <TemplateGallery
+            <ProjectTemplateGallery
               v-else
               :templates="templates"
               @select="selectTemplate"
@@ -68,12 +68,13 @@
 
         <!-- Step 2: Template Configuration -->
         <div v-else-if="step === 'config' && selectedTemplate">
-          <TemplateConfigForm
+          <ProjectTemplateConfigForm
             :template="selectedTemplate"
             :submitting="creating"
             @submit="handleCreateFromTemplate"
-            @back="step = 'template'; mode = 'template'"
+            @back="step = 'template'; mode = 'template'; error = ''"
           />
+          <p v-if="error" class="text-error-500 text-sm mt-3">{{ error }}</p>
         </div>
       </div>
     </div>
@@ -124,6 +125,7 @@ async function loadTemplates() {
 function selectTemplate(template: TemplateConfig) {
   selectedTemplate.value = template
   step.value = 'config'
+  error.value = ''
 }
 
 watch(mode, (newMode) => {
@@ -171,7 +173,8 @@ async function handleCreateFromTemplate(formData: any) {
         token: formData.token,
         isPrivate: formData.isPrivate,
         variables: formData.variables,
-        platform: 'github',
+        platform: formData.platform,
+        gitlabHost: formData.gitlabHost,
         createRemoteRepo: true,
       },
     })

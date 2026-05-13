@@ -8,7 +8,7 @@
     >
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
-          <StackIcon :stack="t.stack" />
+          <ProjectStackIcon :stack="t.stack" />
           <h4 class="text-sm font-semibold">{{ t.name }}</h4>
         </div>
         <Chip size="sm">{{ t.category }}</Chip>

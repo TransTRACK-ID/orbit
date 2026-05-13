@@ -305,9 +305,17 @@
               <TextInput v-model="templateForm.initialCommitMessage" placeholder="chore: initialize from template" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-surface-700 mb-1.5">Advanced Config (JSON)</label>
-              <TextArea v-model="templateForm.advancedJson" rows="8" class="font-mono text-xs" />
-              <p class="text-[10px] text-surface-400 mt-1">variables, fileSubstitutions, renameFiles, postInitCommands</p>
+              <label class="block text-sm font-medium text-surface-700 mb-1.5">Template Configuration (JSON)</label>
+              <p class="text-[11px] text-surface-500 mb-1.5">
+                Define how the template is initialized: user input variables, file text replacements, file renames, and setup commands.
+              </p>
+              <TextArea v-model="templateForm.advancedJson" rows="15" class="font-mono text-xs" placeholder="{&quot;variables&quot;:[{&quot;key&quot;:&quot;projectName&quot;,&quot;label&quot;:&quot;Project Name&quot;,&quot;required&quot;:true}],&quot;fileSubstitutions&quot;:[...],&quot;renameFiles&quot;:[...],&quot;postInitCommands&quot;:[...]}" />
+              <div class="mt-1.5 space-y-1">
+                <p class="text-[10px] text-surface-400"><strong class="text-surface-500">variables</strong> — Input fields shown to the user when creating a project (key, label, required, default, autoGenerate, length)</p>
+                <p class="text-[10px] text-surface-400"><strong class="text-surface-500">fileSubstitutions</strong> — Replace placeholders like <code v-pre>{{projectName}}</code> in files after cloning</p>
+                <p class="text-[10px] text-surface-400"><strong class="text-surface-500">renameFiles</strong> — Rename files after cloning (e.g., .env.example → .env)</p>
+                <p class="text-[10px] text-surface-400"><strong class="text-surface-500">postInitCommands</strong> — Shell commands to run after setup (e.g., npm install)</p>
+              </div>
             </div>
 
             <div class="flex items-center justify-end gap-2 pt-2">

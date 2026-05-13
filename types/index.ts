@@ -189,6 +189,29 @@ export interface RuntimeInfo {
   desc: string
 }
 
+// ─── Pull Request ───
+export interface PullRequest {
+  id: string
+  taskId: string
+  repositoryId: string | null
+  githubNumber: number
+  title: string
+  url: string
+  status: 'open' | 'closed' | 'merged'
+  draft: boolean
+  reviewState: 'pending' | 'approved' | 'changes_requested' | 'commented'
+  mergeableState: string | null
+  headBranch: string | null
+  baseBranch: string | null
+  agentFixStatus: 'none' | 'pending' | 'in_progress' | 'done'
+  createdAt: string
+  updatedAt: string
+  lastSyncedAt: string
+  task?: Task
+  repository?: Repository
+  comments?: PrComment[]
+}
+
 // ─── PR Comment (from GitHub) ───
 export interface PrComment {
   id: number
@@ -198,6 +221,9 @@ export interface PrComment {
   line: number | null
   createdAt: string
   isReview: boolean
+  reviewState?: string | null
+  resolved?: boolean
+  agentFixAppliedAt?: string | null
 }
 
 // ─── Activity Log Entry (local) ───

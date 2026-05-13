@@ -6,6 +6,7 @@ import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
+import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
 
 const execAsync = promisify(exec)
 
@@ -390,6 +391,61 @@ export default defineEventHandler(async (event) => {
           newValue: { url: existingPrUrl, branch },
         })
       } catch {}
+
+      // Upsert into pull_requests table for existing PRs too
+      try {
+        const parsed = parseGithubUrl(existingPrUrl)
+        if (parsed) {
+          const details = await fetchPullRequestDetails(
+            parsed.owner, parsed.repo, parsed.number,
+            parsed.host, parsed.isEnterprise, repoToken
+          )
+          const reviews = await fetchPullRequestReviews(
+            parsed.owner, parsed.repo, parsed.number,
+            parsed.host, parsed.isEnterprise, repoToken
+          )
+          const reviewState = determineReviewState(reviews)
+
+          const existingPr = await db.query.pullRequests.findFirst({
+            where: eq(schema.pullRequests.taskId, id),
+          })
+
+          if (existingPr) {
+            await db.update(schema.pullRequests)
+              .set({
+                githubNumber: details.githubNumber,
+                title: details.title,
+                url: existingPrUrl,
+                status: details.status,
+                draft: details.draft,
+                reviewState,
+                mergeableState: details.mergeableState,
+                headBranch: details.headBranch || branch,
+                baseBranch: details.baseBranch || repoDefaultBranch,
+                agentFixStatus: existingPr.agentFixStatus === 'in_progress' ? 'done' : existingPr.agentFixStatus,
+                lastSyncedAt: new Date(),
+              })
+              .where(eq(schema.pullRequests.id, existingPr.id))
+          } else {
+            await db.insert(schema.pullRequests).values({
+              taskId: id,
+              repositoryId: task.repositoryId || null,
+              githubNumber: details.githubNumber,
+              title: details.title,
+              url: existingPrUrl,
+              status: details.status,
+              draft: details.draft,
+              reviewState,
+              mergeableState: details.mergeableState,
+              headBranch: details.headBranch || branch,
+              baseBranch: details.baseBranch || repoDefaultBranch,
+            })
+          }
+        }
+      } catch (syncErr: any) {
+        console.error('[pr.post] Failed to sync existing pull_requests table:', syncErr.message)
+      }
+
       return { url: existingPrUrl, branch }
     }
 
@@ -446,6 +502,60 @@ export default defineEventHandler(async (event) => {
         newValue: { url: prUrl, branch },
       })
     } catch {}
+
+    // Upsert into pull_requests table
+    try {
+      const parsed = parseGithubUrl(prUrl)
+      if (parsed) {
+        const details = await fetchPullRequestDetails(
+          parsed.owner, parsed.repo, parsed.number,
+          parsed.host, parsed.isEnterprise, repoToken
+        )
+        const reviews = await fetchPullRequestReviews(
+          parsed.owner, parsed.repo, parsed.number,
+          parsed.host, parsed.isEnterprise, repoToken
+        )
+        const reviewState = determineReviewState(reviews)
+
+        const existingPr = await db.query.pullRequests.findFirst({
+          where: eq(schema.pullRequests.taskId, id),
+        })
+
+        if (existingPr) {
+          await db.update(schema.pullRequests)
+            .set({
+              githubNumber: details.githubNumber,
+              title: details.title,
+              url: prUrl,
+              status: details.status,
+              draft: details.draft,
+              reviewState,
+              mergeableState: details.mergeableState,
+              headBranch: details.headBranch || branch,
+              baseBranch: details.baseBranch || repoDefaultBranch,
+              agentFixStatus: existingPr.agentFixStatus === 'in_progress' ? 'done' : existingPr.agentFixStatus,
+              lastSyncedAt: new Date(),
+            })
+            .where(eq(schema.pullRequests.id, existingPr.id))
+        } else {
+          await db.insert(schema.pullRequests).values({
+            taskId: id,
+            repositoryId: task.repositoryId || null,
+            githubNumber: details.githubNumber,
+            title: details.title,
+            url: prUrl,
+            status: details.status,
+            draft: details.draft,
+            reviewState,
+            mergeableState: details.mergeableState,
+            headBranch: details.headBranch || branch,
+            baseBranch: details.baseBranch || repoDefaultBranch,
+          })
+        }
+      }
+    } catch (syncErr: any) {
+      console.error('[pr.post] Failed to sync pull_requests table:', syncErr.message)
+    }
 
     return { url: prUrl, branch }
   } catch (err: any) {

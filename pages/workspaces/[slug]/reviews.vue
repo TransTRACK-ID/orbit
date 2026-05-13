@@ -1,0 +1,215 @@
+<template>
+  <div class="flex flex-col flex-1 bg-surface-50">
+    <!-- Bottleneck Stats Bar -->
+    <ReviewsBottleneckStats
+      :workspace-id="workspace?.id"
+      :loading="bottlenecksLoading"
+      :stats="bottleneckStats"
+    />
+
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Filter Sidebar -->
+      <ReviewsPrFilterSidebar
+        v-model:status="filterStatus"
+        v-model:review-state="filterReviewState"
+        v-model:repository-id="filterRepositoryId"
+        v-model:search="filterSearch"
+        :repositories="repositories"
+        :loading="prsLoading"
+        @refresh="loadPullRequests"
+      />
+
+      <!-- PR List -->
+      <ReviewsPrList
+        :pull-requests="filteredPullRequests"
+        :selected-id="selectedPrId"
+        :loading="prsLoading"
+        @select="selectPr"
+      />
+
+      <!-- Detail Panel -->
+      <ReviewsPrDetailPanel
+        :pull-request="selectedPr"
+        :diff="prDiff"
+        :loading="detailLoading"
+        :diff-loading="diffLoading"
+        @sync="syncPr"
+        @fix-feedback="fixFeedback"
+      />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { PullRequest, Workspace, Repository } from '~/types'
+
+definePageMeta({
+  layout: 'default',
+})
+
+const route = useRoute()
+const slug = computed(() => route.params.slug as string)
+
+const { getWorkspaceBySlug } = useWorkspace()
+const { fetchRepositories } = useRepository()
+
+const workspace = ref<Workspace | null>(null)
+const repositories = ref<Repository[]>([])
+const pullRequests = ref<PullRequest[]>([])
+const prsLoading = ref(false)
+
+const filterStatus = ref<string>('open')
+const filterReviewState = ref<string | undefined>(undefined)
+const filterRepositoryId = ref<string | undefined>(undefined)
+const filterSearch = ref('')
+
+const selectedPrId = ref<string | null>(null)
+const selectedPr = ref<PullRequest | null>(null)
+const detailLoading = ref(false)
+
+const prDiff = ref<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string } | null>(null)
+const diffLoading = ref(false)
+
+const bottleneckStats = ref<any>(null)
+const bottlenecksLoading = ref(false)
+
+const filteredPullRequests = computed(() => {
+  let list = pullRequests.value
+  if (filterSearch.value) {
+    const q = filterSearch.value.toLowerCase()
+    list = list.filter(
+      (pr) =>
+        pr.title.toLowerCase().includes(q) ||
+        pr.task?.title?.toLowerCase().includes(q) ||
+        pr.repository?.name?.toLowerCase().includes(q)
+    )
+  }
+  return list
+})
+
+async function loadWorkspace() {
+  workspace.value = await getWorkspaceBySlug(slug.value)
+}
+
+async function loadRepositories() {
+  if (!workspace.value) return
+  repositories.value = await fetchRepositories(workspace.value.id)
+}
+
+async function loadPullRequests() {
+  if (!workspace.value) return
+  prsLoading.value = true
+  try {
+    const query: Record<string, string> = {}
+    if (filterStatus.value) query.status = filterStatus.value
+    if (filterReviewState.value) query.reviewState = filterReviewState.value
+    if (filterRepositoryId.value) query.repositoryId = filterRepositoryId.value
+    if (filterSearch.value) query.search = filterSearch.value
+
+    const res = await $fetch<{ pullRequests: PullRequest[] }>(
+      `/api/workspaces/${workspace.value.id}/pull-requests`,
+      { query }
+    )
+    pullRequests.value = res.pullRequests
+  } catch (err) {
+    console.error('Failed to load pull requests:', err)
+  } finally {
+    prsLoading.value = false
+  }
+}
+
+async function loadBottlenecks() {
+  if (!workspace.value) return
+  bottlenecksLoading.value = true
+  try {
+    const res = await $fetch(`/api/workspaces/${workspace.value.id}/review-bottlenecks`)
+    bottleneckStats.value = res
+  } catch (err) {
+    console.error('Failed to load bottlenecks:', err)
+  } finally {
+    bottlenecksLoading.value = false
+  }
+}
+
+async function selectPr(id: string) {
+  selectedPrId.value = id
+  selectedPr.value = null
+  prDiff.value = null
+  detailLoading.value = true
+  diffLoading.value = true
+
+  try {
+    const res = await $fetch<{ pullRequest: PullRequest }>(`/api/pull-requests/${id}`)
+    selectedPr.value = res.pullRequest
+  } catch (err) {
+    console.error('Failed to load PR detail:', err)
+  } finally {
+    detailLoading.value = false
+  }
+
+  try {
+    const diffRes = await $fetch<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string }>(`/api/pull-requests/${id}/diff`)
+    prDiff.value = diffRes
+  } catch (err) {
+    console.error('Failed to load diff:', err)
+  } finally {
+    diffLoading.value = false
+  }
+}
+
+async function syncPr(id: string) {
+  try {
+    await $fetch(`/api/pull-requests/${id}/sync`, { method: 'POST' })
+    await selectPr(id)
+    await loadPullRequests()
+    await loadBottlenecks()
+  } catch (err) {
+    console.error('Failed to sync PR:', err)
+  }
+}
+
+async function fixFeedback(id: string) {
+  try {
+    const res = await $fetch<{ success: true; taskId: string; commentCount: number; feedbackLength: number }>(`/api/pull-requests/${id}/fix-feedback`, { method: 'POST' })
+    if (res.success && res.taskId) {
+      const { startRuntime } = useAgentRuntime()
+      // The server already stored the feedback; we just need to start the runtime stream
+      await startRuntime(res.taskId)
+
+      // Navigate to the task board so the user can watch the agent work
+      const pr = selectedPr.value
+      if (pr?.task?.project?.id) {
+        await navigateTo(`/workspaces/${slug.value}/projects/${pr.task.project.id}/board?task=${pr.task.id}`)
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fix feedback:', err)
+  }
+}
+
+watch([filterStatus, filterReviewState, filterRepositoryId], () => {
+  loadPullRequests()
+}, { immediate: false })
+
+onMounted(async () => {
+  await loadWorkspace()
+  await loadRepositories()
+  await Promise.all([loadPullRequests(), loadBottlenecks()])
+
+  // Pre-select PR from query param
+  const prId = route.query.pr as string
+  if (prId) {
+    selectPr(prId)
+    return
+  }
+
+  // Pre-select PR by task ID
+  const taskId = route.query.task as string
+  if (taskId) {
+    const pr = pullRequests.value.find((p) => p.taskId === taskId)
+    if (pr) {
+      selectPr(pr.id)
+    }
+  }
+})
+</script>

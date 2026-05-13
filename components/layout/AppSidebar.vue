@@ -83,6 +83,23 @@
         </div>
       </div>
 
+      <!-- Reviews link -->
+      <div v-if="activeWorkspace" class="sidebar-group mb-1">
+        <div
+          class="sidebar-item"
+          :class="{ active: route.path.includes('/reviews') }"
+          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/reviews`); closeOnMobile()"
+        >
+          <div
+            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
+            style="background: #10B981"
+          >
+            <Icon name="lucide:git-pull-request" class="w-2.5 h-2.5" />
+          </div>
+          <span class="name flex-1 min-w-0 truncate text-xs" :class="{ 'font-semibold': route.path.includes('/reviews') }">Reviews</span>
+        </div>
+      </div>
+
       <!-- Projects for active workspace -->
       <div v-if="activeWorkspace" class="sidebar-group">
         <div class="sidebar-group-header px-3 py-1.5" @click="navigateTo(`/workspaces/${activeWorkspace.slug}`); closeOnMobile()">

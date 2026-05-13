@@ -13,5 +13,16 @@ if [ "${HEADED}" = "true" ] || [ "${HEADED}" = "1" ]; then
     sleep 1
 fi
 
+# Map env vars to CLI flags if not provided as args
+TASK_ARG="${1:-}"
+BASE_URL_ARG="${3:-}"
+
+if [ -z "$TASK_ARG" ] && [ -n "$TASK_DESCRIPTION" ]; then
+    set -- "$@" --task "$TASK_DESCRIPTION"
+fi
+if [ -z "$BASE_URL_ARG" ] && [ -n "$BASE_URL" ]; then
+    set -- "$@" --base-url "$BASE_URL"
+fi
+
 # Run the browser agent
 exec python /agent/orbit_browser_runner.py "$@"

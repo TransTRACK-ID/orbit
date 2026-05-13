@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from browser_use import Agent, Browser, BrowserConfig
+from browser_use import Agent, Browser
 from llm_config import get_llm
 
 
@@ -46,10 +46,8 @@ async def main():
         extra_args.append("--disable-blink-features=AutomationControlled")
 
     browser = Browser(
-        config=BrowserConfig(
-            headless=args.headless,
-            extra_chromium_args=extra_args,
-        )
+        headless=args.headless,
+        args=extra_args,
     )
 
     # Compose the task with the base URL
@@ -63,6 +61,7 @@ async def main():
 
     emit("status", message="Running browser task")
 
+    exit_code = 0
     try:
         result = await agent.run()
 
@@ -88,7 +87,6 @@ async def main():
             emit("status", message=f"Screenshot failed: {screenshot_err}")
 
         emit("complete", status="passed", summary=str(result))
-        sys.exit(0)
     except Exception as e:
         # Save error info
         error_path = output_dir / "error.json"
@@ -97,9 +95,11 @@ async def main():
             encoding="utf-8",
         )
         emit("error", message=str(e))
-        sys.exit(1)
+        exit_code = 1
     finally:
-        await browser.close()
+        await browser.stop()
+
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

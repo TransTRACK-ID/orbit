@@ -6,7 +6,7 @@ import { prComments } from './pr-comments'
 
 export const pullRequests = pgTable('pull_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
-  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }).unique(),
   repositoryId: uuid('repository_id').references(() => repositories.id, { onDelete: 'set null' }),
   githubNumber: integer('github_number').notNull(),
   title: text('title').notNull(),

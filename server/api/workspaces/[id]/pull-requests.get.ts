@@ -121,6 +121,13 @@ export default defineEventHandler(async (event) => {
           with: { repository: { columns: { token: true, defaultBranch: true } } },
         })
 
+        // Guard against race conditions / duplicates: re-check right before insert
+        const alreadyExists = await db.query.pullRequests.findFirst({
+          where: eq(schema.pullRequests.taskId, taskId),
+          columns: { id: true },
+        })
+        if (alreadyExists) continue
+
         try {
           const details = await fetchPullRequestDetails(
             parsed.owner,
@@ -189,11 +196,20 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // Deduplicate by taskId — keep the most recent row per task
+  const deduped = []
+  const seenTaskIds = new Set<string>()
+  for (const pr of prs) {
+    if (!pr.taskId || seenTaskIds.has(pr.taskId)) continue
+    seenTaskIds.add(pr.taskId)
+    deduped.push(pr)
+  }
+
   // Filter by search text post-query since we need to match task title or PR title
-  let filtered = prs
+  let filtered = deduped
   if (search) {
     const q = search.toLowerCase()
-    filtered = prs.filter(
+    filtered = deduped.filter(
       (pr) =>
         pr.title.toLowerCase().includes(q) ||
         pr.task?.title?.toLowerCase().includes(q) ||

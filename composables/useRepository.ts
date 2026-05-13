@@ -7,9 +7,13 @@ export const useRepository = () => {
   async function fetchRepositories(workspaceId: string) {
     loading.value = true
     try {
-      repositories.value = await $fetch<Repository[]>(`/api/workspaces/${workspaceId}/repositories`)
+      const data = await $fetch<Repository[]>(`/api/workspaces/${workspaceId}/repositories`)
+      repositories.value = data
+      return data
     } catch (err) {
       console.error('Failed to fetch repositories:', err)
+      repositories.value = []
+      return []
     } finally {
       loading.value = false
     }

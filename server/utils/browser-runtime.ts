@@ -203,8 +203,8 @@ export async function runBrowserContainer(
       const msg = code === 0 ? 'Browser QA completed' : `Browser QA failed (exit code ${code})`
       await pushToStream(stream, JSON.stringify({ step: msg, timestamp: Date.now() }))
 
-      // Clean up dev server
-      stopDevServer(config.worktreeDir)
+      // Clean up dev server (wait for process to fully exit before resolving)
+      await stopDevServer(config.worktreeDir)
 
       resolve({
         status,

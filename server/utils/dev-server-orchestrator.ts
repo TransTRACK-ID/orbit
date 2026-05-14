@@ -388,30 +388,34 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
   return info
 }
 
-export function stopDevServer(worktreeDir: string): void {
+export async function stopDevServer(worktreeDir: string): Promise<void> {
   const info = activeDevServers.get(worktreeDir)
   if (!info) return
 
   // Kill the process
   try {
     info.proc.kill('SIGTERM')
-    setTimeout(() => {
-      try { info.proc.kill('SIGKILL') } catch {}
-    }, 5000)
   } catch {}
 
-  // NOTE: We do NOT delete node_modules here because the dev server process
-  // may still be shutting down asynchronously and accessing files.
-  // installDependencies() already removes node_modules before installing,
-  // so cleanup happens at the right time (before next install, not during shutdown).
-  // The worktree itself is temporary and will be deleted when the task finishes.
+  // Wait for process to actually exit (up to 8s)
+  for (let i = 0; i < 16; i++) {
+    await new Promise(r => setTimeout(r, 500))
+    if (info.proc.killed || info.proc.exitCode !== null) break
+  }
+
+  // Force kill if still running
+  if (!info.proc.killed && info.proc.exitCode === null) {
+    try { info.proc.kill('SIGKILL') } catch {}
+    await new Promise(r => setTimeout(r, 1000))
+  }
 
   activeDevServers.delete(worktreeDir)
 }
 
 export function stopAllDevServers(): void {
+  // Fire-and-forget async cleanup (process exit handlers can't be async)
   for (const [worktreeDir] of activeDevServers) {
-    stopDevServer(worktreeDir)
+    stopDevServer(worktreeDir).catch(() => {})
   }
 }
 

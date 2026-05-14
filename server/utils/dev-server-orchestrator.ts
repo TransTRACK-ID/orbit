@@ -68,10 +68,14 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
   if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
     return { cmd: 'yarn', args: ['install'] }
   }
+  if (existsSync(path.join(worktreeDir, 'package-lock.json'))) {
+    return { cmd: 'npm', args: ['install'] }
+  }
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
     return { cmd: 'bun', args: ['install'] }
   }
-  if (existsSync(path.join(worktreeDir, 'package-lock.json')) || existsSync(path.join(worktreeDir, 'package.json'))) {
+  // Default to npm if there's a package.json (most reliable in Docker)
+  if (existsSync(path.join(worktreeDir, 'package.json'))) {
     return { cmd: 'npm', args: ['install'] }
   }
   return null
@@ -217,6 +221,10 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
 }
 
 function detectDevCommand(worktreeDir: string, port: number): { command: string; args: string[]; env: Record<string, string> } | null {
+  // Use the same package manager for running as for installing
+  const pm = detectPackageManager(worktreeDir)
+  const runCmd = pm?.cmd || 'npm'
+
   const packageJsonPath = path.join(worktreeDir, 'package.json')
   if (existsSync(packageJsonPath)) {
     try {
@@ -224,13 +232,13 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
       const scripts = pkg.scripts || {}
       if (scripts.dev) {
         // Pass port via -- --port for frameworks that support it (Vite, Nuxt, Next)
-        return { command: 'npm', args: ['run', 'dev', '--', '--port', String(port)], env: {} }
+        return { command: runCmd, args: ['run', 'dev', '--', '--port', String(port)], env: {} }
       }
       if (scripts.start) {
-        return { command: 'npm', args: ['run', 'start', '--', '--port', String(port)], env: {} }
+        return { command: runCmd, args: ['run', 'start', '--', '--port', String(port)], env: {} }
       }
       if (scripts.serve) {
-        return { command: 'npm', args: ['run', 'serve', '--', '--port', String(port)], env: {} }
+        return { command: runCmd, args: ['run', 'serve', '--', '--port', String(port)], env: {} }
       }
     } catch {
       // ignore parse errors
@@ -259,6 +267,20 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
   const existing = activeDevServers.get(worktreeDir)
   if (existing && existing.ready) {
     return existing
+  }
+
+  // Kill any previous dev server for this worktree to prevent
+  // concurrent access to node_modules during reinstall
+  if (existing) {
+    console.log(`[dev-server] Killing previous dev server for ${worktreeDir} before restart`)
+    try {
+      existing.proc.kill('SIGTERM')
+      await new Promise(r => setTimeout(r, 2000))
+      try { existing.proc.kill('SIGKILL') } catch {}
+    } catch {}
+    activeDevServers.delete(worktreeDir)
+    // Wait for process to fully release file handles
+    await new Promise(r => setTimeout(r, 1000))
   }
 
   const port = getAvailablePort()

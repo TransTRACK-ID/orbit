@@ -267,54 +267,35 @@
                     <h4 class="text-sm font-semibold text-surface-900">Environment Variables</h4>
                     <button
                       class="text-xs text-accent hover:text-accent-600 font-medium"
-                      @click="startAddRepoEnvVar(repo.id)"
+                      @click="startEditRepoEnvVars(repo.id)"
                     >
-                      + Add
+                      {{ editingEnvVarsRepoId === repo.id ? 'Done' : (repoEnvVars[repo.id]?.length ? 'Edit' : '+ Add') }}
                     </button>
                   </div>
                   <p class="text-[10px] text-surface-400 mb-2">
-                    Injected into dev server during Browser QA for this repository.
+                    Paste raw .env content below. Injected into dev server during Browser QA.
                   </p>
 
-                  <!-- Add env var form for repo -->
-                  <div v-if="addingEnvVarRepoId === repo.id" class="mb-2 p-3 rounded-lg bg-surface-50 border border-surface-200">
-                    <div class="space-y-2">
-                      <div>
-                        <label class="block text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Key</label>
-                        <TextInput v-model="newRepoEnvVar.key" placeholder="e.g. AUTH_ORIGIN" size="sm" />
-                      </div>
-                      <div>
-                        <label class="block text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Value</label>
-                        <TextInput v-model="newRepoEnvVar.value" placeholder="http://localhost:3000" size="sm" />
-                      </div>
-                    </div>
+                  <!-- Raw .env editor -->
+                  <div v-if="editingEnvVarsRepoId === repo.id" class="mb-2">
+                    <textarea
+                      v-model="rawEnvVars[repo.id]"
+                      rows="6"
+                      class="w-full text-[11px] font-mono rounded-lg border border-surface-200 bg-surface-50 p-3 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
+                      placeholder="AUTH_ORIGIN=http://localhost:3000&#10;API_URL=https://api.example.com&#10;SECRET_KEY=xxx"
+                    />
                     <div class="flex items-center gap-2 mt-2">
-                      <Button size="sm" @click="handleAddRepoEnvVar(repo.id)" :loading="addRepoEnvVarLoading">Add</Button>
-                      <OutlinedButton size="sm" @click="cancelAddRepoEnvVar">Cancel</OutlinedButton>
+                      <Button size="sm" @click="saveRepoEnvVars(repo.id)" :loading="saveEnvVarsLoading">Save</Button>
+                      <OutlinedButton size="sm" @click="cancelEditRepoEnvVars">Cancel</OutlinedButton>
                     </div>
                   </div>
 
-                  <!-- Repo env var list -->
-                  <div v-if="(repoEnvVars[repo.id] || []).length === 0" class="text-center py-4 text-surface-400">
-                    <p class="text-[10px]">No env vars configured.</p>
+                  <!-- Display as raw .env when not editing -->
+                  <div v-else-if="repoEnvVars[repo.id]?.length" class="rounded-lg border border-surface-200 bg-surface-50 p-3">
+                    <pre class="text-[10px] font-mono text-surface-700 whitespace-pre-wrap leading-relaxed">{{ formatEnvVarsAsRaw(repoEnvVars[repo.id]) }}</pre>
                   </div>
-                  <div v-else class="space-y-1">
-                    <div
-                      v-for="envVar in repoEnvVars[repo.id] || []"
-                      :key="envVar.id"
-                      class="flex items-center justify-between gap-2 rounded-lg border border-surface-200 p-2"
-                    >
-                      <div class="flex-1 min-w-0">
-                        <div class="text-[10px] font-semibold text-surface-900 font-mono">{{ envVar.key }}</div>
-                        <div class="text-[10px] text-surface-500 font-mono truncate">{{ envVar.value }}</div>
-                      </div>
-                      <button
-                        class="w-6 h-6 rounded flex items-center justify-center hover:bg-red-50 transition-colors text-surface-400 hover:text-red-500 flex-shrink-0"
-                        @click="handleDeleteRepoEnvVar(repo.id, envVar.id)"
-                      >
-                        <Icon name="lucide:trash-2" class="w-3 h-3" />
-                      </button>
-                    </div>
+                  <div v-else class="text-center py-4 text-surface-400">
+                    <p class="text-[10px]">No env vars configured. Click + Add to paste .env content.</p>
                   </div>
                 </div>
               </div>
@@ -415,58 +396,87 @@ const addRepoLoading = ref(false)
 const editRepoLoading = ref(false)
 
 // Repository environment variables state
-const addingEnvVarRepoId = ref<string | null>(null)
-const newRepoEnvVar = reactive({ key: '', value: '' })
-const addRepoEnvVarLoading = ref(false)
+const editingEnvVarsRepoId = ref<string | null>(null)
+const rawEnvVars = ref<Record<string, string>>({})
+const saveEnvVarsLoading = ref(false)
 const repoEnvVars = ref<Record<string, any[]>>({})
+
+function formatEnvVarsAsRaw(envVars: any[]): string {
+  return envVars.map(ev => `${ev.key}=${ev.value}`).join('\n')
+}
+
+function parseRawEnvVars(raw: string): Array<{ key: string; value: string }> {
+  const vars: Array<{ key: string; value: string }> = []
+  const lines = raw.split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIndex = trimmed.indexOf('=')
+    if (eqIndex === -1) continue
+    const key = trimmed.slice(0, eqIndex).trim()
+    const value = trimmed.slice(eqIndex + 1).trim()
+    if (key) vars.push({ key, value })
+  }
+  return vars
+}
 
 async function fetchRepoEnvVars(repositoryId: string) {
   try {
     const result = await $fetch(`/api/repositories/${repositoryId}/env-vars`)
     repoEnvVars.value[repositoryId] = result
+    rawEnvVars.value[repositoryId] = formatEnvVarsAsRaw(result)
   } catch (err) {
     console.error('Failed to load repo env vars:', err)
   }
 }
 
-function startAddRepoEnvVar(repositoryId: string) {
-  addingEnvVarRepoId.value = repositoryId
-  newRepoEnvVar.key = ''
-  newRepoEnvVar.value = ''
-}
-
-function cancelAddRepoEnvVar() {
-  addingEnvVarRepoId.value = null
-  newRepoEnvVar.key = ''
-  newRepoEnvVar.value = ''
-}
-
-async function handleAddRepoEnvVar(repositoryId: string) {
-  if (!newRepoEnvVar.key || !newRepoEnvVar.value) return
-  addRepoEnvVarLoading.value = true
-  try {
-    await $fetch(`/api/repositories/${repositoryId}/env-vars`, {
-      method: 'POST',
-      body: { key: newRepoEnvVar.key, value: newRepoEnvVar.value },
-    })
-    newRepoEnvVar.key = ''
-    newRepoEnvVar.value = ''
-    addingEnvVarRepoId.value = null
-    await fetchRepoEnvVars(repositoryId)
-  } finally {
-    addRepoEnvVarLoading.value = false
+function startEditRepoEnvVars(repositoryId: string) {
+  if (editingEnvVarsRepoId.value === repositoryId) {
+    editingEnvVarsRepoId.value = null
+  } else {
+    editingEnvVarsRepoId.value = repositoryId
+    if (!rawEnvVars.value[repositoryId]) {
+      rawEnvVars.value[repositoryId] = formatEnvVarsAsRaw(repoEnvVars.value[repositoryId] || [])
+    }
   }
 }
 
-async function handleDeleteRepoEnvVar(repositoryId: string, envVarId: string) {
-  if (!confirm('Delete this environment variable?')) return
+function cancelEditRepoEnvVars() {
+  editingEnvVarsRepoId.value = null
+}
+
+async function saveRepoEnvVars(repositoryId: string) {
+  const raw = rawEnvVars.value[repositoryId] || ''
+  const parsed = parseRawEnvVars(raw)
+
+  saveEnvVarsLoading.value = true
   try {
-    await $fetch(`/api/repositories/${repositoryId}/env-vars/${envVarId}`, {
-      method: 'DELETE',
-    })
+    // Delete existing env vars first
+    const existing = repoEnvVars.value[repositoryId] || []
+    for (const ev of existing) {
+      try {
+        await $fetch(`/api/repositories/${repositoryId}/env-vars/${ev.id}`, { method: 'DELETE' })
+      } catch (err) {
+        console.warn('Failed to delete env var:', err)
+      }
+    }
+
+    // Create new ones
+    for (const { key, value } of parsed) {
+      try {
+        await $fetch(`/api/repositories/${repositoryId}/env-vars`, {
+          method: 'POST',
+          body: { key, value },
+        })
+      } catch (err) {
+        console.warn('Failed to create env var:', err)
+      }
+    }
+
+    editingEnvVarsRepoId.value = null
     await fetchRepoEnvVars(repositoryId)
-  } catch (err) {
-    console.error('Failed to delete repo env var:', err)
+  } finally {
+    saveEnvVarsLoading.value = false
   }
 }
 
@@ -529,6 +539,7 @@ function startEditRepo(repo: any) {
   editRepo.createBranch = repo.createBranch
   editRepo.platform = repo.platform || 'github'
   editRepo.token = repo.token || ''
+  editingEnvVarsRepoId.value = null
   fetchRepoEnvVars(repo.id)
 }
 

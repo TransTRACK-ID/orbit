@@ -77,12 +77,24 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
   return null
 }
 
+function verifyCriticalModules(worktreeDir: string): boolean {
+  const criticalPaths = [
+    path.join(worktreeDir, 'node_modules', '@nuxt', 'kit'),
+    path.join(worktreeDir, 'node_modules', '@nuxt', 'cli'),
+    path.join(worktreeDir, 'node_modules', 'nuxt', 'package.json'),
+  ]
+  const missing = criticalPaths.filter(p => !existsSync(p))
+  if (missing.length > 0) {
+    console.warn(`[dev-server] Missing critical modules: ${missing.map(p => path.basename(p)).join(', ')}`)
+    return false
+  }
+  return true
+}
+
 async function installDependencies(worktreeDir: string): Promise<boolean> {
   const nodeModulesPath = path.join(worktreeDir, 'node_modules')
 
   // Always do a clean install for QA worktrees.
-  // Previous installs may have been interrupted by SIGTERM, leaving a corrupt
-  // node_modules (nuxt binary exists but sub-deps like @nuxt/nitro-server missing).
   if (existsSync(nodeModulesPath)) {
     console.log(`[dev-server] Removing existing node_modules in ${worktreeDir} for clean install...`)
     try {
@@ -99,21 +111,55 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
     return false
   }
 
+  // Primary install attempt
   console.log(`[dev-server] Installing dependencies with ${pm.cmd} in ${worktreeDir}...`)
   try {
-    const { stdout, stderr } = await execAsync(`${pm.cmd} ${pm.args.join(' ')}`, {
+    const installCmd = pm.cmd === 'npm'
+      ? `${pm.cmd} ${pm.args.join(' ')}`
+      : `${pm.cmd} ${pm.args.join(' ')}`
+
+    const { stdout, stderr } = await execAsync(installCmd, {
       cwd: worktreeDir,
       timeout: 180000,
       env: { ...process.env, CI: 'true' },
     })
     if (stderr) console.warn(`[dev-server] Install stderr: ${stderr.slice(0, 500)}`)
-    console.log(`[dev-server] Dependencies installed in ${worktreeDir}`)
-    return true
+    console.log(`[dev-server] ${pm.cmd} install completed`)
   } catch (err: any) {
-    console.error(`[dev-server] Dependency installation failed: ${err.message}`)
-    if (err.stderr) console.error(`[dev-server] Install error output: ${err.stderr.slice(0, 500)}`)
-    return false
+    console.error(`[dev-server] ${pm.cmd} install failed: ${err.message}`)
+    if (err.stderr) console.error(`[dev-server] Install error: ${err.stderr.slice(0, 500)}`)
+    // Continue to verify — partial install might still work
   }
+
+  // Verify critical Nuxt modules are present
+  if (verifyCriticalModules(worktreeDir)) {
+    console.log(`[dev-server] All critical modules verified`)
+    return true
+  }
+
+  // Fallback: try npm install (most reliable)
+  if (pm.cmd !== 'npm') {
+    console.log(`[dev-server] Falling back to npm install...`)
+    try {
+      const { stdout, stderr } = await execAsync('npm install', {
+        cwd: worktreeDir,
+        timeout: 180000,
+        env: { ...process.env, CI: 'true' },
+      })
+      if (stderr) console.warn(`[dev-server] npm stderr: ${stderr.slice(0, 500)}`)
+      console.log(`[dev-server] npm install completed`)
+    } catch (err: any) {
+      console.error(`[dev-server] npm fallback failed: ${err.message}`)
+    }
+
+    if (verifyCriticalModules(worktreeDir)) {
+      console.log(`[dev-server] Critical modules verified after npm fallback`)
+      return true
+    }
+  }
+
+  console.error(`[dev-server] CRITICAL: Nuxt modules still missing after install. Dev server will fail.`)
+  return false
 }
 
 async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeoutMs = 120000): Promise<boolean> {
@@ -240,6 +286,22 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
   const devCmd = detectDevCommand(worktreeDir, port)
   if (!devCmd) {
     throw new Error(`No dev command detected in ${worktreeDir}. Ensure package.json with a "dev" script exists.`)
+  }
+
+  // Run nuxt prepare to generate .nuxt/ files before starting dev server
+  const nuxtBin = path.join(worktreeDir, 'node_modules', '.bin', 'nuxt')
+  if (existsSync(nuxtBin)) {
+    console.log(`[dev-server] Running nuxt prepare...`)
+    try {
+      await execAsync(`${nuxtBin} prepare`, {
+        cwd: worktreeDir,
+        timeout: 60000,
+        env: { ...process.env, CI: 'true' },
+      })
+      console.log(`[dev-server] nuxt prepare completed`)
+    } catch (err: any) {
+      console.warn(`[dev-server] nuxt prepare failed: ${err.message}`)
+    }
   }
 
   const env = {

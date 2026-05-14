@@ -6,8 +6,8 @@ import http from 'http'
 
 const execAsync = promisify(exec)
 
-// Version marker — if you see "v2" in logs, the server has been restarted
-const CODE_VERSION = 'v2-20250514'
+// Version marker — MUST see this in logs or server is still running old code
+const CODE_VERSION = 'v3-USE-NPM-20250514'
 
 export type DevServerInfo = {
   worktreeDir: string
@@ -62,19 +62,9 @@ function copyEnvToWorktree(worktreeDir: string): void {
 }
 
 function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
-  if (existsSync(path.join(worktreeDir, 'pnpm-lock.yaml'))) {
-    return { cmd: 'pnpm', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
-    return { cmd: 'yarn', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'package-lock.json'))) {
-    return { cmd: 'npm', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
-    return { cmd: 'bun', args: ['install'] }
-  }
-  // Default to npm if there's a package.json (most reliable in Docker)
+  // Always use npm for QA worktree installs.
+  // bun/pnpm/yarn have issues in Docker with incomplete installs and
+  // missing sub-dependencies (@nuxt/kit, @nuxt/cli, etc.).
   if (existsSync(path.join(worktreeDir, 'package.json'))) {
     return { cmd: 'npm', args: ['install'] }
   }

@@ -839,7 +839,28 @@ export default defineEventHandler(async (event) => {
           reject: () => {},
         })
 
-        await pushAndPersist(`Browser QA ${result.status}: ${result.summary || ''}`)
+        const summaryText = result.summary || 'No summary available'
+        await pushAndPersist(`Browser QA ${result.status}`)
+
+        // Send a formatted reply directly to the chat
+        const replyText = `**Browser QA Result:** ${result.status.toUpperCase()}\n\n${summaryText}`
+        const replyPayload = JSON.stringify({
+          agentReply: replyText,
+          timestamp: Date.now()
+        })
+        await stream.push(replyPayload)
+
+        // Persist the agent's final text response so it survives page refresh
+        try {
+          await db.insert(schema.activityLogs).values({
+            taskId: id,
+            userId: user.id,
+            action: 'agent_reply',
+            newValue: { message: replyText },
+          })
+        } catch (err: any) {
+          console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+        }
 
         // Persist browser session record
         try {

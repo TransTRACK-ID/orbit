@@ -65,11 +65,23 @@ async def main():
     try:
         result = await agent.run()
 
+        # Extract a clean summary from the agent's history
+        final_summary = result.final_result()
+        if not final_summary and result.all_results and len(result.all_results) > 0:
+            last_result = result.all_results[-1]
+            if getattr(last_result, 'error', None):
+                final_summary = f"Failed: {last_result.error}"
+            elif getattr(last_result, 'extracted_content', None):
+                final_summary = last_result.extracted_content
+            
+        if not final_summary:
+            final_summary = str(result)
+
         # Save result summary
         result_path = output_dir / "result.json"
         result_path.write_text(
             json.dumps(
-                {"status": "passed", "summary": str(result)},
+                {"status": "passed", "summary": final_summary},
                 indent=2,
                 default=str,
             ),
@@ -86,7 +98,7 @@ async def main():
         except Exception as screenshot_err:
             emit("status", message=f"Screenshot failed: {screenshot_err}")
 
-        emit("complete", status="passed", summary=str(result))
+        emit("complete", status="passed", summary=final_summary)
     except Exception as e:
         # Save error info
         error_path = output_dir / "error.json"

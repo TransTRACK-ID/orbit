@@ -328,6 +328,9 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     VITE_PORT: String(port),
     NEXT_PORT: String(port),
     NUXT_TELEMETRY_DISABLED: '1',
+    // Override AUTH_ORIGIN so the dev server uses its own port for auth
+    // instead of inheriting the production container's value.
+    AUTH_ORIGIN: `http://localhost:${port}`,
     ...devCmd.env,
   }
 

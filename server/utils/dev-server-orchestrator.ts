@@ -6,6 +6,9 @@ import http from 'http'
 
 const execAsync = promisify(exec)
 
+// Version marker — if you see "v2" in logs, the server has been restarted
+const CODE_VERSION = 'v2-20250514'
+
 export type DevServerInfo = {
   worktreeDir: string
   proc: ReturnType<typeof spawn>
@@ -218,11 +221,24 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
   const port = getAvailablePort()
   const baseUrl = `http://localhost:${port}`
 
+  console.log(`[dev-server] ${CODE_VERSION} Starting dev server for ${worktreeDir} on port ${port}`)
+
   // Copy .env from repo root to worktree if missing
   copyEnvToWorktree(worktreeDir)
 
   // Install dependencies if missing (temporary — will be cleaned up on stop)
   const installedDeps = await installDependencies(worktreeDir)
+
+  // Clean .nuxt cache to avoid stale builds in reused worktrees
+  const nuxtCachePath = path.join(worktreeDir, '.nuxt')
+  if (existsSync(nuxtCachePath)) {
+    try {
+      rmSync(nuxtCachePath, { recursive: true, force: true })
+      console.log(`[dev-server] Cleaned .nuxt cache in ${worktreeDir}`)
+    } catch (err: any) {
+      console.warn(`[dev-server] Failed to clean .nuxt cache: ${err.message}`)
+    }
+  }
 
   const devCmd = detectDevCommand(worktreeDir, port)
   if (!devCmd) {
@@ -235,6 +251,7 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     NUXT_PORT: String(port),
     VITE_PORT: String(port),
     NEXT_PORT: String(port),
+    NUXT_TELEMETRY_DISABLED: '1',
     ...devCmd.env,
   }
 
@@ -271,21 +288,21 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     }
   })
 
-  proc.on('exit', (code) => {
-    console.log(`[dev-server] ${worktreeDir} exited with code ${code}`)
+  proc.on('exit', (code, signal) => {
+    console.log(`[dev-server] ${worktreeDir} exited with code=${code} signal=${signal} (${CODE_VERSION})`)
     activeDevServers.delete(worktreeDir)
   })
 
   proc.on('error', (err) => {
-    console.error(`[dev-server] ${worktreeDir} error: ${err.message}`)
+    console.error(`[dev-server] ${worktreeDir} error: ${err.message} (${CODE_VERSION})`)
     activeDevServers.delete(worktreeDir)
   })
 
-  const ready = await waitForPort(port, proc, 90000)
+  const ready = await waitForPort(port, proc, 120000)
   if (!ready) {
     try { proc.kill('SIGTERM') } catch {}
     activeDevServers.delete(worktreeDir)
-    throw new Error(`Dev server failed to start on port ${port} within 90s`)
+    throw new Error(`Dev server failed to start on port ${port} within 120s (${CODE_VERSION})`)
   }
 
   info.ready = true

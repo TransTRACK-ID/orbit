@@ -253,7 +253,7 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
   return null
 }
 
-export async function startDevServer(worktreeDir: string): Promise<DevServerInfo> {
+export async function startDevServer(worktreeDir: string, workspaceId?: string): Promise<DevServerInfo> {
   const existing = activeDevServers.get(worktreeDir)
   if (existing && existing.ready) {
     return existing
@@ -300,6 +300,25 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     }
   }
 
+  // Fetch workspace environment variables if workspaceId is provided
+  let workspaceEnv: Record<string, string> = {}
+  if (workspaceId) {
+    try {
+      const { getDb, schema } = require('~/server/database')
+      const { eq } = require('drizzle-orm')
+      const db = getDb()
+      const envVars = await db.query.workspaceEnvVars.findMany({
+        where: eq(schema.workspaceEnvVars.workspaceId, workspaceId),
+      })
+      for (const ev of envVars) {
+        workspaceEnv[ev.key] = ev.value
+      }
+      console.log(`[dev-server] Loaded ${envVars.length} workspace env vars for workspace ${workspaceId}`)
+    } catch (err: any) {
+      console.warn(`[dev-server] Failed to load workspace env vars: ${err.message}`)
+    }
+  }
+
   const devCmd = detectDevCommand(worktreeDir, port)
   if (!devCmd) {
     throw new Error(`No dev command detected in ${worktreeDir}. Ensure package.json with a "dev" script exists.`)
@@ -331,6 +350,8 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
     // Override AUTH_ORIGIN so the dev server uses its own port for auth
     // instead of inheriting the production container's value.
     AUTH_ORIGIN: `http://localhost:${port}`,
+    // Workspace env vars take highest precedence (after devCmd.env)
+    ...workspaceEnv,
     ...devCmd.env,
   }
 

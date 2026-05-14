@@ -270,6 +270,64 @@
         </div>
       </div>
 
+      <!-- Environment Variables -->
+      <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-lg font-semibold text-surface-900">Environment Variables</h2>
+          <Button @click="showAddEnvVar = true" v-if="!showAddEnvVar">
+            <Icon name="lucide:plus" class="w-3.5 h-3.5" />
+            Add Variable
+          </Button>
+        </div>
+        <p class="text-xs text-surface-400 mb-4">
+          These variables are injected into the dev server when running Browser QA tasks. Useful for setting API URLs, auth secrets, or feature flags per workspace.
+        </p>
+
+        <!-- Add env var form -->
+        <div v-if="showAddEnvVar" class="mb-4 p-4 rounded-xl bg-surface-50 border border-surface-200">
+          <h3 class="text-sm font-semibold text-surface-900 mb-3">New Environment Variable</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Key</label>
+              <TextInput v-model="newEnvVar.key" placeholder="e.g. AUTH_ORIGIN, API_URL" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Value</label>
+              <TextInput v-model="newEnvVar.value" placeholder="http://localhost:3000" />
+            </div>
+          </div>
+          <div class="flex items-center gap-2 mt-4">
+            <Button @click="handleAddEnvVar" :loading="addEnvVarLoading">Add</Button>
+            <OutlinedButton @click="cancelAddEnvVar">Cancel</OutlinedButton>
+          </div>
+        </div>
+
+        <!-- Env var list -->
+        <div v-if="envVars.length === 0 && !showAddEnvVar" class="text-center py-8 text-surface-400">
+          <Icon name="lucide:settings-2" class="w-6 h-6 mx-auto mb-2" />
+          <p class="text-xs">No environment variables configured yet.</p>
+        </div>
+
+        <div v-else class="space-y-2">
+          <div
+            v-for="envVar in envVars"
+            :key="envVar.id"
+            class="flex items-center justify-between gap-3 rounded-xl border border-surface-200 p-3"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-semibold text-surface-900 font-mono">{{ envVar.key }}</div>
+              <div class="text-[11px] text-surface-500 font-mono truncate">{{ envVar.value }}</div>
+            </div>
+            <button
+              class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-surface-400 hover:text-red-500 flex-shrink-0"
+              @click="handleDeleteEnvVar(envVar.id)"
+            >
+              <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Members -->
       <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
@@ -357,12 +415,64 @@ const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBran
 const addRepoLoading = ref(false)
 const editRepoLoading = ref(false)
 
+// Environment variables state
+const showAddEnvVar = ref(false)
+const newEnvVar = reactive({ key: '', value: '' })
+const addEnvVarLoading = ref(false)
+const envVars = ref<any[]>([])
+
+async function fetchEnvVars(workspaceId: string) {
+  try {
+    const result = await $fetch(`/api/workspaces/${workspaceId}/env-vars`)
+    envVars.value = result
+  } catch (err) {
+    console.error('Failed to load env vars:', err)
+  }
+}
+
+async function handleAddEnvVar() {
+  if (!workspace.value || !newEnvVar.key || !newEnvVar.value) return
+  addEnvVarLoading.value = true
+  try {
+    await $fetch(`/api/workspaces/${workspace.value.id}/env-vars`, {
+      method: 'POST',
+      body: { key: newEnvVar.key, value: newEnvVar.value },
+    })
+    newEnvVar.key = ''
+    newEnvVar.value = ''
+    showAddEnvVar.value = false
+    await fetchEnvVars(workspace.value.id)
+  } finally {
+    addEnvVarLoading.value = false
+  }
+}
+
+function cancelAddEnvVar() {
+  showAddEnvVar.value = false
+  newEnvVar.key = ''
+  newEnvVar.value = ''
+}
+
+async function handleDeleteEnvVar(envVarId: string) {
+  if (!workspace.value) return
+  if (!confirm('Delete this environment variable?')) return
+  try {
+    await $fetch(`/api/workspaces/${workspace.value.id}/env-vars/${envVarId}`, {
+      method: 'DELETE',
+    })
+    await fetchEnvVars(workspace.value.id)
+  } catch (err) {
+    console.error('Failed to delete env var:', err)
+  }
+}
+
 onMounted(async () => {
   workspace.value = await getWorkspaceBySlug(slug.value)
   if (workspace.value) {
     form.name = workspace.value.name
     form.description = workspace.value.description || ''
     fetchRepositories(workspace.value.id)
+    fetchEnvVars(workspace.value.id)
   }
 })
 

@@ -85,6 +85,20 @@ export async function runBrowserContainer(
     ? `${config.taskTitle}\n${config.taskDescription}`
     : config.taskTitle
 
+  // The web container communicates with the host Docker daemon via a socket.
+  // This means volume mounts must use the HOST machine's paths, not the web container's internal paths.
+  let hostOutputDir = config.outputDir
+  if (hostOutputDir.startsWith('/root/orbit-projects')) {
+    // If running in Docker Desktop on Mac/Windows, the volume was mapped from ~/orbit-projects.
+    // However, '~' is not expanded by the docker daemon, so we need an absolute path.
+    // For simplicity, we expect the host's actual HOME to be passed, or we assume a Mac default
+    // if not provided, but since we cannot reliably guess the host's absolute path from inside 
+    // the container without a dedicated env var, we'll replace /root with the HOST_HOME if available,
+    // otherwise fallback to a best-guess Mac path if running under zeinersyad.
+    const hostHome = process.env.HOST_HOME || '/Users/zeinersyad'
+    hostOutputDir = hostOutputDir.replace('/root/orbit-projects', `${hostHome}/orbit-projects`)
+  }
+
   const dockerArgs: string[] = [
     'run',
     '--rm',
@@ -92,7 +106,7 @@ export async function runBrowserContainer(
     '-e', `FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1`,
     '-e', `LLM_MODEL=accounts/fireworks/routers/kimi-k2p6-turbo`,
     '-e', `HEADED=${config.headed}`,
-    '-v', `${config.outputDir}:/output`,
+    '-v', `${hostOutputDir}:/output`,
   ]
 
   if (process.env.WEB_CONTAINER_NAME) {

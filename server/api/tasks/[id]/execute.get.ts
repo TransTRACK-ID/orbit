@@ -861,6 +861,7 @@ export default defineEventHandler(async (event) => {
         await pushAndPersist(`Browser QA failed: ${err.message}`)
       }
 
+      await pushAndPersist(`Done`)
       stream.close()
       return
     }

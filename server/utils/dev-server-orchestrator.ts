@@ -62,11 +62,11 @@ function copyEnvToWorktree(worktreeDir: string): void {
 }
 
 function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
-  // Always use npm for QA worktree installs.
-  // bun/pnpm/yarn have issues in Docker with incomplete installs and
-  // missing sub-dependencies (@nuxt/kit, @nuxt/cli, etc.).
+  if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
+    return { cmd: 'bun', args: ['install'] }
+  }
   if (existsSync(path.join(worktreeDir, 'package.json'))) {
-    return { cmd: 'npm', args: ['install'] }
+    return { cmd: 'bun', args: ['install'] }
   }
   return null
 }

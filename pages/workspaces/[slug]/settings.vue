@@ -450,7 +450,11 @@ onMounted(async () => {
   if (workspace.value) {
     form.name = workspace.value.name
     form.description = workspace.value.description || ''
-    fetchRepositories(workspace.value.id)
+    await fetchRepositories(workspace.value.id)
+    // Load env vars for all repos so badges show on initial page load
+    for (const repo of repos.value) {
+      fetchRepoEnvVars(repo.id)
+    }
   }
 })
 

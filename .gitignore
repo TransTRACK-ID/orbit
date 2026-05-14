@@ -9,3 +9,4 @@ dist/
 server/database/migrations/
 
 **/opencode.json.opencode/
+server/database/orbit.db

@@ -400,16 +400,11 @@ export function stopDevServer(worktreeDir: string): void {
     }, 5000)
   } catch {}
 
-  // Clean up temporary node_modules (only if we installed them this session)
-  if (info.installedDeps) {
-    const nodeModulesPath = path.join(worktreeDir, 'node_modules')
-    try {
-      rmSync(nodeModulesPath, { recursive: true, force: true })
-      console.log(`[dev-server] Cleaned up temporary node_modules in ${worktreeDir}`)
-    } catch (err: any) {
-      console.warn(`[dev-server] Failed to clean up node_modules: ${err.message}`)
-    }
-  }
+  // NOTE: We do NOT delete node_modules here because the dev server process
+  // may still be shutting down asynchronously and accessing files.
+  // installDependencies() already removes node_modules before installing,
+  // so cleanup happens at the right time (before next install, not during shutdown).
+  // The worktree itself is temporary and will be deleted when the task finishes.
 
   activeDevServers.delete(worktreeDir)
 }

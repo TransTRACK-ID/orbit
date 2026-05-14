@@ -4,8 +4,8 @@ import { eq, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
-  const workspaceId = getRouterParam(event, 'id')
-  if (!workspaceId) throw createError({ statusCode: 400, statusMessage: 'Missing workspace ID' })
+  const repositoryId = getRouterParam(event, 'id')
+  if (!repositoryId) throw createError({ statusCode: 400, statusMessage: 'Missing repository ID' })
 
   const body = await readBody(event)
   const { key, value } = body
@@ -21,32 +21,38 @@ export default defineEventHandler(async (event) => {
 
   const db = getDb()
 
-  // Verify user is member of workspace
+  // Verify user has access to the repository's workspace
+  const repo = await db.query.repositories.findFirst({
+    where: eq(schema.repositories.id, repositoryId),
+    with: { workspace: true },
+  })
+  if (!repo) throw createError({ statusCode: 404, statusMessage: 'Repository not found' })
+
   const member = await db.query.workspaceMembers.findFirst({
     where: and(
-      eq(schema.workspaceMembers.workspaceId, workspaceId),
+      eq(schema.workspaceMembers.workspaceId, repo.workspaceId),
       eq(schema.workspaceMembers.userId, user.id)
     ),
   })
   if (!member) throw createError({ statusCode: 403, statusMessage: 'Not a workspace member' })
 
   // Check if key already exists — update if so
-  const existing = await db.query.workspaceEnvVars.findFirst({
+  const existing = await db.query.repositoryEnvVars.findFirst({
     where: and(
-      eq(schema.workspaceEnvVars.workspaceId, workspaceId),
-      eq(schema.workspaceEnvVars.key, normalizedKey)
+      eq(schema.repositoryEnvVars.repositoryId, repositoryId),
+      eq(schema.repositoryEnvVars.key, normalizedKey)
     ),
   })
 
   if (existing) {
-    await db.update(schema.workspaceEnvVars)
+    await db.update(schema.repositoryEnvVars)
       .set({ value })
-      .where(eq(schema.workspaceEnvVars.id, existing.id))
+      .where(eq(schema.repositoryEnvVars.id, existing.id))
     return { id: existing.id, key: normalizedKey, value }
   }
 
-  const result = await db.insert(schema.workspaceEnvVars).values({
-    workspaceId,
+  const result = await db.insert(schema.repositoryEnvVars).values({
+    repositoryId,
     key: normalizedKey,
     value,
   }).returning()

@@ -819,6 +819,7 @@ export default defineEventHandler(async (event) => {
       const browserConfig: BrowserRunConfig = {
         taskId: id,
         workspaceId: project?.workspaceId || '',
+        repositoryId: task.repositoryId || null,
         agentId: task.agentAssigneeId || '',
         worktreeDir: workDir,
         taskTitle: task.title,

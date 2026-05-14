@@ -6,6 +6,7 @@ import { startDevServer, stopDevServer } from './dev-server-orchestrator'
 export type BrowserRunConfig = {
   taskId: string
   workspaceId: string
+  repositoryId?: string | null
   agentId: string
   worktreeDir: string
   taskTitle: string
@@ -68,7 +69,7 @@ export async function runBrowserContainer(
       stream,
       JSON.stringify({ step: `Starting dev server in ${config.worktreeDir}...`, timestamp: Date.now() }),
     )
-    devServer = await startDevServer(config.worktreeDir, config.workspaceId)
+    devServer = await startDevServer(config.worktreeDir, config.repositoryId || undefined)
     await pushToStream(
       stream,
       JSON.stringify({ step: `Dev server ready at ${devServer.baseUrl}`, timestamp: Date.now() }),

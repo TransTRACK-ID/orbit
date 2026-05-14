@@ -260,70 +260,69 @@
                     <label class="text-sm font-medium text-surface-700 cursor-pointer">Always create a new branch</label>
                   </div>
                 </div>
+
+                <!-- Environment Variables for this repository -->
+                <div class="border-t border-surface-200 pt-4 mt-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-sm font-semibold text-surface-900">Environment Variables</h4>
+                    <button
+                      class="text-xs text-accent hover:text-accent-600 font-medium"
+                      @click="startAddRepoEnvVar(repo.id)"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  <p class="text-[10px] text-surface-400 mb-2">
+                    Injected into dev server during Browser QA for this repository.
+                  </p>
+
+                  <!-- Add env var form for repo -->
+                  <div v-if="addingEnvVarRepoId === repo.id" class="mb-2 p-3 rounded-lg bg-surface-50 border border-surface-200">
+                    <div class="space-y-2">
+                      <div>
+                        <label class="block text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Key</label>
+                        <TextInput v-model="newRepoEnvVar.key" placeholder="e.g. AUTH_ORIGIN" size="sm" />
+                      </div>
+                      <div>
+                        <label class="block text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Value</label>
+                        <TextInput v-model="newRepoEnvVar.value" placeholder="http://localhost:3000" size="sm" />
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-2">
+                      <Button size="sm" @click="handleAddRepoEnvVar(repo.id)" :loading="addRepoEnvVarLoading">Add</Button>
+                      <OutlinedButton size="sm" @click="cancelAddRepoEnvVar">Cancel</OutlinedButton>
+                    </div>
+                  </div>
+
+                  <!-- Repo env var list -->
+                  <div v-if="(repoEnvVars[repo.id] || []).length === 0" class="text-center py-4 text-surface-400">
+                    <p class="text-[10px]">No env vars configured.</p>
+                  </div>
+                  <div v-else class="space-y-1">
+                    <div
+                      v-for="envVar in repoEnvVars[repo.id] || []"
+                      :key="envVar.id"
+                      class="flex items-center justify-between gap-2 rounded-lg border border-surface-200 p-2"
+                    >
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[10px] font-semibold text-surface-900 font-mono">{{ envVar.key }}</div>
+                        <div class="text-[10px] text-surface-500 font-mono truncate">{{ envVar.value }}</div>
+                      </div>
+                      <button
+                        class="w-6 h-6 rounded flex items-center justify-center hover:bg-red-50 transition-colors text-surface-400 hover:text-red-500 flex-shrink-0"
+                        @click="handleDeleteRepoEnvVar(repo.id, envVar.id)"
+                      >
+                        <Icon name="lucide:trash-2" class="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="flex items-center gap-2 mt-4">
                 <Button @click="handleEditRepo(repo.id)" :loading="editRepoLoading">Save</Button>
                 <OutlinedButton @click="editingRepoId = null">Cancel</OutlinedButton>
               </div>
             </template>
-          </div>
-        </div>
-      </div>
-
-      <!-- Environment Variables -->
-      <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
-        <div class="flex items-center justify-between mb-1">
-          <h2 class="text-lg font-semibold text-surface-900">Environment Variables</h2>
-          <Button @click="showAddEnvVar = true" v-if="!showAddEnvVar">
-            <Icon name="lucide:plus" class="w-3.5 h-3.5" />
-            Add Variable
-          </Button>
-        </div>
-        <p class="text-xs text-surface-400 mb-4">
-          These variables are injected into the dev server when running Browser QA tasks. Useful for setting API URLs, auth secrets, or feature flags per workspace.
-        </p>
-
-        <!-- Add env var form -->
-        <div v-if="showAddEnvVar" class="mb-4 p-4 rounded-xl bg-surface-50 border border-surface-200">
-          <h3 class="text-sm font-semibold text-surface-900 mb-3">New Environment Variable</h3>
-          <div class="space-y-3">
-            <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Key</label>
-              <TextInput v-model="newEnvVar.key" placeholder="e.g. AUTH_ORIGIN, API_URL" />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Value</label>
-              <TextInput v-model="newEnvVar.value" placeholder="http://localhost:3000" />
-            </div>
-          </div>
-          <div class="flex items-center gap-2 mt-4">
-            <Button @click="handleAddEnvVar" :loading="addEnvVarLoading">Add</Button>
-            <OutlinedButton @click="cancelAddEnvVar">Cancel</OutlinedButton>
-          </div>
-        </div>
-
-        <!-- Env var list -->
-        <div v-if="envVars.length === 0 && !showAddEnvVar" class="text-center py-8 text-surface-400">
-          <Icon name="lucide:settings-2" class="w-6 h-6 mx-auto mb-2" />
-          <p class="text-xs">No environment variables configured yet.</p>
-        </div>
-
-        <div v-else class="space-y-2">
-          <div
-            v-for="envVar in envVars"
-            :key="envVar.id"
-            class="flex items-center justify-between gap-3 rounded-xl border border-surface-200 p-3"
-          >
-            <div class="flex-1 min-w-0">
-              <div class="text-xs font-semibold text-surface-900 font-mono">{{ envVar.key }}</div>
-              <div class="text-[11px] text-surface-500 font-mono truncate">{{ envVar.value }}</div>
-            </div>
-            <button
-              class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-surface-400 hover:text-red-500 flex-shrink-0"
-              @click="handleDeleteEnvVar(envVar.id)"
-            >
-              <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>
@@ -415,54 +414,59 @@ const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBran
 const addRepoLoading = ref(false)
 const editRepoLoading = ref(false)
 
-// Environment variables state
-const showAddEnvVar = ref(false)
-const newEnvVar = reactive({ key: '', value: '' })
-const addEnvVarLoading = ref(false)
-const envVars = ref<any[]>([])
+// Repository environment variables state
+const addingEnvVarRepoId = ref<string | null>(null)
+const newRepoEnvVar = reactive({ key: '', value: '' })
+const addRepoEnvVarLoading = ref(false)
+const repoEnvVars = ref<Record<string, any[]>>({})
 
-async function fetchEnvVars(workspaceId: string) {
+async function fetchRepoEnvVars(repositoryId: string) {
   try {
-    const result = await $fetch(`/api/workspaces/${workspaceId}/env-vars`)
-    envVars.value = result
+    const result = await $fetch(`/api/repositories/${repositoryId}/env-vars`)
+    repoEnvVars.value[repositoryId] = result
   } catch (err) {
-    console.error('Failed to load env vars:', err)
+    console.error('Failed to load repo env vars:', err)
   }
 }
 
-async function handleAddEnvVar() {
-  if (!workspace.value || !newEnvVar.key || !newEnvVar.value) return
-  addEnvVarLoading.value = true
+function startAddRepoEnvVar(repositoryId: string) {
+  addingEnvVarRepoId.value = repositoryId
+  newRepoEnvVar.key = ''
+  newRepoEnvVar.value = ''
+}
+
+function cancelAddRepoEnvVar() {
+  addingEnvVarRepoId.value = null
+  newRepoEnvVar.key = ''
+  newRepoEnvVar.value = ''
+}
+
+async function handleAddRepoEnvVar(repositoryId: string) {
+  if (!newRepoEnvVar.key || !newRepoEnvVar.value) return
+  addRepoEnvVarLoading.value = true
   try {
-    await $fetch(`/api/workspaces/${workspace.value.id}/env-vars`, {
+    await $fetch(`/api/repositories/${repositoryId}/env-vars`, {
       method: 'POST',
-      body: { key: newEnvVar.key, value: newEnvVar.value },
+      body: { key: newRepoEnvVar.key, value: newRepoEnvVar.value },
     })
-    newEnvVar.key = ''
-    newEnvVar.value = ''
-    showAddEnvVar.value = false
-    await fetchEnvVars(workspace.value.id)
+    newRepoEnvVar.key = ''
+    newRepoEnvVar.value = ''
+    addingEnvVarRepoId.value = null
+    await fetchRepoEnvVars(repositoryId)
   } finally {
-    addEnvVarLoading.value = false
+    addRepoEnvVarLoading.value = false
   }
 }
 
-function cancelAddEnvVar() {
-  showAddEnvVar.value = false
-  newEnvVar.key = ''
-  newEnvVar.value = ''
-}
-
-async function handleDeleteEnvVar(envVarId: string) {
-  if (!workspace.value) return
+async function handleDeleteRepoEnvVar(repositoryId: string, envVarId: string) {
   if (!confirm('Delete this environment variable?')) return
   try {
-    await $fetch(`/api/workspaces/${workspace.value.id}/env-vars/${envVarId}`, {
+    await $fetch(`/api/repositories/${repositoryId}/env-vars/${envVarId}`, {
       method: 'DELETE',
     })
-    await fetchEnvVars(workspace.value.id)
+    await fetchRepoEnvVars(repositoryId)
   } catch (err) {
-    console.error('Failed to delete env var:', err)
+    console.error('Failed to delete repo env var:', err)
   }
 }
 
@@ -472,7 +476,6 @@ onMounted(async () => {
     form.name = workspace.value.name
     form.description = workspace.value.description || ''
     fetchRepositories(workspace.value.id)
-    fetchEnvVars(workspace.value.id)
   }
 })
 
@@ -526,6 +529,7 @@ function startEditRepo(repo: any) {
   editRepo.createBranch = repo.createBranch
   editRepo.platform = repo.platform || 'github'
   editRepo.token = repo.token || ''
+  fetchRepoEnvVars(repo.id)
 }
 
 async function handleEditRepo(repoId: string) {

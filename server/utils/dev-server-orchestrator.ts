@@ -253,7 +253,7 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
   return null
 }
 
-export async function startDevServer(worktreeDir: string, workspaceId?: string): Promise<DevServerInfo> {
+export async function startDevServer(worktreeDir: string, repositoryId?: string): Promise<DevServerInfo> {
   const existing = activeDevServers.get(worktreeDir)
   if (existing && existing.ready) {
     return existing
@@ -300,22 +300,22 @@ export async function startDevServer(worktreeDir: string, workspaceId?: string):
     }
   }
 
-  // Fetch workspace environment variables if workspaceId is provided
-  let workspaceEnv: Record<string, string> = {}
-  if (workspaceId) {
+  // Fetch repository environment variables if repositoryId is provided
+  let repositoryEnv: Record<string, string> = {}
+  if (repositoryId) {
     try {
       const { getDb, schema } = require('~/server/database')
       const { eq } = require('drizzle-orm')
       const db = getDb()
-      const envVars = await db.query.workspaceEnvVars.findMany({
-        where: eq(schema.workspaceEnvVars.workspaceId, workspaceId),
+      const envVars = await db.query.repositoryEnvVars.findMany({
+        where: eq(schema.repositoryEnvVars.repositoryId, repositoryId),
       })
       for (const ev of envVars) {
-        workspaceEnv[ev.key] = ev.value
+        repositoryEnv[ev.key] = ev.value
       }
-      console.log(`[dev-server] Loaded ${envVars.length} workspace env vars for workspace ${workspaceId}`)
+      console.log(`[dev-server] Loaded ${envVars.length} repository env vars for repository ${repositoryId}`)
     } catch (err: any) {
-      console.warn(`[dev-server] Failed to load workspace env vars: ${err.message}`)
+      console.warn(`[dev-server] Failed to load repository env vars: ${err.message}`)
     }
   }
 
@@ -350,8 +350,8 @@ export async function startDevServer(worktreeDir: string, workspaceId?: string):
     // Override AUTH_ORIGIN so the dev server uses its own port for auth
     // instead of inheriting the production container's value.
     AUTH_ORIGIN: `http://localhost:${port}`,
-    // Workspace env vars take highest precedence (after devCmd.env)
-    ...workspaceEnv,
+    // Repository env vars take highest precedence (after devCmd.env)
+    ...repositoryEnv,
     ...devCmd.env,
   }
 

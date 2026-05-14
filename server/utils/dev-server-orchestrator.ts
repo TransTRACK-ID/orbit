@@ -79,15 +79,18 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
 
 async function installDependencies(worktreeDir: string): Promise<boolean> {
   const nodeModulesPath = path.join(worktreeDir, 'node_modules')
-  const nuxtBinPath = path.join(worktreeDir, 'node_modules', '.bin', 'nuxt')
 
-  // Check if node_modules exists AND has the nuxt binary
-  if (existsSync(nodeModulesPath) && existsSync(nuxtBinPath)) {
-    return false // already installed and ready
-  }
-
-  if (existsSync(nodeModulesPath) && !existsSync(nuxtBinPath)) {
-    console.warn(`[dev-server] node_modules exists but nuxt binary is missing in ${worktreeDir}. Reinstalling...`)
+  // Always do a clean install for QA worktrees.
+  // Previous installs may have been interrupted by SIGTERM, leaving a corrupt
+  // node_modules (nuxt binary exists but sub-deps like @nuxt/nitro-server missing).
+  if (existsSync(nodeModulesPath)) {
+    console.log(`[dev-server] Removing existing node_modules in ${worktreeDir} for clean install...`)
+    try {
+      rmSync(nodeModulesPath, { recursive: true, force: true })
+      console.log(`[dev-server] Removed stale node_modules`)
+    } catch (err: any) {
+      console.warn(`[dev-server] Failed to remove node_modules: ${err.message}`)
+    }
   }
 
   const pm = detectPackageManager(worktreeDir)
@@ -105,12 +108,6 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
     })
     if (stderr) console.warn(`[dev-server] Install stderr: ${stderr.slice(0, 500)}`)
     console.log(`[dev-server] Dependencies installed in ${worktreeDir}`)
-
-    // Verify the binary exists after install
-    if (!existsSync(nuxtBinPath)) {
-      console.warn(`[dev-server] Warning: nuxt binary still not found after install`)
-    }
-
     return true
   } catch (err: any) {
     console.error(`[dev-server] Dependency installation failed: ${err.message}`)

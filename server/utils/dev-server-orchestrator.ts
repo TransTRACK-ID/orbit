@@ -291,6 +291,18 @@ export async function startDevServer(worktreeDir: string): Promise<DevServerInfo
   proc.on('exit', (code, signal) => {
     console.log(`[dev-server] ${worktreeDir} exited with code=${code} signal=${signal} (${CODE_VERSION})`)
     activeDevServers.delete(worktreeDir)
+
+    // Clean up temporary node_modules ONLY after process has fully exited
+    // (prevents race condition where running process crashes because files are deleted)
+    if (info.installedDeps) {
+      const nodeModulesPath = path.join(worktreeDir, 'node_modules')
+      try {
+        rmSync(nodeModulesPath, { recursive: true, force: true })
+        console.log(`[dev-server] Cleaned up temporary node_modules in ${worktreeDir}`)
+      } catch (err: any) {
+        console.warn(`[dev-server] Failed to clean up node_modules: ${err.message}`)
+      }
+    }
   })
 
   proc.on('error', (err) => {
@@ -319,18 +331,8 @@ export function stopDevServer(worktreeDir: string): void {
         try { info.proc.kill('SIGKILL') } catch {}
       }, 5000)
     } catch {}
-    activeDevServers.delete(worktreeDir)
-
-    // Remove temporary node_modules if we installed them this session
-    if (info.installedDeps) {
-      const nodeModulesPath = path.join(worktreeDir, 'node_modules')
-      try {
-        rmSync(nodeModulesPath, { recursive: true, force: true })
-        console.log(`[dev-server] Cleaned up temporary node_modules in ${worktreeDir}`)
-      } catch (err: any) {
-        console.warn(`[dev-server] Failed to clean up node_modules: ${err.message}`)
-      }
-    }
+    // Don't delete from map here — the exit handler will do cleanup after process dies
+    // and then remove from activeDevServers
   }
 }
 

@@ -2257,6 +2257,10 @@ function formatActivity(log: ActivityLog) {
   padding: 1px 4px;
   border-radius: 3px;
 }
+.dark .comment-body :deep(code) {
+  background: #334155;
+  color: #e2e8f0;
+}
 
 .comment-body :deep(pre) {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
@@ -2270,11 +2274,18 @@ function formatActivity(log: ActivityLog) {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.dark .comment-body :deep(pre) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
 
 .comment-body :deep(pre code) {
   background: none;
   padding: 0;
   font-size: inherit;
+}
+.dark .comment-body :deep(pre code) {
+  color: inherit;
 }
 
 .comment-body :deep(ul),

@@ -129,9 +129,16 @@ function onInput(e: Event) {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
+.dark .prose :deep(pre) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
 .prose :deep(pre code) {
   background: none;
   padding: 0;
+  color: inherit;
+}
+.dark .prose :deep(pre code) {
   color: inherit;
 }
 .prose :deep(blockquote) {

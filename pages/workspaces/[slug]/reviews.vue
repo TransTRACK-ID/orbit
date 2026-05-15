@@ -24,7 +24,9 @@
         :pull-requests="filteredPullRequests"
         :selected-id="selectedPrId"
         :loading="prsLoading"
+        :auto-sync="autoSyncEnabled"
         @select="selectPr"
+        @toggle-auto-sync="toggleAutoSync"
       />
 
       <!-- Detail Panel -->
@@ -33,6 +35,7 @@
         :diff="prDiff"
         :loading="detailLoading"
         :diff-loading="diffLoading"
+        :auto-sync="autoSyncEnabled"
         @sync="syncPr"
         @fix-feedback="fixFeedback"
       />
@@ -41,6 +44,8 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount } from 'vue'
+import { useLocalStorage } from '@vueuse/core'
 import type { PullRequest, Workspace, Repository } from '~/types'
 
 definePageMeta({
@@ -74,7 +79,49 @@ const diffLoading = ref(false)
 const bottleneckStats = ref<any>(null)
 const bottlenecksLoading = ref(false)
 
+const autoSyncEnabled = useLocalStorage('orbit-reviews-auto-sync', false)
+let autoSyncTimer: ReturnType<typeof setInterval> | null = null
+
 const filteredPullRequests = computed(() => pullRequests.value)
+
+function toggleAutoSync() {
+  autoSyncEnabled.value = !autoSyncEnabled.value
+}
+
+function startAutoSync() {
+  if (autoSyncTimer) clearInterval(autoSyncTimer)
+  autoSyncTimer = setInterval(async () => {
+    if (!workspace.value) return
+    // Refresh the list and bottlenecks in the background
+    await Promise.all([
+      loadPullRequests(),
+      loadBottlenecks(),
+    ])
+    // If a PR is selected, also sync its details so comments/status stay fresh
+    if (selectedPrId.value) {
+      await syncPr(selectedPrId.value)
+    }
+  }, 30000) // every 30 seconds
+}
+
+function stopAutoSync() {
+  if (autoSyncTimer) {
+    clearInterval(autoSyncTimer)
+    autoSyncTimer = null
+  }
+}
+
+watch(autoSyncEnabled, (enabled) => {
+  if (enabled) {
+    startAutoSync()
+  } else {
+    stopAutoSync()
+  }
+})
+
+onBeforeUnmount(() => {
+  stopAutoSync()
+})
 
 async function loadWorkspace() {
   workspace.value = await getWorkspaceBySlug(slug.value)
@@ -198,6 +245,11 @@ onMounted(async () => {
     if (pr) {
       selectPr(pr.id)
     }
+  }
+
+  // Resume auto-sync if it was previously enabled
+  if (autoSyncEnabled.value) {
+    startAutoSync()
   }
 })
 </script>

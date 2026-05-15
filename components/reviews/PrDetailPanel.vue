@@ -37,6 +37,14 @@
           </div>
 
           <div class="flex items-center gap-2 flex-shrink-0">
+            <div
+              v-if="autoSync"
+              class="flex items-center gap-1 text-[10px] text-green-600 font-medium"
+              title="Auto-sync is on — this PR refreshes automatically"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Live
+            </div>
             <button
               class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-surface-200 text-surface-600 hover:bg-surface-50 transition-colors flex items-center gap-1.5"
               @click="$emit('sync', pullRequest.id)"
@@ -130,6 +138,7 @@ const props = defineProps<{
   diff: { files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string } | null
   loading?: boolean
   diffLoading?: boolean
+  autoSync?: boolean
 }>()
 
 defineEmits<{

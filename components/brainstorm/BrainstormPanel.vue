@@ -210,13 +210,13 @@
       <div class="p-3">
         <div class="flex gap-2">
           <div class="flex-1 relative">
-            <input
+            <textarea
               v-model="newMessage"
-              type="text"
               :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
-              class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60"
+              class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-none"
               :disabled="isSending"
-              @keydown.enter.prevent="handleSend"
+              rows="1"
+              @keydown.enter.prevent="handleEnter"
             />
             <span v-if="isSending" class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-surface-400">Sending...</span>
           </div>
@@ -336,6 +336,12 @@ function scrollToBottom() {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
   })
+}
+
+function handleEnter(event: KeyboardEvent) {
+  if (!event.shiftKey) {
+    handleSend()
+  }
 }
 
 async function handleSend() {

@@ -315,27 +315,27 @@
 
 @layer components {
   .dark .kanban-card {
-    @apply bg-surface-900 border-surface-700;
+    @apply bg-surface-100 border-surface-300;
   }
 
   .dark .kanban-column {
-    @apply bg-surface-100 border-surface-700;
+    @apply bg-surface-50 border-surface-300;
   }
 
   .dark .project-card {
-    @apply bg-surface-900 border-surface-700;
+    @apply bg-surface-100 border-surface-300;
   }
 
   .dark .agent-card {
-    @apply bg-surface-900 border-surface-700;
+    @apply bg-surface-100 border-surface-300;
   }
 
   .dark .modal-box {
-    @apply bg-surface-900 border-surface-700;
+    @apply bg-surface-100 border-surface-300;
   }
 
   .dark .drawer-panel {
-    @apply bg-surface-900 border-surface-700;
+    @apply bg-surface-100 border-surface-300;
   }
 
   /* Modal & general modal overrides */
@@ -362,18 +362,26 @@
     background: rgba(59, 130, 246, 0.15);
     color: #93c5fd;
   }
+
+  .dark .sidebar-item {
+    @apply hover:bg-surface-200;
+  }
+
+  .dark .sidebar-item.active {
+    background-color: oklch(62% 0.22 27 / 0.15);
+  }
 }
 
 /* ─── Global utility overrides for dark mode ─── */
 @layer utilities {
   /* bg-white → dark surface-900 */
   .dark .bg-white {
-    background-color: var(--surface-900);
+    background-color: var(--surface-50);
   }
 
   /* focus:bg-white */
   .dark .focus\:bg-white:focus {
-    background-color: var(--surface-900);
+    background-color: var(--surface-100);
   }
 
   /* Gray text colors */
@@ -437,6 +445,11 @@
   .dark .hover\:border-gray-200:hover { border-color: var(--gray-200); }
   .dark .hover\:border-gray-100:hover { border-color: var(--gray-100); }
   .dark .hover\:border-gray-50:hover  { border-color: var(--gray-50); }
+
+  /* Surface hover backgrounds */
+  .dark .hover\:bg-surface-50:hover {
+    background-color: var(--surface-100);
+  }
 
   /* Gray hover text */
   .dark .hover\:text-gray-950:hover { color: var(--gray-950); }

@@ -4,8 +4,8 @@
       <!-- Brand -->
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center gap-1.5 mb-3">
-          <Icon name="lucide:bolt" class="w-5 h-5 text-accent" />
-          <span class="text-sm font-bold tracking-tight text-surface-900">Kanvas</span>
+          <Icon name="lucide:orbit" class="w-5 h-5 text-accent" />
+          <span class="text-sm font-bold tracking-tight text-surface-900">Orbit</span>
         </div>
         <h1 class="text-lg font-semibold text-surface-900">Welcome back</h1>
         <p class="text-[11px] text-surface-500 mt-1">Sign in to your workspace</p>
@@ -102,7 +102,8 @@ async function handleLogin() {
       authError.value = 'Invalid email or password'
     } else {
       await getSession({ force: true })
-      const { needsOnboarding } = useOnboarding()
+      const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
+      await ensureWorkspacesLoaded()
       if (needsOnboarding.value) {
         await navigateTo('/onboarding')
       } else {

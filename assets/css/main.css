@@ -534,6 +534,7 @@
   .dark .hover\:bg-primary-50:hover  { background-color: rgba(99, 102, 241, 0.12); }
   .dark .hover\:bg-primary-100:hover { background-color: rgba(99, 102, 241, 0.18); }
   .dark .hover\:bg-error-50:hover   { background-color: rgba(239, 68, 68, 0.12); }
+  .dark .hover\:bg-error-100:hover  { background-color: rgba(239, 68, 68, 0.18); }
 
   /* Focus ring colors that need to stay visible */
   .dark .focus\:ring-primary-500:focus { --tw-ring-color: rgb(99 102 241); }

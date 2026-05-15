@@ -10,7 +10,7 @@ const runtimeReachable = ref(false)
 export const useAgent = () => {
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
-    'opencode':    { name:'OpenCode',    icon:'lucide:code',     color:'#2563EB', desc:'Open-source coding agent with multi-file editing' },
+    'opencode':    { name:'OpenCode',    icon:'lucide:code',     color:'#E84D6A', desc:'Open-source coding agent with multi-file editing' },
     'browser-qa':  { name:'Browser QA',  icon:'lucide:globe',    color:'#059669', desc:'Automated browser testing with AI agent' },
   }
 

@@ -10,7 +10,7 @@ export const agents = pgTable('agents', {
   runtime: varchar('runtime', { length: 50 }).notNull(),
   purpose: text('purpose'),
   status: varchar('status', { length: 20 }).notNull().default('idle'),
-  color: varchar('color', { length: 7 }).notNull().default('#7C3AED'),
+  color: varchar('color', { length: 7 }).notNull().default('#E84D6A'),
   tasks: integer('tasks').notNull().default(0),
   headed: boolean('headed').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),

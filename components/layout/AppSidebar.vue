@@ -15,7 +15,7 @@
         >
           <div
             class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #CF513D"
+            style="background: #E84D6A"
           >
             <Icon name="lucide:bot" class="w-2.5 h-2.5" />
           </div>
@@ -34,7 +34,7 @@
         >
           <div
             class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #8B5CF6"
+            style="background: #C084A8"
           >
             <Icon name="lucide:shield" class="w-2.5 h-2.5" />
           </div>
@@ -75,7 +75,7 @@
         >
           <div
             class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #8B5CF6"
+            style="background: #C084A8"
           >
             <Icon name="lucide:lightbulb" class="w-2.5 h-2.5" />
           </div>

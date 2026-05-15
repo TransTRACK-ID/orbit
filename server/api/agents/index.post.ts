@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
       runtime: body.runtime,
       purpose: body.purpose || null,
       status: body.status || 'idle',
-      color: body.color || '#7C3AED',
+      color: body.color || '#E84D6A',
       headed: body.headed ?? false,
     })
     .returning()

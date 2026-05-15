@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
     : 'Agent'
   const defaultAgentColor = task?.assigneeType === 'agent' && task?.agentAssignee
     ? task.agentAssignee.color
-    : '#6366f1'
+    : '#E84D6A'
 
   const logs = await db.query.activityLogs.findMany({
     where: (al, { eq, and }) => and(

@@ -140,7 +140,7 @@
           <span v-if="pullRequest.task?.agentAssignee" class="flex items-center gap-1">
             <span
               class="w-3 h-3 rounded-full flex items-center justify-center text-[6px] font-bold text-white"
-              :style="{ background: pullRequest.task.agentAssignee.color || '#6366f1' }"
+              :style="{ background: pullRequest.task.agentAssignee.color || '#E84D6A' }"
             >
               {{ pullRequest.task.agentAssignee.initials }}
             </span>

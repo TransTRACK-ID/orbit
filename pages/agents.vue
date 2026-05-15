@@ -12,7 +12,7 @@
       <div class="flex items-center gap-1.5">
         <span class="text-[10px] text-surface-400 max-sm:hidden">Quick add:</span>
         <button
-          class="px-2.5 py-1 rounded-md bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20 text-[10px] font-semibold flex items-center gap-1 hover:bg-[#2563EB]/20 transition-colors"
+          class="px-2.5 py-1 rounded-md bg-[#E84D6A]/10 text-[#E84D6A] border border-[#E84D6A]/20 text-[10px] font-semibold flex items-center gap-1 hover:bg-[#E84D6A]/20 transition-colors"
           @click="openCreateModalWithTemplate('raihan')"
         >
           <Icon name="lucide:user" class="w-2.5 h-2.5" />
@@ -261,7 +261,7 @@ onUnmounted(() => {
   if (healthInterval) clearInterval(healthInterval)
 })
 
-const agentColors = ['#7C3AED', '#2563EB', '#DC2626', '#D97706', '#0891B2', '#16A34A', '#EC4899', '#6366F1']
+const agentColors = ['#E84D6A', '#C084A8', '#D46A7E', '#E8A87C', '#B07D8D', '#7AB08A', '#D4A574', '#E8C8DA']
 
 const showModal = ref(false)
 const editingAgent = ref<Agent | null>(null)
@@ -272,7 +272,7 @@ const form = reactive({
   runtime: 'opencode',
   purpose: '',
   status: 'idle' as AgentStatus,
-  color: '#7C3AED',
+  color: '#E84D6A',
 })
 
 function openCreateModal() {
@@ -288,7 +288,7 @@ const agentTemplates: Record<string, Partial<typeof form>> = {
     runtime: 'opencode',
     purpose: 'Expert software engineer specializing in full-stack development, code review, debugging, and system architecture. Writes clean, maintainable code and provides technical guidance on best practices.',
     status: 'idle',
-    color: '#2563EB',
+    color: '#E84D6A',
   },
   ayu: {
     name: 'Ayu',
@@ -296,7 +296,7 @@ const agentTemplates: Record<string, Partial<typeof form>> = {
     runtime: 'opencode',
     purpose: 'Skilled technical writer focused on creating clear documentation, API guides, user manuals, and release notes. Translates complex technical concepts into accessible content for diverse audiences.',
     status: 'idle',
-    color: '#0891B2',
+    color: '#B07D8D',
   },
   martin: {
     name: 'Martin',
@@ -304,7 +304,7 @@ const agentTemplates: Record<string, Partial<typeof form>> = {
     runtime: 'opencode',
     purpose: 'Detail-oriented QA engineer responsible for test planning, automated testing, bug triage, and quality assurance workflows. Ensures software reliability through rigorous testing and clear defect reporting.',
     status: 'idle',
-    color: '#16A34A',
+    color: '#7AB08A',
   },
 }
 
@@ -317,7 +317,7 @@ function openCreateModalWithTemplate(templateKey: string) {
   form.runtime = template.runtime || 'opencode'
   form.purpose = template.purpose || ''
   form.status = (template.status as AgentStatus) || 'idle'
-  form.color = template.color || '#7C3AED'
+  form.color = template.color || '#E84D6A'
   showModal.value = true
 }
 
@@ -344,7 +344,7 @@ function resetForm() {
   form.runtime = 'opencode'
   form.purpose = ''
   form.status = 'idle'
-  form.color = '#7C3AED'
+  form.color = '#E84D6A'
 }
 
 async function saveAgent() {

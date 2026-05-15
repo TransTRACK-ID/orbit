@@ -6,7 +6,7 @@
         <div class="flex items-center gap-2.5 min-w-0">
           <div
             class="w-8 h-8 rounded-lg flex items-center justify-center text-white flex-shrink-0"
-            style="background: #8B5CF6"
+            style="background: #C084A8"
           >
             <Icon name="lucide:lightbulb" class="w-4 h-4" />
           </div>

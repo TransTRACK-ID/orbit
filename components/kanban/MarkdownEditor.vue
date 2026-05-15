@@ -152,11 +152,11 @@ function onInput(e: Event) {
   color: #94a3b8;
 }
 .prose :deep(a) {
-  color: #6366f1;
+  color: #E84D6A;
   text-decoration: underline;
 }
 .dark .prose :deep(a) {
-  color: #a5b4fc;
+  color: #FFC2CD;
 }
 .prose :deep(img) {
   max-width: 100%;

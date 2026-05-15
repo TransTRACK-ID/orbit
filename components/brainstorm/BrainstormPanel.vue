@@ -5,7 +5,7 @@
       <div class="flex items-center gap-3 min-w-0">
         <div
           class="w-8 h-8 rounded-lg flex items-center justify-center text-white flex-shrink-0"
-          style="background: #8B5CF6"
+          style="background: #C084A8"
         >
           <Icon name="lucide:lightbulb" class="w-4 h-4" />
         </div>
@@ -80,7 +80,7 @@
         <div v-else class="flex gap-2.5">
           <div
             class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
-            style="background: #8B5CF6"
+            style="background: #C084A8"
           >
             <Icon name="lucide:bot" class="w-3.5 h-3.5" />
           </div>
@@ -107,7 +107,7 @@
       <div v-if="isRunning && !chatReply.trim()" class="flex gap-2.5">
         <div
           class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-          style="background: #8B5CF6"
+          style="background: #C084A8"
         >
           <Icon name="lucide:bot" class="w-3.5 h-3.5" />
         </div>

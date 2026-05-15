@@ -15,7 +15,7 @@
           <template #default>
             <div 
               class="w-9 h-9 rounded-full shadow-xl border-2 border-white flex items-center justify-center cursor-help transition-all duration-300 hover:scale-110 group"
-              :style="{ background: chatAgentIdentity.color || '#6366f1' }"
+              :style="{ background: chatAgentIdentity.color || '#E84D6A' }"
             >
               <svg class="animate-spin text-white" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle class="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             </div>
@@ -522,7 +522,7 @@
                 >
                   <span
                     class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                    :style="{ background: comment.authorColor || '#6366f1' }"
+                    :style="{ background: comment.authorColor || '#E84D6A' }"
                   >
                     {{ computedInitials(comment.authorName) }}
                   </span>
@@ -1149,7 +1149,7 @@ const chatAgentIdentity = computed(() => {
   // Fall back to the first agent on the project
   const first = props.agents[0]
   if (first) return { name: first.name, color: first.color }
-  return { name: 'Agent', color: '#6366f1' }
+  return { name: 'Agent', color: '#E84D6A' }
 })
 
 /** The name of the most recently @mentioned agent (sticky across renders) */
@@ -1237,7 +1237,7 @@ const allComments = computed(() => {
         body: r.body,
         createdAt: new Date(r.createdAt).getTime(),
         authorName: agent?.name || chatAgentIdentity.value.name || 'Agent',
-        authorColor: r.agentColor || agent?.color || chatAgentIdentity.value.color || '#6366f1',
+        authorColor: r.agentColor || agent?.color || chatAgentIdentity.value.color || '#E84D6A',
         isAgent: true,
       }
     }),
@@ -1259,7 +1259,7 @@ const allComments = computed(() => {
       body: inMemoryBody,
       createdAt: isLive ? Date.now() : (lastChatReplyTimestamp.value || Date.now()),
       authorName: isLive ? chatAgentIdentity.value.name : (lastChatReplyAuthor.value || chatAgentIdentity.value.name),
-      authorColor: isLive ? (chatAgentIdentity.value.color || '#6366f1') : (lastChatReplyAuthorColor.value || '#6366f1'),
+      authorColor: isLive ? (chatAgentIdentity.value.color || '#E84D6A') : (lastChatReplyAuthorColor.value || '#E84D6A'),
       isAgent: true,
     })
   }
@@ -1365,7 +1365,7 @@ onUnmounted(() => {
 /** In-memory store for the last agent chat reply that survives runtime completion */
 const lastChatReplyText = ref<string | null>(null)
 const lastChatReplyAuthor = ref<string>('Agent')
-const lastChatReplyAuthorColor = ref<string>('#6366f1')
+const lastChatReplyAuthorColor = ref<string>('#E84D6A')
 const lastChatReplyTimestamp = ref(0)
 
 /** Safety net: when the runtime transitions from active to inactive, refresh
@@ -1450,7 +1450,7 @@ watch(latestAgentReply, (reply) => {
   if (reply && reply.length > 0) {
     lastChatReplyText.value = reply
     lastChatReplyAuthor.value = chatAgentIdentity.value.name
-    lastChatReplyAuthorColor.value = chatAgentIdentity.value.color || '#6366f1'
+    lastChatReplyAuthorColor.value = chatAgentIdentity.value.color || '#E84D6A'
     lastChatReplyTimestamp.value = Date.now()
   }
 })
@@ -2175,13 +2175,13 @@ function formatActivity(log: ActivityLog) {
 }
 
 .review-feedback-body :deep(a) {
-  color: #6366f1;
+  color: #E84D6A;
   text-decoration: underline;
   word-break: break-all;
 }
 
 .review-feedback-body :deep(a:hover) {
-  color: #4f46e5;
+  color: #D43A5A;
 }
 
 .review-feedback-body :deep(blockquote) {
@@ -2329,7 +2329,7 @@ function formatActivity(log: ActivityLog) {
 }
 
 .comment-body :deep(a) {
-  color: #6366f1;
+  color: #E84D6A;
   text-decoration: underline;
   word-break: break-all;
 }

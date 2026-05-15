@@ -20,6 +20,14 @@
         </div>
       </div>
 
+      <!-- Repository promo -->
+      <RepositoryPromoBanner
+        v-if="workspace && repositories.length === 0"
+        :workspace-id="workspace.id"
+        :workspace-slug="workspace.slug"
+        :dismissed-prompts="workspace.membership?.dismissedPrompts"
+      />
+
       <!-- Loading -->
       <UiLoadingState v-if="loading" text="Loading projects..." />
 
@@ -131,6 +139,7 @@ const route = useRoute()
 const router = useRouter()
 const { getWorkspaceBySlug, loading: wsLoading } = useWorkspace()
 const { projects, loading, fetchProjects, deleteProject } = useProject()
+const { repositories, fetchRepositories } = useRepository()
 
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<Workspace | null>(null)
@@ -144,6 +153,7 @@ onMounted(async () => {
   workspace.value = await getWorkspaceBySlug(slug.value)
   if (workspace.value) {
     await fetchProjects(workspace.value.id)
+    await fetchRepositories(workspace.value.id)
   }
 })
 

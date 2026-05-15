@@ -299,6 +299,18 @@
               {{ isBacklog ? 'Repository can only be changed while task is in backlog' : 'Repository cannot be changed after task leaves backlog' }}
             </p>
           </div>
+          <div v-else class="p-2.5 rounded-lg bg-surface-50 border border-surface-200 mb-4">
+            <p class="text-[11px] text-surface-500">
+              No repositories connected.
+              <NuxtLink
+                :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                class="text-accent underline hover:text-accent-700"
+                @click="$emit('close')"
+              >
+                Add one in settings
+              </NuxtLink>
+            </p>
+          </div>
 
           <div class="mb-6">
             <div class="flex items-center justify-between mb-2">

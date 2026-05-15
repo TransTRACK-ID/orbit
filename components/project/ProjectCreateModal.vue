@@ -13,7 +13,7 @@
 
         <!-- Step 1: Template Gallery -->
         <div v-if="step === 'template'" class="space-y-4">
-          <div class="flex items-center gap-2 mb-4">
+          <div v-if="!isFirstProject" class="flex items-center gap-2 mb-4">
             <button
               class="px-3 py-1.5 text-sm rounded-md transition-colors"
               :class="mode === 'blank' ? 'bg-surface-900 text-white dark:bg-black' : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-200'"
@@ -35,11 +35,11 @@
               <label class="block text-sm font-medium text-surface-700 mb-1.5">Name *</label>
               <TextInput v-model="blankForm.name" placeholder="Project name" required />
             </div>
-            <div>
+            <div v-if="!isFirstProject">
               <label class="block text-sm font-medium text-surface-700 mb-1.5">Description</label>
               <TextArea v-model="blankForm.description" placeholder="What's this project about?" rows="3" />
             </div>
-            <div>
+            <div v-if="!isFirstProject">
               <label class="block text-sm font-medium text-surface-700 mb-1.5">Color</label>
               <div class="flex items-center gap-2">
                 <input v-model="blankForm.color" type="color" class="w-9 h-9 rounded-lg cursor-pointer border border-surface-200" />
@@ -48,7 +48,9 @@
             </div>
             <div class="flex items-center justify-end gap-2 pt-2">
               <TextButton @click="$emit('close')">Cancel</TextButton>
-              <Button type="submit" :loading="creating">Create Project</Button>
+              <Button type="submit" :loading="creating">
+                {{ isFirstProject ? 'Create Your First Project' : 'Create Project' }}
+              </Button>
             </div>
             <p v-if="error" class="text-error-500 text-sm">{{ error }}</p>
           </form>
@@ -86,6 +88,7 @@ import type { Project, TemplateConfig } from '~/types'
 
 const props = defineProps<{
   workspaceId: string
+  isFirstProject?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -106,6 +109,35 @@ const blankForm = reactive({
   description: '',
   color: '#F14848',
 })
+
+const FIRST_PROJECT_COLORS = [
+  '#6366F1', // Indigo
+  '#8B5CF6', // Violet
+  '#EC4899', // Pink
+  '#F43F5E', // Rose
+  '#10B981', // Emerald
+  '#06B6D4', // Cyan
+  '#F59E0B', // Amber
+  '#3B82F6', // Blue
+]
+
+function getRandomColor() {
+  return FIRST_PROJECT_COLORS[
+    Math.floor(Math.random() * FIRST_PROJECT_COLORS.length)
+  ]
+}
+
+watch(
+  () => props.isFirstProject,
+  (first) => {
+    if (first) {
+      mode.value = 'blank'
+      step.value = 'template'
+      selectedTemplate.value = null
+    }
+  },
+  { immediate: true }
+)
 
 const creating = ref(false)
 const error = ref('')
@@ -144,10 +176,11 @@ async function handleCreateBlank() {
   error.value = ''
 
   try {
+    const colorToUse = props.isFirstProject ? getRandomColor() : blankForm.color
     const project = await createProject(props.workspaceId, {
       name: blankForm.name,
-      description: blankForm.description || undefined,
-      color: blankForm.color,
+      description: props.isFirstProject ? undefined : (blankForm.description || undefined),
+      color: colorToUse,
     })
     emit('created', project)
   } catch (err: any) {

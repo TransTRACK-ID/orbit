@@ -26,13 +26,13 @@
       <!-- Empty state -->
       <UiEmptyState
         v-else-if="projects.length === 0"
-        title="No projects yet"
-        :description="`Create your first project in ${workspace.name}`"
+        title="Your workspace is ready"
+        :description="`Let's create your first project in ${workspace.name} to start tracking tasks.`"
         icon="ph:projector-screen-chart"
       >
         <Button @click="showCreateProject = true">
           <Icon name="lucide:plus" class="w-3.5 h-3.5" />
-          Create Project
+          Create First Project
         </Button>
       </UiEmptyState>
 
@@ -86,6 +86,7 @@
     <ProjectCreateModal
       v-if="showCreateProject && workspace"
       :workspace-id="workspace.id"
+      :is-first-project="!hasProjects"
       @close="showCreateProject = false"
       @created="onProjectCreated"
     />
@@ -134,6 +135,7 @@ const { projects, loading, fetchProjects, deleteProject } = useProject()
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<Workspace | null>(null)
 const showCreateProject = ref(false)
+const hasProjects = computed(() => projects.value.length > 0)
 const projectToDelete = ref<Project | null>(null)
 const deleteConfirmName = ref('')
 const deleteLoading = ref(false)

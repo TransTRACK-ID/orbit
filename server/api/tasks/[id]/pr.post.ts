@@ -5,7 +5,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { getDiffSummary } from '~/server/utils/git-summary'
-import { generateConventionalCommit, toHumanReadableTitle } from '~/server/utils/conventional-commit'
+import { toHumanReadableTitle } from '~/server/utils/conventional-commit'
 import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 
@@ -158,7 +158,7 @@ export default defineEventHandler(async (event) => {
   const branch = task.branchName || sanitizeBranchName(task.title)
 
   let prBody = ''
-  let prTitle = task.title
+  let prTitle = toHumanReadableTitle(branch)
   let hasUncommitted = false
   let hasCommittedChanges = false
 
@@ -167,7 +167,7 @@ export default defineEventHandler(async (event) => {
   let prCwd = repoDir
 
   if (hasWorktree) {
-    prBody = await getDiffSummary(repoDir, repoDefaultBranch, task.title, task.description)
+    prBody = await getDiffSummary(repoDir, repoDefaultBranch, prTitle, task.description)
 
     const { stdout: status } = await execAsync('git status --porcelain', { cwd: repoDir })
     hasUncommitted = !!status.trim()
@@ -196,21 +196,14 @@ export default defineEventHandler(async (event) => {
       )
       const commits = commitLog.trim().split('\n').filter(Boolean)
       if (commits.length > 0) {
-        // Use the most recent commit as PR title, all commits as body bullets
-        prTitle = commits[0]
+        // Keep branch-based PR title, list all commits as body bullets
         prBody = await getDiffSummary(repoDir, repoDefaultBranch, prTitle, task.description)
         prBody += '\n\n## Commits\n\n'
         for (const c of commits) {
           prBody += `- ${c}\n`
         }
       } else {
-        // No commits yet (uncommitted changes) — generate from diff
-        const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: repoDir })
-        const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: repoDir })
-        const changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
-        if (changedFiles.length > 0) {
-          prTitle = generateConventionalCommit(diffOutput, changedFiles)
-        }
+        // No commits yet (uncommitted changes) — summarize diff for PR body
         prBody = await getDiffSummary(repoDir, repoDefaultBranch, prTitle, task.description)
       }
     } catch {
@@ -245,7 +238,6 @@ export default defineEventHandler(async (event) => {
       )
       const commits = commitLog.trim().split('\n').filter(Boolean)
       if (commits.length > 0) {
-        prTitle = commits[0]
         prBody = `## Summary\n\n**${prTitle}**\n\n`
         if (task.description) {
           prBody += `${task.description}\n\n`

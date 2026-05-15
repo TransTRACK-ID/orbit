@@ -57,6 +57,7 @@ export default NuxtAuthHandler({
           name: user.name,
           avatarUrl: user.avatarUrl,
           role: user.role,
+          onboardingCompleted: user.onboardingCompleted,
         }
       },
     }),
@@ -69,6 +70,7 @@ export default NuxtAuthHandler({
         token.name = user.name
         token.picture = user.avatarUrl || null
         token.role = user.role || 'user'
+        token.onboardingCompleted = user.onboardingCompleted ?? false
       }
       return token
     },
@@ -79,6 +81,7 @@ export default NuxtAuthHandler({
         session.user.name = token.name
         session.user.avatarUrl = token.picture || null
         session.user.role = token.role || 'user'
+        session.user.onboardingCompleted = token.onboardingCompleted ?? false
       }
       return session
     },

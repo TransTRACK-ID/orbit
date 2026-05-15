@@ -108,6 +108,10 @@ const totalWorkspaces = ref(0)
 
 onMounted(async () => {
   await fetchWorkspaces()
+  const { needsOnboarding } = useOnboarding()
+  if (workspaces.value.length === 0 && needsOnboarding.value) {
+    await navigateTo('/onboarding')
+  }
 })
 
 watchEffect(() => {

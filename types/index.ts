@@ -5,6 +5,7 @@ export interface AuthUser {
   name: string
   avatarUrl?: string | null
   role?: string | null
+  onboardingCompleted?: boolean | null
 }
 
 // ─── Workspace ───

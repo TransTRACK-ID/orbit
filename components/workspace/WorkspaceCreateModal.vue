@@ -26,7 +26,7 @@
               v-model="form.slug"
               placeholder="my-workspace"
               required
-              :error="slugError"
+              :error-message="slugError"
               @update:model-value="handleSlugChange"
             />
             <p class="text-xs text-surface-400 mt-1">URL: /workspaces/{{ form.slug || '...' }}</p>

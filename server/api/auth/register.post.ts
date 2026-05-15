@@ -38,6 +38,7 @@ export default defineEventHandler(async (event) => {
       name: schema.users.name,
       avatarUrl: schema.users.avatarUrl,
       role: schema.users.role,
+      onboardingCompleted: schema.users.onboardingCompleted,
     })
 
   return { user }

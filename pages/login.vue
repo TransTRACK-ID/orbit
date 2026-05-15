@@ -20,7 +20,7 @@
               v-model="email"
               type="email"
               placeholder="you@example.com"
-              :error="errors.email"
+              :error-message="errors.email"
               required
             />
           </div>
@@ -31,7 +31,7 @@
               v-model="password"
               type="password"
               placeholder="Enter your password"
-              :error="errors.password"
+              :error-message="errors.password"
               required
             />
           </div>
@@ -62,7 +62,7 @@ definePageMeta({
   auth: false,
 })
 
-const { signIn, status } = useAuth()
+const { signIn, status, getSession } = useAuth()
 
 const email = ref('')
 const password = ref('')
@@ -101,7 +101,13 @@ async function handleLogin() {
     if (result?.error) {
       authError.value = 'Invalid email or password'
     } else {
-      await navigateTo('/workspaces')
+      await getSession({ force: true })
+      const { needsOnboarding } = useOnboarding()
+      if (needsOnboarding.value) {
+        await navigateTo('/onboarding')
+      } else {
+        await navigateTo('/workspaces')
+      }
     }
   } catch (err: any) {
     authError.value = err?.message || 'An error occurred during sign in'

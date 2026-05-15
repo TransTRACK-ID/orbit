@@ -183,8 +183,8 @@
 
   .sidebar-item.active {
     @apply text-surface-900 font-semibold;
-    background-color: oklch(62% 0.22 27 / 0.08);
-    border-left-color: #CF513D;
+    background-color: oklch(52% 0.11 55 / 0.08);
+    border-left-color: #8B5E3C;
   }
 
   .sidebar-group-header {
@@ -368,7 +368,7 @@
   }
 
   .dark .sidebar-item.active {
-    background-color: oklch(62% 0.22 27 / 0.15);
+    background-color: oklch(52% 0.11 55 / 0.15);
   }
 }
 
@@ -509,13 +509,13 @@
   .dark .text-amber-600 { color: #fcd34d; }
   .dark .text-amber-700 { color: #fde68a; }
 
-  .dark .bg-primary-50   { background-color: rgba(99, 102, 241, 0.12); }
-  .dark .bg-primary-100  { background-color: rgba(99, 102, 241, 0.18); }
-  .dark .text-primary-400 { color: #818cf8; }
-  .dark .text-primary-500 { color: #a5b4fc; }
-  .dark .text-primary-600 { color: #a5b4fc; }
-  .dark .text-primary-700 { color: #c7d2fe; }
-  .dark .text-primary-800 { color: #e0e7ff; }
+  .dark .bg-primary-50   { background-color: rgba(139, 94, 60, 0.12); }
+  .dark .bg-primary-100  { background-color: rgba(139, 94, 60, 0.18); }
+  .dark .text-primary-400 { color: #c4a484; }
+  .dark .text-primary-500 { color: #d4b595; }
+  .dark .text-primary-600 { color: #e2c9a8; }
+  .dark .text-primary-700 { color: #f0e0d0; }
+  .dark .text-primary-800 { color: #f5ebe0; }
 
   .dark .bg-purple-100  { background-color: rgba(168, 85, 247, 0.18); }
   .dark .text-purple-700 { color: #d8b4fe; }
@@ -531,13 +531,13 @@
   .dark .hover\:bg-red-100:hover  { background-color: rgba(239, 68, 68, 0.18); }
   .dark .hover\:bg-amber-50:hover  { background-color: rgba(245, 158, 11, 0.12); }
   .dark .hover\:bg-amber-100:hover { background-color: rgba(245, 158, 11, 0.18); }
-  .dark .hover\:bg-primary-50:hover  { background-color: rgba(99, 102, 241, 0.12); }
-  .dark .hover\:bg-primary-100:hover { background-color: rgba(99, 102, 241, 0.18); }
+  .dark .hover\:bg-primary-50:hover  { background-color: rgba(139, 94, 60, 0.12); }
+  .dark .hover\:bg-primary-100:hover { background-color: rgba(139, 94, 60, 0.18); }
   .dark .hover\:bg-error-50:hover   { background-color: rgba(239, 68, 68, 0.12); }
 
   /* Focus ring colors that need to stay visible */
-  .dark .focus\:ring-primary-500:focus { --tw-ring-color: rgb(99 102 241); }
-  .dark .focus\:border-primary-500:focus { border-color: rgb(99 102 241); }
+  .dark .focus\:ring-primary-500:focus { --tw-ring-color: rgb(139 94 60); }
+  .dark .focus\:border-primary-500:focus { border-color: rgb(139 94 60); }
 
   /* Semantic border colors for dark mode */
   .dark .border-green-100 { border-color: rgba(34, 197, 94, 0.25); }
@@ -546,25 +546,25 @@
   .dark .border-red-200 { border-color: rgba(239, 68, 68, 0.35); }
   .dark .border-amber-100 { border-color: rgba(245, 158, 11, 0.25); }
   .dark .border-amber-200 { border-color: rgba(245, 158, 11, 0.35); }
-  .dark .border-primary-100 { border-color: rgba(99, 102, 241, 0.25); }
-  .dark .border-primary-200 { border-color: rgba(99, 102, 241, 0.35); }
+  .dark .border-primary-100 { border-color: rgba(139, 94, 60, 0.25); }
+  .dark .border-primary-200 { border-color: rgba(139, 94, 60, 0.35); }
   .dark .border-purple-100 { border-color: rgba(168, 85, 247, 0.25); }
 
   /* Primary gradient colors for dark mode */
   .dark .from-primary-50\/50 {
-    --tw-gradient-from: rgba(99, 102, 241, 0.15) var(--tw-gradient-from-position);
-    --tw-gradient-to: rgba(99, 102, 241, 0) var(--tw-gradient-to-position);
+    --tw-gradient-from: rgba(139, 94, 60, 0.15) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgba(139, 94, 60, 0) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
   }
 
   .dark .from-primary-50 {
-    --tw-gradient-from: rgba(99, 102, 241, 0.12) var(--tw-gradient-from-position);
-    --tw-gradient-to: rgba(99, 102, 241, 0) var(--tw-gradient-to-position);
+    --tw-gradient-from: rgba(139, 94, 60, 0.12) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgba(139, 94, 60, 0) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
   }
 
   .dark .to-primary-50 {
-    --tw-gradient-to: rgba(99, 102, 241, 0.12) var(--tw-gradient-to-position);
+    --tw-gradient-to: rgba(139, 94, 60, 0.12) var(--tw-gradient-to-position);
   }
   .dark .border-purple-200 { border-color: rgba(168, 85, 247, 0.35); }
 

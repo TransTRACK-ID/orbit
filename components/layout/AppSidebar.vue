@@ -15,7 +15,7 @@
         >
           <div
             class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #CF513D"
+            style="background: #8B5E3C"
           >
             <Icon name="lucide:bot" class="w-2.5 h-2.5" />
           </div>

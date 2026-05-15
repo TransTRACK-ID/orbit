@@ -42,7 +42,7 @@
           v-for="item in queue"
           :key="item.id"
           class="px-2.5 py-1.5 rounded text-[10px] bg-surface-50 border-l-[3px] cursor-pointer hover:shadow-sm transition-shadow"
-          :style="{ borderLeftColor: '#CF513D' }"
+          :style="{ borderLeftColor: '#8B5E3C' }"
           @click="openTaskDrawer(item)"
         >
           <div class="font-semibold truncate">{{ item.title }}</div>

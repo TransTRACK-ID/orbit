@@ -511,8 +511,11 @@
 
   .dark .bg-primary-50   { background-color: rgba(99, 102, 241, 0.12); }
   .dark .bg-primary-100  { background-color: rgba(99, 102, 241, 0.18); }
+  .dark .text-primary-400 { color: #818cf8; }
+  .dark .text-primary-500 { color: #a5b4fc; }
   .dark .text-primary-600 { color: #a5b4fc; }
   .dark .text-primary-700 { color: #c7d2fe; }
+  .dark .text-primary-800 { color: #e0e7ff; }
 
   .dark .bg-purple-100  { background-color: rgba(168, 85, 247, 0.18); }
   .dark .text-purple-700 { color: #d8b4fe; }
@@ -546,6 +549,23 @@
   .dark .border-primary-100 { border-color: rgba(99, 102, 241, 0.25); }
   .dark .border-primary-200 { border-color: rgba(99, 102, 241, 0.35); }
   .dark .border-purple-100 { border-color: rgba(168, 85, 247, 0.25); }
+
+  /* Primary gradient colors for dark mode */
+  .dark .from-primary-50\/50 {
+    --tw-gradient-from: rgba(99, 102, 241, 0.15) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgba(99, 102, 241, 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  .dark .from-primary-50 {
+    --tw-gradient-from: rgba(99, 102, 241, 0.12) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgba(99, 102, 241, 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  .dark .to-primary-50 {
+    --tw-gradient-to: rgba(99, 102, 241, 0.12) var(--tw-gradient-to-position);
+  }
   .dark .border-purple-200 { border-color: rgba(168, 85, 247, 0.35); }
 
   /* Placeholder color */

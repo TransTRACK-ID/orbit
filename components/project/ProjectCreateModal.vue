@@ -16,14 +16,14 @@
           <div class="flex items-center gap-2 mb-4">
             <button
               class="px-3 py-1.5 text-sm rounded-md transition-colors"
-              :class="mode === 'blank' ? 'bg-surface-900 text-white' : 'bg-surface-100 text-surface-600 hover:bg-surface-200'"
+              :class="mode === 'blank' ? 'bg-surface-900 text-white dark:bg-black' : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-200'"
               @click="mode = 'blank'; error = ''"
             >
               Blank Project
             </button>
             <button
               class="px-3 py-1.5 text-sm rounded-md transition-colors"
-              :class="mode === 'template' ? 'bg-surface-900 text-white' : 'bg-surface-100 text-surface-600 hover:bg-surface-200'"
+              :class="mode === 'template' ? 'bg-surface-900 text-white dark:bg-black' : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-200'"
               @click="mode = 'template'; error = ''"
             >
               From Template

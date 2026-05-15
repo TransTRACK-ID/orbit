@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-50 flex">
-    <div class="absolute inset-0 bg-surface-900/20 backdrop-blur-sm" @click="$emit('close')" />
+    <div class="absolute inset-0 bg-black/20 backdrop-blur-sm dark:bg-black/40" @click="$emit('close')" />
 
     <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[100vw] sm:max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
       <!-- Agent runtime indicator — floating top-right, only when CLI is actively processing -->
@@ -2257,6 +2257,10 @@ function formatActivity(log: ActivityLog) {
   padding: 1px 4px;
   border-radius: 3px;
 }
+.dark .comment-body :deep(code) {
+  background: #334155;
+  color: #e2e8f0;
+}
 
 .comment-body :deep(pre) {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
@@ -2270,11 +2274,18 @@ function formatActivity(log: ActivityLog) {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.dark .comment-body :deep(pre) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
 
 .comment-body :deep(pre code) {
   background: none;
   padding: 0;
   font-size: inherit;
+}
+.dark .comment-body :deep(pre code) {
+  color: inherit;
 }
 
 .comment-body :deep(ul),

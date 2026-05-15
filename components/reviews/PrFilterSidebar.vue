@@ -20,7 +20,7 @@
             v-model="search"
             type="text"
             placeholder="PR or task title..."
-            class="w-full text-xs rounded-lg border border-surface-200 pl-7 pr-2 py-1.5 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+            class="w-full text-xs rounded-lg border border-surface-200 bg-surface-50 pl-7 pr-2 py-1.5 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
           />
         </div>
       </div>

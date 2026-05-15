@@ -28,12 +28,12 @@
       @input="onInput"
       :rows="rows"
       placeholder="Add a description...&#10;&#10;Supports **markdown** formatting"
-      class="py-2.5 px-3.5 block w-full border border-surface-200 text-surface-900 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-y min-h-[80px] outline-none transition-colors placeholder:text-surface-400"
+      class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white text-surface-900 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-y min-h-[80px] outline-none transition-colors placeholder:text-surface-400"
     />
 
     <div
       v-else
-      class="py-2.5 px-3.5 block w-full border border-surface-200 rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
+      class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
       v-html="rendered"
     />
   </div>
@@ -90,6 +90,12 @@ function onInput(e: Event) {
   margin-bottom: 0.25em;
   color: #1e293b;
 }
+.dark .prose :deep(h1),
+.dark .prose :deep(h2),
+.dark .prose :deep(h3),
+.dark .prose :deep(h4) {
+  color: #f1f5f9;
+}
 .prose :deep(p) {
   margin-top: 0.25em;
   margin-bottom: 0.25em;
@@ -110,6 +116,10 @@ function onInput(e: Event) {
   border-radius: 4px;
   font-size: 0.875em;
 }
+.dark .prose :deep(code) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
 .prose :deep(pre) {
   background: #0f172a;
   color: #e2e8f0;
@@ -119,9 +129,16 @@ function onInput(e: Event) {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
+.dark .prose :deep(pre) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
 .prose :deep(pre code) {
   background: none;
   padding: 0;
+  color: inherit;
+}
+.dark .prose :deep(pre code) {
   color: inherit;
 }
 .prose :deep(blockquote) {
@@ -130,9 +147,16 @@ function onInput(e: Event) {
   margin: 0.5em 0;
   color: #64748b;
 }
+.dark .prose :deep(blockquote) {
+  border-left-color: #334155;
+  color: #94a3b8;
+}
 .prose :deep(a) {
   color: #6366f1;
   text-decoration: underline;
+}
+.dark .prose :deep(a) {
+  color: #a5b4fc;
 }
 .prose :deep(img) {
   max-width: 100%;
@@ -142,6 +166,9 @@ function onInput(e: Event) {
 .prose :deep(hr) {
   margin: 0.75em 0;
   border-color: #e2e8f0;
+}
+.dark .prose :deep(hr) {
+  border-color: #334155;
 }
 .prose :deep(table) {
   width: 100%;
@@ -155,8 +182,15 @@ function onInput(e: Event) {
   text-align: left;
   font-size: 0.875em;
 }
+.dark .prose :deep(th),
+.dark .prose :deep(td) {
+  border-color: #334155;
+}
 .prose :deep(th) {
   background: #f8fafc;
   font-weight: 600;
+}
+.dark .prose :deep(th) {
+  background: #0f172a;
 }
 </style>

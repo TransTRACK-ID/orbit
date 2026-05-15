@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   presets: [require('@transtrack/ui/tailwind-preset')],
   content: [
     './app.vue',
@@ -15,17 +16,17 @@ export default {
       },
       colors: {
         surface: {
-          50: '#F6F6F7',
-          100: '#f1f5f9',
-          200: '#E5E5EA',
-          300: '#cbd5e1',
-          400: '#8E8E93',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#1C1C1E',
-          950: '#020617',
+          50: 'var(--surface-50)',
+          100: 'var(--surface-100)',
+          200: 'var(--surface-200)',
+          300: 'var(--surface-300)',
+          400: 'var(--surface-400)',
+          500: 'var(--surface-500)',
+          600: 'var(--surface-600)',
+          700: 'var(--surface-700)',
+          800: 'var(--surface-800)',
+          900: 'var(--surface-900)',
+          950: 'var(--surface-950)',
         },
         accent: {
           DEFAULT: '#CF513D',

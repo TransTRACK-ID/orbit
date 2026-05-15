@@ -6,6 +6,7 @@
     </div>
     <div class="flex items-center gap-1.5 ml-auto">
       <button
+        data-tooltip-target="new-task"
         class="px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
         @click="$emit('createTask')"
       >

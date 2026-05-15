@@ -90,16 +90,102 @@
         </div>
 
         <!-- Step 3: All set -->
-        <div v-else-if="step === 3" class="text-center">
-          <div class="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
-            <Icon name="lucide:check" class="w-6 h-6 text-accent" />
+        <div v-if="step === 3" class="text-center max-w-md mx-auto">
+          <!-- Success Icon -->
+          <div
+            class="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4"
+          >
+            <Icon name="lucide:check" class="w-7 h-7 text-accent" />
           </div>
-          <h2 class="text-sm font-semibold text-surface-900 mb-1">Your workspace is ready</h2>
-          <p class="text-[11px] text-surface-500 mb-6">You're all set to start organizing your work.</p>
 
-          <Button class="w-full" @click="goToBoard">
-            Go to your board
-          </Button>
+          <!-- Headline -->
+          <h2 class="text-lg font-semibold text-surface-900 mb-2">
+            {{ agentCreated ? 'Agent ready!' : 'Your workspace is ready' }}
+          </h2>
+
+          <!-- Subtitle -->
+          <p class="text-sm text-surface-500 mb-6 max-w-xs mx-auto">
+            {{
+              agentCreated
+                ? `${selectedTemplate?.name} is set up and ready to help. You can always add more agents later from the Agents page.`
+                : 'Want to supercharge your workflow? Add an AI agent now, or do it later from your Agents page.'
+            }}
+          </p>
+
+          <!-- Error Banner -->
+          <div
+            v-if="agentError"
+            class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-left"
+          >
+            <p class="text-xs text-red-700">{{ agentError }}</p>
+          </div>
+
+          <!-- Template Selector (only shown if not yet created) -->
+          <template v-if="!agentCreated">
+            <div class="grid grid-cols-3 gap-3 mb-6">
+              <button
+                v-for="template in agentTemplates"
+                :key="template.key"
+                :disabled="creatingAgent"
+                :class="[
+                  'p-3 rounded-xl border transition-all text-left relative overflow-hidden',
+                  selectedTemplate?.key === template.key && !agentError
+                    ? 'border-accent bg-accent/5 ring-1 ring-accent'
+                    : 'border-surface-200 hover:border-accent/50 hover:bg-surface-50',
+                  creatingAgent && selectedTemplate?.key !== template.key ? 'opacity-50' : '',
+                ]"
+                @click="createAgentFromTemplate(template)"
+              >
+                <!-- Avatar -->
+                <div
+                  class="w-10 h-10 rounded-full mb-2 flex items-center justify-center text-white text-xs font-bold"
+                  :style="{ background: template.color }"
+                >
+                  {{ template.name.charAt(0) }}
+                </div>
+                <div class="text-xs font-semibold text-surface-900">
+                  {{ template.name }}
+                </div>
+                <div class="text-[10px] text-surface-500">
+                  {{ template.role }}
+                </div>
+
+                <!-- Loading overlay for the clicked template -->
+                <div
+                  v-if="creatingAgent && selectedTemplate?.key === template.key"
+                  class="absolute inset-0 bg-white/80 flex items-center justify-center"
+                >
+                  <Icon
+                    name="lucide:loader-2"
+                    class="w-5 h-5 text-accent animate-spin"
+                  />
+                </div>
+              </button>
+            </div>
+          </template>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-col gap-2">
+            <button
+              v-if="!agentCreated"
+              class="w-full px-3 py-2 rounded-lg border border-surface-200 text-sm font-semibold text-surface-700 hover:bg-surface-50 transition-colors"
+              @click="goToBoard"
+            >
+              Skip for now
+            </button>
+
+            <button
+              class="w-full px-3 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="creatingAgent"
+              @click="goToBoard"
+            >
+              {{
+                agentCreated
+                  ? 'Go to your board'
+                  : 'Continue without agent'
+              }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -114,6 +200,7 @@ definePageMeta({
 const { createWorkspace } = useWorkspace()
 const { createProject, fetchProjectDetail, projectStatuses } = useProject()
 const { completeOnboarding } = useOnboarding()
+const { createAgent } = useAgent()
 
 const step = ref<1 | 2 | 3>(1)
 const workspaceName = ref('')
@@ -126,6 +213,42 @@ const step2Error = ref('')
 
 const createdWorkspace = ref<any>(null)
 const createdProject = ref<any>(null)
+
+// --- Agent Power-Up Data ---
+const agentTemplates = [
+  {
+    key: 'raihan',
+    name: 'Raihan',
+    role: 'Software Engineer',
+    runtime: 'opencode',
+    purpose: 'Full-stack development, code review, debugging, and implementing feature requests across the codebase.',
+    color: '#6366F1',
+    status: 'idle',
+  },
+  {
+    key: 'ayu',
+    name: 'Ayu',
+    role: 'Technical Writer',
+    runtime: 'opencode',
+    purpose: 'Documentation, API guides, README improvements, and technical blog posts.',
+    color: '#EC4899',
+    status: 'idle',
+  },
+  {
+    key: 'martin',
+    name: 'Martin',
+    role: 'QA Engineer',
+    runtime: 'opencode',
+    purpose: 'Testing, bug triage, writing test cases, and validating fixes across projects.',
+    color: '#10B981',
+    status: 'idle',
+  },
+]
+
+const selectedTemplate = ref<typeof agentTemplates[0] | null>(null)
+const creatingAgent = ref(false)
+const agentCreated = ref(false)
+const agentError = ref<string | null>(null)
 
 function generateSlug(name: string) {
   return name
@@ -216,7 +339,39 @@ async function handleCreateProject() {
   }
 }
 
+async function createAgentFromTemplate(template: typeof agentTemplates[0]) {
+  selectedTemplate.value = template
+  creatingAgent.value = true
+  agentError.value = null
+
+  try {
+    await createAgent({
+      name: template.name,
+      role: template.role,
+      runtime: template.runtime,
+      purpose: template.purpose,
+      status: template.status as any,
+      color: template.color,
+    })
+
+    agentCreated.value = true
+    // Signal that we should show the tooltip on the next board visit
+    sessionStorage.setItem('orbit_show_agent_tooltip', 'true')
+  } catch (err: any) {
+    console.error('Failed to create agent:', err)
+    agentError.value = err?.message || 'Failed to create agent. You can set this up later.'
+    selectedTemplate.value = null
+  } finally {
+    creatingAgent.value = false
+  }
+}
+
 function goToBoard() {
+  // If they skipped agent creation, don't show the tooltip later
+  if (!agentCreated.value) {
+    sessionStorage.removeItem('orbit_show_agent_tooltip')
+  }
+
   if (createdWorkspace.value && createdProject.value) {
     navigateTo(`/workspaces/${createdWorkspace.value.slug}/projects/${createdProject.value.id}/board`)
   } else {

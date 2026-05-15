@@ -30,23 +30,40 @@
       <div v-else class="flex gap-4 h-[calc(100vh-180px)] min-h-[400px]">
         <!-- Sidebar: brainstorm list -->
         <div class="w-64 flex-shrink-0 flex flex-col gap-2">
-          <div v-if="brainstorms.length === 0" class="text-center py-8 text-surface-400">
+          <div class="flex items-center justify-between px-1 mb-1">
+            <span class="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Sessions</span>
+            <button
+              class="text-[10px] text-surface-400 hover:text-surface-600 transition-colors"
+              @click="showArchived = !showArchived"
+            >
+              {{ showArchived ? 'Hide archived' : 'Show archived' }}
+            </button>
+          </div>
+
+          <div v-if="visibleBrainstorms.length === 0" class="text-center py-8 text-surface-400">
             <Icon name="lucide:lightbulb" class="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p class="text-xs">No brainstorms yet</p>
+            <p class="text-xs">{{ showArchived ? 'No archived brainstorms' : 'No brainstorms yet' }}</p>
           </div>
 
           <div
-            v-for="bs in brainstorms"
+            v-for="bs in visibleBrainstorms"
             :key="bs.id"
-            class="group p-3 rounded-xl border cursor-pointer transition-all duration-150"
+            class="group p-3 rounded-xl border cursor-pointer transition-all duration-150 relative"
             :class="selectedBrainstormId === bs.id
               ? 'border-primary-300 bg-primary-50 shadow-sm'
               : 'border-surface-200 bg-white hover:border-surface-300 hover:shadow-sm'"
             @click="selectBrainstorm(bs.id)"
           >
             <div class="flex items-center gap-2 mb-1">
-              <Icon name="lucide:lightbulb" class="w-3.5 h-3.5 text-primary-500 flex-shrink-0" />
-              <span class="text-xs font-semibold text-surface-900 truncate flex-1">{{ bs.title }}</span>
+              <Icon name="lucide:lightbulb" class="w-3.5 h-3.5 text-primary-500 flex-shrink-0" :class="bs.archived ? 'opacity-40' : ''" />
+              <span class="text-xs font-semibold truncate flex-1" :class="bs.archived ? 'text-surface-400 line-through' : 'text-surface-900'">{{ bs.title }}</span>
+              <button
+                class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-100 text-surface-400 hover:text-surface-600"
+                :title="bs.archived ? 'Unarchive' : 'Archive'"
+                @click.stop="toggleArchive(bs)"
+              >
+                <Icon :name="bs.archived ? 'lucide:archive-restore' : 'lucide:archive'" class="w-3 h-3" />
+              </button>
             </div>
             <p v-if="bs.repository" class="text-[10px] text-surface-400 truncate ml-5">
               {{ bs.repository.name }}
@@ -138,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Workspace } from '~/types'
+import type { Brainstorm, Workspace } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -169,6 +186,7 @@ const {
   clearChatReply,
   getChatStep,
   clearChatStep,
+  archiveBrainstorm,
   convertToTask,
 } = useBrainstorm()
 
@@ -176,10 +194,18 @@ const workspace = ref<Workspace | null | undefined>(null)
 const workspaceProjects = ref<Array<{ id: string; name: string }>>([])
 const selectedBrainstormId = ref<string | null>(null)
 const showCreate = ref(false)
+const showArchived = ref(false)
 const createTitle = ref('')
 const createRepoId = ref('')
 const creating = ref(false)
 const createError = ref('')
+
+const visibleBrainstorms = computed(() => {
+  if (showArchived.value) {
+    return brainstorms.value.filter((b) => b.archived)
+  }
+  return brainstorms.value.filter((b) => !b.archived)
+})
 
 const chatRunningState = ref(false)
 let chatCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -257,6 +283,18 @@ function startChatCheck() {
     }
     chatRunningState.value = running
   }, 500)
+}
+
+async function toggleArchive(bs: Brainstorm) {
+  try {
+    const updated = await archiveBrainstorm(bs.id, !bs.archived)
+    if (updated.archived && currentBrainstorm.value?.id === bs.id) {
+      currentBrainstorm.value = null
+      selectedBrainstormId.value = null
+    }
+  } catch (err: any) {
+    toastError(err?.data?.message || 'Failed to archive brainstorm', 'Error')
+  }
 }
 
 async function handleCreate() {

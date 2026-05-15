@@ -296,6 +296,7 @@ export interface Brainstorm {
   workspaceId: string
   repositoryId: string | null
   title: string
+  archived: boolean
   createdAt: string
   updatedAt: string
   repository?: Repository | null

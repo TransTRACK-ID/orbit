@@ -195,6 +195,21 @@ export const useBrainstorm = () => {
     chatSteps.value = { ...chatSteps.value, [brainstormId]: '' }
   }
 
+  async function archiveBrainstorm(brainstormId: string, archived: boolean) {
+    const updated = await $fetch<Brainstorm>(`/api/brainstorms/${brainstormId}`, {
+      method: 'PATCH',
+      body: { archived },
+    })
+    const idx = brainstorms.value.findIndex((b) => b.id === brainstormId)
+    if (idx !== -1) {
+      brainstorms.value[idx] = updated
+    }
+    if (currentBrainstorm.value?.id === brainstormId) {
+      currentBrainstorm.value = updated
+    }
+    return updated
+  }
+
   async function convertToTask(brainstormId: string, messageId: string, projectId: string) {
     try {
       const task = await $fetch<Task>(`/api/brainstorms/${brainstormId}/tasks`, {
@@ -230,6 +245,7 @@ export const useBrainstorm = () => {
     clearChatReply,
     getChatStep,
     clearChatStep,
+    archiveBrainstorm,
     convertToTask,
   }
 }

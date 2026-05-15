@@ -20,7 +20,7 @@
               v-model="email"
               type="email"
               placeholder="you@example.com"
-              :error="errors.email"
+              :error-message="errors.email"
               required
             />
           </div>
@@ -31,7 +31,7 @@
               v-model="password"
               type="password"
               placeholder="Enter your password"
-              :error="errors.password"
+              :error-message="errors.password"
               required
             />
           </div>

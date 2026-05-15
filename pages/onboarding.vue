@@ -41,7 +41,7 @@
                 v-model="workspaceName"
                 type="text"
                 placeholder="Acme Inc or Personal"
-                :error="step1Error"
+                :error-message="step1Error"
                 @input="step1Error = ''"
               />
               <p class="text-[11px] text-surface-500 mt-1.5">
@@ -67,7 +67,7 @@
                 v-model="projectName"
                 type="text"
                 placeholder="Website Redesign"
-                :error="step2Error"
+                :error-message="step2Error"
                 @input="step2Error = ''"
               />
             </div>

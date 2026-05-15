@@ -20,7 +20,7 @@
               v-model="name"
               type="text"
               placeholder="John Doe"
-              :error="errors.name"
+              :error-message="errors.name"
               required
             />
           </div>
@@ -31,7 +31,7 @@
               v-model="email"
               type="email"
               placeholder="you@example.com"
-              :error="errors.email"
+              :error-message="errors.email"
               required
             />
           </div>
@@ -42,7 +42,7 @@
               v-model="password"
               type="password"
               placeholder="At least 6 characters"
-              :error="errors.password"
+              :error-message="errors.password"
               required
             />
           </div>

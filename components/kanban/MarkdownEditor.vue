@@ -28,12 +28,12 @@
       @input="onInput"
       :rows="rows"
       placeholder="Add a description...&#10;&#10;Supports **markdown** formatting"
-      class="py-2.5 px-3.5 block w-full border border-surface-200 text-surface-900 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-y min-h-[80px] outline-none transition-colors placeholder:text-surface-400"
+      class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white text-surface-900 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-y min-h-[80px] outline-none transition-colors placeholder:text-surface-400"
     />
 
     <div
       v-else
-      class="py-2.5 px-3.5 block w-full border border-surface-200 rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
+      class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
       v-html="rendered"
     />
   </div>

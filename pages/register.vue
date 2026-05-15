@@ -123,7 +123,7 @@ async function handleRegister() {
     if (result?.error) {
       authError.value = 'Account created but sign in failed. Please try logging in.'
     } else {
-      await navigateTo('/workspaces')
+      await navigateTo('/onboarding')
     }
   } catch (err: any) {
     if (err?.data?.message) {

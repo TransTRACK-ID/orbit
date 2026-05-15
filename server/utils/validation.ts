@@ -107,7 +107,7 @@ export const createTaskSchema = z.object({
   observerId: z.string().uuid().nullable().optional(),
   description: z.string().nullable().optional(),
   priority: z.enum(['none', 'urgent', 'high', 'medium', 'low']).optional(),
-  repositoryId: z.string().uuid('Repository is required'),
+  repositoryId: z.string().uuid().optional().nullable(),
   parentTaskId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),

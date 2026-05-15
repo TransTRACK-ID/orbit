@@ -429,7 +429,7 @@ function parseMarkdown(md: string): string {
   @apply bg-surface-100 text-primary-700 px-1 py-0.5 rounded text-[11px] font-mono;
 }
 .brainstorm-markdown :deep(blockquote) {
-  @apply border-l-2 border-primary-300 pl-3 py-1 my-2 bg-primary-50/50 rounded-r text-surface-600 italic;
+  @apply border-l-2 border-primary-300 pl-3 py-1 my-2 bg-primary-100 rounded-r text-surface-600 italic;
 }
 .brainstorm-markdown :deep(hr) {
   @apply border-surface-200 my-3;
@@ -456,7 +456,7 @@ function parseMarkdown(md: string): string {
   @apply px-2 py-1.5 text-surface-800 border border-surface-200;
 }
 .brainstorm-markdown :deep(tr:nth-child(even)) {
-  @apply bg-surface-50/50;
+  background-color: var(--surface-100);
 }
 .brainstorm-markdown :deep(del) {
   @apply line-through text-surface-400;

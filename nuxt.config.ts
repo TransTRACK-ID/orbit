@@ -13,6 +13,18 @@ export default defineNuxtConfig({
   app: {
     head: {
       viewport: 'width=device-width, initial-scale=1',
+      script: [
+        {
+          innerHTML: `
+            (function() {
+              const stored = localStorage.getItem('dark-mode');
+              if (stored === 'true' || (stored === null && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+              }
+            })();
+          `,
+        },
+      ],
     },
   },
 

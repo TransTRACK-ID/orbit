@@ -114,7 +114,7 @@
 
             <!-- Sign out -->
             <button
-              class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-error-600 hover:bg-error-50/50 transition-colors"
+              class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-error-600 hover:bg-error-100 transition-colors"
               @click="handleSignOut"
             >
               <Icon name="lucide:log-out" class="w-3.5 h-3.5" />

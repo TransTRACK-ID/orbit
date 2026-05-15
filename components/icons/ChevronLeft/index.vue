@@ -22,7 +22,7 @@ const props = defineProps({
   >
     <path
       d="M15 18L9 12L15 6"
-      stroke="#101828"
+      stroke="currentColor"
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"

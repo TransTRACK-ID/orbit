@@ -90,6 +90,12 @@ function onInput(e: Event) {
   margin-bottom: 0.25em;
   color: #1e293b;
 }
+.dark .prose :deep(h1),
+.dark .prose :deep(h2),
+.dark .prose :deep(h3),
+.dark .prose :deep(h4) {
+  color: #f1f5f9;
+}
 .prose :deep(p) {
   margin-top: 0.25em;
   margin-bottom: 0.25em;
@@ -109,6 +115,10 @@ function onInput(e: Event) {
   padding: 0.125em 0.375em;
   border-radius: 4px;
   font-size: 0.875em;
+}
+.dark .prose :deep(code) {
+  background: #1e293b;
+  color: #e2e8f0;
 }
 .prose :deep(pre) {
   background: #0f172a;
@@ -130,9 +140,16 @@ function onInput(e: Event) {
   margin: 0.5em 0;
   color: #64748b;
 }
+.dark .prose :deep(blockquote) {
+  border-left-color: #334155;
+  color: #94a3b8;
+}
 .prose :deep(a) {
   color: #6366f1;
   text-decoration: underline;
+}
+.dark .prose :deep(a) {
+  color: #a5b4fc;
 }
 .prose :deep(img) {
   max-width: 100%;
@@ -142,6 +159,9 @@ function onInput(e: Event) {
 .prose :deep(hr) {
   margin: 0.75em 0;
   border-color: #e2e8f0;
+}
+.dark .prose :deep(hr) {
+  border-color: #334155;
 }
 .prose :deep(table) {
   width: 100%;
@@ -155,8 +175,15 @@ function onInput(e: Event) {
   text-align: left;
   font-size: 0.875em;
 }
+.dark .prose :deep(th),
+.dark .prose :deep(td) {
+  border-color: #334155;
+}
 .prose :deep(th) {
   background: #f8fafc;
   font-weight: 600;
+}
+.dark .prose :deep(th) {
+  background: #0f172a;
 }
 </style>

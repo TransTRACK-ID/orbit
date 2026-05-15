@@ -5,7 +5,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { getDiffSummary } from '~/server/utils/git-summary'
-import { generateConventionalCommit } from '~/server/utils/conventional-commit'
+import { generateConventionalCommit, toHumanReadableTitle } from '~/server/utils/conventional-commit'
 import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 
@@ -436,7 +436,10 @@ export default defineEventHandler(async (event) => {
 
     // Always write body file (even if empty) so CLI always has a body source
     writeFileSync('/tmp/pr-body.md', prBody || '', 'utf-8')
-    
+
+    // Convert PR title to human-readable format (strip conventional commit prefixes, task- prefix, etc.)
+    prTitle = toHumanReadableTitle(prTitle)
+
     let prUrl = ''
     let lastError = ''
     const safeTitle = (prTitle || 'Task update').trim()

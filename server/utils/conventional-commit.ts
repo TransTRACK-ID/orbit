@@ -118,6 +118,36 @@ export function parseDiffLines(diffContent: string): {
   return { addedLines, removedLines }
 }
 
+/**
+ * Convert a conventional commit or branch-style string into a human-readable PR title.
+ * Strips conventional commit prefixes (e.g. `feat:`, `fix(scope):`),
+ * removes `task-` prefixes, replaces dashes with spaces, and capitalizes the first letter.
+ */
+export function toHumanReadableTitle(title: string): string {
+  if (!title) return ''
+
+  let clean = title.trim()
+
+  // Strip conventional commit prefix: type(scope): or type:
+  clean = clean.replace(/^[a-z]+(?:\([^)]+\))?:\s*/i, '')
+
+  // Remove task- prefix (common in branch names)
+  clean = clean.replace(/^task-/i, '')
+
+  // If it looks like a branch name (lowercase with dashes, no spaces), convert dashes to spaces
+  if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(clean) && !clean.includes(' ')) {
+    clean = clean.replace(/-/g, ' ')
+  }
+
+  // Capitalize first letter
+  clean = clean.charAt(0).toUpperCase() + clean.slice(1)
+
+  // Clean up multiple spaces
+  clean = clean.replace(/\s+/g, ' ').trim()
+
+  return clean
+}
+
 /** Generate a Conventional Commits message from diff content and changed files */
 export function generateConventionalCommit(
   diffContent: string,

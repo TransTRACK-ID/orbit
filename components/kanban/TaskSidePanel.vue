@@ -421,21 +421,23 @@
             </label>
 
             <!-- Comment input -->
-            <div class="flex gap-2 mb-4">
+            <div class="flex gap-2 mb-4 items-end">
               <div class="flex-1 relative">
-                <!-- Custom input with @mention support -->
+                <!-- Custom textarea with @mention support -->
                 <div
-                  class="w-full rounded-lg overflow-hidden stroke-gray-500 border-2 flex h-10"
+                  class="w-full rounded-lg overflow-hidden stroke-gray-500 border-2 flex min-h-10"
                   :class="isSendingToAgent ? 'bg-gray-100 cursor-not-allowed' : 'bg-white border-gray-200'"
                 >
-                  <input
+                  <textarea
                     ref="commentInputRef"
                     v-model="newComment"
-                    type="text"
+                    rows="1"
                     :placeholder="isAgentInProgress ? 'Message the agent...' : 'Write a comment... (type @ to mention someone)'"
-                    class="block px-2.5 w-full h-full border-none text-gray-900 bg-transparent focus:ring-0 outline-none"
+                    class="block px-2.5 w-full border-none text-gray-900 bg-transparent focus:ring-0 outline-none resize-none py-2"
                     :disabled="isSendingToAgent"
-                    @keydown.enter.prevent="mentionActive ? selectMention(mentionOptions[mentionSelectedIndex]) : handleAddComment()"
+                    @keydown.enter="handleCommentEnter"
+                    @keydown.ctrl.enter.prevent="!mentionActive ? handleAddComment() : null"
+                    @keydown.meta.enter.prevent="!mentionActive ? handleAddComment() : null"
                     @keydown.escape="mentionActive = false"
                     @keydown.down.prevent="mentionNavigate(1)"
                     @keydown.up.prevent="mentionNavigate(-1)"
@@ -446,7 +448,7 @@
                 <!-- AGENT badge -->
                 <span
                   v-if="isAgentInProgress && newComment.length > 0"
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-semibold text-primary-400 pointer-events-none"
+                  class="absolute right-2.5 top-2.5 text-[9px] font-semibold text-primary-400 pointer-events-none"
                 >
                   AGENT
                 </span>
@@ -970,8 +972,16 @@ const isChatMessage = ref(false)
 
 // ─── @mention autocomplete ───
 
-/** Reference to the raw comment input element for cursor manipulation */
-const commentInputRef = ref<HTMLInputElement | null>(null)
+/** Reference to the raw comment textarea element for cursor manipulation */
+const commentInputRef = ref<HTMLTextAreaElement | null>(null)
+
+/** Auto-resize the comment textarea based on its content */
+function autoResizeCommentTextarea() {
+  const el = commentInputRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+}
 
 /** Whether the @mention dropdown is currently shown */
 const mentionActive = ref(false)
@@ -1017,13 +1027,16 @@ const mentionOptions = computed(() => {
 })
 
 /**
- * Called on every keystroke in the comment input. Detects "@" followed by a
+ * Called on every keystroke in the comment textarea. Detects "@" followed by a
  * query string (no spaces) and activates the mention dropdown.
  */
 function handleMentionInput(e: Event) {
-  const input = e.target as HTMLInputElement
-  const val = input.value
-  const cursorPos = input.selectionStart || 0
+  const textarea = e.target as HTMLTextAreaElement
+  const val = textarea.value
+  const cursorPos = textarea.selectionStart || 0
+
+  // Auto-resize textarea as content changes
+  autoResizeCommentTextarea()
 
   // Find the last "@" before the cursor position
   const textBeforeCursor = val.slice(0, cursorPos)
@@ -1047,6 +1060,15 @@ function handleMentionInput(e: Event) {
   mentionActive.value = false
 }
 
+/** Handle Enter key in the comment textarea */
+function handleCommentEnter(e: KeyboardEvent) {
+  if (mentionActive.value) {
+    e.preventDefault()
+    selectMention(mentionOptions.value[mentionSelectedIndex.value])
+  }
+  // Otherwise allow default newline behaviour
+}
+
 /** Navigate the dropdown with arrow keys */
 function mentionNavigate(dir: number) {
   const len = mentionOptions.value.length
@@ -1056,11 +1078,11 @@ function mentionNavigate(dir: number) {
 
 /** Insert the selected mention into the comment text */
 function selectMention(option: { name: string }) {
-  const input = commentInputRef.value
-  if (!input) return
+  const textarea = commentInputRef.value
+  if (!textarea) return
 
-  const val = input.value
-  const cursorPos = input.selectionStart || 0
+  const val = textarea.value
+  const cursorPos = textarea.selectionStart || 0
   const textBeforeCursor = val.slice(0, cursorPos)
   const atIndex = textBeforeCursor.lastIndexOf('@')
 
@@ -1079,11 +1101,12 @@ function selectMention(option: { name: string }) {
   newComment.value = newVal
   mentionActive.value = false
 
-  // Restore focus & place cursor right after the inserted name
+  // Restore focus, place cursor right after the inserted name, and resize
   nextTick(() => {
-    input.focus()
+    textarea.focus()
     const newPos = atIndex + option.name.length + 2
-    input.setSelectionRange(newPos, newPos)
+    textarea.setSelectionRange(newPos, newPos)
+    autoResizeCommentTextarea()
   })
 }
 
@@ -1946,6 +1969,13 @@ async function handleAddComment() {
   if (!newComment.value || !task.value) return
   const commentBody = newComment.value
   newComment.value = ''
+
+  // Reset textarea height after clearing
+  nextTick(() => {
+    if (commentInputRef.value) {
+      commentInputRef.value.style.height = 'auto'
+    }
+  })
 
   // Save the comment to the database
   await addComment(task.value.id, commentBody)

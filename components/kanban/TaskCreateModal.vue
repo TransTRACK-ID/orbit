@@ -11,7 +11,7 @@
 
         <form @submit.prevent="handleCreate" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Title *</label>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Title <span class="text-error-500">*</span></label>
             <TextInput
               ref="titleInput"
               v-model="form.title"
@@ -21,7 +21,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Status</label>
+            <label class="block text-sm font-medium text-surface-700 mb-1.5">Status <span class="text-error-500">*</span></label>
             <select
               v-model="form.statusId"
               class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"

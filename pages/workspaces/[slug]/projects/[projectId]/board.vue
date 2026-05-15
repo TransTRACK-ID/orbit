@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col">
+  <div class="h-full flex flex-col relative">
     <UiLoadingState v-if="loading" text="Loading board..." />
 
     <template v-else-if="project">
@@ -10,6 +10,15 @@
         :workspace-slug="route.params.slug as string"
         :dismissed-prompts="workspace?.membership?.dismissedPrompts"
         class="mx-4 mt-4"
+      />
+
+      <!-- Agent Ready Tooltip -->
+      <AgentReadyTooltip
+        v-if="showAgentTooltip && tooltipAgent"
+        :target-ref="newTaskButtonRef"
+        :agent-name="tooltipAgent.name"
+        :agent-color="tooltipAgent.color"
+        @dismiss="showAgentTooltip = false"
       />
 
       <KanbanBoard
@@ -57,6 +66,7 @@
 import type { Task, Status, Label, ProjectMember, Workspace } from '~/types'
 import type { Agent } from '~/types'
 import { flashHighlight } from '~/composables/useKanban'
+import AgentReadyTooltip from '~/components/onboarding/AgentReadyTooltip.vue'
 
 definePageMeta({
   layout: 'default',
@@ -78,6 +88,12 @@ const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
+
+// --- Agent Tooltip State ---
+const newTaskButtonRef = ref<HTMLElement | null>(null)
+const showAgentTooltip = ref(false)
+const tooltipAgent = ref<{ name: string; color: string } | null>(null)
+
 const { addLog, persistLog } = useLog()
 const { startRuntime } = useAgentRuntime()
 
@@ -95,6 +111,26 @@ onMounted(async () => {
   if (data.workspaceId) {
     fetchRepositories(data.workspaceId)
   }
+
+  await nextTick()
+
+  const shouldShowFromOnboarding = sessionStorage.getItem('orbit_show_agent_tooltip') === 'true'
+  const permanentlyDismissed = localStorage.getItem('orbit_agent_ready_tooltip_dismissed')
+  const hasAgents = agents.value && agents.value.length > 0
+  const hasTasks = tasks.value && tasks.value.length > 0
+
+  if (shouldShowFromOnboarding && hasAgents && hasTasks && !permanentlyDismissed) {
+    tooltipAgent.value = {
+      name: agents.value[0].name,
+      color: agents.value[0].color || '#6366F1',
+    }
+    showAgentTooltip.value = true
+    // Consume the one-time flag so it doesn't appear on other projects/boards
+    sessionStorage.removeItem('orbit_show_agent_tooltip')
+  }
+
+  // Find the New Task button for tooltip positioning
+  newTaskButtonRef.value = document.querySelector('[data-tooltip-target="new-task"]') as HTMLElement | null
 })
 
 function handleCreateTask() {

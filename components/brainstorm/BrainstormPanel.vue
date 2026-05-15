@@ -208,7 +208,7 @@
       </div>
 
       <div class="p-3">
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-end">
           <div class="flex-1 relative">
              <textarea
                ref="textareaRef"
@@ -223,7 +223,7 @@
           </div>
           <button
             :disabled="!newMessage.trim() || isSending"
-            class="px-3 py-2.5 rounded-lg bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+            class="px-3 py-2.5 rounded-lg bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 h-10 flex-shrink-0"
             @click="handleSend"
           >
             <Icon name="lucide:send" class="w-3.5 h-3.5" />

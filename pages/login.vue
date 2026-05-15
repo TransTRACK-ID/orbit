@@ -102,7 +102,8 @@ async function handleLogin() {
       authError.value = 'Invalid email or password'
     } else {
       await getSession({ force: true })
-      const { needsOnboarding } = useOnboarding()
+      const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
+      await ensureWorkspacesLoaded()
       if (needsOnboarding.value) {
         await navigateTo('/onboarding')
       } else {

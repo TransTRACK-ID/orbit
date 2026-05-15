@@ -3,6 +3,15 @@
     <UiLoadingState v-if="loading" text="Loading board..." />
 
     <template v-else-if="project">
+      <!-- Repository promo -->
+      <RepositoryPromoBanner
+        v-if="repositories.length === 0"
+        :workspace-id="project.workspaceId"
+        :workspace-slug="route.params.slug as string"
+        :dismissed-prompts="workspace?.membership?.dismissedPrompts"
+        class="mx-4 mt-4"
+      />
+
       <KanbanBoard
         :statuses="statuses"
         :tasks="tasks"
@@ -45,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, ProjectMember } from '~/types'
+import type { Task, Status, Label, ProjectMember, Workspace } from '~/types'
 import type { Agent } from '~/types'
 import { flashHighlight } from '~/composables/useKanban'
 
@@ -61,8 +70,10 @@ const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = use
 const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
 const { repositories, fetchRepositories } = useRepository()
+const { getWorkspaceBySlug } = useWorkspace()
 
 const project = ref<any>(null)
+const workspace = ref<Workspace | null>(null)
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
@@ -71,6 +82,7 @@ const { addLog, persistLog } = useLog()
 const { startRuntime } = useAgentRuntime()
 
 onMounted(async () => {
+  workspace.value = await getWorkspaceBySlug(route.params.slug as string)
   const data = await fetchProjectDetail(projectId.value)
   project.value = data
   statuses.value = data.statuses || []

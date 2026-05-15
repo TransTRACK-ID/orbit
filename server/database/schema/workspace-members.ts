@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, timestamp, jsonb } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { users } from './users'
 import { workspaces } from './workspaces'
@@ -9,6 +9,7 @@ export const workspaceMembers = pgTable('workspace_members', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: varchar('role', { length: 20 }).notNull().default('member'),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
+  dismissedPrompts: jsonb('dismissed_prompts').$type<string[]>().default([]),
 })
 
 export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({

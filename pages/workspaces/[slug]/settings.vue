@@ -30,7 +30,7 @@
       </div>
 
       <!-- Repositories -->
-      <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+      <div id="repositories-section" class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-1">
           <h2 class="text-lg font-semibold text-surface-900">Repositories</h2>
           <Button @click="showAddRepo = true" v-if="!showAddRepo">
@@ -455,6 +455,15 @@ onMounted(async () => {
     for (const repo of repos.value) {
       fetchRepoEnvVars(repo.id)
     }
+  }
+
+  // Auto-open add repo form if focused via query params
+  if (route.query.tab === 'repositories' && route.query.focus === 'add-repo') {
+    showAddRepo.value = true
+    nextTick(() => {
+      const el = document.getElementById('repositories-section')
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 })
 

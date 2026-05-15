@@ -19,6 +19,9 @@ export interface Workspace {
   updatedAt: string
   _count?: { members: number; projects: number }
   repositories?: Repository[]
+  membership?: {
+    dismissedPrompts?: string[]
+  }
 }
 
 export interface Repository {

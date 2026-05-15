@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   const workspaces = memberships.map((m) => m.workspace)
 
-  // Add member and project counts
+  // Add member and project counts, and current user's membership data
   const result = await Promise.all(
     workspaces.map(async (ws) => {
       const memberCount = await db
@@ -28,12 +28,17 @@ export default defineEventHandler(async (event) => {
         .from(schema.projects)
         .where(eq(schema.projects.workspaceId, ws.id))
 
+      const membership = memberships.find((m) => m.workspaceId === ws.id)
+
       return {
         ...ws,
         _count: {
           members: Number(memberCount[0]?.count || 0),
           projects: Number(projectCount[0]?.count || 0),
         },
+        membership: membership
+          ? { dismissedPrompts: membership.dismissedPrompts || [] }
+          : undefined,
       }
     })
   )

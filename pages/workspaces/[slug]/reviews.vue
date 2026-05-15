@@ -7,7 +7,22 @@
       :stats="bottleneckStats"
     />
 
-    <div class="flex flex-1 overflow-hidden">
+    <div v-if="repositories.length === 0" class="flex-1 flex flex-col items-center justify-center p-8">
+      <UiEmptyState
+        title="No repositories connected"
+        description="Connect a GitHub or GitLab repository to start tracking pull requests and review feedback."
+        icon="lucide:git-branch"
+      >
+        <NuxtLink :to="`/workspaces/${slug}/settings?tab=repositories&focus=add-repo`">
+          <Button>
+            <Icon name="lucide:plus" class="w-3.5 h-3.5" />
+            Add Repository
+          </Button>
+        </NuxtLink>
+      </UiEmptyState>
+    </div>
+
+    <div v-else class="flex flex-1 overflow-hidden">
       <!-- Filter Sidebar -->
       <ReviewsPrFilterSidebar
         v-model:status="filterStatus"

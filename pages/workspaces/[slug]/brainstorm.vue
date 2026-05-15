@@ -137,6 +137,12 @@
                 />
               </div>
               <p class="text-xs text-surface-400 mt-1">Select a repository to chat about its codebase</p>
+              <p v-if="repositories.length === 0" class="text-[10px] text-accent-600 mt-1">
+                <NuxtLink :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`" class="underline hover:text-accent-800">
+                  Connect a repository
+                </NuxtLink>
+                to brainstorm about your codebase.
+              </p>
             </div>
 
             <div class="flex items-center justify-end gap-2 pt-2">

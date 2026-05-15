@@ -181,6 +181,18 @@
             </select>
             <p class="text-[10px] text-surface-400 mt-1">Links this task to a repository for agent context</p>
           </div>
+          <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
+            <p class="text-xs text-surface-600">
+              No repositories connected.
+              <NuxtLink
+                :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                class="text-accent font-medium underline hover:text-accent-700"
+              >
+                Connect one
+              </NuxtLink>
+              to enable agent context and branch tracking.
+            </p>
+          </div>
 
           <div>
             <label class="block text-sm font-medium text-surface-700 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
@@ -311,6 +323,8 @@
 import type { Status, Label, Task, ProjectMember, Repository } from '~/types'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
+
+const route = useRoute()
 
 const props = defineProps<{
   statuses: Status[]

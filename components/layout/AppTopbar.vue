@@ -8,8 +8,8 @@
     <!-- Brand + Breadcrumb -->
     <div class="flex items-center gap-2.5 min-w-0">
       <div class="brand flex items-center gap-1.5 font-bold text-sm tracking-tight text-surface-900 flex-shrink-0">
-        <Icon name="lucide:bolt" class="w-4 h-4 text-accent" />
-        <span class="max-sm:hidden">Kanvas</span>
+        <Icon name="lucide:orbit" class="w-4 h-4 text-accent" />
+        <span class="max-sm:hidden">Orbit</span>
       </div>
       <div class="flex items-center gap-1.5 text-xs text-surface-400 min-w-0 overflow-hidden">
         <span

@@ -210,14 +210,15 @@
       <div class="p-3">
         <div class="flex gap-2">
           <div class="flex-1 relative">
-            <textarea
-              v-model="newMessage"
-              :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
-              class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-none"
-              :disabled="isSending"
-              rows="1"
-              @keydown.enter.prevent="handleEnter"
-            />
+             <textarea
+               ref="textareaRef"
+               v-model="newMessage"
+               :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
+               class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y"
+               :disabled="isSending"
+               rows="1"
+               @keydown="handleKeydown"
+             />
             <span v-if="isSending" class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-surface-400">Sending...</span>
           </div>
           <button
@@ -260,7 +261,15 @@ const emit = defineEmits<{
 }>()
 
 const newMessage = ref('')
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const messagesContainer = ref<HTMLDivElement | null>(null)
+
+function autoResizeTextarea() {
+  const el = textareaRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+}
 const { data: authData } = useAuth()
 const userName = computed(() => authData.value?.user?.name || 'You')
 const userInitials = computed(() => {
@@ -326,6 +335,10 @@ watch(() => props.isRunning, (running) => {
   }
 })
 
+watch(newMessage, () => {
+  autoResizeTextarea()
+})
+
 onMounted(() => {
   scrollToBottom()
 })
@@ -338,16 +351,23 @@ function scrollToBottom() {
   })
 }
 
-function handleEnter(event: KeyboardEvent) {
-  if (!event.shiftKey) {
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
     handleSend()
   }
+  // Shift+Enter falls through — browser inserts newline naturally
 }
 
 async function handleSend() {
   const content = newMessage.value.trim()
   if (!content || props.isSending) return
   newMessage.value = ''
+  nextTick(() => {
+    if (textareaRef.value) {
+      textareaRef.value.style.height = 'auto'
+    }
+  })
   emit('send', content)
 }
 

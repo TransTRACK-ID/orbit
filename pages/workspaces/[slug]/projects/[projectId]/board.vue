@@ -4,7 +4,7 @@
 
     <template v-else-if="project">
       <!-- Repository promo -->
-      <RepositoryPromoBanner
+      <WorkspaceRepositoryPromoBanner
         v-if="repositories.length === 0"
         :workspace-id="project.workspaceId"
         :workspace-slug="route.params.slug as string"

@@ -21,7 +21,7 @@
       </div>
 
       <!-- Repository promo -->
-      <RepositoryPromoBanner
+      <WorkspaceRepositoryPromoBanner
         v-if="workspace && repositories.length === 0"
         :workspace-id="workspace.id"
         :workspace-slug="workspace.slug"

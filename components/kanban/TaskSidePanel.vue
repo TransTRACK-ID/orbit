@@ -34,6 +34,14 @@
             </span>
           </div>
           <div class="flex items-center gap-2">
+            <IconButton
+              v-if="prUrl || previewAvailable || previewStarting"
+              @click="showPreviewModal = true"
+            >
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </template>
+            </IconButton>
             <IconButton @click="handleDuplicate">
               <template #icon>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -681,6 +689,16 @@
               </div>
             </template>
 
+              <div v-if="previewAvailable" class="mt-3">
+                <button
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
+                  @click="showPreviewModal = true"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Open Preview
+                </button>
+              </div>
+
               <!-- Review Feedback Section -->
               <div v-if="prUrl && isReviewStatus" class="mt-6 pt-4 border-t border-surface-100">
                 <div class="flex items-center gap-2 mb-3">
@@ -824,6 +842,50 @@
       </template>
   </div>
 
+  <!-- Preview Modal -->
+  <div
+    v-if="showPreviewModal"
+    class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+    @click.self="showPreviewModal = false"
+  >
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+        <span class="text-sm font-semibold text-surface-700">Live Preview</span>
+        <button class="text-surface-400 hover:text-surface-600" @click="showPreviewModal = false">
+          <Close class="w-4 h-4" />
+        </button>
+      </div>
+      <div v-if="previewUrl" class="flex-1">
+        <iframe
+          :src="previewUrl"
+          class="w-full h-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+        />
+      </div>
+      <div
+        v-else
+        class="flex-1 flex flex-col items-center justify-center text-surface-400 gap-3"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <p class="text-sm font-medium">No preview available yet</p>
+        <p class="text-xs">Start a preview server to see your changes live.</p>
+        <Button
+          :disabled="previewStarting || !task"
+          :loading="previewStarting"
+          @click="handleStartPreview"
+        >
+          <template v-if="previewStarting">
+            Starting preview server...
+          </template>
+          <template v-else>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
+            Start Preview
+          </template>
+        </Button>
+      </div>
+    </div>
+  </div>
+
   <!-- Lightbox -->
   <div
     v-if="lightboxImage"
@@ -909,6 +971,10 @@ const newComment = ref('')
 const confirmDelete = ref(false)
 const showAssigneePicker = ref(false)
 const showObserverPicker = ref(false)
+const previewAvailable = ref(false)
+const previewUrl = ref('')
+const showPreviewModal = ref(false)
+const previewStarting = ref(false)
 
 const DEFAULT_LABELS = [
   { name: 'bug', color: '#ef4444' },
@@ -923,6 +989,13 @@ const availableLabels = ref<Label[]>([...props.labels])
 watch(() => props.labels, (newLabels) => {
   availableLabels.value = [...newLabels]
 }, { immediate: true })
+
+// Reset preview starting state when modal is closed
+watch(showPreviewModal, (isOpen) => {
+  if (!isOpen) {
+    previewStarting.value = false
+  }
+})
 
 const uniqueAvailableLabels = computed(() => {
   const seen = new Set<string>()
@@ -1308,6 +1381,43 @@ async function loadAttachments() {
   }
 }
 
+async function checkPreview() {
+  if (!task.value) return
+  try {
+    const status = await $fetch<{ available: boolean; url?: string }>(`/api/tasks/${task.value.id}/preview-status`)
+    previewAvailable.value = status.available
+    previewUrl.value = status.url || ''
+  } catch {
+    previewAvailable.value = false
+    previewUrl.value = ''
+  }
+}
+
+async function handleStartPreview() {
+  if (!task.value || previewStarting.value) return
+  previewStarting.value = true
+  try {
+    const result = await $fetch<{ available: boolean; url: string; message: string }>(`/api/tasks/${task.value.id}/preview-start`, {
+      method: 'POST',
+    })
+    previewAvailable.value = result.available
+    previewUrl.value = result.url
+    // Poll for a few seconds to confirm the server is truly ready
+    let attempts = 0
+    const pollInterval = setInterval(async () => {
+      attempts++
+      await checkPreview()
+      if (previewAvailable.value || attempts >= 10) {
+        clearInterval(pollInterval)
+        previewStarting.value = false
+      }
+    }, 2000)
+  } catch (err: any) {
+    console.error('Failed to start preview:', err)
+    previewStarting.value = false
+  }
+}
+
 function openLightbox(att: Attachment) {
   lightboxImage.value = att
 }
@@ -1391,6 +1501,7 @@ watch(runtimeActive, async (active) => {
     // This prevents a gap where no agent reply is visible during the fetch.
     setTimeout(async () => {
       await fetchAgentReplies()
+      await checkPreview()
     }, 500)
   }
 })
@@ -1776,9 +1887,10 @@ onMounted(async () => {
     }
   }
 
-  await checkExistingPr()
+    await checkExistingPr()
+    await checkPreview()
 
-  // Auto-load persisted PR comments if task is in review status
+    // Auto-load persisted PR comments if task is in review status
   if (prUrl.value && isReviewStatus.value) {
     await loadPersistedComments()
 

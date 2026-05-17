@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
 import type { EventStream } from 'h3'
 import type { DevServerInfo } from './dev-server-orchestrator'
-import { startDevServer, stopDevServer } from './dev-server-orchestrator'
+import { startDevServer } from './dev-server-orchestrator'
 
 export type BrowserRunConfig = {
   taskId: string
@@ -218,8 +218,8 @@ export async function runBrowserContainer(
       const msg = code === 0 ? 'Browser QA completed' : `Browser QA failed (exit code ${code})`
       await pushToStream(stream, JSON.stringify({ step: msg, timestamp: Date.now() }))
 
-      // Clean up dev server (wait for process to fully exit before resolving)
-      await stopDevServer(config.worktreeDir)
+      // Dev server is intentionally NOT stopped here so the preview stays alive.
+      // It will be cleaned up on process exit or by an explicit stop later.
 
       resolve({
         status,

@@ -22,7 +22,7 @@
 
       <!-- Repository promo -->
       <WorkspaceRepositoryPromoBanner
-        v-if="workspace && repositories.length === 0"
+        v-if="showRepoBanner"
         :workspace-id="workspace.id"
         :workspace-slug="workspace.slug"
         :dismissed-prompts="workspace.membership?.dismissedPrompts"
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Workspace, Project } from '~/types'
+import type { Workspace, Project, Repository } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -139,7 +139,7 @@ const route = useRoute()
 const router = useRouter()
 const { getWorkspaceBySlug, loading: wsLoading } = useWorkspace()
 const { projects, loading, fetchProjects, deleteProject } = useProject()
-const { repositories, fetchRepositories } = useRepository()
+const { repositories } = useRepository()
 
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<Workspace | null>(null)
@@ -149,11 +149,50 @@ const projectToDelete = ref<Project | null>(null)
 const deleteConfirmName = ref('')
 const deleteLoading = ref(false)
 
+// Server-side fetch workspace + repositories so the repository
+// promo banner never flashes with the wrong state on initial load.
+const { data: ssrData } = await useAsyncData(
+  `workspace-index-${slug.value}`,
+  async () => {
+    const ws = await $fetch<Workspace>(`/api/workspaces/by-slug/${slug.value}`)
+    const repos = await $fetch<Repository[]>(`/api/workspaces/${ws.id}/repositories`)
+    return { workspace: ws, repositories: repos }
+  }
+)
+
+// Sync SSR data synchronously so the banner renders with the correct state.
+if (ssrData.value) {
+  workspace.value = ssrData.value.workspace
+  repositories.value = ssrData.value.repositories
+}
+
+const repositoriesReady = ref(ssrData.value !== null)
+
+const showRepoBanner = computed(() => {
+  if (!workspace.value || !repositoriesReady.value) return false
+  return repositories.value.length === 0
+})
+
 onMounted(async () => {
-  workspace.value = await getWorkspaceBySlug(slug.value)
+  if (!workspace.value) {
+    workspace.value = await getWorkspaceBySlug(slug.value)
+  }
+
+  // If SSR failed or repositories aren't loaded yet, fetch them client-side.
+  if (!repositoriesReady.value && workspace.value) {
+    try {
+      const repos = await $fetch<Repository[]>(`/api/workspaces/${workspace.value.id}/repositories`)
+      repositories.value = repos
+    } catch (err) {
+      console.error('Failed to fetch repositories:', err)
+      repositories.value = []
+    } finally {
+      repositoriesReady.value = true
+    }
+  }
+
   if (workspace.value) {
     await fetchProjects(workspace.value.id)
-    await fetchRepositories(workspace.value.id)
   }
 })
 

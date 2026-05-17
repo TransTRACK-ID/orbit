@@ -5,7 +5,7 @@
     <template v-else-if="project">
       <!-- Repository promo -->
       <WorkspaceRepositoryPromoBanner
-        v-if="repositories.length === 0"
+        v-if="showRepoBanner"
         :workspace-id="project.workspaceId"
         :workspace-slug="route.params.slug as string"
         :dismissed-prompts="workspace?.membership?.dismissedPrompts"
@@ -63,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, ProjectMember, Workspace } from '~/types'
+import type { Task, Status, Label, ProjectMember, Workspace, Repository } from '~/types'
 import type { Agent } from '~/types'
 import { flashHighlight } from '~/composables/useKanban'
 import AgentReadyTooltip from '~/components/onboarding/AgentReadyTooltip.vue'
@@ -79,7 +79,7 @@ const { tasks, loading, fetchTasks, createTask, updateTask } = useTask()
 const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
 const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
-const { repositories, fetchRepositories } = useRepository()
+const { repositories } = useRepository()
 const { getWorkspaceBySlug } = useWorkspace()
 
 const project = ref<any>(null)
@@ -88,6 +88,30 @@ const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
+
+// Server-side fetch workspace + repositories so the repository
+// promo banner never flashes with the wrong state on initial load.
+const { data: ssrData, error: ssrError } = await useAsyncData(
+  `workspace-board-${route.params.slug as string}-${projectId.value}`,
+  async () => {
+    const ws = await $fetch<Workspace>(`/api/workspaces/by-slug/${route.params.slug as string}`)
+    const repos = await $fetch<Repository[]>(`/api/workspaces/${ws.id}/repositories`)
+    return { workspace: ws, repositories: repos }
+  }
+)
+
+// Sync SSR data synchronously so the banner renders with the correct state.
+if (ssrData.value) {
+  workspace.value = ssrData.value.workspace
+  repositories.value = ssrData.value.repositories
+}
+
+const repositoriesReady = ref(ssrData.value !== null)
+
+const showRepoBanner = computed(() => {
+  if (!repositoriesReady.value) return false
+  return repositories.value.length === 0
+})
 
 // --- Agent Tooltip State ---
 const newTaskButtonRef = ref<HTMLElement | null>(null)
@@ -98,7 +122,23 @@ const { addLog, persistLog } = useLog()
 const { startRuntime } = useAgentRuntime()
 
 onMounted(async () => {
-  workspace.value = await getWorkspaceBySlug(route.params.slug as string)
+  if (!workspace.value) {
+    workspace.value = await getWorkspaceBySlug(route.params.slug as string)
+  }
+
+  // If SSR failed or repositories aren't loaded yet, fetch them client-side.
+  if (!repositoriesReady.value && workspace.value) {
+    try {
+      const repos = await $fetch<Repository[]>(`/api/workspaces/${workspace.value.id}/repositories`)
+      repositories.value = repos
+    } catch (err) {
+      console.error('Failed to fetch repositories:', err)
+      repositories.value = []
+    } finally {
+      repositoriesReady.value = true
+    }
+  }
+
   const data = await fetchProjectDetail(projectId.value)
   project.value = data
   statuses.value = data.statuses || []
@@ -108,9 +148,6 @@ onMounted(async () => {
   }
   members.value = await fetchMembers(projectId.value)
   await fetchAgents()
-  if (data.workspaceId) {
-    fetchRepositories(data.workspaceId)
-  }
 
   await nextTick()
 

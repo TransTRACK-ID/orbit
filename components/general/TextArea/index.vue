@@ -60,7 +60,7 @@ const emit = defineEmits(["on-input", "update:modelValue"]);
         :type="props.type"
         :placeholder="props.placeholder"
         :maxlength="props.maxLength"
-        class="py-2.5 px-3.5 block w-full border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-500 focus:border-primary-500 resize-y"
+        class="py-2.5 px-3.5 block w-full border border-gray-300 text-gray-900 bg-white rounded-lg focus:ring-primary-500 focus:border-primary-500 resize-y"
         :class="$slots.prefix ? 'pl-10' : ''"
         @input="emit('update:modelValue', $event.target?.value)"
       />

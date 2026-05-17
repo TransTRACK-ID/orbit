@@ -30,7 +30,18 @@ export function getDevServerByTask(task: { id: string; repository?: { url: strin
   const cloneDir = resolveCloneDir(task.repository.url, task.repository.name)
   const worktreeDir = resolveWorktreeDir(cloneDir, task.id)
   const info = activeDevServers.get(worktreeDir)
-  return info && info.ready ? info : undefined
+  if (info && info.ready) return info
+
+  // Fallback: scan activeDevServers for any worktree matching this task ID
+  // This covers edge cases where the worktree has a random suffix or the
+  // path was computed with a different projectsDir.
+  for (const [dir, serverInfo] of activeDevServers) {
+    if (dir.includes(`.task-${task.id}`) && serverInfo.ready) {
+      return serverInfo
+    }
+  }
+
+  return undefined
 }
 
 export function getBrowserQueueStatus(): { isRunning: boolean; queued: number; nextJob: string | null } {

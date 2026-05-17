@@ -7,7 +7,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
-import { resolveCloneDir, resolveWorktreeDir } from '~/server/utils/worktree-resolver'
+import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 
 const execAsync = promisify(exec)
 
@@ -240,7 +240,6 @@ function generateHumanSummary(diffContent: string, changedFiles: string[]): stri
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
-const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
 

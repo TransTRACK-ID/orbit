@@ -644,16 +644,6 @@
                 </div>
               </div>
 
-              <div v-if="previewAvailable" class="mt-3">
-                <button
-                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
-                  @click="showPreviewModal = true"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  Open Preview
-                </button>
-              </div>
-
               <div v-if="runtimeCompleted && !runtimeActive" class="mt-3">
                 <div
                   v-if="prSkipped"
@@ -690,6 +680,16 @@
                 <p v-if="prError" class="text-[10px] text-red-500 mt-1">{{ prError }}</p>
               </div>
             </template>
+
+              <div v-if="previewAvailable" class="mt-3">
+                <button
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
+                  @click="showPreviewModal = true"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Open Preview
+                </button>
+              </div>
 
               <!-- Review Feedback Section -->
               <div v-if="prUrl && isReviewStatus" class="mt-6 pt-4 border-t border-surface-100">

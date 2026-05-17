@@ -8,7 +8,7 @@ import { getDiffSummary } from '~/server/utils/git-summary'
 import { toHumanReadableTitle } from '~/server/utils/conventional-commit'
 import { parseGithubUrl, fetchPullRequestDetails, fetchPullRequestReviews, determineReviewState } from '~/server/utils/github-api'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
-import { resolveCloneDir, resolveWorktreeDir } from '~/server/utils/worktree-resolver'
+import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 
 const execAsync = promisify(exec)
 
@@ -24,8 +24,6 @@ function sanitizeBranchName(title: string): string {
 function shEscape(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`
 }
-
-const projectsDir = `${process.env.HOME || '/root'}/orbit-projects`
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)

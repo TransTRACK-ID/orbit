@@ -7,6 +7,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
+import { resolveCloneDir, resolveWorktreeDir } from '~/server/utils/worktree-resolver'
 
 const execAsync = promisify(exec)
 
@@ -93,67 +94,6 @@ function formatTextEvent(part: any): string {
   const lines = cleaned.split('\n').filter((l: string) => l.trim())
   if (lines.length === 0) return ''
   return lines[0].slice(0, 120)
-}
-
-function extractRepoName(url: string): string {
-  const match = url.match(/\/([^/]+?)(\.git)?$/)
-  return match ? match[1] : 'repo'
-}
-
-/** Sanitize a string for safe use as a directory name */
-function sanitizeDirName(name: string): string {
-  return name
-    .trim()
-    .replace(/\s+/g, '-')           // spaces → hyphens
-    .replace(/[^a-zA-Z0-9._-]/g, '') // remove unsafe chars
-    .replace(/^-+|-+$/g, '')        // trim leading/trailing hyphens
-    || 'repo'
-}
-
-/** Resolve the main repository clone directory (shared across tasks) */
-function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string | null): string {
-  const urlName = sanitizeDirName(extractRepoName(repoUrl))
-  const displayName = repoName ? sanitizeDirName(repoName) : null
-  const rawDisplayName = repoName ? repoName.trim() : null
-
-  // Prefer exact display name if directory already exists (preserves existing clones)
-  if (rawDisplayName) {
-    const rawDisplayDir = `${projectsDir}/${rawDisplayName}`
-    if (existsSync(rawDisplayDir)) return rawDisplayDir
-  }
-
-  // Try sanitized display name
-  if (displayName) {
-    const displayDir = `${projectsDir}/${displayName}`
-    if (existsSync(displayDir)) return displayDir
-  }
-
-  // If repo was renamed in UI, scan existing directories for one with matching remote URL
-  try {
-    const entries = require('fs').readdirSync(projectsDir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-      const gitConfigPath = `${projectsDir}/${entry.name}/.git/config`
-      if (existsSync(gitConfigPath)) {
-        const config = readFileSync(gitConfigPath, 'utf-8')
-        // Extract the remote URL from config and normalize by stripping auth tokens for comparison
-        const urlMatch = config.match(/url\s*=\s*(.+)/)
-        const storedUrl = urlMatch ? urlMatch[1].trim() : ''
-        const normalize = (u: string) => u.replace(/^https?:\/\/[^@]+@/, 'https://').replace(/\.git$/, '')
-        if (storedUrl && normalize(storedUrl) === normalize(repoUrl)) {
-          return `${projectsDir}/${entry.name}`
-        }
-      }
-    }
-  } catch {}
-
-  // Fall back to URL-derived name
-  return `${projectsDir}/${urlName}`
-}
-
-/** Resolve the task-specific worktree directory */
-function resolveWorktreeDir(cloneDir: string, taskId: string): string {
-  return `${cloneDir}/.task-${taskId}`
 }
 
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
@@ -466,7 +406,7 @@ export default defineEventHandler(async (event) => {
       }
 
       if (repoUrl) {
-        mainCloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+        mainCloneDir = resolveCloneDir(repoUrl, repoName, projectsDir)
         const worktreeDir = resolveWorktreeDir(mainCloneDir, id)
 
         // ── Clone the main repo (bare or full) if it doesn't exist ──

@@ -3,6 +3,7 @@ import { promisify } from 'util'
 import { existsSync, readFileSync, rmSync, copyFileSync } from 'fs'
 import path from 'path'
 import http from 'http'
+import { resolveCloneDir, resolveWorktreeDir } from './worktree-resolver'
 
 const execAsync = promisify(exec)
 
@@ -22,6 +23,14 @@ const activeDevServers = new Map<string, DevServerInfo>()
 
 export function getDevServerStatus(worktreeDir: string): DevServerInfo | undefined {
   return activeDevServers.get(worktreeDir)
+}
+
+export function getDevServerByTask(task: { id: string; repository?: { url: string; name?: string | null } | null }): DevServerInfo | undefined {
+  if (!task.repository?.url) return undefined
+  const cloneDir = resolveCloneDir(task.repository.url, task.repository.name)
+  const worktreeDir = resolveWorktreeDir(cloneDir, task.id)
+  const info = activeDevServers.get(worktreeDir)
+  return info && info.ready ? info : undefined
 }
 
 export function getBrowserQueueStatus(): { isRunning: boolean; queued: number; nextJob: string | null } {

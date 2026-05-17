@@ -644,6 +644,16 @@
                 </div>
               </div>
 
+              <div v-if="previewAvailable" class="mt-3">
+                <button
+                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
+                  @click="showPreviewModal = true"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Open Preview
+                </button>
+              </div>
+
               <div v-if="runtimeCompleted && !runtimeActive" class="mt-3">
                 <div
                   v-if="prSkipped"
@@ -824,6 +834,28 @@
       </template>
   </div>
 
+  <!-- Preview Modal -->
+  <div
+    v-if="showPreviewModal"
+    class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+    @click.self="showPreviewModal = false"
+  >
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+        <span class="text-sm font-semibold text-surface-700">Live Preview</span>
+        <button class="text-surface-400 hover:text-surface-600" @click="showPreviewModal = false">
+          <Close class="w-4 h-4" />
+        </button>
+      </div>
+      <iframe
+        v-if="previewUrl"
+        :src="previewUrl"
+        class="w-full flex-1 border-0"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+      />
+    </div>
+  </div>
+
   <!-- Lightbox -->
   <div
     v-if="lightboxImage"
@@ -909,6 +941,9 @@ const newComment = ref('')
 const confirmDelete = ref(false)
 const showAssigneePicker = ref(false)
 const showObserverPicker = ref(false)
+const previewAvailable = ref(false)
+const previewUrl = ref('')
+const showPreviewModal = ref(false)
 
 const DEFAULT_LABELS = [
   { name: 'bug', color: '#ef4444' },
@@ -1308,6 +1343,18 @@ async function loadAttachments() {
   }
 }
 
+async function checkPreview() {
+  if (!task.value) return
+  try {
+    const status = await $fetch<{ available: boolean; url?: string }>(`/api/tasks/${task.value.id}/preview-status`)
+    previewAvailable.value = status.available
+    previewUrl.value = status.url || ''
+  } catch {
+    previewAvailable.value = false
+    previewUrl.value = ''
+  }
+}
+
 function openLightbox(att: Attachment) {
   lightboxImage.value = att
 }
@@ -1391,6 +1438,7 @@ watch(runtimeActive, async (active) => {
     // This prevents a gap where no agent reply is visible during the fetch.
     setTimeout(async () => {
       await fetchAgentReplies()
+      await checkPreview()
     }, 500)
   }
 })
@@ -1776,9 +1824,10 @@ onMounted(async () => {
     }
   }
 
-  await checkExistingPr()
+    await checkExistingPr()
+    await checkPreview()
 
-  // Auto-load persisted PR comments if task is in review status
+    // Auto-load persisted PR comments if task is in review status
   if (prUrl.value && isReviewStatus.value) {
     await loadPersistedComments()
 

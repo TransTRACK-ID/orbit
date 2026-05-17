@@ -2303,9 +2303,15 @@ function formatActivity(log: ActivityLog) {
   text-decoration: underline;
   word-break: break-all;
 }
+.dark .review-feedback-body :deep(a) {
+  color: #a5b4fc;
+}
 
 .review-feedback-body :deep(a:hover) {
   color: #4f46e5;
+}
+.dark .review-feedback-body :deep(a:hover) {
+  color: #c7d2fe;
 }
 
 .review-feedback-body :deep(blockquote) {
@@ -2326,6 +2332,9 @@ function formatActivity(log: ActivityLog) {
   font-weight: 600;
   color: #1e293b;
 }
+.dark .review-feedback-body :deep(strong) {
+  color: #f1f5f9;
+}
 
 .review-feedback-body :deep(em) {
   font-style: italic;
@@ -2339,6 +2348,12 @@ function formatActivity(log: ActivityLog) {
   color: #1e293b;
   margin: 6px 0 3px;
   line-height: 1.3;
+}
+.dark .review-feedback-body :deep(h1),
+.dark .review-feedback-body :deep(h2),
+.dark .review-feedback-body :deep(h3),
+.dark .review-feedback-body :deep(h4) {
+  color: #f1f5f9;
 }
 
 .review-feedback-body :deep(h1) { font-size: 12px; }
@@ -2367,6 +2382,10 @@ function formatActivity(log: ActivityLog) {
   font-size: 10px;
   font-family: ui-monospace, monospace;
 }
+.dark .review-feedback-body :deep(code) {
+  background: #334155;
+  color: #e2e8f0;
+}
 
 .review-feedback-body :deep(pre) {
   background: #0f172a;
@@ -2377,6 +2396,9 @@ function formatActivity(log: ActivityLog) {
   margin: 4px 0;
   font-size: 9px;
   line-height: 1.4;
+}
+.dark .review-feedback-body :deep(pre) {
+  background: #1e293b;
 }
 
 .review-feedback-body :deep(pre code) {
@@ -2389,6 +2411,122 @@ function formatActivity(log: ActivityLog) {
 .review-feedback-body :deep(hr) {
   margin: 6px 0;
   border-color: #e2e8f0;
+}
+.dark .review-feedback-body :deep(hr) {
+  border-color: #334155;
+}
+
+/* ─── Description markdown preview (prose) ─── */
+.prose :deep(h1),
+.prose :deep(h2),
+.prose :deep(h3),
+.prose :deep(h4) {
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+  color: #1e293b;
+}
+.dark .prose :deep(h1),
+.dark .prose :deep(h2),
+.dark .prose :deep(h3),
+.dark .prose :deep(h4) {
+  color: #f1f5f9;
+}
+.prose :deep(p) {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+.prose :deep(ul),
+.prose :deep(ol) {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+  padding-left: 1.25em;
+}
+.prose :deep(li) {
+  margin-top: 0.125em;
+  margin-bottom: 0.125em;
+}
+.prose :deep(code) {
+  background: #f1f5f9;
+  padding: 0.125em 0.375em;
+  border-radius: 4px;
+  font-size: 0.875em;
+}
+.dark .prose :deep(code) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+.prose :deep(pre) {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.75em 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.dark .prose :deep(pre) {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+.prose :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.dark .prose :deep(pre code) {
+  color: inherit;
+}
+.prose :deep(blockquote) {
+  border-left: 3px solid #e2e8f0;
+  padding-left: 0.75em;
+  margin: 0.5em 0;
+  color: #64748b;
+}
+.dark .prose :deep(blockquote) {
+  border-left-color: #334155;
+  color: #94a3b8;
+}
+.prose :deep(a) {
+  color: #6366f1;
+  text-decoration: underline;
+}
+.dark .prose :deep(a) {
+  color: #a5b4fc;
+}
+.prose :deep(img) {
+  max-width: 100%;
+  border-radius: 6px;
+  margin: 0.5em 0;
+}
+.prose :deep(hr) {
+  margin: 0.75em 0;
+  border-color: #e2e8f0;
+}
+.dark .prose :deep(hr) {
+  border-color: #334155;
+}
+.prose :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.prose :deep(th),
+.prose :deep(td) {
+  border: 1px solid #e2e8f0;
+  padding: 0.375em 0.5em;
+  text-align: left;
+  font-size: 0.875em;
+}
+.dark .prose :deep(th),
+.dark .prose :deep(td) {
+  border-color: #334155;
+}
+.prose :deep(th) {
+  background: #f8fafc;
+  font-weight: 600;
+}
+.dark .prose :deep(th) {
+  background: #0f172a;
 }
 
 /* ─── Comment markdown body ─── */
@@ -2457,12 +2595,19 @@ function formatActivity(log: ActivityLog) {
   text-decoration: underline;
   word-break: break-all;
 }
+.dark .comment-body :deep(a) {
+  color: #a5b4fc;
+}
 
 .comment-body :deep(blockquote) {
   border-left: 2px solid #cbd5e1;
   margin: 4px 0;
   padding: 2px 0 2px 8px;
   color: #64748b;
+}
+.dark .comment-body :deep(blockquote) {
+  border-left-color: #334155;
+  color: #94a3b8;
 }
 
 .comment-body :deep(h1),

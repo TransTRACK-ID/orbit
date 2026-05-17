@@ -103,11 +103,15 @@ const quotes = [
   'The only way to do great work is to love what you do.',
 ]
 
-const randomGifUrl = gifUrls[Math.floor(Math.random() * gifUrls.length)]
-const randomQuote = quotes[Math.floor(Math.random() * quotes.length)]
+// Use refs to avoid SSR hydration mismatch — randomize client-side only
+const randomGifUrl = ref(gifUrls[0])
+const randomQuote = ref(quotes[0])
 
-// Redirect if already authenticated
+// Randomize client-side after mount to avoid SSR hydration mismatch
 onMounted(() => {
+  randomGifUrl.value = gifUrls[Math.floor(Math.random() * gifUrls.length)]
+  randomQuote.value = quotes[Math.floor(Math.random() * quotes.length)]
+
   if (status.value === 'authenticated') {
     navigateTo('/workspaces')
   }

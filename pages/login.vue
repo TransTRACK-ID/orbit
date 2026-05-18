@@ -63,6 +63,7 @@ definePageMeta({
 })
 
 const { signIn, status, getSession } = useAuth()
+const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
 
 const email = ref('')
 const password = ref('')
@@ -102,7 +103,6 @@ async function handleLogin() {
       authError.value = 'Invalid email or password'
     } else {
       await getSession({ force: true })
-      const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
       await ensureWorkspacesLoaded()
       if (needsOnboarding.value) {
         await navigateTo('/onboarding')

@@ -10,11 +10,11 @@ definePageMeta({
 })
 
 const { status } = useAuth()
+const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
 
 // Redirect as soon as auth status resolves
 watch(status, async (newStatus) => {
   if (newStatus === 'authenticated') {
-    const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
     await ensureWorkspacesLoaded()
     if (needsOnboarding.value) {
       await navigateTo('/onboarding')

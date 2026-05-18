@@ -4,11 +4,14 @@ const workspaces = ref<Workspace[]>([])
 const loading = ref(false)
 
 export const useWorkspace = () => {
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   async function fetchWorkspaces() {
     loading.value = true
     try {
-      workspaces.value = await $fetch('/api/workspaces')
+      workspaces.value = await $fetch('/api/workspaces', {
+        headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,
+      })
     } catch (err) {
       console.error('Failed to fetch workspaces:', err)
     } finally {
@@ -41,7 +44,9 @@ export const useWorkspace = () => {
   }
 
   async function fetchMembers(workspaceId: string) {
-    return await $fetch<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`)
+    return await $fetch<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`, {
+      headers: ssrHeaders,
+    })
   }
 
   async function inviteMember(workspaceId: string, email: string, role = 'member') {

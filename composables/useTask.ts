@@ -7,11 +7,14 @@ const activityLogs = ref<ActivityLog[]>([])
 const loading = ref(false)
 
 export const useTask = () => {
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   async function fetchTasks(projectId: string) {
     loading.value = true
     try {
-      tasks.value = await $fetch<Task[]>(`/api/projects/${projectId}/tasks`)
+      tasks.value = await $fetch<Task[]>(`/api/projects/${projectId}/tasks`, {
+        headers: ssrHeaders,
+      })
     } catch (err) {
       console.error('Failed to fetch tasks:', err)
     } finally {
@@ -56,13 +59,15 @@ export const useTask = () => {
   }
 
   async function fetchTaskDetail(id: string) {
-    const task = await $fetch<Task>(`/api/tasks/${id}`)
+    const task = await $fetch<Task>(`/api/tasks/${id}`, { headers: ssrHeaders })
     currentTask.value = task
     return task
   }
 
   async function fetchComments(taskId: string) {
-    comments.value = await $fetch<Comment[]>(`/api/tasks/${taskId}/comments`)
+    comments.value = await $fetch<Comment[]>(`/api/tasks/${taskId}/comments`, {
+      headers: ssrHeaders,
+    })
     return comments.value
   }
 
@@ -76,7 +81,9 @@ export const useTask = () => {
   }
 
   async function fetchAttachments(taskId: string) {
-    return await $fetch<Attachment[]>(`/api/tasks/${taskId}/attachments`)
+    return await $fetch<Attachment[]>(`/api/tasks/${taskId}/attachments`, {
+      headers: ssrHeaders,
+    })
   }
 
   async function uploadAttachment(
@@ -119,7 +126,9 @@ export const useTask = () => {
   }
 
   async function fetchActivity(taskId: string) {
-    activityLogs.value = await $fetch<ActivityLog[]>(`/api/tasks/${taskId}/activity`)
+    activityLogs.value = await $fetch<ActivityLog[]>(`/api/tasks/${taskId}/activity`, {
+      headers: ssrHeaders,
+    })
     return activityLogs.value
   }
 

@@ -12,19 +12,21 @@ definePageMeta({
 const { status } = useAuth()
 const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
 
-// Redirect as soon as auth status resolves
-watch(status, async (newStatus) => {
-  if (newStatus === 'authenticated') {
-    await ensureWorkspacesLoaded()
-    if (needsOnboarding.value) {
-      await navigateTo('/onboarding')
-    } else {
-      await navigateTo('/workspaces')
+// Only run auth navigation on client to avoid SSR cookie forwarding issues
+if (process.client) {
+  watch(status, async (newStatus) => {
+    if (newStatus === 'authenticated') {
+      await ensureWorkspacesLoaded()
+      if (needsOnboarding.value) {
+        await navigateTo('/onboarding')
+      } else {
+        await navigateTo('/workspaces')
+      }
+    } else if (newStatus === 'unauthenticated') {
+      await navigateTo('/login')
     }
-  } else if (newStatus === 'unauthenticated') {
-    await navigateTo('/login')
-  }
-}, { immediate: true })
+  }, { immediate: true })
+}
 
 // Fallback: prevent infinite loading if auth requests fail (e.g. wrong AUTH_ORIGIN)
 let timeout: ReturnType<typeof setTimeout>

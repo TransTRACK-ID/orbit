@@ -4,6 +4,7 @@ export const useLog = () => {
   const logs = useState<ActivityLogEntry[]>('app:logs', () => [])
   const isOpen = useState<boolean>('app:logPanelOpen', () => false)
   const feed = useState<ActivityFeedItem[]>('app:activityFeed', () => [])
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   function addLog(agent: string, msg: string, taskId?: string) {
     logs.value = [{ time: Date.now(), agent, msg, taskId }, ...logs.value]
@@ -37,7 +38,8 @@ export const useLog = () => {
   async function fetchFeed(workspaceId: string, limit = 200) {
     try {
       feed.value = await $fetch<ActivityFeedItem[]>(
-        `/api/workspaces/${workspaceId}/activity?limit=${limit}`
+        `/api/workspaces/${workspaceId}/activity?limit=${limit}`,
+        { headers: ssrHeaders }
       )
     } catch {
       feed.value = []

@@ -8,6 +8,7 @@ const healthStatus = ref<Record<string, 'idle' | 'busy' | 'offline'>>({})
 const runtimeReachable = ref(false)
 
 export const useAgent = () => {
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
     'opencode':    { name:'OpenCode',    icon:'lucide:code',     color:'#2563EB', desc:'Open-source coding agent with multi-file editing' },
@@ -33,7 +34,9 @@ export const useAgent = () => {
 
   async function fetchHealth() {
     try {
-      const res = await $fetch<{ runtimeReachable: boolean; health: Record<string, 'idle' | 'busy' | 'offline'> }>('/api/agents/health')
+      const res = await $fetch<{ runtimeReachable: boolean; health: Record<string, 'idle' | 'busy' | 'offline'> }>('/api/agents/health', {
+        headers: ssrHeaders,
+      })
       runtimeReachable.value = res.runtimeReachable
       healthStatus.value = res.health
     } catch (err) {
@@ -45,7 +48,9 @@ export const useAgent = () => {
   async function fetchAgents() {
     loading.value = true
     try {
-      agents.value = await $fetch<Agent[]>('/api/agents')
+      agents.value = await $fetch<Agent[]>('/api/agents', {
+        headers: ssrHeaders,
+      })
       await fetchHealth()
     } catch (err) {
       console.error('Failed to fetch agents:', err)

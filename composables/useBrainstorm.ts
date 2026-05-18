@@ -13,11 +13,14 @@ const chatReplies = ref<Record<string, string>>({})
 const chatSteps = ref<Record<string, string>>({})
 
 export const useBrainstorm = () => {
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   async function fetchBrainstorms(workspaceId: string) {
     loading.value = true
     try {
-      brainstorms.value = await $fetch<Brainstorm[]>(`/api/workspaces/${workspaceId}/brainstorms`)
+      brainstorms.value = await $fetch<Brainstorm[]>(`/api/workspaces/${workspaceId}/brainstorms`, {
+        headers: ssrHeaders,
+      })
     } catch (err) {
       console.error('Failed to fetch brainstorms:', err)
     } finally {
@@ -36,7 +39,9 @@ export const useBrainstorm = () => {
 
   async function fetchBrainstorm(id: string) {
     try {
-      currentBrainstorm.value = await $fetch<Brainstorm>(`/api/brainstorms/${id}`)
+      currentBrainstorm.value = await $fetch<Brainstorm>(`/api/brainstorms/${id}`, {
+        headers: ssrHeaders,
+      })
     } catch (err) {
       console.error('Failed to fetch brainstorm:', err)
     }
@@ -52,7 +57,9 @@ export const useBrainstorm = () => {
         messagesLoading.value = false
       }, 8000)
 
-      const data = await $fetch<BrainstormMessage[]>(`/api/brainstorms/${brainstormId}/messages`)
+      const data = await $fetch<BrainstormMessage[]>(`/api/brainstorms/${brainstormId}/messages`, {
+        headers: ssrHeaders,
+      })
       messages.value = Array.isArray(data) ? data : []
     } catch (err) {
       console.error('Failed to fetch messages:', err)

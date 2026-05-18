@@ -7,19 +7,20 @@ const projectLabels = ref<Label[]>([])
 const loading = ref(false)
 
 export const useProject = () => {
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   async function fetchProjects(workspaceId: string) {
     loading.value = true
     try {
       // Get workspace projects via tasks endpoint for now
       // We need a projects list API
-      const ws = await $fetch(`/api/workspaces/${workspaceId}`)
+      const ws = await $fetch(`/api/workspaces/${workspaceId}`, { headers: ssrHeaders })
       // Projects are fetched from workspace route
-      const allWorkspaces = await $fetch('/api/workspaces')
+      const allWorkspaces = await $fetch('/api/workspaces', { headers: ssrHeaders })
       const workspace = (allWorkspaces as any[]).find((w: any) => w.id === workspaceId)
       // This is a workaround - we actually need a dedicated projects endpoint
       // Let's use the workspace member route to get projects
-      const projectsData = await $fetch(`/api/workspaces/${workspaceId}/projects`)
+      const projectsData = await $fetch(`/api/workspaces/${workspaceId}/projects`, { headers: ssrHeaders })
       projects.value = projectsData as any
     } catch (err) {
       console.error('Failed to fetch projects:', err)
@@ -30,7 +31,7 @@ export const useProject = () => {
   }
 
   async function fetchProjectDetail(projectId: string) {
-    const data = await $fetch<any>(`/api/projects/${projectId}`)
+    const data = await $fetch<any>(`/api/projects/${projectId}`, { headers: ssrHeaders })
     currentProject.value = data
     projectStatuses.value = data.statuses || []
     projectLabels.value = data.labels || []
@@ -89,7 +90,7 @@ export const useProject = () => {
     const found = projects.value.find((p) => p.id === id)
     if (found) return found
     try {
-      const data = await $fetch<any>(`/api/projects/${id}`)
+      const data = await $fetch<any>(`/api/projects/${id}`, { headers: ssrHeaders })
       currentProject.value = data
       return data
     } catch {
@@ -98,7 +99,7 @@ export const useProject = () => {
   }
 
   async function fetchMembers(projectId: string) {
-    return await $fetch<ProjectMember[]>(`/api/projects/${projectId}/members`)
+    return await $fetch<ProjectMember[]>(`/api/projects/${projectId}/members`, { headers: ssrHeaders })
   }
 
   // Status management

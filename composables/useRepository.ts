@@ -3,11 +3,14 @@ import type { Repository } from '~/types'
 export const useRepository = () => {
   const repositories = ref<Repository[]>([])
   const loading = ref(false)
+  const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   async function fetchRepositories(workspaceId: string) {
     loading.value = true
     try {
-      const data = await $fetch<Repository[]>(`/api/workspaces/${workspaceId}/repositories`)
+      const data = await $fetch<Repository[]>(`/api/workspaces/${workspaceId}/repositories`, {
+        headers: ssrHeaders,
+      })
       repositories.value = data
       return data
     } catch (err) {

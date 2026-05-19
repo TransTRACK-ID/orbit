@@ -270,6 +270,11 @@ export default defineEventHandler(async (event) => {
             headers['content-length'] = String(modifiedBody.length)
             // Prevent downstream caching of rewritten responses
             headers['cache-control'] = 'no-store'
+            // Strip anti-framing headers so the Live Preview iframe can render
+            delete headers['x-frame-options']
+            delete headers['X-Frame-Options']
+            delete headers['content-security-policy']
+            delete headers['Content-Security-Policy']
 
             if (statusCode >= 400) {
               console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (text, ${modifiedBody.length} bytes)`)
@@ -300,6 +305,11 @@ export default defineEventHandler(async (event) => {
           }
 
           // Binary responses — stream through unchanged
+          // Strip anti-framing headers so the Live Preview iframe can render
+          delete proxyRes.headers['x-frame-options']
+          delete proxyRes.headers['X-Frame-Options']
+          delete proxyRes.headers['content-security-policy']
+          delete proxyRes.headers['Content-Security-Policy']
           res.writeHead(statusCode, proxyRes.headers)
           proxyRes.pipe(res)
           proxyRes.on('end', resolve)

@@ -19,10 +19,6 @@ function isTextResponse(headers: http.IncomingHttpHeaders): boolean {
 }
 
 function rewriteAssetUrls(body: string, proxyPrefix: string): string {
-  // Nuxt & Vite dev server asset prefixes that need to go through the proxy.
-  // When the iframe loads HTML from the main origin, absolute paths like /_nuxt/...
-  // resolve against the parent origin and bypass the proxy. We rewrite them so
-  // every asset request routes back through /api/preview/{taskId}/.
   const prefixes = [
     '/_nuxt/',
     '/@vite/',
@@ -34,17 +30,14 @@ function rewriteAssetUrls(body: string, proxyPrefix: string): string {
   ]
 
   for (const prefix of prefixes) {
-    // Double-quote wrapped
     body = body.replace(
       new RegExp(`"${prefix.replace(/\//g, '\\/')}`, 'g'),
       `"${proxyPrefix}${prefix}`
     )
-    // Single-quote wrapped
     body = body.replace(
       new RegExp(`'${prefix.replace(/\//g, '\\/')}`, 'g'),
       `'${proxyPrefix}${prefix}`
     )
-    // CSS url() — matches url(/_nuxt/...) or url("/_nuxt/...)
     body = body.replace(
       new RegExp(`url\\(\\s*["']?${prefix.replace(/\//g, '\\/')}`, 'g'),
       `url(${proxyPrefix}${prefix}`
@@ -54,12 +47,6 @@ function rewriteAssetUrls(body: string, proxyPrefix: string): string {
   return body
 }
 
-/**
- * In Nuxt 3, Vite assets are intentionally served under the /_nuxt/ path.
- * Stripping /_nuxt/ causes the Nitro dev server to treat the request as a
- * client-side Vue route, returning the index.html fallback (text/html).
- * We keep the path exactly as-is so Nuxt can serve the correct asset.
- */
 function normalizeDevServerPath(urlPath: string): string {
   return urlPath
 }
@@ -90,16 +77,10 @@ function guessContentType(filePath: string): string {
 }
 
 function looksLikeAsset(urlPath: string): boolean {
-  // Strip query string before checking extension
   const clean = urlPath.split('?')[0].split('#')[0]
   return /\.(js|mjs|cjs|ts|css|json|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)$/i.test(clean)
 }
 
-/**
- * When the dev server returns 404 for an asset, try to read it directly from the
- * filesystem. This handles cases where Nuxt generates malformed absolute-path URLs
- * (e.g. /_nuxt/root/…/node_modules/…) that its own dev server cannot resolve.
- */
 function tryServeFilesystemFallback(
   urlPath: string,
   worktreeDir: string,
@@ -109,8 +90,6 @@ function tryServeFilesystemFallback(
 
   let fsPath: string | null = null
 
-  // Case 1: /_nuxt/<absolute-filesystem-path>
-  // Strip /_nuxt/ to reveal the raw absolute path.
   if (urlPath.startsWith('/_nuxt/')) {
     const candidate = urlPath.replace('/_nuxt/', '/')
     if (candidate.startsWith('/') && existsSync(candidate)) {
@@ -118,8 +97,6 @@ function tryServeFilesystemFallback(
     }
   }
 
-  // Case 1b: /@fs/<absolute-filesystem-path>
-  // Vite normalizes absolute paths to /@fs/ prefix.
   if (!fsPath && urlPath.startsWith('/@fs/')) {
     const candidate = urlPath.replace('/@fs/', '/')
     if (candidate.startsWith('/') && existsSync(candidate)) {
@@ -127,13 +104,11 @@ function tryServeFilesystemFallback(
     }
   }
 
-  // Case 2: the URL contains the worktree directory name somewhere in the middle.
-  // Extract everything after the worktree name and treat it as a relative path.
   if (!fsPath) {
     const worktreeName = path.basename(worktreeDir)
     const idx = urlPath.indexOf('/' + worktreeName + '/')
     if (idx !== -1) {
-      const afterWorktree = urlPath.slice(idx + worktreeName.length + 2) // +2 for slashes
+      const afterWorktree = urlPath.slice(idx + worktreeName.length + 2)
       const candidate = path.join(worktreeDir, afterWorktree)
       if (existsSync(candidate)) {
         fsPath = candidate
@@ -141,7 +116,6 @@ function tryServeFilesystemFallback(
     }
   }
 
-  // Case 3: path ends with node_modules/… — try relative to worktree root
   if (!fsPath && urlPath.includes('node_modules/')) {
     const relativePart = urlPath.slice(urlPath.indexOf('node_modules/'))
     const candidate = path.join(worktreeDir, relativePart)
@@ -169,11 +143,10 @@ function tryServeFilesystemFallback(
   return false
 }
 
-export default defineEventHandler(async (event) => {
+export async function proxyPreviewRequest(event: any, taskId: string): Promise<void> {
   console.log(`[preview-proxy] HANDLER INVOKED: ${event.method} ${event.path}`)
-  
+
   const user = await requireAuth(event)
-  const { taskId } = getRouterParams(event)
 
   // 1. Auth & task lookup
   const db = getDb()
@@ -209,13 +182,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // 3. Proxy the request
-  // Strip the proxy prefix so the dev server receives paths relative to its
-  // own root (e.g., /login, /_nuxt/entry.js). NUXT_APP_BASE_URL is only for
-  // URL generation; the dev server does not strip it from incoming requests.
   const rawTargetPath = event.path.replace(`/api/preview/${taskId}`, '') || '/'
   const targetPath = normalizeDevServerPath(rawTargetPath)
 
-  // Extract query string from the original request
   const originalUrl = event.node.req.url || ''
   const queryIndex = originalUrl.indexOf('?')
   const queryString = queryIndex !== -1 ? originalUrl.slice(queryIndex) : ''
@@ -243,28 +212,21 @@ export default defineEventHandler(async (event) => {
       (proxyRes) => {
         const statusCode = proxyRes.statusCode || 200
 
-        // Normalize headers for BOTH text and binary responses
         const headers = { ...proxyRes.headers }
 
-        // Strip anti-framing headers so the Live Preview iframe can render
         delete headers['x-frame-options']
         delete headers['X-Frame-Options']
         delete headers['content-security-policy']
         delete headers['Content-Security-Policy']
 
-        // Trap redirects inside the proxy boundary
         if (statusCode >= 300 && statusCode < 400 && headers.location) {
           const location = headers.location as string
-          // If the redirect is an absolute path and doesn't already have the proxy prefix
           if (location.startsWith('/') && !location.startsWith(proxyPrefix)) {
             headers.location = `${proxyPrefix}${location}`
             console.log(`[preview-proxy] Rewrote redirect Location from ${location} to ${headers.location}`)
           }
         }
 
-        // For text responses (HTML, JS, CSS, JSON), buffer and rewrite asset URLs
-        // so the browser routes them back through this proxy instead of
-        // resolving them against the parent origin.
         if (isTextResponse(proxyRes.headers)) {
           const chunks: Buffer[] = []
 
@@ -273,8 +235,6 @@ export default defineEventHandler(async (event) => {
           })
 
           proxyRes.on('end', () => {
-            // If the dev server returned 404 for an asset, try serving directly from disk
-            // before we waste time buffering & rewriting a 404 error page.
             if (statusCode >= 400 && looksLikeAsset(targetPath)) {
               if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
                 console.log(`[preview-proxy] ${taskId} dev-server returned ${statusCode} for ${targetPath}, filesystem fallback succeeded`)
@@ -288,9 +248,7 @@ export default defineEventHandler(async (event) => {
 
             const modifiedBody = Buffer.from(body, 'utf-8')
 
-            // Update content-length to match modified body
             headers['content-length'] = String(modifiedBody.length)
-            // Prevent downstream caching of rewritten responses
             headers['cache-control'] = 'no-store'
 
             if (statusCode >= 400) {
@@ -307,7 +265,6 @@ export default defineEventHandler(async (event) => {
             reject(err)
           })
         } else {
-          // Binary responses — if 404, try filesystem fallback first
           if (statusCode >= 400 && looksLikeAsset(targetPath)) {
             proxyRes.destroy()
             if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
@@ -321,7 +278,6 @@ export default defineEventHandler(async (event) => {
             console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (binary)`)
           }
 
-          // Write the normalized headers (including stripped X-Frame and rewritten Location)
           res.writeHead(statusCode, headers)
           proxyRes.pipe(res)
           proxyRes.on('end', resolve)
@@ -342,11 +298,10 @@ export default defineEventHandler(async (event) => {
       reject(err)
     })
 
-    // Forward body for POST/PUT/PATCH
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       req.pipe(proxyReq)
     } else {
       proxyReq.end()
     }
   })
-})
+}

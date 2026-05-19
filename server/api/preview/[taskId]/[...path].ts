@@ -207,9 +207,11 @@ export default defineEventHandler(async (event) => {
   }
 
   // 3. Proxy the request
-  // Pass the full original path (including /api/preview/{taskId}/) so Nuxt
-  // respects its NUXT_APP_BASE_URL and routes assets correctly.
-  const targetPath = normalizeDevServerPath(event.path)
+  // Strip the proxy prefix so the dev server receives paths relative to its
+  // own root (e.g., /login, /_nuxt/entry.js). NUXT_APP_BASE_URL is only for
+  // URL generation; the dev server does not strip it from incoming requests.
+  const rawTargetPath = event.path.replace(`/api/preview/${taskId}`, '') || '/'
+  const targetPath = normalizeDevServerPath(rawTargetPath)
 
   // Extract query string from the original request
   const originalUrl = event.node.req.url || ''
@@ -219,7 +221,7 @@ export default defineEventHandler(async (event) => {
 
   const proxyPrefix = `/api/preview/${taskId}`
 
-  console.log(`[preview-proxy] ${taskId} ${event.node.req.method} ${event.path} → dev-server:${devServer.port}`)
+  console.log(`[preview-proxy] ${taskId} ${event.node.req.method} ${rawTargetPath} → dev-server:${devServer.port}`)
 
   return new Promise<void>((resolve, reject) => {
     const req = event.node.req

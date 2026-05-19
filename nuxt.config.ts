@@ -72,4 +72,12 @@ export default defineNuxtConfig({
   },
 
   compatibilityDate: '2024-09-01',
+
+  vite: {
+    server: {
+      watch: {
+        ignored: ['**/node_modules/**', '**/.git/**'],
+      },
+    },
+  },
 })

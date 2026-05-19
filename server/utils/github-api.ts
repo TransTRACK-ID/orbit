@@ -172,7 +172,14 @@ export async function createGitLabRepo(token: string, name: string, isPrivate: b
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`GitLab API ${res.status}: ${text.slice(0, 300)}`)
+    let message = `GitLab API ${res.status}`
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.message) message = parsed.message
+    } catch {
+      message += `: ${text.slice(0, 300)}`
+    }
+    throw createError({ statusCode: 400, statusMessage: 'GitLab API Error', message })
   }
 
   const data = await res.json() as { web_url: string; http_url_to_repo: string }
@@ -198,7 +205,17 @@ export async function createGitHubRepo(token: string, name: string, isPrivate: b
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`GitHub API ${res.status}: ${text.slice(0, 300)}`)
+    let message = `GitHub API ${res.status}`
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.message) message = parsed.message
+      if (parsed.errors?.length) {
+        message += `: ${parsed.errors.map((e: any) => e.message || JSON.stringify(e)).join(', ')}`
+      }
+    } catch {
+      message += `: ${text.slice(0, 300)}`
+    }
+    throw createError({ statusCode: res.status === 422 ? 422 : 400, statusMessage: 'GitHub API Error', message })
   }
 
   const data = await res.json() as { html_url: string; clone_url: string }

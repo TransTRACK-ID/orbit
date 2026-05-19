@@ -213,7 +213,13 @@ async function handleCreateFromTemplate(formData: any) {
     })
     emit('created', result.project)
   } catch (err: any) {
-    error.value = err?.data?.message || 'Failed to create project from template'
+    const msg =
+      err?.data?.message
+      || err?.data?.statusMessage
+      || err?.statusMessage
+      || err?.message
+      || 'Failed to create project from template'
+    error.value = msg
   } finally {
     creating.value = false
   }

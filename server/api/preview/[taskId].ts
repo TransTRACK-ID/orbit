@@ -102,7 +102,9 @@ function guessContentType(filePath: string): string {
 }
 
 function looksLikeAsset(urlPath: string): boolean {
-  return /\.(js|mjs|cjs|ts|css|json|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)$/i.test(urlPath)
+  // Strip query string before checking extension
+  const clean = urlPath.split('?')[0].split('#')[0]
+  return /\.(js|mjs|cjs|ts|css|json|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)$/i.test(clean)
 }
 
 /**
@@ -123,6 +125,15 @@ function tryServeFilesystemFallback(
   // Strip /_nuxt/ to reveal the raw absolute path.
   if (urlPath.startsWith('/_nuxt/')) {
     const candidate = urlPath.replace('/_nuxt/', '/')
+    if (candidate.startsWith('/') && existsSync(candidate)) {
+      fsPath = candidate
+    }
+  }
+
+  // Case 1b: /@fs/<absolute-filesystem-path>
+  // Vite normalizes absolute paths to /@fs/ prefix.
+  if (!fsPath && urlPath.startsWith('/@fs/')) {
+    const candidate = urlPath.replace('/@fs/', '/')
     if (candidate.startsWith('/') && existsSync(candidate)) {
       fsPath = candidate
     }

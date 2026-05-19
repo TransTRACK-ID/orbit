@@ -221,9 +221,10 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
 
         if (statusCode >= 300 && statusCode < 400 && headers.location) {
           const location = headers.location as string
+          console.log(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} redirect to: ${location}`)
           if (location.startsWith('/') && !location.startsWith(proxyPrefix)) {
             headers.location = `${proxyPrefix}${location}`
-            console.log(`[preview-proxy] Rewrote redirect Location from ${location} to ${headers.location}`)
+            console.log(`[preview-proxy] ${taskId} rewrote redirect: ${location} → ${headers.location}`)
           }
         }
 

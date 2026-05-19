@@ -3,6 +3,8 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import http from 'http'
+import { existsSync, readFileSync } from 'fs'
+import path from 'path'
 import { getDevServerByTask } from '~/server/utils/dev-server-orchestrator'
 
 function isTextResponse(headers: http.IncomingHttpHeaders): boolean {
@@ -56,22 +58,116 @@ function rewriteAssetUrls(body: string, proxyPrefix: string): string {
  * Some Nuxt/Vite configurations prefix Vite-internal paths with /_nuxt/ (e.g. /_nuxt/@vite/client).
  * When forwarding to the dev server we must strip that erroneous prefix so Vite can serve them.
  */
-function normalizeDevServerPath(path: string): string {
+function normalizeDevServerPath(urlPath: string): string {
   // Vite prefixes mistakenly wrapped in _nuxt/
-  if (path.startsWith('/_nuxt/@vite/')) return path.replace('/_nuxt/', '/')
-  if (path.startsWith('/_nuxt/@fs/')) return path.replace('/_nuxt/', '/')
-  if (path.startsWith('/_nuxt/@id/')) return path.replace('/_nuxt/', '/')
-  if (path === '/_nuxt/__vite_ping') return '/__vite_ping'
-  if (path.startsWith('/_nuxt/__nuxt/')) return path.replace('/_nuxt/', '/')
-  if (path === '/_nuxt/__nuxt_error__') return '/__nuxt_error__'
+  if (urlPath.startsWith('/_nuxt/@vite/')) return urlPath.replace('/_nuxt/', '/')
+  if (urlPath.startsWith('/_nuxt/@fs/')) return urlPath.replace('/_nuxt/', '/')
+  if (urlPath.startsWith('/_nuxt/@id/')) return urlPath.replace('/_nuxt/', '/')
+  if (urlPath === '/_nuxt/__vite_ping') return '/__vite_ping'
+  if (urlPath.startsWith('/_nuxt/__nuxt/')) return urlPath.replace('/_nuxt/', '/')
+  if (urlPath === '/_nuxt/__nuxt_error__') return '/__nuxt_error__'
 
   // Absolute filesystem paths (Linux /root/… /home/… /app/… /Users/…)
   // Nuxt sometimes emits these under /_nuxt/; Vite expects /@fs/ for absolute paths.
-  if (/^\/_nuxt\/((?:root|home|app|Users)\/)/.test(path)) {
-    return path.replace('/_nuxt/', '/@fs/')
+  if (/^\/_nuxt\/((?:root|home|app|Users)\/)/.test(urlPath)) {
+    return urlPath.replace('/_nuxt/', '/@fs/')
   }
 
-  return path
+  return urlPath
+}
+
+function guessContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase()
+  switch (ext) {
+    case '.js':
+    case '.mjs':
+    case '.cjs': return 'application/javascript'
+    case '.ts': return 'application/typescript'
+    case '.css': return 'text/css'
+    case '.html': return 'text/html'
+    case '.json': return 'application/json'
+    case '.png': return 'image/png'
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg'
+    case '.gif': return 'image/gif'
+    case '.svg': return 'image/svg+xml'
+    case '.ico': return 'image/x-icon'
+    case '.woff2': return 'font/woff2'
+    case '.woff': return 'font/woff'
+    case '.ttf': return 'font/ttf'
+    case '.eot': return 'application/vnd.ms-fontobject'
+    case '.map': return 'application/json'
+    default: return 'application/octet-stream'
+  }
+}
+
+function looksLikeAsset(urlPath: string): boolean {
+  return /\.(js|mjs|cjs|ts|css|json|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)$/i.test(urlPath)
+}
+
+/**
+ * When the dev server returns 404 for an asset, try to read it directly from the
+ * filesystem. This handles cases where Nuxt generates malformed absolute-path URLs
+ * (e.g. /_nuxt/root/…/node_modules/…) that its own dev server cannot resolve.
+ */
+function tryServeFilesystemFallback(
+  urlPath: string,
+  worktreeDir: string,
+  res: any
+): boolean {
+  if (!looksLikeAsset(urlPath)) return false
+
+  let fsPath: string | null = null
+
+  // Case 1: /_nuxt/<absolute-filesystem-path>
+  // Strip /_nuxt/ to reveal the raw absolute path.
+  if (urlPath.startsWith('/_nuxt/')) {
+    const candidate = urlPath.replace('/_nuxt/', '/')
+    if (candidate.startsWith('/') && existsSync(candidate)) {
+      fsPath = candidate
+    }
+  }
+
+  // Case 2: the URL contains the worktree directory name somewhere in the middle.
+  // Extract everything after the worktree name and treat it as a relative path.
+  if (!fsPath) {
+    const worktreeName = path.basename(worktreeDir)
+    const idx = urlPath.indexOf('/' + worktreeName + '/')
+    if (idx !== -1) {
+      const afterWorktree = urlPath.slice(idx + worktreeName.length + 2) // +2 for slashes
+      const candidate = path.join(worktreeDir, afterWorktree)
+      if (existsSync(candidate)) {
+        fsPath = candidate
+      }
+    }
+  }
+
+  // Case 3: path ends with node_modules/… — try relative to worktree root
+  if (!fsPath && urlPath.includes('node_modules/')) {
+    const relativePart = urlPath.slice(urlPath.indexOf('node_modules/'))
+    const candidate = path.join(worktreeDir, relativePart)
+    if (existsSync(candidate)) {
+      fsPath = candidate
+    }
+  }
+
+  if (fsPath) {
+    try {
+      const data = readFileSync(fsPath)
+      res.writeHead(200, {
+        'content-type': guessContentType(fsPath),
+        'content-length': String(data.length),
+        'cache-control': 'no-store',
+      })
+      res.end(data)
+      console.log(`[preview-proxy] filesystem fallback served ${urlPath} from ${fsPath}`)
+      return true
+    } catch (err: any) {
+      console.error(`[preview-proxy] filesystem fallback failed for ${urlPath}:`, err.message)
+    }
+  }
+
+  return false
 }
 
 export default defineEventHandler(async (event) => {
@@ -123,6 +219,8 @@ export default defineEventHandler(async (event) => {
 
   const proxyPrefix = `/api/preview/${taskId}`
 
+  console.log(`[preview-proxy] ${taskId} ${event.node.req.method} ${rawTargetPath} → normalized ${targetPath} → dev-server:${devServer.port}`)
+
   return new Promise<void>((resolve, reject) => {
     const req = event.node.req
     const res = event.node.res
@@ -140,9 +238,6 @@ export default defineEventHandler(async (event) => {
       },
       (proxyRes) => {
         const statusCode = proxyRes.statusCode || 200
-        if (statusCode >= 400) {
-          console.error(`[preview-proxy] ${taskId} ${req.method} ${rawTargetPath} → dev-server ${fullTargetPath} returned ${statusCode}`)
-        }
 
         // For text responses (HTML, JS, CSS, JSON), buffer and rewrite asset URLs
         // so the browser routes them back through this proxy instead of
@@ -155,6 +250,16 @@ export default defineEventHandler(async (event) => {
           })
 
           proxyRes.on('end', () => {
+            // If the dev server returned 404 for an asset, try serving directly from disk
+            // before we waste time buffering & rewriting a 404 error page.
+            if (statusCode >= 400 && looksLikeAsset(targetPath)) {
+              if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
+                console.log(`[preview-proxy] ${taskId} dev-server returned ${statusCode} for ${targetPath}, filesystem fallback succeeded`)
+                resolve()
+                return
+              }
+            }
+
             let body = Buffer.concat(chunks).toString('utf-8')
             body = rewriteAssetUrls(body, proxyPrefix)
 
@@ -166,7 +271,11 @@ export default defineEventHandler(async (event) => {
             // Prevent downstream caching of rewritten responses
             headers['cache-control'] = 'no-store'
 
-            res.writeHead(proxyRes.statusCode || 200, headers)
+            if (statusCode >= 400) {
+              console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (text, ${modifiedBody.length} bytes)`)
+            }
+
+            res.writeHead(statusCode, headers)
             res.end(modifiedBody)
             resolve()
           })
@@ -176,8 +285,22 @@ export default defineEventHandler(async (event) => {
             reject(err)
           })
         } else {
+          // Binary responses — if 404, try filesystem fallback first
+          if (statusCode >= 400 && looksLikeAsset(targetPath)) {
+            proxyRes.destroy()
+            if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
+              console.log(`[preview-proxy] ${taskId} dev-server returned ${statusCode} for ${targetPath}, filesystem fallback succeeded`)
+              resolve()
+              return
+            }
+          }
+
+          if (statusCode >= 400) {
+            console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (binary)`)
+          }
+
           // Binary responses — stream through unchanged
-          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
+          res.writeHead(statusCode, proxyRes.headers)
           proxyRes.pipe(res)
           proxyRes.on('end', resolve)
           proxyRes.on('error', (err) => {

@@ -849,15 +849,25 @@
     @click.self="showPreviewModal = false"
   >
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-surface-100">
-        <span class="text-sm font-semibold text-surface-700">Live Preview</span>
-        <button class="text-surface-400 hover:text-surface-600" @click="showPreviewModal = false">
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
+        <span class="text-sm font-semibold text-surface-700 flex-shrink-0">Live Preview</span>
+        <div class="flex-1 flex items-center gap-2 bg-surface-50 rounded-lg px-3 py-1.5 border border-surface-200">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <input
+            v-model="previewPath"
+            type="text"
+            class="w-full bg-transparent text-xs text-surface-700 outline-none"
+            placeholder="Enter path (e.g. /login)"
+            @keydown.enter="navigatePreview"
+          >
+        </div>
+        <button class="text-surface-400 hover:text-surface-600 flex-shrink-0" @click="showPreviewModal = false">
           <Close class="w-4 h-4" />
         </button>
       </div>
       <div v-if="previewUrl" class="flex-1">
         <iframe
-          :src="previewUrl"
+          :src="previewIframeUrl"
           class="w-full h-full border-0"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
         />
@@ -975,6 +985,19 @@ const previewAvailable = ref(false)
 const previewUrl = ref('')
 const showPreviewModal = ref(false)
 const previewStarting = ref(false)
+const previewPath = ref('/')
+const committedPreviewPath = ref('/')
+
+const previewIframeUrl = computed(() => {
+  if (!previewUrl.value) return ''
+  const base = previewUrl.value.replace(/\/$/, '')
+  const path = committedPreviewPath.value.startsWith('/') ? committedPreviewPath.value : '/' + committedPreviewPath.value
+  return base + path
+})
+
+function navigatePreview() {
+  committedPreviewPath.value = previewPath.value || '/'
+}
 
 const DEFAULT_LABELS = [
   { name: 'bug', color: '#ef4444' },
@@ -990,9 +1013,12 @@ watch(() => props.labels, (newLabels) => {
   availableLabels.value = [...newLabels]
 }, { immediate: true })
 
-// Reset preview starting state when modal is closed
+// Reset preview state when modal opens/closes
 watch(showPreviewModal, (isOpen) => {
-  if (!isOpen) {
+  if (isOpen) {
+    previewPath.value = '/'
+    committedPreviewPath.value = '/'
+  } else {
     previewStarting.value = false
   }
 })

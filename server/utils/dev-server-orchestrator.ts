@@ -211,8 +211,9 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
         })
       })
 
-      // ANY non-empty HTTP status code means the server is accepting connections
-      if (status && status !== '000' && !isNaN(Number(status))) {
+      // Wait for the server to be truly ready — NOT 503 Service Unavailable
+      const statusNum = Number(status)
+      if (status && status !== '000' && !isNaN(statusNum) && statusNum !== 503) {
         console.log(`[dev-server] Port ${port} ready (HTTP ${status})`)
         return true
       }

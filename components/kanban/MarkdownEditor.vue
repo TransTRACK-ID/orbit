@@ -118,7 +118,7 @@ function onInput(e: Event) {
 }
 .dark .prose :deep(code) {
   background: #1e293b;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 .prose :deep(pre) {
   background: #0f172a;
@@ -131,7 +131,7 @@ function onInput(e: Event) {
 }
 .dark .prose :deep(pre) {
   background: #1e293b;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 .prose :deep(pre code) {
   background: none;
@@ -139,8 +139,18 @@ function onInput(e: Event) {
   color: inherit;
 }
 .dark .prose :deep(pre code) {
-  color: inherit;
+  color: #f8fafc !important;
 }
+
+/* Override old Tailwind classes in persisted content for dark mode readability */
+.dark .prose :deep(.bg-slate-100) {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.dark .prose :deep(.text-slate-800) {
+  color: #f1f5f9 !important;
+}
+
 .prose :deep(blockquote) {
   border-left: 3px solid #e2e8f0;
   padding-left: 0.75em;

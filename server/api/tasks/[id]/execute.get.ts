@@ -842,12 +842,19 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     const databaseRule = `[DATABASE CONSTRAINTS]
 CRITICAL: You do NOT have access to database credentials, .env files, or any database connection. You must NEVER attempt to run database migrations, schema generation, or any database-related CLI commands (such as drizzle-kit generate, drizzle-kit push, db:migrate, prisma migrate, etc.). You must NEVER create or modify files in any migrations/ directory. If a task involves database schema changes, ONLY update the TypeScript schema definition files — do NOT attempt to generate or run migrations. The user will handle all database operations separately.`
 
+    const markdownRule = `[RESPONSE FORMATTING]
+When summarizing changes or showing code in your responses, use proper markdown formatting:
+- Use fenced code blocks (\`\`\`language\n code \n\`\`\`) for multi-line code snippets — NEVER use single backticks for multi-line code.
+- Use inline code (\`code\`) only for short single identifiers, file names, or variable names.
+- Use bullet points and clear headings to organize your summary.
+This ensures your response is readable in the UI.`
+
     const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
     const labelsContext = labels.length > 0
       ? `\n\n[TASK TYPE: ${labels.join(', ')}]`
       : '\n\n[TASK TYPE: none — no labels assigned]'
 
-    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
     let attachmentsInjected = false
 
     if (feedback) {
@@ -888,7 +895,7 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
           attachmentsInjected = true
         }
 
-        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
+        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
@@ -898,7 +905,7 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
           await pushAndPersist(`Included latest codebase changes in context`)
         }
 
-        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}`
+        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}`
       }
     }
 

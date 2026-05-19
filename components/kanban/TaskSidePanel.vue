@@ -1824,21 +1824,55 @@ async function handleFixFeedback() {
 
 function parseMarkdown(md: string): string {
   if (!md) return '<p class="text-surface-400 italic">No description provided</p>'
-  return md
+
+  // 1. Extract fenced code blocks first so they don't get processed by other rules
+  const codeBlocks: string[] = []
+  let processed = md.replace(/```(\w*)?\n([\s\S]*?)```/g, (_match, lang, code) => {
+    const idx = codeBlocks.length
+    codeBlocks.push(code)
+    return `__FENCED_BLOCK_${idx}__`
+  })
+
+  // 2. Extract inline code so it doesn't get wrapped in paragraphs
+  const inlineCodes: string[] = []
+  processed = processed.replace(/`([^`]+)`/g, (_match, code) => {
+    const idx = inlineCodes.length
+    inlineCodes.push(code)
+    return `__INLINE_CODE_${idx}__`
+  })
+
+  // 3. Process markdown structure
+  processed = processed
     .replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, text) => {
       const level = hashes.length
       return `<h${level} class="font-semibold text-slate-800 mt-2 mb-1">${text}</h${level}>`
     })
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-xs">$1</code>')
     .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^(.*)$/gm, '<p class="mb-1">$1</p>')
+    .replace(/^(.*)$/gm, (match) => {
+      // Don't wrap placeholders or empty lines in paragraphs
+      if (/^__(FENCED_BLOCK|INLINE_CODE)_\d+__$/.test(match.trim()) || !match.trim()) return match
+      return `<p class="mb-1">${match}</p>`
+    })
     .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')
     .replace(/<p class="mb-1"><li class="ml-4">(.*?)<\/li><\/p>/g, '<li class="ml-4">$1</li>')
     .replace(/(<li class="ml-4">.*?<\/li>\s*)+/g, '<ul class="list-disc pl-2 my-1">$&</ul>')
     .replace(/\n/g, '')
+
+  // 4. Restore inline code
+  processed = processed.replace(/__INLINE_CODE_(\d+)__/g, (_match, idx) => {
+    return `<code>${inlineCodes[parseInt(idx)]}</code>`
+  })
+
+  // 5. Restore fenced code blocks as <pre><code>
+  processed = processed.replace(/__FENCED_BLOCK_(\d+)__/g, (_match, idx) => {
+    const code = codeBlocks[parseInt(idx)]
+    return `<pre><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`
+  })
+
+  return processed
 }
 
 const renderedDescription = computed(() => {
@@ -2258,15 +2292,6 @@ function formatActivity(log: ActivityLog) {
   margin-top: 0;
 }
 
-.review-feedback-body :deep(code) {
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 10px;
-  background: #e2e8f0;
-  padding: 1px 4px;
-  border-radius: 3px;
-  color: #334155;
-}
-
 .review-feedback-body :deep(pre) {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 10px;
@@ -2276,7 +2301,7 @@ function formatActivity(log: ActivityLog) {
   overflow-x: auto;
   line-height: 1.5;
   margin: 4px 0;
-  color: #475569;
+  color: #334155;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2383,14 +2408,15 @@ function formatActivity(log: ActivityLog) {
 
 .review-feedback-body :deep(code) {
   background: #f1f5f9;
+  color: #334155;
   padding: 0 3px;
   border-radius: 3px;
   font-size: 10px;
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
 .dark .review-feedback-body :deep(code) {
   background: #334155;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 
 .review-feedback-body :deep(pre) {
@@ -2405,6 +2431,7 @@ function formatActivity(log: ActivityLog) {
 }
 .dark .review-feedback-body :deep(pre) {
   background: #1e293b;
+  color: #f8fafc !important;
 }
 
 .review-feedback-body :deep(pre code) {
@@ -2412,6 +2439,18 @@ function formatActivity(log: ActivityLog) {
   padding: 0;
   color: inherit;
   font-size: inherit;
+}
+.dark .review-feedback-body :deep(pre code) {
+  color: #f8fafc !important;
+}
+
+/* Override old Tailwind classes in persisted agent comments for dark mode readability */
+.dark .review-feedback-body :deep(.bg-slate-100) {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.dark .review-feedback-body :deep(.text-slate-800) {
+  color: #f1f5f9 !important;
 }
 
 .review-feedback-body :deep(hr) {
@@ -2459,7 +2498,7 @@ function formatActivity(log: ActivityLog) {
 }
 .dark .prose :deep(code) {
   background: #1e293b;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 .prose :deep(pre) {
   background: #0f172a;
@@ -2472,7 +2511,7 @@ function formatActivity(log: ActivityLog) {
 }
 .dark .prose :deep(pre) {
   background: #1e293b;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 .prose :deep(pre code) {
   background: none;
@@ -2480,8 +2519,18 @@ function formatActivity(log: ActivityLog) {
   color: inherit;
 }
 .dark .prose :deep(pre code) {
-  color: inherit;
+  color: #f8fafc !important;
 }
+
+/* Override old Tailwind classes in persisted content for dark mode readability */
+.dark .prose :deep(.bg-slate-100) {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.dark .prose :deep(.text-slate-800) {
+  color: #f1f5f9 !important;
+}
+
 .prose :deep(blockquote) {
   border-left: 3px solid #e2e8f0;
   padding-left: 0.75em;
@@ -2552,12 +2601,13 @@ function formatActivity(log: ActivityLog) {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
   background: #e2e8f0;
+  color: #334155;
   padding: 1px 4px;
   border-radius: 3px;
 }
 .dark .comment-body :deep(code) {
   background: #334155;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 
 .comment-body :deep(pre) {
@@ -2574,7 +2624,7 @@ function formatActivity(log: ActivityLog) {
 }
 .dark .comment-body :deep(pre) {
   background: #1e293b;
-  color: #e2e8f0;
+  color: #f8fafc !important;
 }
 
 .comment-body :deep(pre code) {
@@ -2583,7 +2633,16 @@ function formatActivity(log: ActivityLog) {
   font-size: inherit;
 }
 .dark .comment-body :deep(pre code) {
-  color: inherit;
+  color: #f8fafc !important;
+}
+
+/* Override old Tailwind classes in persisted agent comments for dark mode readability */
+.dark .comment-body :deep(.bg-slate-100) {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.dark .comment-body :deep(.text-slate-800) {
+  color: #f1f5f9 !important;
 }
 
 .comment-body :deep(ul),

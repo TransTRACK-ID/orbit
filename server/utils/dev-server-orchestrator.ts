@@ -44,10 +44,10 @@ export function getDevServerByTask(task: { id: string; repository?: { url: strin
   return undefined
 }
 
-export function getBrowserQueueStatus(): { isRunning: boolean; queued: number; nextJob: string | null } {
+export async function getBrowserQueueStatus(): Promise<{ isRunning: boolean; queued: number; nextJob: string | null }> {
   // Re-exported from browser-queue for health endpoint usage
   // We import lazily to avoid circular deps
-  const { getQueueStatus } = require('./browser-queue')
+  const { getQueueStatus } = await import('./browser-queue')
   return getQueueStatus()
 }
 
@@ -325,8 +325,8 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string)
   let repositoryEnv: Record<string, string> = {}
   if (repositoryId) {
     try {
-      const { getDb, schema } = require('~/server/database')
-      const { eq } = require('drizzle-orm')
+      const { getDb, schema } = await import('~/server/database')
+      const { eq } = await import('drizzle-orm')
       const db = getDb()
       const envVars = await db.query.repositoryEnvVars.findMany({
         where: eq(schema.repositoryEnvVars.repositoryId, repositoryId),

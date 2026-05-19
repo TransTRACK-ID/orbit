@@ -170,6 +170,8 @@ function tryServeFilesystemFallback(
 }
 
 export default defineEventHandler(async (event) => {
+  console.log(`[preview-proxy] HANDLER INVOKED: ${event.method} ${event.path}`)
+  
   const user = await requireAuth(event)
   const { taskId } = getRouterParams(event)
 

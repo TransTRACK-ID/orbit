@@ -173,6 +173,16 @@ export interface Attachment {
   createdAt: string
 }
 
+export interface BrainstormAttachment {
+  id: string
+  brainstormId: string
+  filename: string
+  originalName: string
+  mimeType: string
+  size: number
+  createdAt: string
+}
+
 // ─── Comment ───
 export interface Comment {
   id: string

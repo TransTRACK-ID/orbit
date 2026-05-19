@@ -1,4 +1,4 @@
-import type { Brainstorm, BrainstormMessage, Task } from '~/types'
+import type { Brainstorm, BrainstormMessage, Task, BrainstormAttachment } from '~/types'
 
 const brainstorms = ref<Brainstorm[]>([])
 const currentBrainstorm = ref<Brainstorm | null>(null)
@@ -230,6 +230,51 @@ export const useBrainstorm = () => {
     }
   }
 
+  async function fetchAttachments(brainstormId: string) {
+    return await $fetch<BrainstormAttachment[]>(`/api/brainstorms/${brainstormId}/attachments`, {
+      headers: ssrHeaders,
+    })
+  }
+
+  async function uploadAttachment(
+    brainstormId: string,
+    file: File,
+    onProgress?: (percent: number) => void
+  ): Promise<BrainstormAttachment> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      })
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText))
+        } else {
+          reject(new Error(xhr.responseText || 'Upload failed'))
+        }
+      })
+
+      xhr.addEventListener('error', () => reject(new Error('Upload failed')))
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')))
+
+      xhr.open('POST', `/api/brainstorms/${brainstormId}/attachments`)
+      xhr.send(formData)
+    })
+  }
+
+  async function deleteAttachment(brainstormId: string, attachmentId: string) {
+    await $fetch(`/api/brainstorms/${brainstormId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    })
+  }
+
   return {
     brainstorms,
     currentBrainstorm,
@@ -254,5 +299,8 @@ export const useBrainstorm = () => {
     clearChatStep,
     archiveBrainstorm,
     convertToTask,
+    fetchAttachments,
+    uploadAttachment,
+    deleteAttachment,
   }
 }

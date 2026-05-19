@@ -182,9 +182,12 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
   }
 
   // 3. Proxy the request
-  const rawTargetPath = event.path.replace(`/api/preview/${taskId}`, '') || '/'
-  const targetPath = normalizeDevServerPath(rawTargetPath)
+  // With NUXT_APP_BASE_URL set, the dev server knows its base path and will
+  // strip it from incoming requests. Forward the full path including the
+  // proxy prefix so Nuxt can handle it correctly.
+  const targetPath = normalizeDevServerPath(event.path)
 
+  // Extract query string from the original request
   const originalUrl = event.node.req.url || ''
   const queryIndex = originalUrl.indexOf('?')
   const queryString = queryIndex !== -1 ? originalUrl.slice(queryIndex) : ''
@@ -192,7 +195,7 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
 
   const proxyPrefix = `/api/preview/${taskId}`
 
-  console.log(`[preview-proxy] ${taskId} ${event.node.req.method} ${rawTargetPath} → dev-server:${devServer.port}`)
+  console.log(`[preview-proxy] ${taskId} ${event.node.req.method} ${event.path} → dev-server:${devServer.port}`)
 
   return new Promise<void>((resolve, reject) => {
     const req = event.node.req

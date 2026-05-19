@@ -5,6 +5,53 @@ import { eq } from 'drizzle-orm'
 import http from 'http'
 import { getDevServerByTask } from '~/server/utils/dev-server-orchestrator'
 
+function isTextResponse(headers: http.IncomingHttpHeaders): boolean {
+  const ct = headers['content-type'] || ''
+  return typeof ct === 'string' && (
+    ct.includes('text/html') ||
+    ct.includes('application/javascript') ||
+    ct.includes('text/javascript') ||
+    ct.includes('text/css') ||
+    ct.includes('application/json')
+  )
+}
+
+function rewriteAssetUrls(body: string, proxyPrefix: string): string {
+  // Nuxt & Vite dev server asset prefixes that need to go through the proxy.
+  // When the iframe loads HTML from the main origin, absolute paths like /_nuxt/...
+  // resolve against the parent origin and bypass the proxy. We rewrite them so
+  // every asset request routes back through /api/preview/{taskId}/.
+  const prefixes = [
+    '/_nuxt/',
+    '/@vite/',
+    '/@fs/',
+    '/@id/',
+    '/__vite_ping',
+    '/__nuxt/',
+    '/__nuxt_error__',
+  ]
+
+  for (const prefix of prefixes) {
+    // Double-quote wrapped
+    body = body.replace(
+      new RegExp(`"${prefix.replace(/\//g, '\\/')}`, 'g'),
+      `"${proxyPrefix}${prefix}`
+    )
+    // Single-quote wrapped
+    body = body.replace(
+      new RegExp(`'${prefix.replace(/\//g, '\\/')}`, 'g'),
+      `'${proxyPrefix}${prefix}`
+    )
+    // CSS url() — matches url(/_nuxt/...) or url("/_nuxt/...)
+    body = body.replace(
+      new RegExp(`url\\(\\s*["']?${prefix.replace(/\//g, '\\/')}`, 'g'),
+      `url(${proxyPrefix}${prefix}`
+    )
+  }
+
+  return body
+}
+
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const { taskId } = getRouterParams(event)
@@ -48,6 +95,8 @@ export default defineEventHandler(async (event) => {
   const queryString = queryIndex !== -1 ? originalUrl.slice(queryIndex) : ''
   const fullTargetPath = targetPath + queryString
 
+  const proxyPrefix = `/api/preview/${taskId}`
+
   return new Promise<void>((resolve, reject) => {
     const req = event.node.req
     const res = event.node.res
@@ -64,13 +113,47 @@ export default defineEventHandler(async (event) => {
         },
       },
       (proxyRes) => {
-        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
-        proxyRes.pipe(res)
-        proxyRes.on('end', resolve)
-        proxyRes.on('error', (err) => {
-          console.error(`[preview-proxy] Response error for ${taskId}:`, err.message)
-          reject(err)
-        })
+        // For text responses (HTML, JS, CSS, JSON), buffer and rewrite asset URLs
+        // so the browser routes them back through this proxy instead of
+        // resolving them against the parent origin.
+        if (isTextResponse(proxyRes.headers)) {
+          const chunks: Buffer[] = []
+
+          proxyRes.on('data', (chunk: Buffer) => {
+            chunks.push(chunk)
+          })
+
+          proxyRes.on('end', () => {
+            let body = Buffer.concat(chunks).toString('utf-8')
+            body = rewriteAssetUrls(body, proxyPrefix)
+
+            const modifiedBody = Buffer.from(body, 'utf-8')
+
+            // Update content-length to match modified body
+            const headers = { ...proxyRes.headers }
+            headers['content-length'] = modifiedBody.length
+            // Prevent downstream caching of rewritten responses
+            headers['cache-control'] = 'no-store'
+
+            res.writeHead(proxyRes.statusCode || 200, headers)
+            res.end(modifiedBody)
+            resolve()
+          })
+
+          proxyRes.on('error', (err) => {
+            console.error(`[preview-proxy] Response error for ${taskId}:`, err.message)
+            reject(err)
+          })
+        } else {
+          // Binary responses — stream through unchanged
+          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
+          proxyRes.pipe(res)
+          proxyRes.on('end', resolve)
+          proxyRes.on('error', (err) => {
+            console.error(`[preview-proxy] Response error for ${taskId}:`, err.message)
+            reject(err)
+          })
+        }
       }
     )
 

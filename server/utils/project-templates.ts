@@ -1,6 +1,6 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { readFile, writeFile, cp, mkdir, rename } from 'fs/promises'
+import { readFile, writeFile, cp, mkdir, rename, rm } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -169,6 +169,13 @@ export async function substituteFile(targetDir: string, filePath: string, variab
   await writeFile(fullPath, content)
 }
 
+export async function removeProjectDirectory(repoName: string): Promise<void> {
+  const targetDir = `${projectsDir}/${repoName}`
+  if (existsSync(targetDir)) {
+    await rm(targetDir, { recursive: true, force: true })
+  }
+}
+
 export async function initializeFromTemplate(
   templateId: string,
   projectName: string,
@@ -179,12 +186,12 @@ export async function initializeFromTemplate(
   platform?: string
 ): Promise<{ targetDir: string; remoteUrl?: string }> {
   const template = await getTemplateById(templateId)
-  if (!template) throw new Error(`Template not found: ${templateId}`)
+  if (!template) throw createError({ statusCode: 400, message: `Template not found: ${templateId}` })
 
   // Resolve target directory
   const targetDir = `${projectsDir}/${repoName}`
   if (existsSync(targetDir)) {
-    throw new Error(`Directory already exists: ${targetDir}`)
+    throw createError({ statusCode: 409, message: `Directory already exists: ${targetDir}. Remove the existing directory or use a different repository name.` })
   }
 
   await mkdir(targetDir, { recursive: true })

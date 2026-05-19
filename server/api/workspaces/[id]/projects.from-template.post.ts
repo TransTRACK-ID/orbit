@@ -1,5 +1,6 @@
 import { requireWorkspaceAccess } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { eq } from 'drizzle-orm'
 import { createProjectFromTemplateSchema } from '~/server/utils/validation'
 import { initializeFromTemplate, getTemplateById } from '~/server/utils/project-templates'
 import { createGitHubRepo, createGitLabRepo } from '~/server/utils/github-api'
@@ -70,8 +71,9 @@ export default defineEventHandler(async (event) => {
   )
 
   // ─── 4. Create repository record ───
+  let repositoryId: string | null = null
   if (remoteUrl) {
-    await db.insert(schema.repositories).values({
+    const [repository] = await db.insert(schema.repositories).values({
       workspaceId,
       name: body.repositoryName,
       url: remoteUrl,
@@ -79,7 +81,16 @@ export default defineEventHandler(async (event) => {
       createBranch: true,
       platform: body.platform,
       token: body.token || null,
-    })
+    }).returning()
+    repositoryId = repository.id
+  }
+
+  // ─── 5. Link repository to project ───
+  if (repositoryId) {
+    await db.update(schema.projects)
+      .set({ repositoryId })
+      .where(eq(schema.projects.id, project.id))
+    project.repositoryId = repositoryId
   }
 
   return { project, repositoryUrl: remoteUrl, targetDir }

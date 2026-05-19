@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, timestamp } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { workspaces } from './workspaces'
+import { repositories } from './repositories'
 import { projectMembers } from './project-members'
 import { statuses } from './statuses'
 import { labels } from './labels'
@@ -9,6 +10,7 @@ import { tasks } from './tasks'
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  repositoryId: uuid('repository_id').references(() => repositories.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   color: varchar('color', { length: 7 }).notNull().default('#F14848'),
@@ -23,6 +25,10 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   workspace: one(workspaces, {
     fields: [projects.workspaceId],
     references: [workspaces.id],
+  }),
+  repository: one(repositories, {
+    fields: [projects.repositoryId],
+    references: [repositories.id],
   }),
   members: many(projectMembers),
   statuses: many(statuses),

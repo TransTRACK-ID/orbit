@@ -52,6 +52,28 @@ function rewriteAssetUrls(body: string, proxyPrefix: string): string {
   return body
 }
 
+/**
+ * Some Nuxt/Vite configurations prefix Vite-internal paths with /_nuxt/ (e.g. /_nuxt/@vite/client).
+ * When forwarding to the dev server we must strip that erroneous prefix so Vite can serve them.
+ */
+function normalizeDevServerPath(path: string): string {
+  // Vite prefixes mistakenly wrapped in _nuxt/
+  if (path.startsWith('/_nuxt/@vite/')) return path.replace('/_nuxt/', '/')
+  if (path.startsWith('/_nuxt/@fs/')) return path.replace('/_nuxt/', '/')
+  if (path.startsWith('/_nuxt/@id/')) return path.replace('/_nuxt/', '/')
+  if (path === '/_nuxt/__vite_ping') return '/__vite_ping'
+  if (path.startsWith('/_nuxt/__nuxt/')) return path.replace('/_nuxt/', '/')
+  if (path === '/_nuxt/__nuxt_error__') return '/__nuxt_error__'
+
+  // Absolute filesystem paths (Linux /root/… /home/… /app/… /Users/…)
+  // Nuxt sometimes emits these under /_nuxt/; Vite expects /@fs/ for absolute paths.
+  if (/^\/_nuxt\/((?:root|home|app|Users)\/)/.test(path)) {
+    return path.replace('/_nuxt/', '/@fs/')
+  }
+
+  return path
+}
+
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const { taskId } = getRouterParams(event)
@@ -81,13 +103,17 @@ export default defineEventHandler(async (event) => {
   }
 
   // 2. Find active dev server
-  const devServer = getDevServerByTask(task)
+  const devServer = getDevServerByTask({
+    id: task.id,
+    repository: task.repository,
+  })
   if (!devServer) {
     throw createError({ statusCode: 503, statusMessage: 'Preview server is not running' })
   }
 
   // 3. Proxy the request
-  const targetPath = event.path.replace(`/api/preview/${taskId}`, '') || '/'
+  const rawTargetPath = event.path.replace(`/api/preview/${taskId}`, '') || '/'
+  const targetPath = normalizeDevServerPath(rawTargetPath)
 
   // Extract query string from the original request
   const originalUrl = event.node.req.url || ''
@@ -113,6 +139,11 @@ export default defineEventHandler(async (event) => {
         },
       },
       (proxyRes) => {
+        const statusCode = proxyRes.statusCode || 200
+        if (statusCode >= 400) {
+          console.error(`[preview-proxy] ${taskId} ${req.method} ${rawTargetPath} → dev-server ${fullTargetPath} returned ${statusCode}`)
+        }
+
         // For text responses (HTML, JS, CSS, JSON), buffer and rewrite asset URLs
         // so the browser routes them back through this proxy instead of
         // resolving them against the parent origin.
@@ -131,7 +162,7 @@ export default defineEventHandler(async (event) => {
 
             // Update content-length to match modified body
             const headers = { ...proxyRes.headers }
-            headers['content-length'] = modifiedBody.length
+            headers['content-length'] = String(modifiedBody.length)
             // Prevent downstream caching of rewritten responses
             headers['cache-control'] = 'no-store'
 

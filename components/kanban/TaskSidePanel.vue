@@ -1914,11 +1914,12 @@ function parseMarkdown(md: string): string {
     })
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="rounded-lg border border-surface-200 max-w-full my-2" />')
     .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^(.*)$/gm, (match) => {
-      // Don't wrap placeholders or empty lines in paragraphs
-      if (/^__(FENCED_BLOCK|INLINE_CODE)_\d+__$/.test(match.trim()) || !match.trim()) return match
+      // Don't wrap placeholders, images, or empty lines in paragraphs
+      if (/^__(FENCED_BLOCK|INLINE_CODE)_\d+__$/.test(match.trim()) || !match.trim() || /^<img\b/.test(match.trim())) return match
       return `<p class="mb-1">${match}</p>`
     })
     .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')

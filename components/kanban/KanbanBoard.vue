@@ -3,7 +3,9 @@
     <BoardHeader
       :statuses="statuses"
       :task-count="tasks.length"
+      :view-mode="viewMode"
       @create-task="$emit('createTask')"
+      @update:view-mode="$emit('update:viewMode', $event)"
     />
 
     <div class="flex-1 overflow-x-auto overflow-y-hidden board-scroll px-3 sm:px-5 pb-4">
@@ -27,12 +29,14 @@ import type { Task, Status } from '~/types'
 const props = defineProps<{
   statuses: Status[]
   tasks: Task[]
+  viewMode?: 'kanban' | 'table'
 }>()
 
 const emit = defineEmits<{
   createTask: []
   updateTask: [data: { id: string; statusId: string; position: number }]
   openTask: [task: Task]
+  'update:viewMode': [mode: 'kanban' | 'table']
 }>()
 
 const columns = computed(() => {

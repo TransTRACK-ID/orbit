@@ -22,8 +22,21 @@
       />
 
       <KanbanBoard
+        v-if="viewMode === 'kanban'"
         :statuses="statuses"
         :tasks="tasks"
+        :view-mode="viewMode"
+        @update:view-mode="viewMode = $event"
+        @create-task="handleCreateTask"
+        @update-task="handleUpdateTask"
+        @open-task="handleOpenTask"
+      />
+      <KanbanTaskTable
+        v-else
+        :statuses="statuses"
+        :tasks="tasks"
+        :view-mode="viewMode"
+        @update:view-mode="viewMode = $event"
         @create-task="handleCreateTask"
         @update-task="handleUpdateTask"
         @open-task="handleOpenTask"
@@ -66,6 +79,7 @@
 import type { Task, Status, Label, ProjectMember, Workspace, Repository } from '~/types'
 import type { Agent } from '~/types'
 import { flashHighlight } from '~/composables/useKanban'
+import { useLocalStorage } from '@vueuse/core'
 import AgentReadyTooltip from '~/components/onboarding/AgentReadyTooltip.vue'
 
 definePageMeta({
@@ -88,6 +102,8 @@ const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
+
+const viewMode = useLocalStorage<'kanban' | 'table'>(`orbit-board-view-${projectId.value}`, 'kanban')
 
 // Server-side fetch workspace + repositories so the repository
 // promo banner never flashes with the wrong state on initial load.

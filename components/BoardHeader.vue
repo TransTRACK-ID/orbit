@@ -5,6 +5,26 @@
       <span class="text-[10px] text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0">{{ taskCount }} tasks</span>
     </div>
     <div class="flex items-center gap-1.5 ml-auto">
+      <!-- View Toggle -->
+      <div class="flex items-center rounded-lg border border-surface-200 overflow-hidden mr-1">
+        <button
+          class="px-2 py-1.5 text-[11px] hover:bg-surface-50 transition-colors flex items-center"
+          :class="{ 'bg-surface-100': viewMode === 'kanban' }"
+          title="Kanban view"
+          @click="$emit('update:viewMode', 'kanban')"
+        >
+          <Icon name="lucide:layout-grid" class="w-3 h-3" />
+        </button>
+        <button
+          class="px-2 py-1.5 text-[11px] hover:bg-surface-50 transition-colors flex items-center"
+          :class="{ 'bg-surface-100': viewMode === 'table' }"
+          title="Table view"
+          @click="$emit('update:viewMode', 'table')"
+        >
+          <Icon name="lucide:table" class="w-3 h-3" />
+        </button>
+      </div>
+
       <button
         data-tooltip-target="new-task"
         class="px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
@@ -37,11 +57,13 @@ import type { Task } from '~/types'
 const props = defineProps<{
   statuses: any[]
   taskCount: number
+  viewMode?: 'kanban' | 'table'
 }>()
 
 const emit = defineEmits<{
   createTask: []
   autoAssign: []
+  'update:viewMode': [mode: 'kanban' | 'table']
 }>()
 
 const { addLog } = useLog()

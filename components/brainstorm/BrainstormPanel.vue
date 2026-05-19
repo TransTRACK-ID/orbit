@@ -208,7 +208,50 @@
       </div>
 
       <div class="p-3">
+        <!-- Attachments -->
+        <div v-if="attachments.length > 0" class="flex flex-wrap gap-2 mb-2">
+          <div
+            v-for="att in attachments"
+            :key="att.id"
+            class="relative group cursor-pointer"
+            @click="openLightbox(att)"
+          >
+            <div class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+              <img
+                :src="`/api/brainstorms/${brainstorm.id}/attachments/${att.id}`"
+                class="w-full h-full object-cover"
+                loading="lazy"
+                @error="hideImage"
+              />
+            </div>
+            <button
+              type="button"
+              class="absolute -top-1 -right-1 w-3 h-3 bg-surface-700 text-white rounded-full flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              @click.stop="removeAttachment(att)"
+            >
+              <Icon name="lucide:x" class="w-2 h-2" />
+            </button>
+          </div>
+        </div>
+
         <div class="flex gap-2 items-end">
+          <button
+            v-if="attachments.length < 3"
+            class="p-2 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0 h-10"
+            :class="{ 'opacity-50 cursor-not-allowed': isUploadingAttachment }"
+            @click="attachmentInput?.click()"
+          >
+            <Icon v-if="!isUploadingAttachment" name="lucide:paperclip" class="w-4 h-4" />
+            <Icon v-else name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+          </button>
+          <input
+            ref="attachmentInput"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            class="hidden"
+            @change="handleAttachmentFileSelect"
+          />
+
           <div class="flex-1 relative">
              <textarea
                ref="textareaRef"
@@ -235,12 +278,38 @@
         </p>
       </div>
     </div>
+
+    <!-- Lightbox -->
+    <Teleport to="body">
+      <div
+        v-if="lightboxImage"
+        class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        @click.self="closeLightbox"
+      >
+        <div class="relative max-w-full max-h-full">
+          <img
+            :src="`/api/brainstorms/${brainstorm.id}/attachments/${lightboxImage.id}`"
+            class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain"
+            loading="lazy"
+          />
+          <button
+            class="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-surface-600 hover:text-surface-900 transition-colors"
+            @click="closeLightbox"
+          >
+            <Icon name="lucide:x" class="w-4 h-4" />
+          </button>
+          <p class="text-center text-white text-sm mt-2 font-medium">
+            {{ lightboxImage.originalName }}
+          </p>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Brainstorm, BrainstormMessage } from '~/types'
-import { nextTick, watch, onMounted } from 'vue'
+import type { Brainstorm, BrainstormMessage, BrainstormAttachment } from '~/types'
+import { nextTick, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
   brainstorm: Brainstorm
@@ -283,7 +352,86 @@ const selectedProjectId = ref('')
 const creatingTask = ref(false)
 const createTaskError = ref('')
 
+// ─── Attachments ───
+const { fetchAttachments, uploadAttachment, deleteAttachment } = useBrainstorm()
+const attachments = ref<BrainstormAttachment[]>([])
+const attachmentInput = ref<HTMLInputElement | null>(null)
+const isUploadingAttachment = ref(false)
+const lightboxImage = ref<BrainstormAttachment | null>(null)
 
+watch(() => props.brainstorm.id, () => {
+  loadAttachments()
+}, { immediate: true })
+
+async function loadAttachments() {
+  try {
+    attachments.value = await fetchAttachments(props.brainstorm.id)
+  } catch {
+    attachments.value = []
+  }
+}
+
+function openLightbox(att: BrainstormAttachment) {
+  lightboxImage.value = att
+}
+
+function closeLightbox() {
+  lightboxImage.value = null
+}
+
+function hideImage(e: Event) {
+  const target = e.target as HTMLImageElement
+  if (target) {
+    target.style.display = 'none'
+  }
+}
+
+async function handleAttachmentFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0) return
+  await uploadAttachmentFile(input.files[0])
+  input.value = ''
+}
+
+async function uploadAttachmentFile(file: File) {
+  if (attachments.value.length >= 3) {
+    alert('Attachment limit reached (max 3)')
+    return
+  }
+  isUploadingAttachment.value = true
+  try {
+    const newAtt = await uploadAttachment(props.brainstorm.id, file)
+    attachments.value.push(newAtt)
+  } catch (err: any) {
+    alert(err?.message || 'Failed to upload attachment')
+  } finally {
+    isUploadingAttachment.value = false
+  }
+}
+
+async function removeAttachment(att: BrainstormAttachment) {
+  if (!confirm('Are you sure you want to delete this attachment?')) return
+  try {
+    await deleteAttachment(props.brainstorm.id, att.id)
+    attachments.value = attachments.value.filter((a) => a.id !== att.id)
+  } catch {
+    alert('Failed to delete attachment')
+  }
+}
+
+function onWindowKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && lightboxImage.value) {
+    closeLightbox()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onWindowKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
+})
 
 function openCreateTaskModal(msg: BrainstormMessage) {
   selectedMessage.value = msg

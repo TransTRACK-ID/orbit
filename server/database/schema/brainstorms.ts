@@ -3,6 +3,7 @@ import { relations } from 'drizzle-orm'
 import { workspaces } from './workspaces'
 import { repositories } from './repositories'
 import { brainstormMessages } from './brainstorm-messages'
+import { brainstormAttachments } from './brainstorm-attachments'
 
 export const brainstorms = pgTable('brainstorms', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -24,6 +25,7 @@ export const brainstormsRelations = relations(brainstorms, ({ one, many }) => ({
     references: [repositories.id],
   }),
   messages: many(brainstormMessages),
+  attachments: many(brainstormAttachments),
 }))
 
 export type Brainstorm = typeof brainstorms.$inferSelect

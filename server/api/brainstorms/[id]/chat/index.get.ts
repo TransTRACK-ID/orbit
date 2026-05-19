@@ -83,6 +83,21 @@ function formatTextEvent(part: any): string {
   return lines[0].slice(0, 120)
 }
 
+function buildAttachmentPrompt(
+  attachments: typeof schema.brainstormAttachments.$inferSelect[],
+): string {
+  if (attachments.length === 0) return ''
+  const lines = attachments.map((att, idx) => {
+    const safeName = att.originalName
+      .replace(/[\n\r]/g, ' ')
+      .replace(/[[\]]/g, '')
+      .replace(/`/g, "'")
+      .slice(0, 100)
+    return `${idx + 1}. ${safeName} (${att.mimeType})`
+  })
+  return `[ATTACHED FILES]\nThe user has attached ${attachments.length} file(s) to this message. You can see and analyze them. When the user asks about these files, describe exactly what you see in them: colors, layouts, UI elements, text content, design details, people, objects, scenes, or any visual information. Do NOT say you cannot see them — these files ARE visible to you as message attachments.\n\n${lines.join('\n')}`
+}
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
@@ -122,6 +137,12 @@ export default defineEventHandler(async (event) => {
     })
     conversationHistory = `[CONVERSATION HISTORY]\n${historyLines.join('\n\n')}\n\n`
   }
+
+  // Fetch attachments for this brainstorm session
+  const attachments = await db.query.brainstormAttachments.findMany({
+    where: eq(schema.brainstormAttachments.brainstormId, id),
+    orderBy: [asc(schema.brainstormAttachments.createdAt)],
+  })
 
   let opencodeOk = false
   try {
@@ -272,11 +293,13 @@ When the user asks for changes, explain WHAT should change and WHY, but explicit
     const securityRule = `[SECURITY BOUNDARIES]
 CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
 
+    const attachmentPrompt = buildAttachmentPrompt(attachments)
+
     const chatMessage = message
-      ? `[USER MESSAGE]\n${message}\n\nPlease respond to this message. Remember: read-only mode — do NOT edit any files.`
+      ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}[USER MESSAGE]\n${message}\n\nPlease respond to this message. Remember: read-only mode — do NOT edit any files.`
       : historyMessages.length > 0
-        ? 'Please continue the conversation based on the history above. Remember: read-only mode — do NOT edit any files.'
-        : 'Please give a brief summary of this codebase and ask how you can help.'
+        ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}Please continue the conversation based on the history above. Remember: read-only mode — do NOT edit any files.`
+        : `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}Please give a brief summary of this codebase and ask how you can help.`
 
     const fullMessage = `${platformRule}\n\n${readOnlyRule}\n\n${securityRule}\n\n${conversationHistory}${chatMessage}`
 
@@ -297,10 +320,19 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       '--format', 'json',
       '--dangerously-skip-permissions',
       '--dir', workDir,
-      '--', fullMessage,
     ]
+    const attachmentFilePaths: string[] = []
+    if (attachments.length > 0) {
+      for (const att of attachments) {
+        if (existsSync(att.path)) {
+          spawnArgs.push('--file', att.path)
+          attachmentFilePaths.push(att.path)
+        }
+      }
+    }
+    spawnArgs.push('--', fullMessage)
 
-    await stream.push(JSON.stringify({ step: `Exec: ${opencodePath} run --format json --dir ${workDir} -- "<message>"`, timestamp: Date.now() }))
+    await stream.push(JSON.stringify({ step: `Exec: ${opencodePath} run --format json --dir ${workDir}${attachmentFilePaths.length > 0 ? ' --file ' + attachmentFilePaths.join(' --file ') : ''} -- "<message>"`, timestamp: Date.now() }))
 
     const proc = spawn(opencodePath, spawnArgs, {
       cwd: workDir,

@@ -55,24 +55,12 @@ function rewriteAssetUrls(body: string, proxyPrefix: string): string {
 }
 
 /**
- * Some Nuxt/Vite configurations prefix Vite-internal paths with /_nuxt/ (e.g. /_nuxt/@vite/client).
- * When forwarding to the dev server we must strip that erroneous prefix so Vite can serve them.
+ * In Nuxt 3, Vite assets are intentionally served under the /_nuxt/ path.
+ * Stripping /_nuxt/ causes the Nitro dev server to treat the request as a
+ * client-side Vue route, returning the index.html fallback (text/html).
+ * We keep the path exactly as-is so Nuxt can serve the correct asset.
  */
 function normalizeDevServerPath(urlPath: string): string {
-  // Vite prefixes mistakenly wrapped in _nuxt/
-  if (urlPath.startsWith('/_nuxt/@vite/')) return urlPath.replace('/_nuxt/', '/')
-  if (urlPath.startsWith('/_nuxt/@fs/')) return urlPath.replace('/_nuxt/', '/')
-  if (urlPath.startsWith('/_nuxt/@id/')) return urlPath.replace('/_nuxt/', '/')
-  if (urlPath === '/_nuxt/__vite_ping') return '/__vite_ping'
-  if (urlPath.startsWith('/_nuxt/__nuxt/')) return urlPath.replace('/_nuxt/', '/')
-  if (urlPath === '/_nuxt/__nuxt_error__') return '/__nuxt_error__'
-
-  // Absolute filesystem paths (Linux /root/… /home/… /app/… /Users/…)
-  // Nuxt sometimes emits these under /_nuxt/; Vite expects /@fs/ for absolute paths.
-  if (/^\/_nuxt\/((?:root|home|app|Users)\/)/.test(urlPath)) {
-    return urlPath.replace('/_nuxt/', '/@fs/')
-  }
-
   return urlPath
 }
 

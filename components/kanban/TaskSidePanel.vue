@@ -566,6 +566,17 @@
               {{ commentsExpanded ? 'Show less' : `Show ${allComments.length - COMMENTS_COLLAPSE_THRESHOLD} more` }}
             </button>
 
+            <!-- QA Proof Screenshot -->
+            <div v-if="browserSession?.screenshotPath && !screenshotError" class="mt-4">
+              <p class="text-sm font-medium text-surface-600 mb-2">QA Proof Screenshot</p>
+              <img
+                :src="`/api/tasks/${task.id}/browser-screenshot?v=${browserSession.id}`"
+                alt="QA Proof"
+                class="rounded-lg border border-surface-200 max-w-full"
+                @error="screenshotError = true"
+              />
+            </div>
+
             <div v-if="userActivityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
               <div class="space-y-2">
@@ -973,8 +984,24 @@ const {
   deleteAttachment,
 } = useTask()
 
+interface BrowserSession {
+  id: string
+  taskId: string
+  agentId: string | null
+  status: string
+  summary: string | null
+  error: string | null
+  screenshotPath: string | null
+  outputDir: string | null
+  headed: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
 const loading = ref(true)
 const task = ref<Task | null>(null)
+const browserSession = ref<BrowserSession | null>(null)
+const screenshotError = ref(false)
 const comments = ref<Comment[]>([])
 const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
@@ -1329,6 +1356,17 @@ async function fetchAgentReplies() {
   }
 }
 
+async function fetchBrowserSession() {
+  if (!task.value) return
+  try {
+    const session = await $fetch<BrowserSession | null>(`/api/tasks/${task.value.id}/browser-session`)
+    browserSession.value = session
+    screenshotError.value = false
+  } catch {
+    browserSession.value = null
+  }
+}
+
 const allComments = computed(() => {
   const merged = [
     ...comments.value.map(c => ({
@@ -1534,6 +1572,7 @@ watch(runtimeActive, async (active) => {
     setTimeout(async () => {
       await fetchAgentReplies()
       await checkPreview()
+      await fetchBrowserSession()
     }, 500)
   }
 })
@@ -1875,11 +1914,12 @@ function parseMarkdown(md: string): string {
     })
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="rounded-lg border border-surface-200 max-w-full my-2" />')
     .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^(.*)$/gm, (match) => {
-      // Don't wrap placeholders or empty lines in paragraphs
-      if (/^__(FENCED_BLOCK|INLINE_CODE)_\d+__$/.test(match.trim()) || !match.trim()) return match
+      // Don't wrap placeholders, images, or empty lines in paragraphs
+      if (/^__(FENCED_BLOCK|INLINE_CODE)_\d+__$/.test(match.trim()) || !match.trim() || /^<img\b/.test(match.trim())) return match
       return `<p class="mb-1">${match}</p>`
     })
     .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')
@@ -1914,6 +1954,7 @@ onMounted(async () => {
     activityLogs.value = await fetchActivity(props.taskId)
     await fetchAgentReplies()
     await loadAttachments()
+    await fetchBrowserSession()
   } catch (err) {
     console.error('Failed to load task detail:', err)
   } finally {

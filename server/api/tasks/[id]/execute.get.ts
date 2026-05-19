@@ -782,8 +782,16 @@ export default defineEventHandler(async (event) => {
         const summaryText = result.summary || 'No summary available'
         await pushAndPersist(`Browser QA ${result.status}`)
 
-        // Send a formatted reply directly to the chat
-        const replyText = `**Browser QA Result:** ${result.status.toUpperCase()}\n\n${summaryText}`
+        // Determine whether a screenshot was produced before building the reply
+        const screenshotPath = result.outputDir && existsSync(path.join(result.outputDir, 'final_screenshot.png'))
+          ? path.join(result.outputDir, 'final_screenshot.png')
+          : null
+
+        // Build reply text with embedded screenshot markdown when available
+        const screenshotMarkdown = screenshotPath
+          ? `\n\n![QA Proof Screenshot](/api/tasks/${id}/browser-screenshot)`
+          : ''
+        const replyText = `**Browser QA Result:** ${result.status.toUpperCase()}\n\n${summaryText}${screenshotMarkdown}`
         const replyPayload = JSON.stringify({
           agentReply: replyText,
           timestamp: Date.now()
@@ -812,6 +820,7 @@ export default defineEventHandler(async (event) => {
             error: result.error,
             outputDir: result.outputDir,
             headed: browserConfig.headed,
+            screenshotPath,
           })
         } catch (dbErr: any) {
           console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)

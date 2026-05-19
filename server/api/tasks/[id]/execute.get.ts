@@ -804,6 +804,10 @@ export default defineEventHandler(async (event) => {
 
         // Persist browser session record
         try {
+          const screenshotPath = result.outputDir && existsSync(path.join(result.outputDir, 'final_screenshot.png'))
+            ? path.join(result.outputDir, 'final_screenshot.png')
+            : null
+
           await db.insert(schema.browserSessions).values({
             taskId: id,
             agentId: task.agentAssigneeId,
@@ -812,6 +816,7 @@ export default defineEventHandler(async (event) => {
             error: result.error,
             outputDir: result.outputDir,
             headed: browserConfig.headed,
+            screenshotPath,
           })
         } catch (dbErr: any) {
           console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)

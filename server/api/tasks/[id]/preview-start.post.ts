@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const devServer = await startDevServer(worktreeDir, task.repository.id || undefined)
+    const devServer = await startDevServer(worktreeDir, task.repository.id || undefined, task.id)
     return {
       available: true,
       url: `/api/preview/${task.id}`,

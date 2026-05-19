@@ -69,7 +69,7 @@ export async function runBrowserContainer(
       stream,
       JSON.stringify({ step: `Starting dev server in ${config.worktreeDir}...`, timestamp: Date.now() }),
     )
-    devServer = await startDevServer(config.worktreeDir, config.repositoryId || undefined)
+    devServer = await startDevServer(config.worktreeDir, config.repositoryId || undefined, config.taskId)
     await pushToStream(
       stream,
       JSON.stringify({ step: `Dev server ready at ${devServer.baseUrl}`, timestamp: Date.now() }),

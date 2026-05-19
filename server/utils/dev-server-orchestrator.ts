@@ -274,7 +274,7 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
   return null
 }
 
-export async function startDevServer(worktreeDir: string, repositoryId?: string): Promise<DevServerInfo> {
+export async function startDevServer(worktreeDir: string, repositoryId?: string, taskId?: string): Promise<DevServerInfo> {
   const existing = activeDevServers.get(worktreeDir)
   if (existing && existing.ready) {
     return existing
@@ -371,6 +371,8 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string)
     // Override AUTH_ORIGIN so the dev server uses its own port for auth
     // instead of inheriting the production container's value.
     AUTH_ORIGIN: `http://localhost:${port}`,
+    // Tell Nuxt/Vue Router its base URL so it mounts correctly under the proxy path
+    ...(taskId ? { NUXT_APP_BASE_URL: `/api/preview/${taskId}/` } : {}),
     // Repository env vars take highest precedence (after devCmd.env)
     ...repositoryEnv,
     ...devCmd.env,

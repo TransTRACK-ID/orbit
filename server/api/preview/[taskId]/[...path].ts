@@ -239,6 +239,25 @@ export default defineEventHandler(async (event) => {
       (proxyRes) => {
         const statusCode = proxyRes.statusCode || 200
 
+        // Normalize headers for BOTH text and binary responses
+        const headers = { ...proxyRes.headers }
+
+        // Strip anti-framing headers so the Live Preview iframe can render
+        delete headers['x-frame-options']
+        delete headers['X-Frame-Options']
+        delete headers['content-security-policy']
+        delete headers['Content-Security-Policy']
+
+        // Trap redirects inside the proxy boundary
+        if (statusCode >= 300 && statusCode < 400 && headers.location) {
+          const location = headers.location as string
+          // If the redirect is an absolute path and doesn't already have the proxy prefix
+          if (location.startsWith('/') && !location.startsWith(proxyPrefix)) {
+            headers.location = `${proxyPrefix}${location}`
+            console.log(`[preview-proxy] Rewrote redirect Location from ${location} to ${headers.location}`)
+          }
+        }
+
         // For text responses (HTML, JS, CSS, JSON), buffer and rewrite asset URLs
         // so the browser routes them back through this proxy instead of
         // resolving them against the parent origin.
@@ -266,15 +285,9 @@ export default defineEventHandler(async (event) => {
             const modifiedBody = Buffer.from(body, 'utf-8')
 
             // Update content-length to match modified body
-            const headers = { ...proxyRes.headers }
             headers['content-length'] = String(modifiedBody.length)
             // Prevent downstream caching of rewritten responses
             headers['cache-control'] = 'no-store'
-            // Strip anti-framing headers so the Live Preview iframe can render
-            delete headers['x-frame-options']
-            delete headers['X-Frame-Options']
-            delete headers['content-security-policy']
-            delete headers['Content-Security-Policy']
 
             if (statusCode >= 400) {
               console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (text, ${modifiedBody.length} bytes)`)
@@ -304,13 +317,8 @@ export default defineEventHandler(async (event) => {
             console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (binary)`)
           }
 
-          // Binary responses — stream through unchanged
-          // Strip anti-framing headers so the Live Preview iframe can render
-          delete proxyRes.headers['x-frame-options']
-          delete proxyRes.headers['X-Frame-Options']
-          delete proxyRes.headers['content-security-policy']
-          delete proxyRes.headers['Content-Security-Policy']
-          res.writeHead(statusCode, proxyRes.headers)
+          // Write the normalized headers (including stripped X-Frame and rewritten Location)
+          res.writeHead(statusCode, headers)
           proxyRes.pipe(res)
           proxyRes.on('end', resolve)
           proxyRes.on('error', (err) => {

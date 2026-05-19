@@ -83,6 +83,11 @@ RUN export ARCH=$(dpkg --print-architecture) \
     && export LATEST_TAG=$(curl -s "https://gitlab.com/api/v4/projects/34675721/releases" | grep -oP '"tag_name":"v\K[^"]+' | head -n 1) \
     && curl -sL "https://gitlab.com/gitlab-org/cli/-/releases/v${LATEST_TAG}/downloads/glab_${LATEST_TAG}_linux_${ARCH}.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 bin/glab
 
+# Install RTK (Rust Token Killer) — CLI proxy that reduces LLM token consumption by 60-90%
+RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh \
+    && ln -sf /root/.local/bin/rtk /usr/local/bin/rtk \
+    && rtk --version
+
 # Set up working directory
 WORKDIR /app
 
@@ -93,8 +98,10 @@ COPY --from=builder /app/.output /app/.output
 COPY --from=builder /app/server/data /app/server/data
 COPY --from=builder /app/server/templates /app/server/templates
 
-# Copy opencode AGENTS.md (non-sensitive, can stay as a file)
+# Copy opencode AGENTS.md and RTK plugin (non-sensitive, can stay as files)
 COPY opencode/AGENTS.md /root/.config/opencode/AGENTS.md
+RUN mkdir -p /root/.config/opencode/plugins
+COPY opencode/plugins/rtk.ts /root/.config/opencode/plugins/rtk.ts
 
 # Copy and set up entrypoint script for decoding base64 config
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

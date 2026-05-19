@@ -1269,7 +1269,7 @@ const latestAgentReply = computed(() => {
   for (const log of recentLogs) {
     const msg = log.message.replace(/^>\s*/, '')
     if (msg.startsWith('[AGENT_REPLY]')) {
-      return msg.replace(/^\[AGENT_REPLY\]\s*/, '').slice(0, 500)
+      return msg.replace(/^\[AGENT_REPLY\]\s*/, '')
     }
   }
   return null
@@ -1339,10 +1339,16 @@ const allComments = computed(() => {
   const alreadyPersisted = agentReplies.value.some(r => r.body === inMemoryBody)
   if (inMemoryBody && !alreadyPersisted) {
     const isLive = !!liveReply
+    // Stable timestamp: prefer the bridged timestamp (set by watch(latestAgentReply))
+    // so the in-memory reply doesn't flicker to the top on every computed re-evaluation.
+    const replyTimestamp = lastChatReplyTimestamp.value || Date.now()
+    // Unique key based on a content fingerprint so Vue doesn't recycle the DOM
+    // element when the body changes or when the list re-orders.
+    const contentFingerprint = inMemoryBody.slice(0, 40).replace(/\s+/g, '-')
     merged.push({
-      id: 'in-memory-reply',
+      id: `in-memory-reply-${contentFingerprint}-${replyTimestamp}`,
       body: inMemoryBody,
-      createdAt: isLive ? Date.now() : (lastChatReplyTimestamp.value || Date.now()),
+      createdAt: replyTimestamp,
       authorName: isLive ? chatAgentIdentity.value.name : (lastChatReplyAuthor.value || chatAgentIdentity.value.name),
       authorColor: isLive ? (chatAgentIdentity.value.color || '#6366f1') : (lastChatReplyAuthorColor.value || '#6366f1'),
       isAgent: true,

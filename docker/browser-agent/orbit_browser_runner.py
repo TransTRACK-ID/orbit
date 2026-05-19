@@ -1,10 +1,17 @@
 import asyncio
 import argparse
 import json
+import logging
 import os
 import sys
 import time
 from pathlib import Path
+
+# Suppress LiteLLM internal logs to avoid exposing model/provider in runtime logs
+for _lite_llm_logger in ("litellm", "LiteLLM", "litellm.utils", "litellm._logging"):
+    _logger = logging.getLogger(_lite_llm_logger)
+    _logger.setLevel(logging.WARNING)
+    _logger.propagate = False
 
 from browser_use import Agent, Browser
 from llm_config import get_llm

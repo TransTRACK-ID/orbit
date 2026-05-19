@@ -197,6 +197,8 @@ export async function runBrowserContainer(
       for (const line of text.split('\n')) {
         const trimmed = line.trim()
         if (!trimmed) continue
+        // Hide LiteLLM internal logs that expose model/provider details
+        if (/litellm|LiteLLM/i.test(trimmed)) continue
         hasOutput = true
         const level = trimmed.toLowerCase().includes('error') ? 'ERROR' : 'WARN'
         pushToStream(stream, JSON.stringify({ step: `[${level}] ${trimmed.slice(0, 200)}`, timestamp: Date.now() })).catch(() => {})

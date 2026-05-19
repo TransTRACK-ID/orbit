@@ -1,5 +1,6 @@
 import asyncio
 import argparse
+import base64
 import json
 import logging
 import os
@@ -60,17 +61,57 @@ async def main():
     # Compose the task with the base URL
     full_task = f"{args.task}\n\nTest on: {args.base_url}"
 
+    screenshot_path = output_dir / "final_screenshot.png"
+    screenshot_captured = False
+
+    async def capture_screenshot_on_done(history):
+        """Capture a full-page screenshot via the agent's browser_context while it's still alive.
+        This callback is invoked before the Agent.run() finally block closes the context."""
+        nonlocal screenshot_captured
+        try:
+            # Access the agent's internal browser_context (still open in this callback)
+            screenshot_b64 = await agent.browser_context.take_screenshot(full_page=True)
+            screenshot_bytes = base64.b64decode(screenshot_b64)
+            screenshot_path.write_bytes(screenshot_bytes)
+            screenshot_captured = True
+            emit("status", message=f"Screenshot saved to {screenshot_path}")
+        except Exception as e:
+            emit("status", message=f"Done-callback screenshot failed: {e}")
+
     agent = Agent(
         task=full_task,
         llm=llm,
         browser=browser,
+        register_done_callback=capture_screenshot_on_done,
     )
 
     emit("status", message="Running browser task")
 
     exit_code = 0
+    status = "passed"
+    final_summary = ""
+
     try:
         result = await agent.run()
+
+        # Determine actual success/failure from the agent result
+        is_done = result.is_done()
+        is_successful = result.is_successful()
+        has_errors = result.has_errors()
+
+        if is_successful is True:
+            status = "passed"
+        elif is_successful is False:
+            status = "failed"
+        elif has_errors:
+            status = "failed"
+        elif not is_done:
+            status = "failed"
+        else:
+            status = "passed"
+
+        if status == "failed":
+            exit_code = 1
 
         # Extract a clean summary from the agent's history
         final_summary = result.final_result()
@@ -80,32 +121,51 @@ async def main():
                 final_summary = f"Failed: {last_result.error}"
             elif getattr(last_result, 'extracted_content', None):
                 final_summary = last_result.extracted_content
-            
+
         if not final_summary:
             final_summary = str(result)
 
-        # Save result summary
+        # If the done callback didn't capture a screenshot (e.g. task never reached done state),
+        # fall back to the last history screenshot that browser-use already took during the run.
+        if not screenshot_captured and result.history:
+            try:
+                last_history = result.history[-1]
+                if last_history.state and last_history.state.screenshot:
+                    screenshot_bytes = base64.b64decode(last_history.state.screenshot)
+                    screenshot_path.write_bytes(screenshot_bytes)
+                    screenshot_captured = True
+                    emit("status", message=f"Screenshot saved from history to {screenshot_path}")
+            except Exception as e:
+                emit("status", message=f"History screenshot fallback failed: {e}")
+
+        # If still no screenshot, try using the raw Playwright browser (new context won't have auth state,
+        # but a screenshot of the landing page is better than nothing).
+        if not screenshot_captured:
+            try:
+                pw_browser = await browser.get_playwright_browser()
+                if pw_browser:
+                    ctx = await pw_browser.new_context()
+                    page = await ctx.new_page()
+                    await page.goto(args.base_url, wait_until="networkidle")
+                    await page.screenshot(path=str(screenshot_path), full_page=True)
+                    await ctx.close()
+                    screenshot_captured = True
+                    emit("status", message=f"Screenshot saved from fresh page to {screenshot_path}")
+            except Exception as e:
+                emit("status", message=f"Fresh-page screenshot fallback failed: {e}")
+
+        # Save result summary with the CORRECT status
         result_path = output_dir / "result.json"
         result_path.write_text(
             json.dumps(
-                {"status": "passed", "summary": final_summary},
+                {"status": status, "summary": final_summary},
                 indent=2,
                 default=str,
             ),
             encoding="utf-8",
         )
 
-        # Try to capture a final screenshot via the browser's active page
-        try:
-            page = await browser.get_current_page()
-            if page:
-                screenshot_path = output_dir / "final_screenshot.png"
-                await page.screenshot(path=str(screenshot_path), full_page=True)
-                emit("status", message=f"Screenshot saved to {screenshot_path}")
-        except Exception as screenshot_err:
-            emit("status", message=f"Screenshot failed: {screenshot_err}")
-
-        emit("complete", status="passed", summary=final_summary)
+        emit("complete", status=status, summary=final_summary)
     except Exception as e:
         # Save error info
         error_path = output_dir / "error.json"
@@ -114,7 +174,23 @@ async def main():
             encoding="utf-8",
         )
         emit("error", message=str(e))
+        status = "failed"
         exit_code = 1
+
+        # Try to get a basic screenshot even on total failure
+        if not screenshot_captured:
+            try:
+                pw_browser = await browser.get_playwright_browser()
+                if pw_browser:
+                    ctx = await pw_browser.new_context()
+                    page = await ctx.new_page()
+                    await page.goto(args.base_url, wait_until="networkidle")
+                    await page.screenshot(path=str(screenshot_path), full_page=True)
+                    await ctx.close()
+                    screenshot_captured = True
+                    emit("status", message=f"Screenshot saved after error to {screenshot_path}")
+            except Exception as screenshot_err:
+                emit("status", message=f"Screenshot failed after error: {screenshot_err}")
     finally:
         await browser.stop()
 

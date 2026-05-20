@@ -7,8 +7,17 @@
 
     <!-- Landing page for unauthenticated users -->
     <div v-else-if="status === 'unauthenticated'" class="min-h-screen bg-surface-50">
+      <!-- Scroll progress -->
+      <div
+        class="fixed top-0 left-0 right-0 z-[60] h-0.5 bg-accent origin-left"
+        :style="{ transform: `scaleX(${scrollProgress})`, opacity: scrollProgress > 0.02 ? 1 : 0 }"
+      />
+
       <!-- Navigation -->
-      <nav class="fixed top-0 left-0 right-0 z-50 bg-surface-50 border-b border-surface-200 reveal-nav">
+      <nav
+        class="fixed top-0 left-0 right-0 z-50 bg-surface-50 border-b border-surface-200 reveal-nav transition-shadow duration-300"
+        :class="{ 'shadow-sm': scrolled }"
+      >
         <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
@@ -117,6 +126,7 @@
             <!-- Right: Abstract workflow visualization -->
             <div class="lg:col-span-6 relative lg:pl-4">
               <div
+                ref="heroVisualRef"
                 class="reveal-hero hero-visual relative"
                 style="--delay: 200ms;"
               >
@@ -277,7 +287,7 @@
           <!-- Asymmetric feature grid -->
           <div class="grid lg:grid-cols-12 gap-6 lg:gap-8">
             <!-- Feature 1: AI Agents -->
-            <div class="reveal-item lg:col-span-7 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 0ms;">
+            <div class="reveal-item reveal-from-left lg:col-span-7 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 0ms;">
               <div class="flex items-start gap-4">
                 <div class="w-10 h-10 rounded-xl bg-semantic-purple/10 flex items-center justify-center flex-shrink-0">
                   <Icon name="lucide:bot" class="w-5 h-5 text-semantic-purple" />
@@ -296,7 +306,7 @@
             </div>
 
             <!-- Feature 2: Kanban -->
-            <div class="reveal-item lg:col-span-5 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 80ms;">
+            <div class="reveal-item reveal-from-right lg:col-span-5 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 80ms;">
               <div class="w-10 h-10 rounded-xl bg-semantic-blue/10 flex items-center justify-center mb-4">
                 <Icon name="lucide:kanban" class="w-5 h-5 text-semantic-blue" />
               </div>
@@ -307,7 +317,7 @@
             </div>
 
             <!-- Feature 3: Workspaces -->
-            <div class="reveal-item lg:col-span-5 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 160ms;">
+            <div class="reveal-item reveal-from-left lg:col-span-5 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 160ms;">
               <div class="w-10 h-10 rounded-xl bg-semantic-green/10 flex items-center justify-center mb-4">
                 <Icon name="lucide:building-2" class="w-5 h-5 text-semantic-green" />
               </div>
@@ -318,7 +328,7 @@
             </div>
 
             <!-- Feature 4: Collaboration -->
-            <div class="reveal-item lg:col-span-7 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 240ms;">
+            <div class="reveal-item reveal-from-right lg:col-span-7 bg-white rounded-2xl border border-surface-200 p-8 lg:p-10 hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-200" style="--delay: 240ms;">
               <div class="flex items-start gap-4">
                 <div class="w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center flex-shrink-0">
                   <Icon name="lucide:users" class="w-5 h-5 text-accent" />
@@ -345,7 +355,7 @@
       <section class="py-20 lg:py-24 bg-surface-50 border-y border-surface-200 reveal-section">
         <div class="max-w-7xl mx-auto px-6">
           <div class="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
+            <div class="reveal-from-left">
               <span class="reveal-item text-xs font-semibold text-accent tracking-wider mb-4 block" style="--delay: 0ms;">Trusted by teams</span>
               <h2 class="reveal-item text-3xl font-bold text-surface-900 tracking-tight mb-4" style="--delay: 60ms;">
                 Built for teams that deliver
@@ -367,7 +377,7 @@
               </div>
             </div>
 
-            <div class="reveal-item bg-surface-50 rounded-2xl border border-surface-200 p-8" style="--delay: 120ms;">
+            <div class="reveal-item reveal-from-right bg-surface-50 rounded-2xl border border-surface-200 p-8" style="--delay: 120ms;">
               <div class="flex items-center gap-1 mb-4">
                 <Icon v-for="i in 5" :key="i" name="lucide:star" class="w-4 h-4 text-amber-400 fill-amber-400" />
               </div>
@@ -442,6 +452,16 @@
           </div>
         </div>
       </footer>
+
+      <!-- Back to top -->
+      <button
+        class="fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-accent text-white shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95"
+        :class="{ 'opacity-0 translate-y-4 pointer-events-none': !showBackToTop, 'opacity-100 translate-y-0': showBackToTop }"
+        @click="scrollToTop"
+        aria-label="Back to top"
+      >
+        <Icon name="lucide:arrow-up" class="w-5 h-5" />
+      </button>
     </div>
   </div>
 </template>
@@ -468,6 +488,33 @@ function forceLightMode() {
 function restoreDarkMode() {
   if (process.client && savedDarkMode) {
     document.documentElement.classList.add('dark')
+  }
+}
+
+// ── Scroll-driven animation state ──
+const scrollProgress = ref(0)
+const scrolled = ref(false)
+const showBackToTop = ref(false)
+const heroVisualRef = ref<HTMLElement | null>(null)
+
+function updateScrollState() {
+  if (!process.client) return
+  const scrollTop = window.scrollY || document.documentElement.scrollTop
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight
+  scrollProgress.value = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
+  scrolled.value = scrollTop > 20
+  showBackToTop.value = scrollTop > window.innerHeight * 0.6
+
+  // Hero parallax: translate the visual slower than scroll
+  if (heroVisualRef.value && scrollTop < window.innerHeight) {
+    const parallaxY = scrollTop * 0.15
+    heroVisualRef.value.style.transform = `translateY(${parallaxY}px)`
+  }
+}
+
+function scrollToTop() {
+  if (process.client) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 }
 
@@ -499,11 +546,18 @@ onMounted(() => {
 
   // Initialize scroll-triggered animations
   initScrollReveals()
+
+  // Scroll-driven state
+  updateScrollState()
+  window.addEventListener('scroll', updateScrollState, { passive: true })
 })
 
 onUnmounted(() => {
   clearTimeout(timeout)
   restoreDarkMode()
+  if (process.client) {
+    window.removeEventListener('scroll', updateScrollState)
+  }
 })
 
 /**
@@ -539,7 +593,7 @@ function initScrollReveals() {
     navEl.classList.add('is-visible')
   }
 
-  // Scroll-triggered sections
+  // Scroll-triggered sections and directional elements
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
@@ -560,6 +614,14 @@ function initScrollReveals() {
   const sections = document.querySelectorAll('.reveal-section')
   sections.forEach((section) => {
     observer.observe(section)
+  })
+
+  // Also observe standalone directional reveal elements
+  const directionalEls = document.querySelectorAll('.reveal-from-left, .reveal-from-right')
+  directionalEls.forEach((el) => {
+    if (!el.closest('.reveal-section')) {
+      observer.observe(el)
+    }
   })
 }
 </script>
@@ -663,6 +725,50 @@ function initScrollReveals() {
   transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Directional reveals ── */
+.reveal-section .reveal-from-left {
+  opacity: 0;
+  transform: translateX(-40px);
+  transition: opacity 0.8s var(--ease-out-expo), transform 0.8s var(--ease-out-expo);
+  transition-delay: var(--delay, 0ms);
+}
+.reveal-section.is-visible .reveal-from-left {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.reveal-section .reveal-from-right {
+  opacity: 0;
+  transform: translateX(40px);
+  transition: opacity 0.8s var(--ease-out-expo), transform 0.8s var(--ease-out-expo);
+  transition-delay: var(--delay, 0ms);
+}
+.reveal-section.is-visible .reveal-from-right {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Standalone directional reveals (not inside reveal-section) */
+.reveal-from-left {
+  opacity: 0;
+  transform: translateX(-40px);
+  transition: opacity 0.8s var(--ease-out-expo), transform 0.8s var(--ease-out-expo);
+}
+.reveal-from-left.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.reveal-from-right {
+  opacity: 0;
+  transform: translateX(40px);
+  transition: opacity 0.8s var(--ease-out-expo), transform 0.8s var(--ease-out-expo);
+}
+.reveal-from-right.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 /* Ensure animations respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .reveal-nav,
@@ -670,6 +776,10 @@ function initScrollReveals() {
   .reveal-kanban,
   .reveal-agent,
   .reveal-section .reveal-item,
+  .reveal-section .reveal-from-left,
+  .reveal-section .reveal-from-right,
+  .reveal-from-left,
+  .reveal-from-right,
   .animate-float,
   .animate-float-slow {
     opacity: 1 !important;

@@ -5,6 +5,10 @@
       class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-40 pointer-events-none"
       style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.06), transparent 70%);"
     />
+    <div
+      class="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-20 pointer-events-none"
+      style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.04), transparent 65%);"
+    />
 
     <div class="w-full max-w-md relative z-10 animate-scale-in-slow">
       <!-- Brand -->
@@ -16,7 +20,7 @@
           <span class="text-base font-bold tracking-tight text-surface-900">Orbit</span>
         </div>
         <h1 class="text-xl font-semibold text-surface-900">Let's get you set up</h1>
-        <p class="text-xs text-surface-500 mt-1.5">Two quick steps and you're ready to go</p>
+        <p class="text-xs text-surface-500 mt-1.5">Two steps to your first project</p>
       </div>
 
       <!-- Progress dots -->
@@ -39,7 +43,7 @@
       <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
         <Transition
           mode="out-in"
-          enter-active-class="transition-all duration-350 ease-out"
+          enter-active-class="transition-all duration-300 ease-out"
           enter-from-class="opacity-0 translate-y-2"
           enter-to-class="opacity-100 translate-y-0"
           leave-active-class="transition-all duration-200 ease-in"
@@ -49,17 +53,19 @@
           <!-- Step 1: Create workspace -->
           <div v-if="step === 1" key="step1">
             <h2 class="text-base font-semibold text-surface-900 mb-1">Create your workspace</h2>
-            <p class="text-xs text-surface-500 mb-5">This is where your projects live.</p>
+            <p class="text-xs text-surface-500 mb-5">Where your projects and teams live.</p>
 
             <div class="space-y-5">
               <div class="onboarding-field" style="--delay: 0ms;">
                 <label class="block text-xs font-medium text-surface-600 mb-1.5">Workspace name</label>
                 <TextInput
+                  ref="workspaceInput"
                   v-model="workspaceName"
                   type="text"
                   placeholder="Acme Inc or Personal"
                   :error-message="step1Error"
                   @input="step1Error = ''"
+                  @keydown.enter="handleCreateWorkspace"
                 />
                 <p class="text-xs text-surface-500 mt-1.5">
                   Slug: <span class="font-mono text-surface-700">{{ workspaceSlug }}</span>
@@ -81,17 +87,19 @@
           <!-- Step 2: Create project -->
           <div v-else-if="step === 2" key="step2">
             <h2 class="text-base font-semibold text-surface-900 mb-1">Create your first project</h2>
-            <p class="text-xs text-surface-500 mb-5">You can add more later.</p>
+            <p class="text-xs text-surface-500 mb-5">Start with something simple.</p>
 
             <div class="space-y-5">
               <div class="onboarding-field" style="--delay: 0ms;">
                 <label class="block text-xs font-medium text-surface-600 mb-1.5">Project name</label>
                 <TextInput
+                  ref="projectInput"
                   v-model="projectName"
                   type="text"
                   placeholder="Website Redesign"
                   :error-message="step2Error"
                   @input="step2Error = ''"
+                  @keydown.enter="handleCreateProject"
                 />
               </div>
 
@@ -103,19 +111,25 @@
                     class="mt-0.5 w-3.5 h-3.5 rounded border-surface-300 text-accent focus:ring-accent transition-colors"
                   />
                   <span class="text-xs text-surface-600 leading-snug">
-                    Add sample tasks so I can see how it works
+                    Add sample tasks to explore the board
                   </span>
                 </label>
               </div>
 
-              <div class="onboarding-field" style="--delay: 120ms;">
+              <div class="onboarding-field flex flex-col gap-2" style="--delay: 120ms;">
                 <Button
                   class="w-full transition-all duration-150 active:scale-[0.98]"
                   :loading="step2Loading"
                   @click="handleCreateProject"
                 >
-                  Create Project
+                  Create project
                 </Button>
+                <button
+                  class="w-full px-3 py-2.5 rounded-lg text-sm font-medium text-surface-500 hover:text-surface-700 hover:bg-surface-50 transition-all duration-150 active:scale-[0.98]"
+                  @click="step = 1"
+                >
+                  Back
+                </button>
               </div>
             </div>
           </div>
@@ -138,8 +152,8 @@
             <p class="text-xs text-surface-500 mb-6 max-w-xs mx-auto leading-relaxed">
               {{
                 agentCreated
-                  ? `${selectedTemplate?.name} is set up and ready to help. You can always add more agents later from the Agents page.`
-                  : 'Want to supercharge your workflow? Add an AI agent now, or do it later from your Agents page.'
+                  ? `${selectedTemplate?.name} is set up and ready. Add more agents anytime from the Agents page.`
+                  : 'Add an AI agent now, or set one up later from your Agents page.'
               }}
             </p>
 
@@ -173,11 +187,19 @@
                     selectedTemplate?.key === template.key && !agentError
                       ? 'border-accent bg-accent/5 ring-1 ring-accent scale-[1.02] shadow-sm'
                       : 'border-surface-200 hover:border-accent/50 hover:bg-surface-50 hover:-translate-y-px hover:shadow-sm',
-                    creatingAgent && selectedTemplate?.key !== template.key ? 'opacity-50' : '',
+                    creatingAgent && selectedTemplate?.key !== template.key ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
                   ]"
                   :style="{ '--delay': `${index * 80}ms` }"
                   @click="createAgentFromTemplate(template)"
                 >
+                  <!-- Selected checkmark -->
+                  <div
+                    v-if="selectedTemplate?.key === template.key && !agentError"
+                    class="absolute top-2 right-2 w-4 h-4 rounded-full bg-accent flex items-center justify-center"
+                  >
+                    <Icon name="lucide:check" class="w-2.5 h-2.5 text-white" />
+                  </div>
+
                   <!-- Avatar -->
                   <div
                     class="w-10 h-10 rounded-full mb-2 flex items-center justify-center text-white text-xs font-bold transition-transform duration-200"
@@ -209,24 +231,21 @@
 
             <!-- Action Buttons -->
             <div class="flex flex-col gap-2 onboarding-field" style="--delay: 0ms;">
-              <button
+              <Button
                 v-if="!agentCreated"
-                class="w-full px-3 py-2.5 rounded-lg border border-surface-200 text-sm font-semibold text-surface-700 hover:bg-surface-50 transition-all duration-150 active:scale-[0.98]"
+                class="w-full transition-all duration-150 active:scale-[0.98]"
+                color="default"
                 @click="goToBoard"
               >
                 Skip for now
-              </button>
+              </Button>
 
               <Button
                 class="w-full transition-all duration-150 active:scale-[0.98]"
                 :loading="creatingAgent"
                 @click="goToBoard"
               >
-                {{
-                  agentCreated
-                    ? 'Go to your board'
-                    : 'Continue without agent'
-                }}
+                {{ agentCreated ? 'Go to board' : 'Continue' }}
               </Button>
             </div>
           </div>
@@ -254,6 +273,10 @@ const step1Loading = ref(false)
 const step2Loading = ref(false)
 const step1Error = ref('')
 const step2Error = ref('')
+
+// Template refs for focus management
+const workspaceInput = ref<any>(null)
+const projectInput = ref<any>(null)
 
 const createdWorkspace = ref<any>(null)
 const createdProject = ref<any>(null)
@@ -319,6 +342,10 @@ async function handleCreateWorkspace() {
     })
     createdWorkspace.value = workspace
     step.value = 2
+    // Focus project input on next tick
+    nextTick(() => {
+      projectInput.value?.$el?.querySelector('input')?.focus()
+    })
   } catch (err: any) {
     step1Error.value = err?.data?.message || 'Failed to create workspace. Try a different name.'
   } finally {
@@ -368,8 +395,8 @@ async function handleCreateProject() {
               repositoryId: null,
             },
           })
-        } catch (e) {
-          console.warn('Failed to create sample task:', task.title, e)
+        } catch {
+          // Silently ignore sample task creation failures
         }
       }
     }
@@ -402,7 +429,6 @@ async function createAgentFromTemplate(template: typeof agentTemplates[0]) {
     // Signal that we should show the tooltip on the next board visit
     sessionStorage.setItem('orbit_show_agent_tooltip', 'true')
   } catch (err: any) {
-    console.error('Failed to create agent:', err)
     agentError.value = err?.message || 'Failed to create agent. You can set this up later.'
     selectedTemplate.value = null
   } finally {
@@ -422,6 +448,13 @@ function goToBoard() {
     navigateTo('/workspaces')
   }
 }
+
+// Focus workspace input on mount
+onMounted(() => {
+  nextTick(() => {
+    workspaceInput.value?.$el?.querySelector('input')?.focus()
+  })
+})
 </script>
 
 <style scoped>

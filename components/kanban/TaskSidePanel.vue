@@ -2260,6 +2260,7 @@ async function handleAddComment() {
   if (!newComment.value || !task.value) return
   const commentBody = newComment.value
   newComment.value = ''
+  showAttachmentPicker.value = false
 
   // Reset textarea height after clearing
   nextTick(() => {

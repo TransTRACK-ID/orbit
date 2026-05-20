@@ -516,6 +516,8 @@ async function handleSend() {
       textareaRef.value.style.height = 'auto'
     }
   })
+  // Clear one-time attachments from the input area after sending
+  attachments.value = []
   emit('send', content)
 }
 

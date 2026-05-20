@@ -60,10 +60,10 @@
           </div>
         </div>
 
-        <!-- Floating Open PR banner -->
+        <!-- PR banner -->
         <div
           v-if="prUrl"
-          class="sticky top-0 z-20 px-6 py-2 bg-green-50 border-b border-green-100 flex items-center justify-between gap-2"
+          class="px-6 py-2.5 bg-green-50 border-b border-green-100 flex items-center justify-between gap-2"
         >
           <span class="text-xs font-medium text-green-700">This task has an open pull request</span>
           <div class="flex items-center gap-2 flex-shrink-0">
@@ -121,13 +121,14 @@
               <div class="relative">
                 <select
                   :value="task.statusId"
-                  class="w-full text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  class="w-full text-sm rounded-lg border border-surface-200 bg-white pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none cursor-pointer"
                   @change="handleUpdate('statusId', ($event.target as HTMLSelectElement).value)"
                 >
                   <option v-for="s in statuses" :key="s.id" :value="s.id">
                     {{ s.name }}
                   </option>
                 </select>
+                <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
               </div>
             </div>
 
@@ -136,7 +137,7 @@
               <div class="relative">
                 <select
                   :value="task.priority"
-                  class="w-full text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  class="w-full text-sm rounded-lg border border-surface-200 bg-white pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none cursor-pointer"
                   @change="handleUpdate('priority', ($event.target as HTMLSelectElement).value)"
                 >
                   <option value="none">None</option>
@@ -145,6 +146,7 @@
                   <option value="medium">Medium</option>
                   <option value="low">Low</option>
                 </select>
+                <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
               </div>
             </div>
 
@@ -290,29 +292,32 @@
             </div>
           </div>
 
-          <div v-if="repositories && repositories.length > 0" class="mb-4">
-            <label class="block text-xs font-medium text-surface-500 mb-1">Repository</label>
-            <select
-              :value="task.repositoryId"
-              :disabled="!isBacklog"
-              class="w-full text-sm rounded-lg border border-surface-200 px-3 py-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-              :class="isBacklog ? 'bg-white cursor-pointer' : 'bg-surface-50 text-surface-500 cursor-not-allowed'"
-              @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value)"
-            >
-              <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
-                {{ repo.name }} — {{ repo.defaultBranch }}
-              </option>
-            </select>
-            <p class="text-[10px] text-surface-400 mt-1">
+          <div v-if="repositories && repositories.length > 0" class="mb-6">
+            <label class="block text-xs font-medium text-surface-500 mb-1.5">Repository</label>
+            <div class="relative">
+              <select
+                :value="task.repositoryId"
+                :disabled="!isBacklog"
+                class="w-full text-sm rounded-lg border border-surface-200 pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                :class="isBacklog ? 'bg-white cursor-pointer' : 'bg-surface-50 text-surface-500 cursor-not-allowed'"
+                @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value)"
+              >
+                <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
+                  {{ repo.name }} — {{ repo.defaultBranch }}
+                </option>
+              </select>
+              <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+            </div>
+            <p class="text-[10px] text-surface-400 mt-1.5">
               {{ isBacklog ? 'Repository can only be changed while task is in backlog' : 'Repository cannot be changed after task leaves backlog' }}
             </p>
           </div>
-          <div v-else class="p-2.5 rounded-lg bg-surface-50 border border-surface-200 mb-4">
-            <p class="text-[11px] text-surface-500">
+          <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200 mb-6">
+            <p class="text-xs text-surface-500">
               No repositories connected.
               <NuxtLink
                 :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                class="text-accent underline hover:text-accent-700"
+                class="text-accent font-medium hover:text-accent-hover"
                 @click="$emit('close')"
               >
                 Add one in settings
@@ -471,15 +476,15 @@
               <!-- Textarea -->
               <div class="relative">
                 <div
-                  class="w-full rounded-lg overflow-hidden stroke-gray-500 border-2 flex min-h-10"
-                  :class="isSendingToAgent ? 'bg-gray-100 cursor-not-allowed' : 'bg-white border-gray-200'"
+                  class="w-full rounded-lg overflow-hidden border-2 flex min-h-10"
+                  :class="isSendingToAgent ? 'bg-surface-100 border-surface-200 cursor-not-allowed' : 'bg-white border-surface-200 focus-within:border-primary-500'"
                 >
                   <textarea
                     ref="commentInputRef"
                     v-model="newComment"
                     rows="1"
                     :placeholder="isAgentInProgress ? 'Message the agent...' : 'Write a comment... (type @ to mention someone)'"
-                    class="block px-2.5 w-full border-none text-gray-900 bg-transparent focus:ring-0 outline-none resize-none py-2"
+                    class="block px-2.5 w-full border-none text-surface-900 bg-transparent focus:ring-0 outline-none resize-none py-2"
                     :disabled="isSendingToAgent"
                     @keydown.enter="handleCommentEnter"
                     @keydown.ctrl.enter.prevent="!mentionActive ? handleAddComment() : null"
@@ -654,9 +659,7 @@
               {{ commentsExpanded ? 'Show less' : `Show ${allComments.length - COMMENTS_COLLAPSE_THRESHOLD} more` }}
             </button>
 
-
-
-            <div v-if="userActivityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
+            <div v-if="userActivityLogs.length > 0" class="mt-8 pt-6 border-t border-surface-100">
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
               <div class="space-y-2">
                 <div
@@ -681,7 +684,7 @@
               </button>
             </div>
 
-            <div v-if="task" class="mt-6 pt-4 border-t border-surface-100">
+            <div v-if="task" class="mt-8 pt-6 border-t border-surface-100">
               <div class="flex items-center gap-2 mb-3">
                 <button
                   class="flex items-center gap-1 flex-1 text-left group"
@@ -790,7 +793,7 @@
               </div>
 
               <!-- Review Feedback Section -->
-              <div v-if="prUrl && isReviewStatus" class="mt-6 pt-4 border-t border-surface-100">
+              <div v-if="prUrl && isReviewStatus" class="mt-8 pt-6 border-t border-surface-100">
                 <div class="flex items-center gap-2 mb-3">
                   <button
                     class="flex items-center gap-1 flex-1 text-left group"
@@ -935,7 +938,7 @@
   <!-- Preview Modal -->
   <div
     v-if="showPreviewModal"
-    class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+    class="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
     @click.self="showPreviewModal = false"
   >
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
@@ -989,7 +992,7 @@
   <!-- Lightbox -->
   <div
     v-if="lightboxImage"
-    class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+    class="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
     @click.self="closeLightbox"
   >
     <div class="relative max-w-full max-h-full">

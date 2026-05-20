@@ -9,12 +9,14 @@
   >
     <div
       v-if="visible"
-      class="fixed z-50 w-64 p-3 rounded-xl bg-surface-900 text-white shadow-xl"
+      class="fixed z-50 w-64 p-3 rounded-xl text-white shadow-xl"
+      style="background: #0f172a;"
       :style="positionStyle"
     >
       <!-- Arrow -->
       <div
-        class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-surface-900 rotate-45"
+        class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45"
+        style="background: #0f172a;"
       />
 
       <div class="relative">
@@ -29,17 +31,18 @@
             <p class="text-xs font-semibold leading-tight">
               {{ agentName }} is ready
             </p>
-            <p class="text-[10px] text-surface-300 leading-snug mt-0.5">
-              When you <strong>create</strong> or <strong>open</strong> a task,
+            <p class="text-[11px] leading-snug mt-0.5" style="color: #cbd5e1;">
+              When you <strong class="text-white">create</strong> or <strong class="text-white">open</strong> a task,
               you can assign {{ agentName }} to handle it automatically.
             </p>
           </div>
         </div>
 
         <div
-          class="flex items-center justify-between mt-2.5 pt-2 border-t border-surface-700/50"
+          class="flex items-center justify-between mt-2.5 pt-2"
+          style="border-top: 1px solid rgba(148, 163, 184, 0.2);"
         >
-          <span class="text-[9px] text-surface-400">Tip 1 of 1</span>
+          <span class="text-[9px]" style="color: #94a3b8;">Tip 1 of 1</span>
           <button
             class="text-[10px] font-semibold text-accent hover:text-accent-hover transition-colors px-2 py-1 rounded hover:bg-white/5"
             @click="dismiss"

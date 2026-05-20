@@ -33,7 +33,7 @@
       <div id="repositories-section" class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-1">
           <h2 class="text-lg font-semibold text-surface-900">Repositories</h2>
-          <Button @click="showAddRepo = true" v-if="!showAddRepo">
+          <Button @click="showAddRepo = true; checkConnectionResult = null" v-if="!showAddRepo">
             <Icon name="lucide:plus" class="w-3.5 h-3.5" />
             Add Repository
           </Button>
@@ -118,9 +118,27 @@
               </div>
             </div>
           </div>
-          <div class="flex items-center gap-2 mt-4">
+          <div class="flex items-center gap-2 mt-4 flex-wrap">
             <Button @click="handleAddRepo" :loading="addRepoLoading">Add</Button>
             <OutlinedButton @click="cancelAddRepo">Cancel</OutlinedButton>
+            <OutlinedButton
+              @click="handleCheckConnection({ url: newRepo.url, platform: newRepo.platform, token: newRepo.token })"
+              :loading="checkConnectionLoading"
+            >
+              <Icon name="lucide:plug" class="w-3.5 h-3.5 mr-1" />
+              Check Connection
+            </OutlinedButton>
+            <span
+              v-if="checkConnectionResult && !editingRepoId"
+              class="text-xs"
+              :class="checkConnectionResult.type === 'success' ? 'text-success-500' : 'text-error-500'"
+            >
+              <Icon
+                :name="checkConnectionResult.type === 'success' ? 'lucide:check-circle' : 'lucide:x-circle'"
+                class="w-3.5 h-3.5 inline mr-0.5"
+              />
+              {{ checkConnectionResult.message }}
+            </span>
           </div>
         </div>
 
@@ -287,9 +305,27 @@
                   />
                 </div>
               </div>
-              <div class="flex items-center gap-2 mt-4">
+              <div class="flex items-center gap-2 mt-4 flex-wrap">
                 <Button @click="handleEditRepo(repo.id)" :loading="editRepoLoading">Save</Button>
-                <OutlinedButton @click="editingRepoId = null">Cancel</OutlinedButton>
+                <OutlinedButton @click="editingRepoId = null; checkConnectionResult = null">Cancel</OutlinedButton>
+                <OutlinedButton
+                  @click="handleCheckConnection({ url: editRepo.url, platform: editRepo.platform, token: editRepo.token })"
+                  :loading="checkConnectionLoading"
+                >
+                  <Icon name="lucide:plug" class="w-3.5 h-3.5 mr-1" />
+                  Check Connection
+                </OutlinedButton>
+                <span
+                  v-if="checkConnectionResult && editingRepoId === repo.id"
+                  class="text-xs"
+                  :class="checkConnectionResult.type === 'success' ? 'text-success-500' : 'text-error-500'"
+                >
+                  <Icon
+                    :name="checkConnectionResult.type === 'success' ? 'lucide:check-circle' : 'lucide:x-circle'"
+                    class="w-3.5 h-3.5 inline mr-0.5"
+                  />
+                  {{ checkConnectionResult.message }}
+                </span>
               </div>
             </template>
           </div>
@@ -364,7 +400,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const { getWorkspaceBySlug, updateWorkspace, deleteWorkspace } = useWorkspace()
-const { repositories: repos, fetchRepositories, createRepository, updateRepository, deleteRepository } = useRepository()
+const { repositories: repos, fetchRepositories, createRepository, updateRepository, deleteRepository, checkRepositoryConnection } = useRepository()
 
 const slug = computed(() => route.params.slug as string)
 const workspace = ref<any>(null)
@@ -382,6 +418,8 @@ const editingRepoId = ref<string | null>(null)
 const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true, platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted', token: '' })
 const addRepoLoading = ref(false)
 const editRepoLoading = ref(false)
+const checkConnectionLoading = ref(false)
+const checkConnectionResult = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 
 // Repository environment variables state
 const rawEnvVars = ref<Record<string, string>>({})
@@ -507,10 +545,27 @@ function cancelAddRepo() {
   newRepo.createBranch = true
   newRepo.platform = 'github'
   newRepo.token = ''
+  checkConnectionResult.value = null
+}
+
+async function handleCheckConnection(data: { url: string; platform: 'github' | 'gitlab' | 'gitlab-self-hosted'; token?: string }) {
+  if (!workspace.value || !data.url) return
+  checkConnectionLoading.value = true
+  checkConnectionResult.value = null
+  try {
+    const result = await checkRepositoryConnection(workspace.value.id, data)
+    checkConnectionResult.value = { type: 'success', message: result.message }
+  } catch (err: any) {
+    const message = err?.data?.statusMessage || err?.message || 'Connection failed'
+    checkConnectionResult.value = { type: 'error', message }
+  } finally {
+    checkConnectionLoading.value = false
+  }
 }
 
 function startEditRepo(repo: any) {
   editingRepoId.value = repo.id
+  checkConnectionResult.value = null
   editRepo.name = repo.name
   editRepo.url = repo.url
   editRepo.defaultBranch = repo.defaultBranch

@@ -46,6 +46,13 @@ export const useRepository = () => {
     repositories.value = repositories.value.filter((r) => r.id !== repoId)
   }
 
+  async function checkRepositoryConnection(workspaceId: string, data: { url: string; platform: 'github' | 'gitlab' | 'gitlab-self-hosted'; token?: string }) {
+    return await $fetch<{ success: boolean; message: string }>(`/api/workspaces/${workspaceId}/repositories/check-connection`, {
+      method: 'POST',
+      body: data,
+    })
+  }
+
   return {
     repositories,
     loading,
@@ -53,5 +60,6 @@ export const useRepository = () => {
     createRepository,
     updateRepository,
     deleteRepository,
+    checkRepositoryConnection,
   }
 }

@@ -104,7 +104,7 @@
                   <span class="text-sm font-medium text-surface-900">{{ comment.user?.name }}</span>
                   <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
                 </div>
-                <p class="text-sm text-surface-700" v-html="linkify(comment.body)"></p>
+                <p class="text-sm text-surface-700" v-html="parseCommentBody(comment.body)"></p>
               </div>
             </div>
           </div>
@@ -127,6 +127,7 @@
 
 <script setup lang="ts">
 import type { Task, Comment } from '~/types'
+import { marked } from 'marked'
 
 definePageMeta({
   layout: 'default',
@@ -168,5 +169,10 @@ async function handleAddComment() {
 function formatDate(dateStr: string) {
   const date = new Date(dateStr)
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function parseCommentBody(body: string): string {
+  if (!body) return ''
+  return marked.parse(body, { async: false, breaks: true }) as string
 }
 </script>

@@ -458,7 +458,7 @@
                     @keydown.enter="handleCommentEnter"
                     @keydown.ctrl.enter.prevent="!mentionActive ? handleAddComment() : null"
                     @keydown.meta.enter.prevent="!mentionActive ? handleAddComment() : null"
-                    @keydown.escape="mentionActive = false"
+                    @keydown.escape="mentionActive = false; showAttachmentPicker = false"
                     @keydown.down.prevent="mentionNavigate(1)"
                     @keydown.up.prevent="mentionNavigate(-1)"
                     @input="handleMentionInput"
@@ -501,7 +501,41 @@
                     No matches found
                   </div>
                 </div>
+
+                <!-- Attachment reference picker -->
+                <div
+                  v-if="showAttachmentPicker && attachments.length > 0"
+                  class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white border border-surface-200 rounded-lg shadow-lg p-2"
+                >
+                  <div class="text-[10px] font-medium text-surface-400 mb-1.5 px-1">Add image reference</div>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-for="att in attachments"
+                      :key="att.id"
+                      class="relative group w-12 h-12 rounded-lg overflow-hidden border border-surface-200 hover:border-primary-400 transition-colors flex-shrink-0"
+                      :title="att.originalName"
+                      @click="insertAttachmentReference(att)"
+                    >
+                      <img
+                        :src="`/api/tasks/${props.taskId}/attachments/${att.id}`"
+                        class="w-full h-full object-cover"
+                        loading="lazy"
+                        @error="hideImage"
+                      />
+                    </button>
+                  </div>
+                </div>
               </div>
+              <button
+                v-if="attachments.length > 0"
+                type="button"
+                class="p-2 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0 h-10"
+                :class="{ 'bg-primary-50 border-primary-300 text-primary-600': showAttachmentPicker }"
+                title="Add image reference"
+                @click="showAttachmentPicker = !showAttachmentPicker; mentionActive = false"
+              >
+                <Icon name="lucide:image" class="w-4 h-4" />
+              </button>
               <Button
                 :disabled="!newComment || isSendingToAgent"
                 :loading="isSendingToAgent"
@@ -996,6 +1030,7 @@ const screenshotError = ref(false)
 const comments = ref<Comment[]>([])
 const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
+const showAttachmentPicker = ref(false)
 const confirmDelete = ref(false)
 const showAssigneePicker = ref(false)
 const showObserverPicker = ref(false)
@@ -1167,6 +1202,11 @@ function handleMentionInput(e: Event) {
   // Auto-resize textarea as content changes
   autoResizeCommentTextarea()
 
+  // Close attachment picker when user types
+  if (showAttachmentPicker.value) {
+    showAttachmentPicker.value = false
+  }
+
   // Find the last "@" before the cursor position
   const textBeforeCursor = val.slice(0, cursorPos)
   const atIndex = textBeforeCursor.lastIndexOf('@')
@@ -1234,6 +1274,35 @@ function selectMention(option: { name: string }) {
   nextTick(() => {
     textarea.focus()
     const newPos = atIndex + option.name.length + 2
+    textarea.setSelectionRange(newPos, newPos)
+    autoResizeCommentTextarea()
+  })
+}
+
+/** Insert a markdown image reference to an existing task attachment at the cursor position */
+function insertAttachmentReference(att: Attachment) {
+  const textarea = commentInputRef.value
+  if (!textarea) return
+
+  const val = textarea.value
+  const cursorPos = textarea.selectionStart || 0
+  const imageMarkdown = `![${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`
+
+  // Insert at cursor with a leading space if not at start and no preceding space/newline
+  const needsLeadingSpace = cursorPos > 0 && !/[\s\n]/.test(val[cursorPos - 1])
+  const prefix = needsLeadingSpace ? ' ' : ''
+
+  // Add trailing newline if at end or no trailing newline
+  const needsTrailingNewline = cursorPos === val.length || !/[\s\n]/.test(val[cursorPos] || '')
+  const suffix = needsTrailingNewline ? '\n' : ''
+
+  const newVal = val.slice(0, cursorPos) + prefix + imageMarkdown + suffix + val.slice(cursorPos)
+  newComment.value = newVal
+  showAttachmentPicker.value = false
+
+  nextTick(() => {
+    textarea.focus()
+    const newPos = cursorPos + prefix.length + imageMarkdown.length + suffix.length
     textarea.setSelectionRange(newPos, newPos)
     autoResizeCommentTextarea()
   })

@@ -441,9 +441,35 @@
             </label>
 
             <!-- Comment input -->
-            <div class="flex gap-2 mb-4 items-end">
-              <div class="flex-1 relative">
-                <!-- Custom textarea with @mention support -->
+            <div class="mb-4">
+              <!-- Pending comment attachments (uploaded from comment area) -->
+              <div v-if="pendingCommentAttachments.length > 0" class="flex flex-wrap gap-2 mb-2">
+                <div
+                  v-for="att in pendingCommentAttachments"
+                  :key="att.id"
+                  class="relative group cursor-pointer"
+                  @click="openLightbox(att)"
+                >
+                  <div class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+                    <img
+                      :src="`/api/tasks/${props.taskId}/attachments/${att.id}`"
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                      @error="hideImage($event)"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    class="absolute -top-1 -right-1 w-3 h-3 bg-surface-700 text-white rounded-full flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    @click.stop="removePendingCommentAttachment(att)"
+                  >
+                    <Icon name="lucide:x" class="w-2 h-2" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Textarea -->
+              <div class="relative">
                 <div
                   class="w-full rounded-lg overflow-hidden stroke-gray-500 border-2 flex min-h-10"
                   :class="isSendingToAgent ? 'bg-gray-100 cursor-not-allowed' : 'bg-white border-gray-200'"
@@ -526,29 +552,57 @@
                   </div>
                 </div>
               </div>
-              <button
-                v-if="attachments.length > 0"
-                type="button"
-                class="inline-flex items-center justify-center h-10 w-10 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0 leading-none"
-                :class="{ 'bg-primary-50 border-primary-300 text-primary-600': showAttachmentPicker }"
-                title="Add image reference"
-                @click="showAttachmentPicker = !showAttachmentPicker; mentionActive = false"
-              >
-                <Icon name="lucide:image" class="w-4 h-4" />
-              </button>
-              <Button
-                :disabled="!newComment || isSendingToAgent"
-                :loading="isSendingToAgent"
-                @click="handleAddComment"
-              >
-                <template v-if="isAgentInProgress && !isSendingToAgent">
-                  <span class="flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
-                    Send
-                  </span>
-                </template>
-                <template v-else>Send</template>
-              </Button>
+
+              <!-- Compact toolbar below textarea -->
+              <div class="flex items-center justify-between mt-1">
+                <div class="flex items-center gap-0.5">
+                  <!-- Upload attachment from comment area -->
+                  <button
+                    v-if="pendingCommentAttachments.length < 3"
+                    type="button"
+                    class="w-7 h-7 rounded flex items-center justify-center text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors"
+                    :class="{ 'opacity-50 cursor-not-allowed': isUploadingCommentAttachment }"
+                    title="Attach image"
+                    @click="commentAttachmentInput?.click()"
+                  >
+                    <Icon v-if="!isUploadingCommentAttachment" name="lucide:paperclip" class="w-3.5 h-3.5" />
+                    <Icon v-else name="lucide:loader-2" class="w-3.5 h-3.5 animate-spin" />
+                  </button>
+                  <input
+                    ref="commentAttachmentInput"
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    class="hidden"
+                    @change="handleCommentAttachmentFileSelect"
+                  />
+
+                  <button
+                    v-if="attachments.length > 0"
+                    type="button"
+                    class="w-7 h-7 rounded flex items-center justify-center text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors"
+                    :class="{ 'text-primary-600 bg-primary-50': showAttachmentPicker }"
+                    title="Add image reference"
+                    @click="showAttachmentPicker = !showAttachmentPicker; mentionActive = false"
+                  >
+                    <Icon name="lucide:image" class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <Button
+                  :disabled="(!newComment && pendingCommentAttachments.length === 0) || isSendingToAgent"
+                  :loading="isSendingToAgent"
+                  class="text-xs py-1 px-3 h-7"
+                  @click="handleAddComment"
+                >
+                  <template v-if="isAgentInProgress && !isSendingToAgent">
+                    <span class="flex items-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+                      Send
+                    </span>
+                  </template>
+                  <template v-else>Send</template>
+                </Button>
+              </div>
             </div>
 
             <!-- Comments list -->
@@ -1032,6 +1086,11 @@ const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
 const showAttachmentPicker = ref(false)
 const confirmDelete = ref(false)
+
+// ─── Comment area attachments ───
+const pendingCommentAttachments = ref<Attachment[]>([])
+const commentAttachmentInput = ref<HTMLInputElement | null>(null)
+const isUploadingCommentAttachment = ref(false)
 const showAssigneePicker = ref(false)
 const showObserverPicker = ref(false)
 const previewAvailable = ref(false)
@@ -1602,6 +1661,37 @@ async function removeAttachment(att: Attachment) {
   } catch {
     alert('Failed to delete attachment')
   }
+}
+
+// ─── Comment area attachment handlers ───
+async function handleCommentAttachmentFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0 || !task.value) return
+  await uploadCommentAttachmentFile(input.files[0])
+  input.value = ''
+}
+
+async function uploadCommentAttachmentFile(file: File) {
+  if (!task.value) return
+  if (pendingCommentAttachments.value.length >= 3) {
+    alert('Attachment limit reached (max 3)')
+    return
+  }
+  isUploadingCommentAttachment.value = true
+  try {
+    const newAtt = await uploadAttachment(task.value.id, file)
+    pendingCommentAttachments.value.push(newAtt)
+    // Also add to the main attachments list so it appears in the task attachments section
+    attachments.value.push(newAtt)
+  } catch (err: any) {
+    alert(err?.message || 'Failed to upload attachment')
+  } finally {
+    isUploadingCommentAttachment.value = false
+  }
+}
+
+function removePendingCommentAttachment(att: Attachment) {
+  pendingCommentAttachments.value = pendingCommentAttachments.value.filter((a) => a.id !== att.id)
 }
 
 function handleKeydown(e: KeyboardEvent) {
@@ -2258,10 +2348,24 @@ function insertFormat(wrap: string) {
 }
 
 async function handleAddComment() {
-  if (!newComment.value || !task.value) return
-  const commentBody = newComment.value
+  if ((!newComment.value && pendingCommentAttachments.value.length === 0) || !task.value) return
+  let commentBody = newComment.value
+
+  // Auto-insert markdown references for pending comment attachments
+  if (pendingCommentAttachments.value.length > 0) {
+    const attachmentMarkdown = pendingCommentAttachments.value
+      .map(att => `![${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`)
+      .join('\n')
+    if (commentBody) {
+      commentBody += '\n\n' + attachmentMarkdown
+    } else {
+      commentBody = attachmentMarkdown
+    }
+  }
+
   newComment.value = ''
   showAttachmentPicker.value = false
+  pendingCommentAttachments.value = []
 
   // Reset textarea height after clearing
   nextTick(() => {

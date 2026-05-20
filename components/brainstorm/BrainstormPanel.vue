@@ -234,7 +234,7 @@
           </div>
         </div>
 
-        <div class="flex gap-2 items-end">
+        <div class="flex gap-2 items-center">
           <button
             v-if="attachments.length < 3"
             class="inline-flex items-center justify-center h-10 w-10 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0 leading-none"
@@ -257,7 +257,7 @@
                ref="textareaRef"
                v-model="newMessage"
                :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
-                class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y min-h-10"
+                class="block w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y min-h-10"
                :disabled="isSending"
                rows="1"
                @keydown="handleKeydown"

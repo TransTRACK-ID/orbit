@@ -34,160 +34,184 @@
       </nav>
 
       <!-- Hero Section -->
-      <section class="relative pt-32 pb-20 lg:pt-40 lg:pb-28 overflow-hidden">
-        <!-- Warm ambient glow -->
+      <section class="relative pt-32 pb-24 lg:pt-44 lg:pb-32 overflow-hidden">
+        <!-- Dramatic warm ambient glows -->
         <div
-          class="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-30 pointer-events-none -translate-y-1/4 translate-x-1/4"
-          style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.15), transparent 70%);"
+          class="absolute top-[-10%] right-[-10%] w-[800px] h-[800px] rounded-full opacity-40 pointer-events-none"
+          style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.18), transparent 65%);"
         />
         <div
-          class="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full opacity-20 pointer-events-none translate-y-1/4 -translate-x-1/4"
-          style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.1), transparent 70%);"
+          class="absolute bottom-[-15%] left-[-15%] w-[600px] h-[600px] rounded-full opacity-25 pointer-events-none"
+          style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.12), transparent 65%);"
+        />
+        <div
+          class="absolute top-[40%] left-[60%] w-[300px] h-[300px] rounded-full opacity-15 pointer-events-none"
+          style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.08), transparent 60%);"
         />
 
+        <!-- Floating ambient orbs -->
+        <div class="absolute top-[20%] left-[8%] w-3 h-3 rounded-full bg-accent/20 animate-float pointer-events-none" />
+        <div class="absolute top-[60%] left-[15%] w-2 h-2 rounded-full bg-accent/15 animate-float-slow pointer-events-none" style="animation-delay: 1s;" />
+        <div class="absolute top-[30%] right-[12%] w-2.5 h-2.5 rounded-full bg-accent/10 animate-float pointer-events-none" style="animation-delay: 2s;" />
+        <div class="absolute bottom-[25%] right-[20%] w-2 h-2 rounded-full bg-accent/20 animate-float-slow pointer-events-none" style="animation-delay: 0.5s;" />
+
         <div class="max-w-7xl mx-auto px-6 relative z-10">
-          <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div class="grid lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 items-center">
             <!-- Left: Value prop -->
-            <div class="max-w-xl">
+            <div class="lg:col-span-6">
               <div
-                class="reveal-hero inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-soft border border-accent/10 mb-6"
+                class="reveal-hero inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-soft border border-accent/10 mb-8"
                 style="--delay: 0ms;"
               >
                 <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                <span class="text-xs font-medium text-accent">Now with AI agent orchestration</span>
+                <span class="text-xs font-semibold text-accent">Now with AI agent orchestration</span>
               </div>
 
               <h1
-                class="reveal-hero text-4xl lg:text-5xl font-bold text-surface-900 leading-tight tracking-tight mb-5"
+                class="reveal-hero text-5xl sm:text-6xl lg:text-7xl font-black text-surface-900 leading-[0.95] tracking-tight mb-6"
                 style="--delay: 80ms;"
               >
-                Project management<br>
-                <span class="text-accent">that works with you</span>
+                Ship faster.<br>
+                <span class="text-accent">Think bigger.</span>
               </h1>
 
               <p
-                class="reveal-hero text-lg text-surface-500 leading-relaxed mb-8 max-w-md"
+                class="reveal-hero text-lg lg:text-xl text-surface-500 leading-relaxed mb-8 max-w-lg font-light"
                 style="--delay: 160ms;"
               >
-                Orbit blends traditional kanban tracking with AI agent orchestration. Assign tasks to intelligent agents and watch your team's productivity accelerate.
+                The only project management tool that puts AI agents to work on your kanban board. Less busywork, more building.
               </p>
 
-              <div class="reveal-hero flex flex-wrap items-center gap-3" style="--delay: 240ms;">
+              <div class="reveal-hero flex flex-wrap items-center gap-3 mb-8" style="--delay: 240ms;">
                 <NuxtLink
                   to="/register"
-                  class="inline-flex items-center gap-2 px-6 py-3 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-all duration-150 hover:shadow-lg hover:-translate-y-px active:scale-[0.98]"
+                  class="inline-flex items-center gap-2 px-7 py-3.5 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover transition-all duration-150 hover:shadow-xl hover:shadow-accent/20 hover:-translate-y-0.5 active:scale-[0.98] text-base"
                 >
-                  Get started free
+                  Start building free
                   <Icon name="lucide:arrow-right" class="w-4 h-4" />
                 </NuxtLink>
                 <NuxtLink
                   to="/login"
-                  class="inline-flex items-center gap-2 px-6 py-3 border border-surface-200 text-surface-700 font-medium rounded-lg hover:bg-surface-100 transition-all duration-150 active:scale-[0.98]"
+                  class="inline-flex items-center gap-2 px-7 py-3.5 text-surface-600 font-medium hover:text-surface-900 transition-colors duration-150 active:scale-[0.98] text-base"
                 >
-                  See how it works
+                  Sign in
                 </NuxtLink>
               </div>
 
-              <div class="reveal-hero mt-8 flex items-center gap-6 text-xs text-surface-400" style="--delay: 320ms;">
+              <div class="reveal-hero flex items-center gap-6 text-sm text-surface-400" style="--delay: 320ms;">
                 <div class="flex items-center gap-1.5">
-                  <Icon name="lucide:check-circle" class="w-3.5 h-3.5 text-semantic-green" />
-                  Free forever plan
+                  <Icon name="lucide:check-circle" class="w-4 h-4 text-semantic-green" />
+                  <span class="text-surface-500">Free forever</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <Icon name="lucide:check-circle" class="w-3.5 h-3.5 text-semantic-green" />
-                  No credit card required
+                  <Icon name="lucide:check-circle" class="w-4 h-4 text-semantic-green" />
+                  <span class="text-surface-500">No card required</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <Icon name="lucide:check-circle" class="w-4 h-4 text-semantic-green" />
+                  <span class="text-surface-500">2 AI agents included</span>
                 </div>
               </div>
             </div>
 
             <!-- Right: Abstract workflow visualization -->
-            <div class="relative lg:pl-8">
+            <div class="lg:col-span-6 relative lg:pl-4">
               <div
-                class="reveal-hero relative rounded-2xl border border-surface-200 shadow-lg p-6 lg:p-8"
-                style="--delay: 200ms; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);"
+                class="reveal-hero hero-visual relative"
+                style="--delay: 200ms;"
               >
-                <!-- Stylized kanban board preview -->
-                <div class="flex gap-3 overflow-hidden">
-                  <!-- Column 1: Backlog -->
-                  <div class="reveal-kanban flex-1 min-w-0" style="--kb-delay: 300ms;">
-                    <div class="flex items-center gap-2 mb-3">
-                      <div class="w-2 h-2 rounded-full bg-slate-400" />
-                      <span class="text-xs font-semibold text-slate-600">Backlog</span>
-                      <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">3</span>
-                    </div>
-                    <div class="space-y-2">
-                      <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
-                        <div class="h-2 rounded w-3/4 mb-1.5" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
-                      </div>
-                      <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
-                        <div class="h-2 rounded w-full mb-1.5" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
-                      </div>
-                      <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
-                        <div class="h-2 rounded w-4/5 mb-1.5" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Column 2: In Progress -->
-                  <div class="reveal-kanban flex-1 min-w-0" style="--kb-delay: 420ms;">
-                    <div class="flex items-center gap-2 mb-3">
-                      <div class="w-2 h-2 rounded-full bg-semantic-blue" />
-                      <span class="text-xs font-semibold text-slate-600">In Progress</span>
-                      <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">2</span>
-                    </div>
-                    <div class="space-y-2">
-                      <div class="rounded-lg border border-slate-200 p-2.5 shadow-sm" style="background: #ffffff;">
-                        <div class="flex items-center gap-1.5 mb-1.5">
-                          <div class="w-1.5 h-1.5 rounded-full bg-semantic-purple animate-pulse" />
-                          <span class="text-[9px] font-semibold text-semantic-purple uppercase">Agent</span>
-                        </div>
-                        <div class="h-2 rounded w-5/6 mb-1" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-3/5" style="background: #e2e8f0;" />
-                      </div>
-                      <div class="rounded-lg border border-slate-200 p-2.5 shadow-sm" style="background: #ffffff;">
-                        <div class="h-2 rounded w-full mb-1.5" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Column 3: Done -->
-                  <div class="reveal-kanban flex-1 min-w-0 hidden sm:block" style="--kb-delay: 540ms;">
-                    <div class="flex items-center gap-2 mb-3">
-                      <div class="w-2 h-2 rounded-full bg-semantic-green" />
-                      <span class="text-xs font-semibold text-slate-600">Done</span>
-                      <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">5</span>
-                    </div>
-                    <div class="space-y-2">
-                      <div class="rounded-lg border border-slate-200/60 p-2.5 opacity-60" style="background: rgba(241, 245, 249, 0.5);">
-                        <div class="h-2 rounded w-4/5 mb-1.5" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
-                      </div>
-                      <div class="rounded-lg border border-slate-200/60 p-2.5 opacity-60" style="background: rgba(241, 245, 249, 0.5);">
-                        <div class="h-2 rounded w-3/4 mb-1.5" style="background: #cbd5e1;" />
-                        <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Floating agent indicator -->
                 <div
-                  class="reveal-agent absolute -bottom-3 -right-3 rounded-xl border border-slate-200 shadow-lg p-3 flex items-center gap-2.5"
-                  style="background: #ffffff;"
+                  class="relative rounded-2xl border border-surface-200/80 shadow-2xl p-6 lg:p-8 pb-10 lg:pb-12"
+                  style="background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%); transform: perspective(1200px) rotateY(-3deg) rotateX(1deg);"
                 >
-                  <div class="w-8 h-8 rounded-full bg-semantic-purple/10 flex items-center justify-center">
-                    <Icon name="lucide:bot" class="w-4 h-4 text-semantic-purple" />
+                  <!-- Stylized kanban board preview -->
+                  <div class="flex gap-3 overflow-hidden">
+                    <!-- Column 1: Backlog -->
+                    <div class="reveal-kanban flex-1 min-w-0" style="--kb-delay: 300ms;">
+                      <div class="flex items-center gap-2 mb-3">
+                        <div class="w-2 h-2 rounded-full bg-slate-400" />
+                        <span class="text-xs font-semibold text-slate-600">Backlog</span>
+                        <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">3</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
+                          <div class="h-2 rounded w-3/4 mb-1.5" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
+                        </div>
+                        <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
+                          <div class="h-2 rounded w-full mb-1.5" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
+                        </div>
+                        <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
+                          <div class="h-2 rounded w-4/5 mb-1.5" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Column 2: In Progress -->
+                    <div class="reveal-kanban flex-1 min-w-0" style="--kb-delay: 420ms;">
+                      <div class="flex items-center gap-2 mb-3">
+                        <div class="w-2 h-2 rounded-full bg-semantic-blue" />
+                        <span class="text-xs font-semibold text-slate-600">In Progress</span>
+                        <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">2</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div class="rounded-lg border border-slate-200 p-2.5 shadow-sm" style="background: #ffffff;">
+                          <div class="flex items-center gap-1.5 mb-1.5">
+                            <div class="w-1.5 h-1.5 rounded-full bg-semantic-purple animate-pulse" />
+                            <span class="text-[9px] font-semibold text-semantic-purple uppercase">Agent</span>
+                          </div>
+                          <div class="h-2 rounded w-5/6 mb-1" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-3/5" style="background: #e2e8f0;" />
+                        </div>
+                        <div class="rounded-lg border border-slate-200 p-2.5 shadow-sm" style="background: #ffffff;">
+                          <div class="h-2 rounded w-full mb-1.5" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Column 3: Done -->
+                    <div class="reveal-kanban flex-1 min-w-0 hidden sm:block" style="--kb-delay: 540ms;">
+                      <div class="flex items-center gap-2 mb-3">
+                        <div class="w-2 h-2 rounded-full bg-semantic-green" />
+                        <span class="text-xs font-semibold text-slate-600">Done</span>
+                        <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">5</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div class="rounded-lg border border-slate-200/60 p-2.5 opacity-60" style="background: rgba(241, 245, 249, 0.5);">
+                          <div class="h-2 rounded w-4/5 mb-1.5" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
+                        </div>
+                        <div class="rounded-lg border border-slate-200/60 p-2.5 opacity-60" style="background: rgba(241, 245, 249, 0.5);">
+                          <div class="h-2 rounded w-3/4 mb-1.5" style="background: #cbd5e1;" />
+                          <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div class="text-xs font-semibold text-slate-900">Orbit Agent</div>
-                    <div class="text-[10px] text-slate-400">Processing 2 tasks</div>
+
+                  <!-- Floating agent indicator -->
+                  <div
+                    class="reveal-agent absolute -bottom-4 -right-4 rounded-xl border border-slate-200/80 shadow-xl p-3.5 flex items-center gap-2.5"
+                    style="background: #ffffff;"
+                  >
+                    <div class="w-9 h-9 rounded-full bg-semantic-purple/10 flex items-center justify-center">
+                      <Icon name="lucide:bot" class="w-5 h-5 text-semantic-purple" />
+                    </div>
+                    <div>
+                      <div class="text-xs font-semibold text-slate-900">Orbit Agent</div>
+                      <div class="text-[10px] text-slate-400">Processing 2 tasks</div>
+                    </div>
+                    <div class="w-2 h-2 rounded-full bg-semantic-green animate-pulse ml-1" />
                   </div>
-                  <div class="w-1.5 h-1.5 rounded-full bg-semantic-green animate-pulse ml-1" />
                 </div>
+
+                <!-- Decorative shadow layer behind kanban -->
+                <div
+                  class="absolute inset-0 rounded-2xl bg-accent/5 -z-10 translate-x-4 translate-y-4"
+                />
               </div>
             </div>
           </div>
@@ -608,16 +632,54 @@ function initScrollReveals() {
   transform: translateY(0);
 }
 
+/* ── Floating ambient orbs ── */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  33% {
+    transform: translateY(-12px) translateX(6px);
+  }
+  66% {
+    transform: translateY(6px) translateX(-4px);
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  50% {
+    transform: translateY(-16px) translateX(8px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+/* Hero visual subtle hover lift */
+.hero-visual {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Ensure animations respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .reveal-nav,
   .reveal-hero,
   .reveal-kanban,
   .reveal-agent,
-  .reveal-section .reveal-item {
+  .reveal-section .reveal-item,
+  .animate-float,
+  .animate-float-slow {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+    animation: none !important;
   }
 }
 </style>

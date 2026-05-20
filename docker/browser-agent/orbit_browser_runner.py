@@ -64,17 +64,21 @@ async def main():
     screenshot_path = output_dir / "final_screenshot.png"
     screenshot_captured = False
 
+    emit("status", message=f"Output dir: {output_dir} — screenshot will be saved to {screenshot_path}")
+
     async def capture_screenshot_on_done(history):
         """Capture a full-page screenshot via the agent's browser_context while it's still alive.
         This callback is invoked before the Agent.run() finally block closes the context."""
         nonlocal screenshot_captured
         try:
+            emit("status", message="Done callback firing — attempting screenshot via browser_context")
             # Access the agent's internal browser_context (still open in this callback)
             screenshot_b64 = await agent.browser_context.take_screenshot(full_page=True)
             screenshot_bytes = base64.b64decode(screenshot_b64)
             screenshot_path.write_bytes(screenshot_bytes)
             screenshot_captured = True
-            emit("status", message=f"Screenshot saved to {screenshot_path}")
+            file_size = screenshot_path.stat().st_size
+            emit("status", message=f"Screenshot saved to {screenshot_path} ({file_size} bytes)")
         except Exception as e:
             emit("status", message=f"Done-callback screenshot failed: {e}")
 
@@ -154,12 +158,16 @@ async def main():
         # fall back to the last history screenshot that browser-use already took during the run.
         if not screenshot_captured and result.history:
             try:
+                history_count = len(result.history)
                 last_history = result.history[-1]
-                if last_history.state and last_history.state.screenshot:
+                has_screenshot = last_history.state and last_history.state.screenshot
+                emit("status", message=f"History fallback: {history_count} steps, last screenshot present={bool(has_screenshot)}")
+                if has_screenshot:
                     screenshot_bytes = base64.b64decode(last_history.state.screenshot)
                     screenshot_path.write_bytes(screenshot_bytes)
                     screenshot_captured = True
-                    emit("status", message=f"Screenshot saved from history to {screenshot_path}")
+                    file_size = screenshot_path.stat().st_size
+                    emit("status", message=f"Screenshot saved from history to {screenshot_path} ({file_size} bytes)")
             except Exception as e:
                 emit("status", message=f"History screenshot fallback failed: {e}")
 
@@ -167,6 +175,7 @@ async def main():
         # but a screenshot of the landing page is better than nothing).
         if not screenshot_captured:
             try:
+                emit("status", message="Fresh-page fallback: opening new Playwright context")
                 pw_browser = await browser.get_playwright_browser()
                 if pw_browser:
                     ctx = await pw_browser.new_context()
@@ -175,7 +184,8 @@ async def main():
                     await page.screenshot(path=str(screenshot_path), full_page=True)
                     await ctx.close()
                     screenshot_captured = True
-                    emit("status", message=f"Screenshot saved from fresh page to {screenshot_path}")
+                    file_size = screenshot_path.stat().st_size
+                    emit("status", message=f"Screenshot saved from fresh page to {screenshot_path} ({file_size} bytes)")
             except Exception as e:
                 emit("status", message=f"Fresh-page screenshot fallback failed: {e}")
 
@@ -205,6 +215,7 @@ async def main():
         # Try to get a basic screenshot even on total failure
         if not screenshot_captured:
             try:
+                emit("status", message="Error fallback: attempting fresh page screenshot")
                 pw_browser = await browser.get_playwright_browser()
                 if pw_browser:
                     ctx = await pw_browser.new_context()
@@ -213,11 +224,22 @@ async def main():
                     await page.screenshot(path=str(screenshot_path), full_page=True)
                     await ctx.close()
                     screenshot_captured = True
-                    emit("status", message=f"Screenshot saved after error to {screenshot_path}")
+                    file_size = screenshot_path.stat().st_size
+                    emit("status", message=f"Screenshot saved after error to {screenshot_path} ({file_size} bytes)")
             except Exception as screenshot_err:
                 emit("status", message=f"Screenshot failed after error: {screenshot_err}")
+
+        # Final emit so the server knows whether a screenshot exists
+        if screenshot_captured:
+            emit("status", message=f"Final: screenshot present at {screenshot_path}")
+        else:
+            emit("status", message="Final: no screenshot could be captured")
     finally:
-        await browser.stop()
+        try:
+            await browser.close()
+        except AttributeError:
+            # browser-use 0.1.40 uses .close() not .stop(); older versions may vary
+            pass
 
     sys.exit(exit_code)
 

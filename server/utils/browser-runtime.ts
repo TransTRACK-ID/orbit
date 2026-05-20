@@ -19,6 +19,7 @@ export type BrowserRunConfig = {
 export type BrowserContainerResult = {
   status: 'passed' | 'failed'
   outputDir: string
+  hostOutputDir?: string
   summary?: string
   error?: string
 }
@@ -226,6 +227,7 @@ export async function runBrowserContainer(
       resolve({
         status,
         outputDir: config.outputDir,
+        hostOutputDir,
         summary: finalSummary,
       })
     })

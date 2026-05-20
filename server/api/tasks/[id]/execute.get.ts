@@ -782,10 +782,25 @@ export default defineEventHandler(async (event) => {
         const summaryText = result.summary || 'No summary available'
         await pushAndPersist(`Browser QA ${result.status}`)
 
-        // Determine whether a screenshot was produced before building the reply
-        const screenshotPath = result.outputDir && existsSync(path.join(result.outputDir, 'final_screenshot.png'))
-          ? path.join(result.outputDir, 'final_screenshot.png')
-          : null
+        // Determine whether a screenshot was produced before building the reply.
+        // The browser container writes to a Docker volume that may map to hostOutputDir
+        // rather than outputDir, so we check both paths.
+        let screenshotPath: string | null = null
+        const candidates = [
+          result.outputDir && path.join(result.outputDir, 'final_screenshot.png'),
+          result.hostOutputDir && path.join(result.hostOutputDir, 'final_screenshot.png'),
+        ].filter(Boolean) as string[]
+
+        for (const candidate of candidates) {
+          if (existsSync(candidate)) {
+            screenshotPath = candidate
+            break
+          }
+        }
+
+        if (!screenshotPath) {
+          console.error(`[execute.get] Screenshot not found in any candidate path: ${candidates.join(', ')}`)
+        }
 
         // Build reply text with embedded screenshot markdown when available
         const screenshotMarkdown = screenshotPath

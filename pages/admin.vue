@@ -241,7 +241,7 @@
                 {{ isExpanded(item.id) ? 'Show less' : 'Show more' }}
               </button>
               <p class="text-[10px] text-surface-400 mt-0.5">
-                {{ item.workspace?.name || 'Unknown workspace' }} · {{ formatDate(item.createdAt) }}
+                {{ item.workspace?.name || 'Unknown workspace' }} · {{ formatDateTime(item.createdAt) }}
               </p>
             </div>
           </div>
@@ -562,6 +562,26 @@ function formatDate(date: string | Date | null) {
 function formatShortDate(date: string | Date | null) {
   if (!date) return '-'
   return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function formatDateTime(date: string | Date | null) {
+  if (!date) return '-'
+  const d = new Date(date)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const isYesterday = new Date(now.getTime() - 86400000).toDateString() === d.toDateString()
+  const isThisYear = d.getFullYear() === now.getFullYear()
+
+  const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+
+  if (isToday) return `Today at ${timeStr}`
+  if (isYesterday) return `Yesterday at ${timeStr}`
+  if (isThisYear) {
+    const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return `${dateStr} at ${timeStr}`
+  }
+  const dateStr = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  return `${dateStr} at ${timeStr}`
 }
 
 function userInitials(name: string) {

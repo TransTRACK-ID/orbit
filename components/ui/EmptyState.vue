@@ -6,7 +6,8 @@
       <Icon :name="icon" class="w-7 h-7 text-surface-400" />
     </div>
     <h3 class="text-lg font-semibold text-surface-900 mb-1">{{ title }}</h3>
-    <p class="text-sm text-surface-500 text-center max-w-sm mb-6">{{ description }}</p>
+    <p class="text-sm text-surface-500 text-center max-w-sm mb-2">{{ description }}</p>
+    <p v-if="tip" class="text-xs text-surface-400 text-center max-w-sm mb-6">{{ tip }}</p>
     <slot />
   </div>
 </template>
@@ -16,5 +17,6 @@ defineProps<{
   title: string
   description: string
   icon?: string
+  tip?: string
 }>()
 </script>

@@ -19,14 +19,15 @@
     <UiEmptyState
       v-else-if="workspaces.length === 0"
       title="No workspaces yet"
-      description="Create your first workspace to start organizing projects."
+      description="Workspaces group your projects and team members together."
+      tip="Start with one workspace, you can add more anytime."
       icon="ph:folder-notch-open"
     >
       <button
         class="px-4 py-2 bg-accent text-white rounded-lg text-xs font-semibold hover:bg-accent-hover transition-colors"
         @click="showCreateModal = true"
       >
-        Create Workspace
+        Create workspace
       </button>
     </UiEmptyState>
 

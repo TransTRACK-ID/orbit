@@ -94,26 +94,7 @@ async def main():
     try:
         result = await agent.run()
 
-        # Determine actual success/failure from the agent result
-        is_done = result.is_done()
-        is_successful = result.is_successful()
-        has_errors = result.has_errors()
-
-        if is_successful is True:
-            status = "passed"
-        elif is_successful is False:
-            status = "failed"
-        elif has_errors:
-            status = "failed"
-        elif not is_done:
-            status = "failed"
-        else:
-            status = "passed"
-
-        if status == "failed":
-            exit_code = 1
-
-        # Extract a clean summary from the agent's history
+        # Extract a clean summary FIRST so we can use it in status heuristics
         final_summary = result.final_result()
         if not final_summary and result.all_results and len(result.all_results) > 0:
             last_result = result.all_results[-1]
@@ -124,6 +105,42 @@ async def main():
 
         if not final_summary:
             final_summary = str(result)
+
+        # Determine actual success/failure from the agent result
+        is_done = result.is_done()
+        is_successful = result.is_successful()
+        has_errors = result.has_errors()
+
+        # 1. Browser-use's built-in judge (most reliable)
+        judgement = result.judgement()
+        if judgement and judgement.get("verdict") is False:
+            status = "failed"
+        # 2. Explicit success=False from the agent
+        elif is_successful is False:
+            status = "failed"
+        # 3. Any step-level execution errors
+        elif has_errors:
+            status = "failed"
+        # 4. Agent never reached done state
+        elif not is_done:
+            status = "failed"
+        # 5. Heuristic: scan summary for failure/workaround keywords
+        else:
+            failure_keywords = [
+                "broken", "error", "failed", "could not", "unable to",
+                "preventing access", "workaround", "never reached",
+                "never accessed", "did not work", "not working",
+            ]
+            summary_lower = (final_summary or "").lower()
+            if any(kw in summary_lower for kw in failure_keywords):
+                status = "failed"
+            elif is_successful is True:
+                status = "passed"
+            else:
+                status = "failed"
+
+        if status == "failed":
+            exit_code = 1
 
         # If the done callback didn't capture a screenshot (e.g. task never reached done state),
         # fall back to the last history screenshot that browser-use already took during the run.

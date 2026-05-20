@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto" @click.self="$emit('close')">
+    <div class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-surface-900/50 p-4 overflow-y-auto" @click.self="$emit('close')">
       <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-[calc(100vw-32px)] sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6 animate-scale-in my-auto">
         <div class="flex items-center justify-between mb-5">
           <h3 class="text-lg font-semibold text-surface-900">Create Task</h3>
@@ -11,7 +11,7 @@
 
         <form @submit.prevent="handleCreate" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Title <span class="text-error-500">*</span></label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Title <span class="text-error-500">*</span></label>
             <TextInput
               ref="titleInput"
               v-model="form.title"
@@ -22,10 +22,10 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Status <span class="text-error-500">*</span></label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Status <span class="text-error-500">*</span></label>
             <select
               v-model="form.statusId"
-              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
             >
               <option v-for="s in statuses" :key="s.id" :value="s.id">
                 {{ s.name }}
@@ -34,10 +34,10 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Priority</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Priority</label>
             <select
               v-model="form.priority"
-              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
             >
               <option value="none">None</option>
               <option value="urgent">Urgent</option>
@@ -48,7 +48,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Assignee</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Assignee</label>
             <div class="relative">
               <button
                 type="button"
@@ -58,7 +58,7 @@
                 <template v-if="selectedAssignee">
                   <span
                     v-if="selectedAssignee.color"
-                    class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                     :style="{ background: selectedAssignee.color }"
                   >
                     {{ selectedAssignee.initials || computedInitials(selectedAssignee.name) }}
@@ -89,7 +89,7 @@
                   Unassigned
                 </button>
 
-                <div v-if="members.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Members</div>
+                <div v-if="members.length > 0" class="px-3 py-1 text-xs font-medium text-surface-600">Members</div>
                 <button
                   v-for="m in members"
                   :key="m.userId"
@@ -101,7 +101,7 @@
                   <span class="truncate">{{ m.user?.name }}</span>
                 </button>
 
-                <div v-if="agents.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider border-t border-surface-100 mt-1 pt-1">Agents</div>
+                <div v-if="agents.length > 0" class="px-3 py-1 text-xs font-medium text-surface-600 border-t border-surface-100 mt-1 pt-1">Agents</div>
                 <button
                   v-for="a in agents"
                   :key="a.id"
@@ -110,7 +110,7 @@
                   @click="selectAssignee(a.id, 'agent', a.name, a.color, a.initials)"
                 >
                   <span
-                    class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                     :style="{ background: a.color }"
                   >
                     {{ a.initials }}
@@ -122,7 +122,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Observer <span class="text-surface-400 font-normal">(optional)</span></label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Observer <span class="text-surface-400 font-normal">(optional)</span></label>
             <div class="relative">
               <button
                 type="button"
@@ -152,7 +152,7 @@
                   No observer
                 </button>
 
-                <div v-if="members.length > 0" class="px-3 py-1 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Members</div>
+                <div v-if="members.length > 0" class="px-3 py-1 text-xs font-medium text-surface-600">Members</div>
                 <button
                   v-for="m in members"
                   :key="m.userId"
@@ -165,29 +165,29 @@
                 </button>
               </div>
             </div>
-            <p class="text-[10px] text-surface-400 mt-1">Assign a human reviewer to check the task result before completion</p>
+            <p class="text-xs text-surface-500 mt-1">Assign a human reviewer to check the task result before completion</p>
           </div>
 
           <div v-if="props.repositories && props.repositories.length > 0">
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Repository <span class="text-error-500">*</span></label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
             <select
               v-model="form.repositoryId"
               required
-              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
             >
               <option value="" disabled selected>Select a repository</option>
               <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
                 {{ repo.name }} — {{ repo.defaultBranch }}
               </option>
             </select>
-            <p class="text-[10px] text-surface-400 mt-1">Links this task to a repository for agent context</p>
+            <p class="text-xs text-surface-500 mt-1">Links this task to a repository for agent context</p>
           </div>
           <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
             <p class="text-xs text-surface-600">
               No repositories connected.
               <NuxtLink
                 :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                class="text-accent font-medium underline hover:text-accent-700"
+                class="text-accent font-medium underline hover:text-accent-hover transition-colors"
               >
                 Connect one
               </NuxtLink>
@@ -196,21 +196,21 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
             <TextInput
               v-model="form.branchName"
               placeholder="feature/my-branch-name"
               :class="{ 'border-error-500': branchNameError }"
             />
-            <p v-if="branchNameError" class="text-[10px] text-error-500 mt-1">{{ branchNameError }}</p>
-            <p v-else class="text-[10px] text-surface-400 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
+            <p v-if="branchNameError" class="text-xs text-error-600 mt-1">{{ branchNameError }}</p>
+            <p v-else class="text-xs text-surface-500 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
           </div>
 
           <KanbanMarkdownEditor v-model="form.description" :rows="3" />
 
           <!-- Image Upload -->
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">
               Attachments
               <span class="text-surface-400 font-normal">({{ pendingImages.length }} / 3)</span>
             </label>
@@ -218,7 +218,7 @@
             <!-- Drag & drop zone -->
             <div
               v-if="pendingImages.length < 3"
-              class="border-2 border-dashed border-surface-300 rounded-lg p-4 text-center cursor-pointer hover:border-primary-400 hover:bg-surface-50 transition-colors"
+              class="border-2 border-dashed border-surface-300 rounded-lg p-4 text-center cursor-pointer hover:border-accent hover:bg-surface-50 transition-colors"
               @click="fileInput?.click()"
               @dragover.prevent
               @drop.prevent="handleDrop"
@@ -228,7 +228,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M12 16h.01M8 16h.01M16 16h.01" />
                 </svg>
                 <span class="text-xs text-surface-500">Drop images here or click to upload</span>
-                <span class="text-[10px] text-surface-400">PNG, JPEG, JPG — max 10 MB</span>
+                <span class="text-xs text-surface-500">PNG, JPEG, JPG — max 10 MB</span>
               </div>
               <input
                 ref="fileInput"
@@ -252,30 +252,30 @@
                 </div>
 
                 <!-- Progress overlay -->
-                <div
-                  v-if="img.status === 'uploading'"
-                  class="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center"
-                >
-                  <div class="w-10 h-1 bg-surface-300 rounded-full overflow-hidden">
-                    <div
-                      class="h-full bg-primary-500 transition-all duration-200"
-                      :style="{ width: img.progress + '%' }"
-                    />
+                  <div
+                    v-if="img.status === 'uploading'"
+                    class="absolute inset-0 bg-surface-900/50 rounded-lg flex items-center justify-center"
+                  >
+                    <div class="w-10 h-1 bg-surface-300 rounded-full overflow-hidden">
+                      <div
+                        class="h-full bg-accent transition-all duration-200"
+                        :style="{ width: img.progress + '%' }"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <!-- Error overlay -->
-                <div
-                  v-if="img.status === 'error'"
-                  class="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center"
-                >
-                  <span class="text-[10px] text-error-300 font-medium">Failed</span>
-                </div>
+                  <!-- Error overlay -->
+                  <div
+                    v-if="img.status === 'error'"
+                    class="absolute inset-0 bg-surface-900/50 rounded-lg flex items-center justify-center"
+                  >
+                    <span class="text-xs text-error-400 font-medium">Failed</span>
+                  </div>
 
                 <!-- Remove button -->
                 <button
                   type="button"
-                  class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-surface-700 text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-surface-700 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                   @click="removeImage(idx)"
                 >
                   <Close class="w-3 h-3" />
@@ -285,7 +285,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Labels <span class="text-error-500">*</span></label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Labels <span class="text-error-500">*</span></label>
             <div v-if="uniqueAvailableLabels.length > 0" class="flex flex-wrap gap-2">
               <button
                 v-for="label in uniqueAvailableLabels"
@@ -302,7 +302,7 @@
               </button>
             </div>
             <p v-else class="text-xs text-surface-400">No labels available. Default labels will be created automatically.</p>
-            <p class="text-[10px] text-surface-400 mt-1">Select a type such as bug, feature, or improvement</p>
+            <p class="text-xs text-surface-500 mt-1">Select a type such as bug, feature, or improvement</p>
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-2">
@@ -313,7 +313,10 @@
             </Button>
           </div>
 
-          <p v-if="error" class="text-error-500 text-sm">{{ error }}</p>
+          <div v-if="error" class="flex items-start gap-2 p-2.5 rounded-lg bg-error-50 border border-error-100">
+            <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
+            <p class="text-xs text-error-600">{{ error }}</p>
+          </div>
         </form>
       </div>
     </div>

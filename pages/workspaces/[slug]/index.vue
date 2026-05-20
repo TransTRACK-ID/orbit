@@ -60,13 +60,13 @@
               <span class="text-xs font-bold">{{ projectInitials(project.name) }}</span>
             </div>
             <button
-              class="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-surface-400 hover:text-red-500"
+              class="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center hover:bg-error-50 text-surface-400 hover:text-error-500"
               @click.stop="openDeleteConfirm(project)"
             >
               <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
             </button>
           </div>
-          <h3 class="text-sm font-semibold mb-1">{{ project.name }}</h3>
+          <h3 class="text-sm font-semibold text-surface-900 mb-1">{{ project.name }}</h3>
           <p v-if="project.description" class="text-xs text-surface-500 leading-snug mb-3 line-clamp-2">
             {{ project.description }}
           </p>

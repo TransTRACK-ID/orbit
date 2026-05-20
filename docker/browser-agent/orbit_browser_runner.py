@@ -96,12 +96,15 @@ async def main():
 
         # Extract a clean summary FIRST so we can use it in status heuristics
         final_summary = result.final_result()
-        if not final_summary and result.all_results and len(result.all_results) > 0:
-            last_result = result.all_results[-1]
-            if getattr(last_result, 'error', None):
-                final_summary = f"Failed: {last_result.error}"
-            elif getattr(last_result, 'extracted_content', None):
-                final_summary = last_result.extracted_content
+        if not final_summary:
+            # Fallback to the last action result (browser-use 0.1.40 exposes action_results())
+            action_results = getattr(result, 'action_results', lambda: [])()
+            if action_results:
+                last_result = action_results[-1]
+                if getattr(last_result, 'error', None):
+                    final_summary = f"Failed: {last_result.error}"
+                elif getattr(last_result, 'extracted_content', None):
+                    final_summary = last_result.extracted_content
 
         if not final_summary:
             final_summary = str(result)
@@ -111,8 +114,13 @@ async def main():
         is_successful = result.is_successful()
         has_errors = result.has_errors()
 
-        # 1. Browser-use's built-in judge (most reliable)
-        judgement = result.judgement()
+        # 1. Browser-use's built-in judge (only available in newer versions)
+        judgement = None
+        try:
+            judgement = result.judgement()
+        except AttributeError:
+            pass
+
         if judgement and judgement.get("verdict") is False:
             status = "failed"
         # 2. Explicit success=False from the agent

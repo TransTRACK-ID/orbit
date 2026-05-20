@@ -73,7 +73,7 @@
       </div>
 
       <!-- Scrollable content -->
-      <div class="flex-1 overflow-y-auto p-5 space-y-5">
+      <div class="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
         <!-- Diff -->
         <div>
           <h3 class="text-xs font-semibold text-surface-700 mb-2">Changes</h3>

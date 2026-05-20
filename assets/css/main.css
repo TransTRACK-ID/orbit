@@ -186,6 +186,12 @@
     @apply bg-blue-100 text-blue-600;
   }
 
+  /* ─── Scroll containers ─── */
+  .scroll-y {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* ─── Sidebar ─── */
   .sidebar-item {
     @apply flex items-center gap-2.5 px-4 py-1.5 text-xs font-medium
@@ -201,9 +207,9 @@
   }
 
   .sidebar-group-header {
-    @apply flex items-center gap-2 px-4 py-1.5 text-[10px] font-semibold
-           text-surface-400 uppercase tracking-wider cursor-pointer
-           hover:text-surface-900 transition-colors duration-100;
+    @apply flex items-center gap-2 px-4 py-1.5 text-xs font-semibold
+           text-surface-400 uppercase tracking-wider cursor-default
+           select-none;
   }
 
   /* ─── Project Card (prototype style) ─── */
@@ -270,7 +276,7 @@
   }
 
   .modal-field label {
-    @apply block text-[11px] font-semibold text-surface-400 uppercase
+    @apply block text-xs font-semibold text-surface-400 uppercase
            tracking-wider mb-1;
   }
 

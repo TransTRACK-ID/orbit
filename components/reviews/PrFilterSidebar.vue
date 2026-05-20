@@ -1,5 +1,5 @@
 <template>
-  <aside class="w-64 bg-white border-r border-surface-200 flex flex-col overflow-y-auto flex-shrink-0">
+  <aside class="w-64 bg-white border-r border-surface-200 flex flex-col overflow-y-auto flex-shrink-0 min-h-0">
     <div class="p-4 border-b border-surface-100">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold text-surface-900">Filters</h2>

@@ -8,6 +8,7 @@ export default {
     './pages/**/*.vue',
     './components/**/*.{vue,js,ts,jsx,tsx}',
   ],
+
   theme: {
     extend: {
       fontFamily: {
@@ -38,6 +39,13 @@ export default {
           progress: '#2563EB',
           review: '#7C3AED',
           done: '#22C55E',
+        },
+        semantic: {
+          blue: '#2563EB',
+          green: '#22C55E',
+          purple: '#7C3AED',
+          red: '#ef4444',
+          amber: '#f59e0b',
         },
       },
       animation: {

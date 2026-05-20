@@ -5,168 +5,175 @@
     :class="sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'"
   >
     <div class="flex-1 overflow-y-auto py-3">
-      <!-- Agents link -->
+      <!-- ─── Platform ─── -->
       <div class="sidebar-group mb-1">
         <div
           class="sidebar-item"
           :class="{ active: route.path === '/agents' }"
-          style="margin-bottom: 4px"
           @click="navigateTo('/agents'); closeOnMobile()"
         >
           <div
-            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #CF513D"
+            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+            :class="route.path === '/agents' ? 'bg-accent' : 'bg-surface-400'"
           >
-            <Icon name="lucide:bot" class="w-2.5 h-2.5" />
+            <Icon name="lucide:bot" class="w-3 h-3" />
           </div>
-          <span class="name flex-1 min-w-0 truncate text-xs" :class="{ 'font-semibold': route.path === '/agents' }">Agents</span>
-          <span class="text-[10px] text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ agentCount }}</span>
+          <span class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path === '/agents' }">Agents</span>
+          <span class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ agentCount }}</span>
         </div>
-      </div>
 
-      <!-- Admin link (super admin only) -->
-      <div v-if="isSuperAdmin" class="sidebar-group mb-1">
         <div
+          v-if="isSuperAdmin"
           class="sidebar-item"
           :class="{ active: route.path === '/admin' }"
-          style="margin-bottom: 4px"
           @click="navigateTo('/admin'); closeOnMobile()"
         >
           <div
-            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #8B5CF6"
+            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+            :class="route.path === '/admin' ? 'bg-accent' : 'bg-surface-400'"
           >
-            <Icon name="lucide:shield" class="w-2.5 h-2.5" />
+            <Icon name="lucide:shield" class="w-3 h-3" />
           </div>
-          <span class="name flex-1 min-w-0 truncate text-xs" :class="{ 'font-semibold': route.path === '/admin' }">Admin</span>
+          <span class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path === '/admin' }">Admin</span>
         </div>
       </div>
 
-      <!-- Workspace switcher -->
-      <div class="px-3 mb-2">
-        <div class="relative">
-          <select
-            :value="activeWorkspaceSlug"
-            class="w-full text-xs font-semibold rounded-lg border border-surface-200 bg-surface-50 text-surface-900 px-3 py-2 pr-8 appearance-none cursor-pointer focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
-            @change="switchWorkspace(($event.target as HTMLSelectElement).value); closeOnMobile()"
-          >
-            <option value="" disabled>Select workspace</option>
-            <option
-              v-for="ws in workspaces"
-              :key="ws.id"
-              :value="ws.slug"
-            >
-              {{ ws.name }}
-            </option>
-          </select>
-          <Icon
-            name="lucide:chevron-down"
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400 pointer-events-none"
-          />
+      <!-- ─── Current workspace ─── -->
+      <template v-if="activeWorkspace">
+        <div class="sidebar-group-header mt-4">
+          <span>Current workspace</span>
         </div>
-      </div>
 
-      <!-- Brainstorm link -->
-      <div v-if="activeWorkspace" class="sidebar-group mb-1">
+        <!-- Active workspace name -->
         <div
           class="sidebar-item"
-          :class="{ active: route.path.includes('/brainstorm') }"
-          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/brainstorm`); closeOnMobile()"
+          :class="{ active: isWorkspaceOverview }"
+          @click="navigateTo(`/workspaces/${activeWorkspace.slug}`); closeOnMobile()"
         >
           <div
-            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #8B5CF6"
+            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+            :style="{ backgroundColor: workspaceColor(activeWorkspace) }"
           >
-            <Icon name="lucide:lightbulb" class="w-2.5 h-2.5" />
+            <span class="text-xs font-bold">{{ activeWorkspace.name.charAt(0).toUpperCase() }}</span>
           </div>
-          <span class="name flex-1 min-w-0 truncate text-xs" :class="{ 'font-semibold': route.path.includes('/brainstorm') }">Brainstorm</span>
-        </div>
-      </div>
-
-      <!-- Reviews link -->
-      <div v-if="activeWorkspace" class="sidebar-group mb-1">
-        <div
-          class="sidebar-item"
-          :class="{ active: route.path.includes('/reviews') }"
-          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/reviews`); closeOnMobile()"
-        >
-          <div
-            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[9px] text-white flex-shrink-0"
-            style="background: #10B981"
-          >
-            <Icon name="lucide:git-pull-request" class="w-2.5 h-2.5" />
-          </div>
-          <span class="name flex-1 min-w-0 truncate text-xs" :class="{ 'font-semibold': route.path.includes('/reviews') }">Reviews</span>
-        </div>
-      </div>
-
-      <!-- Projects for active workspace -->
-      <div v-if="activeWorkspace" class="sidebar-group">
-        <div class="sidebar-group-header px-3 py-1.5" @click="navigateTo(`/workspaces/${activeWorkspace.slug}`); closeOnMobile()">
-          <span class="text-xs font-semibold text-surface-700">{{ activeWorkspace.name }}</span>
-          <span class="ml-auto text-[10px] text-surface-400">{{ projects.length }} projects</span>
+          <span class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': isWorkspaceOverview }">{{ activeWorkspace.name }}</span>
+          <span class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ activeWorkspace._count?.projects || 0 }}</span>
         </div>
 
-        <div v-if="projects.length === 0" class="px-3 py-2 text-[10px] text-surface-400 italic">
-          No projects yet
-        </div>
-
+        <!-- Projects under active workspace -->
         <div
           v-for="proj in projects"
           :key="proj.id"
-          class="sidebar-item"
-          :class="{ active: route.params.projectId === proj.id && route.path.includes('/board') }"
+          class="sidebar-item pl-8"
+          :class="{ active: isProjectActive(proj) }"
           @click="navigateTo(`/workspaces/${activeWorkspace.slug}/projects/${proj.id}/board`); closeOnMobile()"
         >
           <div
             class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
             :style="{ backgroundColor: proj.color }"
           >
-            <span class="text-[7px] font-bold text-white">{{ proj.name.charAt(0) }}</span>
+            <span class="text-xs font-bold text-white">{{ proj.name.charAt(0) }}</span>
           </div>
-          <span class="flex-1 min-w-0 truncate text-xs">{{ proj.name }}</span>
-          <span class="text-[10px] text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ projOpenCount(proj) }}</span>
+          <span class="flex-1 min-w-0 truncate text-sm">{{ proj.name }}</span>
+          <span class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ projOpenCount(proj) }}</span>
         </div>
-      </div>
 
-      <!-- Other workspaces (collapsed) -->
-      <div v-for="ws in otherWorkspaces" :key="ws.id" class="sidebar-group">
+        <!-- Empty state -->
+        <div v-if="projects.length === 0 && !projectsLoading" class="pl-8 pr-4 py-2 text-xs text-surface-400 italic">
+          No projects yet
+        </div>
+
+        <!-- Workspace tools -->
+        <div class="sidebar-group mt-1">
+          <div
+            class="sidebar-item"
+            :class="{ active: route.path.includes('/brainstorm') }"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/brainstorm`); closeOnMobile()"
+          >
+            <div
+              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+              :style="{ backgroundColor: route.path.includes('/brainstorm') ? '#7C3AED' : '#94a3b8' }"
+            >
+              <Icon name="lucide:lightbulb" class="w-3 h-3" />
+            </div>
+            <span class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/brainstorm') }">Brainstorm</span>
+          </div>
+
+          <div
+            class="sidebar-item"
+            :class="{ active: route.path.includes('/reviews') }"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/reviews`); closeOnMobile()"
+          >
+            <div
+              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+              :style="{ backgroundColor: route.path.includes('/reviews') ? '#22C55E' : '#94a3b8' }"
+            >
+              <Icon name="lucide:git-pull-request" class="w-3 h-3" />
+            </div>
+            <span class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/reviews') }">Reviews</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- ─── Other workspaces ─── -->
+      <template v-if="otherWorkspaces.length > 0">
+        <div class="sidebar-group-header mt-4">
+          <span>Other workspaces</span>
+        </div>
+
         <div
-          class="sidebar-item !rounded-none !border-l-0 !border-r-0"
+          v-for="ws in otherWorkspaces"
+          :key="ws.id"
+          class="sidebar-item"
+          :class="{ active: route.params.slug === ws.slug && !activeWorkspace }"
           @click="navigateTo(`/workspaces/${ws.slug}`); closeOnMobile()"
         >
           <div
-            class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
-            :style="{ backgroundColor: '#94a3b8' }"
+            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+            :style="{ backgroundColor: workspaceColor(ws) }"
           >
-            <span class="text-[7px] font-bold text-white">{{ ws.name.charAt(0).toUpperCase() }}</span>
+            <span class="text-xs font-bold">{{ ws.name.charAt(0).toUpperCase() }}</span>
           </div>
-          <span class="flex-1 min-w-0 truncate text-xs text-surface-500">{{ ws.name }}</span>
-          <Icon name="lucide:arrow-up-right" class="w-2.5 h-2.5 text-surface-300" />
+          <span class="flex-1 min-w-0 truncate text-sm">{{ ws.name }}</span>
+          <span class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ ws._count?.projects || 0 }}</span>
         </div>
+      </template>
+
+      <!-- View all link -->
+      <div v-if="workspaces.length > 1" class="px-4 py-2">
+        <NuxtLink
+          to="/workspaces"
+          class="flex items-center gap-1.5 text-xs text-surface-400 hover:text-accent transition-colors"
+          @click="closeOnMobile()"
+        >
+          <Icon name="lucide:layout-grid" class="w-3.5 h-3.5" />
+          View all workspaces
+        </NuxtLink>
       </div>
 
-      <!-- Workspace settings -->
-      <div v-if="activeWorkspace" class="mt-2 px-3">
-        <div
-          class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] text-surface-400 hover:text-surface-600 hover:bg-surface-50 transition-colors cursor-pointer"
-          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/settings`); closeOnMobile()"
-        >
-          <Icon name="lucide:settings" class="w-3 h-3" />
-          Workspace settings
+      <!-- ─── Utilities ─── -->
+      <div class="mt-auto pt-4 border-t border-surface-200">
+        <div v-if="activeWorkspace" class="sidebar-group">
+          <div
+            class="sidebar-item"
+            :class="{ active: route.path.includes('/settings') }"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/settings`); closeOnMobile()"
+          >
+            <Icon name="lucide:settings" class="w-4 h-4 text-surface-400" />
+            <span class="text-sm" :class="{ 'font-semibold': route.path.includes('/settings') }">Workspace settings</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Dark mode toggle -->
-      <div class="px-3 py-2 border-t border-surface-200">
-        <button
-          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] text-surface-400 hover:text-surface-600 hover:bg-surface-50 transition-colors"
-          @click="toggleDarkMode"
-        >
-          <Icon v-if="isDark" name="lucide:sun" class="w-3 h-3" />
-          <Icon v-else name="lucide:moon" class="w-3 h-3" />
-          {{ isDark ? 'Light mode' : 'Dark mode' }}
-        </button>
+        <div class="px-4 py-2">
+          <button
+            class="flex items-center gap-2 text-xs text-surface-400 hover:text-surface-600 transition-colors"
+            @click="toggleDarkMode"
+          >
+            <Icon v-if="isDark" name="lucide:sun" class="w-4 h-4" />
+            <Icon v-else name="lucide:moon" class="w-4 h-4" />
+            <span class="text-sm">{{ isDark ? 'Light mode' : 'Dark mode' }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </aside>
@@ -198,14 +205,24 @@ const otherWorkspaces = computed(() =>
   workspaces.value.filter((ws: any) => ws.slug !== activeWorkspaceSlug.value)
 )
 
+const isWorkspaceOverview = computed(() => {
+  if (!activeWorkspace.value) return false
+  return route.path === `/workspaces/${activeWorkspace.value.slug}`
+})
+
+function isProjectActive(proj: any) {
+  return route.params.projectId === proj.id && route.path.includes('/board')
+}
+
 function projOpenCount(proj: any) {
   const total = proj._count?.tasks || 0
   const done = proj._count?.doneTasks || 0
   return total - done
 }
 
-function switchWorkspace(slug: string) {
-  router.push(`/workspaces/${slug}`)
+function workspaceColor(_ws: Workspace) {
+  // Workspaces don't have their own color; use a neutral slate
+  return '#94a3b8'
 }
 
 function closeOnMobile() {

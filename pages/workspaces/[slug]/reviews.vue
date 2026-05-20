@@ -22,7 +22,7 @@
       </UiEmptyState>
     </div>
 
-    <div v-else class="flex flex-1 overflow-hidden">
+    <div v-else class="flex flex-1 overflow-hidden min-h-0">
       <!-- Filter Sidebar -->
       <ReviewsPrFilterSidebar
         v-model:status="filterStatus"

@@ -1144,7 +1144,7 @@ function autoResizeCommentTextarea() {
   const el = commentInputRef.value
   if (!el) return
   el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+  el.style.height = Math.max(Math.min(el.scrollHeight, 160), 40) + 'px'
 }
 
 /** Whether the @mention dropdown is currently shown */

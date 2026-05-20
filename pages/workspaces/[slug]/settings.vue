@@ -9,11 +9,11 @@
         <h2 class="text-lg font-semibold text-surface-900 mb-4">General</h2>
         <form @submit.prevent="handleUpdate" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Name</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Name</label>
             <TextInput v-model="form.name" required />
           </div>
           <div>
-            <label class="block text-sm font-medium text-surface-700 mb-1.5">Description</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Description</label>
             <TextArea v-model="form.description" placeholder="What's this workspace about?" rows="3" />
           </div>
           <div class="flex items-center gap-3">
@@ -47,19 +47,19 @@
           <h3 class="text-sm font-semibold text-surface-900 mb-3">New Repository</h3>
           <div class="space-y-3">
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Name</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Name</label>
               <TextInput v-model="newRepo.name" placeholder="e.g. frontend, backend-api" />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">URL</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">URL</label>
               <TextInput v-model="newRepo.url" placeholder="https://github.com/org/repo.git" />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Default Branch</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Default Branch</label>
               <TextInput v-model="newRepo.defaultBranch" placeholder="main" />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Platform</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Platform</label>
               <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -91,13 +91,13 @@
               </div>
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">
                 Access Token
-                <span v-if="newRepo.platform !== 'github'" class="text-red-400">*</span>
-                <span v-else class="text-surface-300 font-normal normal-case">(optional)</span>
+                <span v-if="newRepo.platform !== 'github'" class="text-error-500">*</span>
+                <span v-else class="text-surface-400 font-normal normal-case">(optional)</span>
               </label>
               <TextInput v-model="newRepo.token" :placeholder="newRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
-              <p class="text-[10px] text-surface-400 mt-1">
+              <p class="text-xs text-surface-500 mt-1">
                 <template v-if="newRepo.platform === 'github'">
                   Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
                 </template>
@@ -114,7 +114,7 @@
               />
               <div>
                 <label class="text-sm font-medium text-surface-700 cursor-pointer">Always create a new branch</label>
-                <p class="text-[10px] text-surface-400">Agents will create a new branch from default before starting work.</p>
+                <p class="text-xs text-surface-500">Agents will create a new branch from default before starting work.</p>
               </div>
             </div>
           </div>
@@ -144,8 +144,8 @@
                     <Icon name="lucide:folder" class="w-4 h-4 text-accent flex-shrink-0" />
                     <span class="text-sm font-semibold text-surface-900">{{ repo.name }}</span>
                   </div>
-                  <div class="text-[11px] text-surface-500 font-mono truncate mb-2">{{ repo.url }}</div>
-                  <div class="flex items-center gap-4 text-[10px] text-surface-400">
+                  <div class="text-xs text-surface-500 font-mono truncate mb-2">{{ repo.url }}</div>
+                  <div class="flex items-center gap-4 text-xs text-surface-500">
                     <span class="flex items-center gap-1">
                       <Icon name="lucide:git-branch" class="w-3 h-3" />
                       {{ repo.defaultBranch }}
@@ -172,11 +172,11 @@
                     <span
                       v-for="ev in repoEnvVars[repo.id].slice(0, 3)"
                       :key="ev.id"
-                      class="inline-flex items-center gap-1 text-[10px] font-mono bg-surface-100 text-surface-600 rounded px-1.5 py-0.5"
+                      class="inline-flex items-center gap-1 text-xs font-mono bg-surface-100 text-surface-600 rounded px-1.5 py-0.5"
                     >
                       {{ ev.key }}={{ ev.value.length > 15 ? ev.value.slice(0, 15) + '…' : ev.value }}
                     </span>
-                    <span v-if="repoEnvVars[repo.id].length > 3" class="text-[10px] text-surface-400">
+                    <span v-if="repoEnvVars[repo.id].length > 3" class="text-xs text-surface-500">
                       +{{ repoEnvVars[repo.id].length - 3 }} more
                     </span>
                   </div>
@@ -203,19 +203,19 @@
               <h3 class="text-sm font-semibold text-surface-900 mb-3">Edit Repository</h3>
               <div class="space-y-3">
                 <div>
-                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Name</label>
+                  <label class="block text-xs font-medium text-surface-600 mb-1.5">Name</label>
                   <TextInput v-model="editRepo.name" />
                 </div>
                 <div>
-                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">URL</label>
+                  <label class="block text-xs font-medium text-surface-600 mb-1.5">URL</label>
                   <TextInput v-model="editRepo.url" />
                 </div>
                 <div>
-                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Default Branch</label>
+                  <label class="block text-xs font-medium text-surface-600 mb-1.5">Default Branch</label>
                   <TextInput v-model="editRepo.defaultBranch" />
                 </div>
                 <div>
-                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Platform</label>
+                  <label class="block text-xs font-medium text-surface-600 mb-1.5">Platform</label>
                   <div class="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -247,13 +247,13 @@
                   </div>
                 </div>
                 <div>
-                  <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">
+                  <label class="block text-xs font-medium text-surface-600 mb-1.5">
                     Access Token
-                    <span v-if="editRepo.platform !== 'github'" class="text-red-400">*</span>
-                    <span v-else class="text-surface-300 font-normal normal-case">(optional)</span>
+                    <span v-if="editRepo.platform !== 'github'" class="text-error-500">*</span>
+                    <span v-else class="text-surface-400 font-normal normal-case">(optional)</span>
                   </label>
                   <TextInput v-model="editRepo.token" :placeholder="editRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
-                  <p class="text-[10px] text-surface-400 mt-1">
+                  <p class="text-xs text-surface-500 mt-1">
                     <template v-if="editRepo.platform === 'github'">
                       Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
                     </template>
@@ -276,13 +276,13 @@
                 <!-- Environment Variables (inline when editing repo) -->
                 <div class="border-t border-surface-200 pt-4 mt-4">
                   <h4 class="text-sm font-semibold text-surface-900 mb-2">Environment Variables</h4>
-                  <p class="text-[10px] text-surface-400 mb-2">
+                  <p class="text-xs text-surface-500 mb-2">
                     Paste raw .env content. Injected into dev server during Browser QA.
                   </p>
                   <textarea
                     v-model="rawEnvVars[repo.id]"
                     rows="4"
-                    class="w-full text-[11px] font-mono rounded-lg border border-surface-200 bg-surface-50 p-2.5 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
+                    class="w-full text-xs font-mono rounded-lg border border-surface-200 bg-surface-50 p-2.5 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
                     placeholder="AUTH_ORIGIN=http://localhost:3000&#10;API_URL=https://api.example.com&#10;SECRET_KEY=xxx"
                   />
                 </div>

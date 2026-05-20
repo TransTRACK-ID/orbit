@@ -1,11 +1,11 @@
 <template>
   <div class="w-80 bg-white border-r border-surface-200 flex flex-col flex-shrink-0">
     <div class="px-4 py-3 border-b border-surface-100 flex items-center justify-between">
-      <h2 class="text-sm font-semibold text-surface-800">
+      <h2 class="text-sm font-semibold text-surface-900">
         Pull Requests ({{ pullRequests.length }})
       </h2>
       <button
-        class="text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors flex items-center gap-1.5"
+        class="text-xs font-semibold px-2 py-1 rounded-md border transition-colors flex items-center gap-1.5"
         :class="autoSync
           ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
           : 'border-surface-200 text-surface-500 hover:bg-surface-50'"
@@ -24,7 +24,9 @@
       <UiLoadingState v-if="loading" text="Loading PRs..." />
 
       <div v-else-if="pullRequests.length === 0" class="p-6 text-center">
-        <p class="text-sm text-surface-400">No pull requests found</p>
+        <Icon name="lucide:git-pull-request" class="w-8 h-8 mx-auto mb-2 text-surface-300" />
+        <p class="text-sm text-surface-500">No pull requests found</p>
+        <p class="text-xs text-surface-400 mt-1">Try adjusting your filters</p>
       </div>
 
       <div v-else class="divide-y divide-surface-100">

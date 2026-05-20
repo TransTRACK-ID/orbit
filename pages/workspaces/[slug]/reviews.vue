@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col flex-1 bg-surface-50">
+  <div class="flex flex-col flex-1 min-h-0 overflow-hidden bg-surface-50">
     <!-- Bottleneck Stats Bar -->
     <ReviewsBottleneckStats
       :workspace-id="workspace?.id"

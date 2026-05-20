@@ -1,5 +1,5 @@
 <template>
-  <div class="w-80 bg-white border-r border-surface-200 flex flex-col flex-shrink-0 h-full">
+  <div class="w-80 bg-white border-r border-surface-200 flex flex-col flex-shrink-0 min-h-0 overflow-hidden">
     <div class="px-4 py-3 border-b border-surface-100 flex items-center justify-between flex-shrink-0">
       <h2 class="text-sm font-semibold text-surface-900">
         Pull Requests ({{ pullRequests.length }})

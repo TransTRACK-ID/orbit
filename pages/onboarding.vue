@@ -6,7 +6,7 @@
       style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.06), transparent 70%);"
     />
 
-    <div class="w-full max-w-md relative z-10">
+    <div class="w-full max-w-md relative z-10 animate-scale-in-slow">
       <!-- Brand -->
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center gap-2 mb-3">
@@ -22,180 +22,215 @@
       <!-- Progress dots -->
       <div class="flex items-center justify-center gap-2 mb-6">
         <div
-          class="w-2 h-2 rounded-full transition-colors"
-          :class="step >= 1 ? 'bg-accent' : 'bg-surface-300'"
+          class="w-2 h-2 rounded-full transition-all duration-300"
+          :class="step >= 1 ? 'bg-accent scale-100' : 'bg-surface-300 scale-75'"
         />
         <div
-          class="w-2 h-2 rounded-full transition-colors"
-          :class="step >= 2 ? 'bg-accent' : 'bg-surface-300'"
+          class="w-2 h-2 rounded-full transition-all duration-300"
+          :class="step >= 2 ? 'bg-accent scale-100' : 'bg-surface-300 scale-75'"
         />
         <div
-          class="w-2 h-2 rounded-full transition-colors"
-          :class="step >= 3 ? 'bg-accent' : 'bg-surface-300'"
+          class="w-2 h-2 rounded-full transition-all duration-300"
+          :class="step >= 3 ? 'bg-accent scale-100' : 'bg-surface-300 scale-75'"
         />
       </div>
 
       <!-- Card -->
       <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
-        <!-- Step 1: Create workspace -->
-        <div v-if="step === 1">
-          <h2 class="text-base font-semibold text-surface-900 mb-1">Create your workspace</h2>
-          <p class="text-xs text-surface-500 mb-5">This is where your projects live.</p>
+        <Transition
+          mode="out-in"
+          enter-active-class="transition-all duration-350 ease-out"
+          enter-from-class="opacity-0 translate-y-2"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 -translate-y-1"
+        >
+          <!-- Step 1: Create workspace -->
+          <div v-if="step === 1" key="step1">
+            <h2 class="text-base font-semibold text-surface-900 mb-1">Create your workspace</h2>
+            <p class="text-xs text-surface-500 mb-5">This is where your projects live.</p>
 
-          <div class="space-y-5">
-            <div>
-              <label class="block text-xs font-medium text-surface-600 mb-1.5">Workspace name</label>
-              <TextInput
-                v-model="workspaceName"
-                type="text"
-                placeholder="Acme Inc or Personal"
-                :error-message="step1Error"
-                @input="step1Error = ''"
-              />
-              <p class="text-xs text-surface-500 mt-1.5">
-                Slug: <span class="font-mono text-surface-700">{{ workspaceSlug }}</span>
-              </p>
-            </div>
+            <div class="space-y-5">
+              <div class="onboarding-field" style="--delay: 0ms;">
+                <label class="block text-xs font-medium text-surface-600 mb-1.5">Workspace name</label>
+                <TextInput
+                  v-model="workspaceName"
+                  type="text"
+                  placeholder="Acme Inc or Personal"
+                  :error-message="step1Error"
+                  @input="step1Error = ''"
+                />
+                <p class="text-xs text-surface-500 mt-1.5">
+                  Slug: <span class="font-mono text-surface-700">{{ workspaceSlug }}</span>
+                </p>
+              </div>
 
-            <Button class="w-full" :loading="step1Loading" @click="handleCreateWorkspace">
-              Continue
-            </Button>
-          </div>
-        </div>
-
-        <!-- Step 2: Create project -->
-        <div v-else-if="step === 2">
-          <h2 class="text-base font-semibold text-surface-900 mb-1">Create your first project</h2>
-          <p class="text-xs text-surface-500 mb-5">You can add more later.</p>
-
-          <div class="space-y-5">
-            <div>
-              <label class="block text-xs font-medium text-surface-600 mb-1.5">Project name</label>
-              <TextInput
-                v-model="projectName"
-                type="text"
-                placeholder="Website Redesign"
-                :error-message="step2Error"
-                @input="step2Error = ''"
-              />
-            </div>
-
-            <label class="flex items-start gap-2.5 cursor-pointer">
-              <input
-                v-model="addSampleTasks"
-                type="checkbox"
-                class="mt-0.5 w-3.5 h-3.5 rounded border-surface-300 text-accent focus:ring-accent"
-              />
-              <span class="text-xs text-surface-600 leading-snug">
-                Add sample tasks so I can see how it works
-              </span>
-            </label>
-
-            <Button class="w-full" :loading="step2Loading" @click="handleCreateProject">
-              Create Project
-            </Button>
-          </div>
-        </div>
-
-        <!-- Step 3: All set -->
-        <div v-if="step === 3" class="text-center">
-          <!-- Success Icon -->
-          <div
-            class="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4"
-          >
-            <Icon name="lucide:check" class="w-7 h-7 text-accent" />
-          </div>
-
-          <!-- Headline -->
-          <h2 class="text-xl font-semibold text-surface-900 mb-2">
-            {{ agentCreated ? 'Agent ready!' : 'Your workspace is ready' }}
-          </h2>
-
-          <!-- Subtitle -->
-          <p class="text-xs text-surface-500 mb-6 max-w-xs mx-auto leading-relaxed">
-            {{
-              agentCreated
-                ? `${selectedTemplate?.name} is set up and ready to help. You can always add more agents later from the Agents page.`
-                : 'Want to supercharge your workflow? Add an AI agent now, or do it later from your Agents page.'
-            }}
-          </p>
-
-          <!-- Error Banner -->
-          <div
-            v-if="agentError"
-            class="flex items-start gap-2 mb-4 p-2.5 rounded-lg bg-error-50 border border-error-100 text-left"
-          >
-            <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
-            <p class="text-xs text-error-600">{{ agentError }}</p>
-          </div>
-
-          <!-- Template Selector -->
-          <template v-if="!agentCreated">
-            <div class="grid grid-cols-3 gap-3 mb-6">
-              <button
-                v-for="template in agentTemplates"
-                :key="template.key"
-                :disabled="creatingAgent"
-                :class="[
-                  'p-3 rounded-xl border transition-all text-left relative overflow-hidden',
-                  selectedTemplate?.key === template.key && !agentError
-                    ? 'border-accent bg-accent/5 ring-1 ring-accent'
-                    : 'border-surface-200 hover:border-accent/50 hover:bg-surface-50',
-                  creatingAgent && selectedTemplate?.key !== template.key ? 'opacity-50' : '',
-                ]"
-                @click="createAgentFromTemplate(template)"
-              >
-                <!-- Avatar -->
-                <div
-                  class="w-10 h-10 rounded-full mb-2 flex items-center justify-center text-white text-xs font-bold"
-                  :style="{ background: template.color }"
+              <div class="onboarding-field" style="--delay: 80ms;">
+                <Button
+                  class="w-full transition-all duration-150 active:scale-[0.98]"
+                  :loading="step1Loading"
+                  @click="handleCreateWorkspace"
                 >
-                  {{ template.name.charAt(0) }}
-                </div>
-                <div class="text-xs font-semibold text-surface-900">
-                  {{ template.name }}
-                </div>
-                <div class="text-[10px] text-surface-500">
-                  {{ template.role }}
-                </div>
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
 
-                <!-- Loading overlay -->
-                <div
-                  v-if="creatingAgent && selectedTemplate?.key === template.key"
-                  class="absolute inset-0 bg-white/80 flex items-center justify-center"
-                >
-                  <Icon
-                    name="lucide:loader-2"
-                    class="w-5 h-5 text-accent animate-spin"
+          <!-- Step 2: Create project -->
+          <div v-else-if="step === 2" key="step2">
+            <h2 class="text-base font-semibold text-surface-900 mb-1">Create your first project</h2>
+            <p class="text-xs text-surface-500 mb-5">You can add more later.</p>
+
+            <div class="space-y-5">
+              <div class="onboarding-field" style="--delay: 0ms;">
+                <label class="block text-xs font-medium text-surface-600 mb-1.5">Project name</label>
+                <TextInput
+                  v-model="projectName"
+                  type="text"
+                  placeholder="Website Redesign"
+                  :error-message="step2Error"
+                  @input="step2Error = ''"
+                />
+              </div>
+
+              <div class="onboarding-field" style="--delay: 60ms;">
+                <label class="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    v-model="addSampleTasks"
+                    type="checkbox"
+                    class="mt-0.5 w-3.5 h-3.5 rounded border-surface-300 text-accent focus:ring-accent transition-colors"
                   />
-                </div>
-              </button>
+                  <span class="text-xs text-surface-600 leading-snug">
+                    Add sample tasks so I can see how it works
+                  </span>
+                </label>
+              </div>
+
+              <div class="onboarding-field" style="--delay: 120ms;">
+                <Button
+                  class="w-full transition-all duration-150 active:scale-[0.98]"
+                  :loading="step2Loading"
+                  @click="handleCreateProject"
+                >
+                  Create Project
+                </Button>
+              </div>
             </div>
-          </template>
+          </div>
 
-          <!-- Action Buttons -->
-          <div class="flex flex-col gap-2">
-            <button
-              v-if="!agentCreated"
-              class="w-full px-3 py-2.5 rounded-lg border border-surface-200 text-sm font-semibold text-surface-700 hover:bg-surface-50 transition-colors"
-              @click="goToBoard"
+          <!-- Step 3: All set -->
+          <div v-else-if="step === 3" key="step3" class="text-center">
+            <!-- Success Icon -->
+            <div
+              class="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4 animate-celebrate"
             >
-              Skip for now
-            </button>
+              <Icon name="lucide:check" class="w-7 h-7 text-accent" />
+            </div>
 
-            <Button
-              class="w-full"
-              :loading="creatingAgent"
-              @click="goToBoard"
-            >
+            <!-- Headline -->
+            <h2 class="text-xl font-semibold text-surface-900 mb-2">
+              {{ agentCreated ? 'Agent ready!' : 'Your workspace is ready' }}
+            </h2>
+
+            <!-- Subtitle -->
+            <p class="text-xs text-surface-500 mb-6 max-w-xs mx-auto leading-relaxed">
               {{
                 agentCreated
-                  ? 'Go to your board'
-                  : 'Continue without agent'
+                  ? `${selectedTemplate?.name} is set up and ready to help. You can always add more agents later from the Agents page.`
+                  : 'Want to supercharge your workflow? Add an AI agent now, or do it later from your Agents page.'
               }}
-            </Button>
+            </p>
+
+            <!-- Error Banner -->
+            <Transition
+              enter-active-class="transition-all duration-300 ease-out"
+              enter-from-class="opacity-0 -translate-y-1"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition-all duration-200 ease-in"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-1"
+            >
+              <div
+                v-if="agentError"
+                class="flex items-start gap-2 mb-4 p-2.5 rounded-lg bg-error-50 border border-error-100 text-left"
+              >
+                <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
+                <p class="text-xs text-error-600">{{ agentError }}</p>
+              </div>
+            </Transition>
+
+            <!-- Template Selector -->
+            <template v-if="!agentCreated">
+              <div class="grid grid-cols-3 gap-3 mb-6">
+                <button
+                  v-for="(template, index) in agentTemplates"
+                  :key="template.key"
+                  :disabled="creatingAgent"
+                  :class="[
+                    'agent-card p-3 rounded-xl border transition-all duration-200 text-left relative overflow-hidden',
+                    selectedTemplate?.key === template.key && !agentError
+                      ? 'border-accent bg-accent/5 ring-1 ring-accent scale-[1.02] shadow-sm'
+                      : 'border-surface-200 hover:border-accent/50 hover:bg-surface-50 hover:-translate-y-px hover:shadow-sm',
+                    creatingAgent && selectedTemplate?.key !== template.key ? 'opacity-50' : '',
+                  ]"
+                  :style="{ '--delay': `${index * 80}ms` }"
+                  @click="createAgentFromTemplate(template)"
+                >
+                  <!-- Avatar -->
+                  <div
+                    class="w-10 h-10 rounded-full mb-2 flex items-center justify-center text-white text-xs font-bold transition-transform duration-200"
+                    :class="{ 'scale-110': selectedTemplate?.key === template.key }"
+                    :style="{ background: template.color }"
+                  >
+                    {{ template.name.charAt(0) }}
+                  </div>
+                  <div class="text-xs font-semibold text-surface-900">
+                    {{ template.name }}
+                  </div>
+                  <div class="text-[10px] text-surface-500">
+                    {{ template.role }}
+                  </div>
+
+                  <!-- Loading overlay -->
+                  <div
+                    v-if="creatingAgent && selectedTemplate?.key === template.key"
+                    class="absolute inset-0 bg-white/80 flex items-center justify-center"
+                  >
+                    <Icon
+                      name="lucide:loader-2"
+                      class="w-5 h-5 text-accent animate-spin"
+                    />
+                  </div>
+                </button>
+              </div>
+            </template>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col gap-2 onboarding-field" style="--delay: 0ms;">
+              <button
+                v-if="!agentCreated"
+                class="w-full px-3 py-2.5 rounded-lg border border-surface-200 text-sm font-semibold text-surface-700 hover:bg-surface-50 transition-all duration-150 active:scale-[0.98]"
+                @click="goToBoard"
+              >
+                Skip for now
+              </button>
+
+              <Button
+                class="w-full transition-all duration-150 active:scale-[0.98]"
+                :loading="creatingAgent"
+                @click="goToBoard"
+              >
+                {{
+                  agentCreated
+                    ? 'Go to your board'
+                    : 'Continue without agent'
+                }}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Transition>
       </div>
     </div>
   </div>
@@ -388,3 +423,42 @@ function goToBoard() {
   }
 }
 </script>
+
+<style scoped>
+/* Onboarding field stagger animation */
+.onboarding-field {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: stepIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Agent card entrance stagger */
+.agent-card {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: stepIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes stepIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure animations respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-field,
+  .agent-card {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+</style>

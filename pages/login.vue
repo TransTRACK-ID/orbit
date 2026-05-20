@@ -22,7 +22,7 @@
       <!-- Card -->
       <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
         <form @submit.prevent="handleLogin" class="space-y-5">
-          <div>
+          <div :class="{ 'animate-shake': errors.email }">
             <label class="block text-xs font-medium text-surface-600 mb-1.5">Email</label>
             <TextInput
               v-model="email"
@@ -33,7 +33,7 @@
             />
           </div>
 
-          <div>
+          <div :class="{ 'animate-shake': errors.password }">
             <label class="block text-xs font-medium text-surface-600 mb-1.5">Password</label>
             <TextInput
               v-model="password"
@@ -44,23 +44,36 @@
             />
           </div>
 
-          <Button type="submit" class="w-full" :loading="loading">
+          <Button
+            type="submit"
+            class="w-full transition-all duration-150 active:scale-[0.98]"
+            :loading="loading"
+          >
             Sign in
           </Button>
 
-          <div
-            v-if="authError"
-            class="flex items-start gap-2 p-2.5 rounded-lg bg-error-50 border border-error-100"
+          <Transition
+            enter-active-class="transition-all duration-300 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-200 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-1"
           >
-            <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
-            <p class="text-xs text-error-600">{{ authError }}</p>
-          </div>
+            <div
+              v-if="authError"
+              class="flex items-start gap-2 p-2.5 rounded-lg bg-error-50 border border-error-100"
+            >
+              <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
+              <p class="text-xs text-error-600">{{ authError }}</p>
+            </div>
+          </Transition>
         </form>
 
         <div class="mt-6 pt-5 border-t border-surface-100 text-center">
           <p class="text-xs text-surface-500">
             Don't have an account?
-            <NuxtLink to="/register" class="text-accent font-semibold hover:text-accent-hover transition-colors">
+            <NuxtLink to="/register" class="text-accent font-semibold hover:text-accent-hover transition-colors duration-150">
               Create one
             </NuxtLink>
           </p>
@@ -131,3 +144,12 @@ async function handleLogin() {
   }
 }
 </script>
+
+<style scoped>
+/* Ensure animations respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake {
+    animation: none !important;
+  }
+}
+</style>

@@ -566,16 +566,7 @@
               {{ commentsExpanded ? 'Show less' : `Show ${allComments.length - COMMENTS_COLLAPSE_THRESHOLD} more` }}
             </button>
 
-            <!-- QA Proof Screenshot -->
-            <div v-if="browserSession?.screenshotPath && !screenshotError" class="mt-4">
-              <p class="text-sm font-medium text-surface-600 mb-2">QA Proof Screenshot</p>
-              <img
-                :src="`/api/tasks/${task.id}/browser-screenshot?v=${browserSession.id}`"
-                alt="QA Proof"
-                class="rounded-lg border border-surface-200 max-w-full"
-                @error="screenshotError = true"
-              />
-            </div>
+
 
             <div v-if="userActivityLogs.length > 0" class="mt-6 pt-4 border-t border-surface-100">
               <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
@@ -2755,4 +2746,19 @@ function formatActivity(log: ActivityLog) {
 .comment-body :deep(h2) { font-size: 13px; }
 .comment-body :deep(h3) { font-size: 12px; }
 .comment-body :deep(h4) { font-size: 11px; }
+
+.comment-body :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin: 8px 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.comment-body :deep(img:hover) {
+  opacity: 0.9;
+}
+.dark .comment-body :deep(img) {
+  border-color: #334155;
+}
 </style>

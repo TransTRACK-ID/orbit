@@ -31,14 +31,30 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
 
-  // Find the latest browser session with a screenshot
-  const session = await db.query.browserSessions.findFirst({
-    where: and(
-      eq(schema.browserSessions.taskId, id),
-      isNotNull(schema.browserSessions.screenshotPath)
-    ),
-    orderBy: desc(schema.browserSessions.createdAt),
-  })
+  // Optionally serve a specific session's screenshot via ?session= query param.
+  // When omitted, fall back to the latest session (existing behaviour).
+  const query = getQuery(event) as { session?: string }
+  let session: typeof schema.browserSessions.$inferSelect | undefined
+
+  if (query.session) {
+    session = await db.query.browserSessions.findFirst({
+      where: and(
+        eq(schema.browserSessions.id, query.session),
+        eq(schema.browserSessions.taskId, id),
+        isNotNull(schema.browserSessions.screenshotPath)
+      ),
+    })
+  }
+
+  if (!session) {
+    session = await db.query.browserSessions.findFirst({
+      where: and(
+        eq(schema.browserSessions.taskId, id),
+        isNotNull(schema.browserSessions.screenshotPath)
+      ),
+      orderBy: desc(schema.browserSessions.createdAt),
+    })
+  }
 
   if (!session || !session.screenshotPath || !existsSync(session.screenshotPath)) {
     throw createError({ statusCode: 404, statusMessage: 'Screenshot not found' })

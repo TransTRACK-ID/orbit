@@ -802,9 +802,29 @@ export default defineEventHandler(async (event) => {
           console.error(`[execute.get] Screenshot not found in any candidate path: ${candidates.join(', ')}`)
         }
 
-        // Build reply text with embedded screenshot markdown when available
-        const screenshotMarkdown = screenshotPath
-          ? `\n\n![QA Proof Screenshot](/api/tasks/${id}/browser-screenshot)`
+        // Persist browser session record FIRST so we get a stable session ID
+        // that can be referenced in the screenshot URL.
+        let browserSessionId: string | null = null
+        try {
+          const [inserted] = await db.insert(schema.browserSessions).values({
+            taskId: id,
+            agentId: task.agentAssigneeId,
+            status: result.status,
+            summary: result.summary,
+            error: result.error,
+            outputDir: result.outputDir,
+            headed: browserConfig.headed,
+            screenshotPath,
+          }).returning({ id: schema.browserSessions.id })
+          browserSessionId = inserted?.id || null
+        } catch (dbErr: any) {
+          console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)
+        }
+
+        // Build reply text with embedded screenshot markdown.
+        // Use session-specific URL so each run's screenshot is permanently linked.
+        const screenshotMarkdown = screenshotPath && browserSessionId
+          ? `\n\n![QA Proof Screenshot](/api/tasks/${id}/browser-screenshot?session=${browserSessionId})`
           : ''
         const replyText = `**Browser QA Result:** ${result.status.toUpperCase()}\n\n${summaryText}${screenshotMarkdown}`
         const replyPayload = JSON.stringify({
@@ -823,22 +843,6 @@ export default defineEventHandler(async (event) => {
           })
         } catch (err: any) {
           console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
-        }
-
-        // Persist browser session record
-        try {
-          await db.insert(schema.browserSessions).values({
-            taskId: id,
-            agentId: task.agentAssigneeId,
-            status: result.status,
-            summary: result.summary,
-            error: result.error,
-            outputDir: result.outputDir,
-            headed: browserConfig.headed,
-            screenshotPath,
-          })
-        } catch (dbErr: any) {
-          console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)
         }
 
         // Note: task status is not auto-updated — user manually reviews QA results

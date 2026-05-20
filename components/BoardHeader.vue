@@ -2,60 +2,60 @@
   <div class="flex items-center gap-3 px-3 sm:px-5 py-3.5 border-b border-surface-200 bg-white flex-shrink-0">
     <div class="flex items-center gap-2.5 min-w-0">
       <h2 class="text-sm font-semibold text-surface-900 flex-shrink-0">Board</h2>
-      <span class="text-[10px] text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0">{{ taskCount }} tasks</span>
+      <span class="text-xs text-surface-500 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0 font-medium">{{ taskCount }} tasks</span>
     </div>
     <div class="flex items-center gap-1.5 ml-auto">
       <!-- View Toggle -->
-      <div class="flex items-center rounded-lg border border-surface-200 overflow-hidden mr-1">
+      <div class="flex items-center rounded-lg border border-surface-200 overflow-hidden">
         <button
-          class="px-2 py-1.5 text-[11px] hover:bg-surface-50 transition-colors flex items-center"
-          :class="{ 'bg-surface-100': viewMode === 'kanban' }"
+          class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+          :class="{ 'bg-surface-100 text-surface-900': viewMode === 'kanban', 'text-surface-500': viewMode !== 'kanban' }"
           title="Kanban view"
           @click="$emit('update:viewMode', 'kanban')"
         >
-          <Icon name="lucide:layout-grid" class="w-3 h-3" />
+          <Icon name="lucide:layout-grid" class="w-3.5 h-3.5" />
         </button>
         <button
-          class="px-2 py-1.5 text-[11px] hover:bg-surface-50 transition-colors flex items-center"
-          :class="{ 'bg-surface-100': viewMode === 'table' }"
+          class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+          :class="{ 'bg-surface-100 text-surface-900': viewMode === 'table', 'text-surface-500': viewMode !== 'table' }"
           title="Table view"
           @click="$emit('update:viewMode', 'table')"
         >
-          <Icon name="lucide:table" class="w-3 h-3" />
+          <Icon name="lucide:table" class="w-3.5 h-3.5" />
         </button>
       </div>
 
       <button
         data-tooltip-target="new-task"
-        class="px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
+        class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium flex items-center gap-1.5 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
         @click="$emit('createTask')"
       >
-        <Icon name="lucide:plus" class="w-3 h-3" />
+        <Icon name="lucide:plus" class="w-3.5 h-3.5" />
         <span class="max-sm:hidden">New Task</span>
       </button>
       <button
-        class="px-3 py-1.5 rounded-lg bg-accent text-white text-[11px] font-semibold flex items-center gap-1.5 hover:bg-accent-hover transition-colors"
+        class="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium flex items-center gap-1.5 hover:bg-accent-hover transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
         @click="handleAutoAssign"
       >
-        <Icon name="lucide:zap" class="w-3 h-3" />
+        <Icon name="lucide:zap" class="w-3.5 h-3.5" />
         <span class="max-sm:hidden">Auto-Assign</span>
       </button>
       <button
-        class="px-2 py-1.5 rounded-lg border border-surface-200 text-[11px] hover:bg-surface-50 transition-colors flex"
+        class="px-2 py-1.5 rounded-lg border border-surface-200 text-xs hover:bg-surface-50 transition-colors flex items-center justify-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
         @click="toggleAgentPanel"
         title="Agents"
       >
-        <Icon name="lucide:bot" class="w-3 h-3" />
+        <Icon name="lucide:bot" class="w-3.5 h-3.5" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Task } from '~/types'
+import type { Task, Status } from '~/types'
 
 const props = defineProps<{
-  statuses: any[]
+  statuses: Status[]
   taskCount: number
   viewMode?: 'kanban' | 'table'
 }>()
@@ -89,7 +89,7 @@ async function handleAutoAssign() {
     return
   }
 
-  const progressStatus = props.statuses.find((s: any) => /progress/i.test(s.name))
+  const progressStatus = props.statuses.find((s: Status) => /progress/i.test(s.name))
   const agentCandidates = agents.value.filter((a) => a.status !== 'offline')
 
   if (agentCandidates.length === 0) {

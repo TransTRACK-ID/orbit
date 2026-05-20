@@ -7,8 +7,8 @@
           class="w-2 h-2 rounded-full flex-shrink-0"
           :style="{ backgroundColor: column.status.color }"
         />
-        <span class="text-[11px] font-semibold text-surface-700">{{ column.status.name }}</span>
-        <span class="text-[10px] text-surface-400 bg-white px-1.5 py-0.5 rounded-full font-semibold">
+        <span class="text-xs font-semibold text-surface-700">{{ column.status.name }}</span>
+        <span class="text-[10px] text-surface-500 bg-surface-100 px-1.5 py-0.5 rounded-full font-medium">
           {{ column.tasks.length }}
         </span>
       </div>
@@ -28,9 +28,13 @@
 
       <div
         v-if="column.tasks.length === 0"
-        class="flex-1 flex items-center justify-center py-6 text-[10px] text-surface-400"
+        class="flex-1 flex flex-col items-center justify-center py-8 text-center"
       >
-        Drop tasks here
+        <div class="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center mb-2">
+          <Icon name="lucide:layout-grid" class="w-4 h-4 text-surface-400" />
+        </div>
+        <span class="text-[11px] text-surface-400 font-medium">No tasks</span>
+        <span class="text-[10px] text-surface-400 mt-0.5">Drop tasks here</span>
       </div>
     </div>
   </div>
@@ -51,7 +55,6 @@ const emit = defineEmits<{
 }>()
 
 const sortableContainer = ref<HTMLElement | null>(null)
-const isDraggingOver = ref(false)
 
 useSortable(sortableContainer, props.column.tasks, {
   animation: 200,
@@ -62,12 +65,9 @@ useSortable(sortableContainer, props.column.tasks, {
     pull: true,
     put: true,
   },
-  onStart: () => {
-    isDraggingOver.value = true
-  },
+  ghostClass: 'kanban-card-ghost',
+  dragClass: 'kanban-card-dragging',
   onEnd: (evt: any) => {
-    isDraggingOver.value = false
-
     // Detect a click (no actual drag movement). SortableJS prevents the
     // native click event by calling preventDefault on mousedown, so we
     // catch click-to-open via onEnd instead.
@@ -91,7 +91,6 @@ useSortable(sortableContainer, props.column.tasks, {
     })
   },
   onAdd: (evt: any) => {
-    isDraggingOver.value = false
     const taskId = evt.item.dataset?.id
     if (!taskId) return
     const tasksInColumn = [...props.column.tasks]

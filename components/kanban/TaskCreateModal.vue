@@ -17,6 +17,7 @@
               v-model="form.title"
               placeholder="What needs to be done?"
               required
+              autofocus
             />
           </div>
 
@@ -521,7 +522,6 @@ async function uploadAllImages(taskId: string): Promise<number> {
     } catch (err: any) {
       img.status = 'error'
       failures++
-      console.error('Failed to upload image:', err)
     }
   }
   return failures

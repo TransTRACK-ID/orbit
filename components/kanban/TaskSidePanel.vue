@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-50 flex">
-    <div class="absolute inset-0 bg-black/20 backdrop-blur-sm dark:bg-black/40" @click="$emit('close')" />
+    <div class="absolute inset-0 bg-black/30 dark:bg-black/50" @click="$emit('close')" />
 
     <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[100vw] sm:max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
       <!-- Agent runtime indicator — floating top-right, only when CLI is actively processing -->
@@ -1601,8 +1601,7 @@ async function handleStartPreview() {
         previewStarting.value = false
       }
     }, 2000)
-  } catch (err: any) {
-    console.error('Failed to start preview:', err)
+  } catch {
     previewStarting.value = false
   }
 }
@@ -2030,8 +2029,8 @@ async function handleFixFeedback() {
 
     // The server already stored the feedback; we just need to start the runtime stream
     await startRuntime(res.taskId)
-  } catch (err: any) {
-    console.error('Failed to fix feedback:', err)
+  } catch {
+    // Silently fail — user can retry
   } finally {
     fixingFeedback.value = false
   }
@@ -2105,8 +2104,8 @@ onMounted(async () => {
     await fetchAgentReplies()
     await loadAttachments()
     await fetchBrowserSession()
-  } catch (err) {
-    console.error('Failed to load task detail:', err)
+  } catch {
+    // Silently fail — panel will show empty state
   } finally {
     loading.value = false
     editingDescription.value = task.value?.description || ''
@@ -2219,8 +2218,8 @@ async function saveDescription(value: string) {
       task.value = updated
       emit('updated', updated)
     }
-  } catch (err) {
-    console.error('Failed to save description:', err)
+  } catch {
+    // Silently fail — debounced save will retry on next edit
   }
 }
 
@@ -2250,8 +2249,8 @@ async function saveTitle(value: string) {
       task.value = updated
       emit('updated', updated)
     }
-  } catch (err) {
-    console.error('Failed to save title:', err)
+  } catch {
+    // Silently fail — debounced save will retry on next edit
   }
 }
 
@@ -2285,8 +2284,7 @@ async function saveBranchName(value: string) {
     const updated = await updateTaskApi(task.value.id, { branchName: value || null })
     task.value = updated
     emit('updated', updated)
-  } catch (err: any) {
-    console.error('Failed to save branch name:', err)
+  } catch {
     // Revert on error
     editingBranchName.value = task.value.branchName || ''
   }
@@ -2428,9 +2426,8 @@ async function handleAddComment() {
         task.value.id,
         `${agentHint}[USER MESSAGE]\n${commentBody}\n\nPlease respond to this user message appropriately. If it is a question or greeting, respond conversationally. If it requires codebase modifications, make the necessary changes.`
       )
-    } catch (err) {
-      console.error('Failed to send comment to agent:', err)
-      addLog('Runtime', `Failed to send message to agent: ${err}`, props.taskId)
+    } catch (err: any) {
+      addLog('Runtime', `Failed to send message to agent: ${err?.message || err}`, props.taskId)
     } finally {
       isSendingToAgent.value = false
     }

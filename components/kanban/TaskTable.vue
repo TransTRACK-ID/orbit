@@ -12,25 +12,25 @@
       <table class="w-full text-left border-collapse">
         <thead class="sticky top-0 z-10 bg-white">
           <tr class="border-b border-surface-200">
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider w-32">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-32">
               Status
             </th>
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider w-16">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-16">
               ID
             </th>
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider min-w-[200px]">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider min-w-[200px]">
               Title
             </th>
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider w-36">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-36">
               Assignee
             </th>
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider w-24">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-24">
               Priority
             </th>
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider w-28">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-28">
               Due Date
             </th>
-            <th class="py-2.5 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider w-28">
+            <th class="py-2.5 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-28">
               Updated
             </th>
           </tr>
@@ -39,8 +39,10 @@
           <tr
             v-for="task in sortedTasks"
             :key="task.id"
-            class="border-b border-surface-100 hover:bg-surface-50 transition-colors cursor-pointer"
+            class="border-b border-surface-100 hover:bg-surface-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:bg-surface-100"
+            tabindex="0"
             @click="$emit('openTask', task)"
+            @keydown.enter="$emit('openTask', task)"
           >
             <!-- Status -->
             <td class="py-2.5 px-3" @click.stop>
@@ -50,7 +52,7 @@
                   :style="{ backgroundColor: task.status?.color || statuses.find(s => s.id === task.statusId)?.color || '#cbd5e1' }"
                 />
                 <select
-                  class="text-[11px] font-medium text-surface-700 bg-transparent border-none focus:ring-0 cursor-pointer hover:text-surface-900"
+                  class="text-xs font-medium text-surface-700 bg-transparent border border-transparent rounded px-1 py-0.5 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 cursor-pointer hover:text-surface-900 transition-colors"
                   :value="task.statusId"
                   @change="handleStatusChange(task.id, ($event.target as HTMLSelectElement).value)"
                 >
@@ -67,12 +69,12 @@
 
             <!-- ID -->
             <td class="py-2.5 px-3">
-              <span class="text-[11px] font-mono text-surface-500">#{{ task.id.slice(0, 6) }}</span>
+              <span class="text-xs font-mono text-surface-400">#{{ task.id.slice(0, 6) }}</span>
             </td>
 
             <!-- Title -->
             <td class="py-2.5 px-3">
-              <div class="text-[11px] font-semibold text-surface-900 leading-snug" v-html="formatTitle(task.title)" />
+              <div class="text-xs font-semibold text-surface-900 leading-snug" v-html="formatTitle(task.title)" />
             </td>
 
             <!-- Assignee -->
@@ -85,35 +87,41 @@
                 >
                   {{ task.assignee.initials || computedInitials(task.assignee.name) }}
                 </span>
-                <span class="text-[11px] text-surface-600">{{ task.assignee.name }}</span>
+                <span class="text-xs text-surface-600">{{ task.assignee.name }}</span>
               </div>
-              <span v-else class="text-[11px] text-surface-400">—</span>
+              <span v-else class="text-xs text-surface-400">—</span>
             </td>
 
             <!-- Priority -->
             <td class="py-2.5 px-3">
               <KanbanPriorityBadge v-if="task.priority !== 'none'" :priority="task.priority" />
-              <span v-else class="text-[11px] text-surface-400">—</span>
+              <span v-else class="text-xs text-surface-400">—</span>
             </td>
 
             <!-- Due Date -->
             <td class="py-2.5 px-3">
-              <span class="text-[11px] text-surface-500">
+              <span class="text-xs text-surface-500">
                 {{ task.dueDate ? formatDate(task.dueDate) : '—' }}
               </span>
             </td>
 
             <!-- Updated -->
             <td class="py-2.5 px-3">
-              <span class="text-[11px] text-surface-500" :title="task.updatedAt">
+              <span class="text-xs text-surface-500" :title="task.updatedAt">
                 {{ relativeTime(task.updatedAt) }}
               </span>
             </td>
           </tr>
 
           <tr v-if="tasks.length === 0">
-            <td colspan="7" class="py-8 text-center text-[11px] text-surface-400">
-              No tasks yet. Click "New Task" to get started.
+            <td colspan="7" class="py-8 text-center">
+              <div class="flex flex-col items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
+                  <Icon name="lucide:inbox" class="w-4 h-4 text-surface-400" />
+                </div>
+                <span class="text-xs text-surface-500 font-medium">No tasks yet</span>
+                <span class="text-[11px] text-surface-400">Click "New Task" to get started</span>
+              </div>
             </td>
           </tr>
         </tbody>

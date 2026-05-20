@@ -2,6 +2,7 @@ import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getReq
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'fs'
+import { randomUUID } from 'crypto'
 import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
@@ -821,11 +822,42 @@ export default defineEventHandler(async (event) => {
           console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)
         }
 
-        // Build reply text with embedded screenshot markdown.
-        // Use session-specific URL so each run's screenshot is permanently linked.
-        const screenshotMarkdown = screenshotPath && browserSessionId
-          ? `\n\n![QA Proof Screenshot](/api/tasks/${id}/browser-screenshot?session=${browserSessionId})`
-          : ''
+        // If a screenshot exists on disk, copy it into the permanent task-attachments
+        // storage so it renders reliably as a real image attachment in the comment.
+        let attachmentUrl: string | null = null
+        if (screenshotPath) {
+          try {
+            const HOME = process.env.HOME || '/root'
+            const ATTACHMENTS_DIR = `${HOME}/orbit-attachments`
+            const taskAttachDir = path.join(ATTACHMENTS_DIR, id)
+            mkdirSync(taskAttachDir, { recursive: true })
+            const attachFilename = `qa-screenshot-${randomUUID()}.png`
+            const attachFilePath = path.join(taskAttachDir, attachFilename)
+            copyFileSync(screenshotPath, attachFilePath)
+            const [att] = await db.insert(schema.taskAttachments).values({
+              taskId: id,
+              filename: attachFilename,
+              originalName: 'qa-screenshot.png',
+              mimeType: 'image/png',
+              size: readFileSync(attachFilePath).length,
+              path: attachFilePath,
+            }).returning({ id: schema.taskAttachments.id })
+            if (att?.id) {
+              attachmentUrl = `/api/tasks/${id}/attachments/${att.id}`
+              console.log(`[execute.get] Screenshot saved as attachment: ${attachmentUrl}`)
+            }
+          } catch (attachErr: any) {
+            console.error('[execute.get] Failed to save screenshot as attachment:', attachErr?.message || attachErr)
+          }
+        }
+
+        // Build reply text. Embed the screenshot as a real markdown image via the
+        // stable attachment URL so it always renders inline in the comment.
+        const screenshotMarkdown = attachmentUrl
+          ? `\n\n**📸 QA Screenshot:**\n![QA Proof Screenshot](${attachmentUrl})`
+          : (screenshotPath && browserSessionId
+              ? `\n\n![QA Proof Screenshot](/api/tasks/${id}/browser-screenshot?session=${browserSessionId})`
+              : '')
         const replyText = `**Browser QA Result:** ${result.status.toUpperCase()}\n\n${summaryText}${screenshotMarkdown}`
         const replyPayload = JSON.stringify({
           agentReply: replyText,

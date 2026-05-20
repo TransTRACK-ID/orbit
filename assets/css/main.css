@@ -101,20 +101,33 @@
            transition-all duration-150 ease-in-out shadow-sm;
   }
 
-  .kanban-card.is-dragging {
-    @apply opacity-40;
+  .kanban-card.is-dragging,
+  .kanban-card-dragging {
+    @apply opacity-40 cursor-grabbing;
+  }
+
+  .kanban-card-ghost {
+    @apply opacity-60 bg-surface-50 border-dashed;
+  }
+
+  .kanban-column-body .sortable-drag {
+    @apply cursor-grabbing;
+  }
+
+  .kanban-column-body .sortable-ghost {
+    @apply opacity-40 bg-surface-50 border-dashed border-surface-300;
   }
 
   .kanban-card.agentic {
-    border-color: #4F46E540;
-    box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.12), 0 4px 12px rgba(79, 70, 229, 0.08);
+    border-color: rgb(99 102 241 / 0.25);
+    box-shadow: 0 0 0 1px rgb(99 102 241 / 0.08), 0 4px 12px rgb(99 102 241 / 0.06);
   }
 
   .agentic-badge {
     @apply inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full;
-    background: linear-gradient(135deg, #2563EB10, #7C3AED10);
-    color: #4F46E5;
-    border: 1px solid #4F46E520;
+    background: rgb(99 102 241 / 0.06);
+    color: rgb(79 70 229);
+    border: 1px solid rgb(99 102 241 / 0.12);
   }
 
   .agentic-dot {
@@ -184,7 +197,7 @@
   .sidebar-item.active {
     @apply text-surface-900 font-semibold;
     background-color: oklch(62% 0.22 27 / 0.08);
-    border-left-color: #CF513D;
+    border-left-color: var(--accent-color, #CF513D);
   }
 
   .sidebar-group-header {
@@ -369,6 +382,17 @@
 
   .dark .sidebar-item.active {
     background-color: oklch(62% 0.22 27 / 0.15);
+  }
+
+  .dark .kanban-card.agentic {
+    border-color: rgb(129 140 248 / 0.3);
+    box-shadow: 0 0 0 1px rgb(129 140 248 / 0.1), 0 4px 12px rgb(99 102 241 / 0.08);
+  }
+
+  .dark .agentic-badge {
+    background: rgb(129 140 248 / 0.1);
+    color: #a5b4fc;
+    border-color: rgb(129 140 248 / 0.2);
   }
 }
 

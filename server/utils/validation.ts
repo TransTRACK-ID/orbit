@@ -172,6 +172,12 @@ export const updateRepositorySchema = z.object({
   token: z.string().max(2000).optional(),
 })
 
+export const checkRepositoryConnectionSchema = z.object({
+  url: z.string().min(1, 'URL is required').max(1000),
+  platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']),
+  token: z.string().max(2000).optional(),
+})
+
 // ─── User ───
 export const updateUserSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255).optional(),

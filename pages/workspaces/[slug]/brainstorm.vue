@@ -11,11 +11,11 @@
             <Icon name="lucide:lightbulb" class="w-4 h-4" />
           </div>
           <h2 class="text-sm font-semibold text-surface-900 flex-shrink-0">Brainstorm</h2>
-          <span class="text-[10px] text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0">{{ brainstorms.length }} sessions</span>
+          <span class="text-xs text-surface-500 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0">{{ brainstorms.length }} sessions</span>
         </div>
         <div class="flex items-center gap-1.5 ml-auto">
           <button
-            class="px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
+            class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
             @click="showCreate = true"
           >
             <Icon name="lucide:plus" class="w-3 h-3" />
@@ -31,9 +31,9 @@
         <!-- Sidebar: brainstorm list -->
         <div class="w-64 flex-shrink-0 flex flex-col gap-2">
           <div class="flex items-center justify-between px-1 mb-1">
-            <span class="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Sessions</span>
+            <span class="text-xs font-medium text-surface-600">Sessions</span>
             <button
-              class="text-[10px] text-surface-400 hover:text-surface-600 transition-colors"
+              class="text-xs text-surface-500 hover:text-surface-700 transition-colors"
               @click="showArchived = !showArchived"
             >
               {{ showArchived ? 'Hide archived' : 'Show archived' }}
@@ -65,7 +65,7 @@
                 <Icon :name="bs.archived ? 'lucide:archive-restore' : 'lucide:archive'" class="w-3 h-3" />
               </button>
             </div>
-            <p v-if="bs.repository" class="text-[10px] text-surface-400 truncate ml-5">
+            <p v-if="bs.repository" class="text-xs text-surface-500 truncate ml-5">
               {{ bs.repository.name }}
             </p>
           </div>
@@ -100,7 +100,7 @@
 
     <!-- Create modal -->
     <Teleport to="body">
-      <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showCreate = false">
+      <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/50 p-4" @click.self="showCreate = false">
         <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
           <div class="flex items-center justify-between mb-5">
             <h3 class="text-lg font-semibold text-surface-900">New Brainstorm Session</h3>
@@ -111,7 +111,7 @@
 
           <form @submit.prevent="handleCreate" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-surface-700 mb-1.5">Title *</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Title</label>
               <TextInput
                 v-model="createTitle"
                 placeholder="e.g. API Design Discussion"
@@ -120,7 +120,7 @@
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-surface-700 mb-1.5">Repository</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Repository</label>
               <div class="relative">
                 <select
                   v-model="createRepoId"
@@ -137,8 +137,8 @@
                 />
               </div>
               <p class="text-xs text-surface-400 mt-1">Select a repository to chat about its codebase</p>
-              <p v-if="repositories.length === 0" class="text-[10px] text-accent-600 mt-1">
-                <NuxtLink :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`" class="underline hover:text-accent-800">
+              <p v-if="repositories.length === 0" class="text-xs text-accent mt-1">
+                <NuxtLink :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`" class="underline hover:text-accent-hover transition-colors">
                   Connect a repository
                 </NuxtLink>
                 to brainstorm about your codebase.
@@ -152,7 +152,10 @@
               </Button>
             </div>
 
-            <p v-if="createError" class="text-error-500 text-sm">{{ createError }}</p>
+            <div v-if="createError" class="flex items-start gap-2 p-2.5 rounded-lg bg-error-50 border border-error-100">
+              <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
+              <p class="text-xs text-error-600">{{ createError }}</p>
+            </div>
           </form>
         </div>
       </div>

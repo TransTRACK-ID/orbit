@@ -8,7 +8,7 @@
     <!-- Landing page for unauthenticated users -->
     <div v-else-if="status === 'unauthenticated'" class="min-h-screen bg-surface-50">
       <!-- Navigation -->
-      <nav class="fixed top-0 left-0 right-0 z-50 bg-surface-50/80 backdrop-blur-sm border-b border-surface-200 reveal-nav">
+      <nav class="fixed top-0 left-0 right-0 z-50 bg-surface-50 border-b border-surface-200 reveal-nav">
         <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
@@ -21,7 +21,7 @@
               to="/login"
               class="text-sm font-medium text-surface-600 hover:text-surface-900 transition-colors duration-150"
             >
-              Log in
+              Sign in
             </NuxtLink>
             <NuxtLink
               to="/register"
@@ -71,8 +71,8 @@
                 class="reveal-hero text-5xl sm:text-6xl lg:text-7xl font-black text-surface-900 leading-[0.95] tracking-tight mb-6"
                 style="--delay: 80ms;"
               >
-                Ship faster.<br>
-                <span class="text-accent">Think bigger.</span>
+                Deliver faster.<br>
+                <span class="text-accent">Decide bigger.</span>
               </h1>
 
               <p
@@ -87,7 +87,7 @@
                   to="/register"
                   class="inline-flex items-center gap-2 px-7 py-3.5 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover transition-all duration-150 hover:shadow-xl hover:shadow-accent/20 hover:-translate-y-0.5 active:scale-[0.98] text-base"
                 >
-                  Start building free
+                  Start free
                   <Icon name="lucide:arrow-right" class="w-4 h-4" />
                 </NuxtLink>
                 <NuxtLink
@@ -122,29 +122,29 @@
               >
                 <div
                   class="relative rounded-2xl border border-surface-200/80 shadow-2xl p-6 lg:p-8 pb-10 lg:pb-12"
-                  style="background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%); transform: perspective(1200px) rotateY(-3deg) rotateX(1deg);"
+                  style="background: linear-gradient(145deg, var(--surface-50) 0%, var(--surface-100) 50%, var(--surface-200) 100%); transform: perspective(1200px) rotateY(-3deg) rotateX(1deg);"
                 >
                   <!-- Stylized kanban board preview -->
                   <div class="flex gap-3 overflow-hidden">
                     <!-- Column 1: Backlog -->
                     <div class="reveal-kanban flex-1 min-w-0" style="--kb-delay: 300ms;">
                       <div class="flex items-center gap-2 mb-3">
-                        <div class="w-2 h-2 rounded-full bg-slate-400" />
-                        <span class="text-xs font-semibold text-slate-600">Backlog</span>
-                        <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">3</span>
+                        <div class="w-2 h-2 rounded-full bg-surface-400" />
+                        <span class="text-xs font-semibold text-surface-600">Backlog</span>
+                        <span class="text-xs font-medium text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full">3</span>
                       </div>
                       <div class="space-y-2">
-                        <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
-                          <div class="h-2 rounded w-3/4 mb-1.5" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
+                        <div class="rounded-lg border border-surface-200 p-2.5 bg-surface-50/80">
+                          <div class="h-2 rounded w-3/4 mb-1.5 bg-surface-300" />
+                          <div class="h-1.5 rounded w-1/2 bg-surface-200" />
                         </div>
-                        <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
-                          <div class="h-2 rounded w-full mb-1.5" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
+                        <div class="rounded-lg border border-surface-200 p-2.5 bg-surface-50/80">
+                          <div class="h-2 rounded w-full mb-1.5 bg-surface-300" />
+                          <div class="h-1.5 rounded w-2/3 bg-surface-200" />
                         </div>
-                        <div class="rounded-lg border border-slate-200 p-2.5" style="background: rgba(241, 245, 249, 0.8);">
-                          <div class="h-2 rounded w-4/5 mb-1.5" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
+                        <div class="rounded-lg border border-surface-200 p-2.5 bg-surface-50/80">
+                          <div class="h-2 rounded w-4/5 mb-1.5 bg-surface-300" />
+                          <div class="h-1.5 rounded w-1/2 bg-surface-200" />
                         </div>
                       </div>
                     </div>
@@ -153,21 +153,21 @@
                     <div class="reveal-kanban flex-1 min-w-0" style="--kb-delay: 420ms;">
                       <div class="flex items-center gap-2 mb-3">
                         <div class="w-2 h-2 rounded-full bg-semantic-blue" />
-                        <span class="text-xs font-semibold text-slate-600">In Progress</span>
-                        <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">2</span>
+                        <span class="text-xs font-semibold text-surface-600">In Progress</span>
+                        <span class="text-xs font-medium text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full">2</span>
                       </div>
                       <div class="space-y-2">
-                        <div class="rounded-lg border border-slate-200 p-2.5 shadow-sm" style="background: #ffffff;">
+                        <div class="rounded-lg border border-surface-200 p-2.5 shadow-sm bg-surface-50">
                           <div class="flex items-center gap-1.5 mb-1.5">
                             <div class="w-1.5 h-1.5 rounded-full bg-semantic-purple animate-pulse" />
-                            <span class="text-[9px] font-semibold text-semantic-purple uppercase">Agent</span>
+                            <span class="text-xs font-semibold text-semantic-purple">Agent</span>
                           </div>
-                          <div class="h-2 rounded w-5/6 mb-1" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-3/5" style="background: #e2e8f0;" />
+                          <div class="h-2 rounded w-5/6 mb-1 bg-surface-300" />
+                          <div class="h-1.5 rounded w-3/5 bg-surface-200" />
                         </div>
-                        <div class="rounded-lg border border-slate-200 p-2.5 shadow-sm" style="background: #ffffff;">
-                          <div class="h-2 rounded w-full mb-1.5" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
+                        <div class="rounded-lg border border-surface-200 p-2.5 shadow-sm bg-surface-50">
+                          <div class="h-2 rounded w-full mb-1.5 bg-surface-300" />
+                          <div class="h-1.5 rounded w-2/3 bg-surface-200" />
                         </div>
                       </div>
                     </div>
@@ -176,17 +176,17 @@
                     <div class="reveal-kanban flex-1 min-w-0 hidden sm:block" style="--kb-delay: 540ms;">
                       <div class="flex items-center gap-2 mb-3">
                         <div class="w-2 h-2 rounded-full bg-semantic-green" />
-                        <span class="text-xs font-semibold text-slate-600">Done</span>
-                        <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">5</span>
+                        <span class="text-xs font-semibold text-surface-600">Done</span>
+                        <span class="text-xs font-medium text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full">5</span>
                       </div>
                       <div class="space-y-2">
-                        <div class="rounded-lg border border-slate-200/60 p-2.5 opacity-60" style="background: rgba(241, 245, 249, 0.5);">
-                          <div class="h-2 rounded w-4/5 mb-1.5" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-1/2" style="background: #e2e8f0;" />
+                        <div class="rounded-lg border border-surface-200/60 p-2.5 opacity-60 bg-surface-50/50">
+                          <div class="h-2 rounded w-4/5 mb-1.5 bg-surface-300" />
+                          <div class="h-1.5 rounded w-1/2 bg-surface-200" />
                         </div>
-                        <div class="rounded-lg border border-slate-200/60 p-2.5 opacity-60" style="background: rgba(241, 245, 249, 0.5);">
-                          <div class="h-2 rounded w-3/4 mb-1.5" style="background: #cbd5e1;" />
-                          <div class="h-1.5 rounded w-2/3" style="background: #e2e8f0;" />
+                        <div class="rounded-lg border border-surface-200/60 p-2.5 opacity-60 bg-surface-50/50">
+                          <div class="h-2 rounded w-3/4 mb-1.5 bg-surface-300" />
+                          <div class="h-1.5 rounded w-2/3 bg-surface-200" />
                         </div>
                       </div>
                     </div>
@@ -194,15 +194,14 @@
 
                   <!-- Floating agent indicator -->
                   <div
-                    class="reveal-agent absolute -bottom-4 -right-4 rounded-xl border border-slate-200/80 shadow-xl p-3.5 flex items-center gap-2.5"
-                    style="background: #ffffff;"
+                    class="reveal-agent absolute -bottom-4 -right-4 rounded-xl border border-surface-200/80 shadow-xl p-3.5 flex items-center gap-2.5 bg-surface-50"
                   >
                     <div class="w-9 h-9 rounded-full bg-semantic-purple/10 flex items-center justify-center">
                       <Icon name="lucide:bot" class="w-5 h-5 text-semantic-purple" />
                     </div>
                     <div>
-                      <div class="text-xs font-semibold text-slate-900">Orbit Agent</div>
-                      <div class="text-[10px] text-slate-400">Processing 2 tasks</div>
+                      <div class="text-xs font-semibold text-surface-900">Orbit Agent</div>
+                      <div class="text-xs text-surface-400">Processing 2 tasks</div>
                     </div>
                     <div class="w-2 h-2 rounded-full bg-semantic-green animate-pulse ml-1" />
                   </div>
@@ -219,7 +218,7 @@
       </section>
 
       <!-- Problem / Solution Section -->
-      <section class="py-20 lg:py-28 bg-white border-y border-surface-200 reveal-section">
+      <section class="py-20 lg:py-28 bg-surface-50 border-y border-surface-200 reveal-section">
         <div class="max-w-7xl mx-auto px-6">
           <div class="max-w-2xl mx-auto text-center mb-16">
             <h2 class="reveal-item text-3xl lg:text-4xl font-bold text-surface-900 tracking-tight mb-4" style="--delay: 0ms;">
@@ -266,7 +265,7 @@
       <section class="py-20 lg:py-28 reveal-section">
         <div class="max-w-7xl mx-auto px-6">
           <div class="text-center mb-16">
-            <span class="reveal-item text-xs font-semibold text-accent uppercase tracking-wider mb-3 block" style="--delay: 0ms;">Features</span>
+            <span class="reveal-item text-xs font-semibold text-accent tracking-wider mb-3 block" style="--delay: 0ms;">Features</span>
             <h2 class="reveal-item text-3xl lg:text-4xl font-bold text-surface-900 tracking-tight mb-4" style="--delay: 60ms;">
               Everything you need to move fast
             </h2>
@@ -330,10 +329,10 @@
                     Comments, mentions, and real-time updates keep everyone aligned. Notifications that respect your focus, not interrupt it.
                   </p>
                   <div class="flex -space-x-2">
-                    <div class="w-7 h-7 rounded-full bg-semantic-blue/20 border-2 border-white flex items-center justify-center text-[10px] font-bold text-semantic-blue">JD</div>
-                    <div class="w-7 h-7 rounded-full bg-semantic-purple/20 border-2 border-white flex items-center justify-center text-[10px] font-bold text-semantic-purple">SK</div>
-                    <div class="w-7 h-7 rounded-full bg-accent/20 border-2 border-white flex items-center justify-center text-[10px] font-bold text-accent">AL</div>
-                    <div class="w-7 h-7 rounded-full bg-surface-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-surface-500">+5</div>
+                    <div class="w-7 h-7 rounded-full bg-semantic-blue/20 border-2 border-white flex items-center justify-center text-xs font-bold text-semantic-blue">JD</div>
+                    <div class="w-7 h-7 rounded-full bg-semantic-purple/20 border-2 border-white flex items-center justify-center text-xs font-bold text-semantic-purple">SK</div>
+                    <div class="w-7 h-7 rounded-full bg-accent/20 border-2 border-white flex items-center justify-center text-xs font-bold text-accent">AL</div>
+                    <div class="w-7 h-7 rounded-full bg-surface-200 border-2 border-white flex items-center justify-center text-xs font-bold text-surface-500">+5</div>
                   </div>
                 </div>
               </div>
@@ -343,30 +342,27 @@
       </section>
 
       <!-- Social Proof Section -->
-      <section class="py-20 lg:py-24 bg-white border-y border-surface-200 reveal-section">
+      <section class="py-20 lg:py-24 bg-surface-50 border-y border-surface-200 reveal-section">
         <div class="max-w-7xl mx-auto px-6">
           <div class="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <span class="reveal-item text-xs font-semibold text-accent uppercase tracking-wider mb-4 block" style="--delay: 0ms;">Trusted by teams</span>
+              <span class="reveal-item text-xs font-semibold text-accent tracking-wider mb-4 block" style="--delay: 0ms;">Trusted by teams</span>
               <h2 class="reveal-item text-3xl font-bold text-surface-900 tracking-tight mb-4" style="--delay: 60ms;">
-                Built for teams that ship
+                Built for teams that deliver
               </h2>
               <p class="reveal-item text-surface-500 leading-relaxed mb-8" style="--delay: 120ms;">
                 From early-stage startups to established product teams, Orbit helps project managers maintain clarity without sacrificing speed.
               </p>
 
-              <div class="grid grid-cols-3 gap-6">
-                <div class="reveal-item" style="--delay: 180ms;">
-                  <div class="text-2xl font-bold text-surface-900 mb-1">10k+</div>
-                  <div class="text-xs text-surface-400">Tasks processed</div>
-                </div>
-                <div class="reveal-item" style="--delay: 260ms;">
-                  <div class="text-2xl font-bold text-surface-900 mb-1">500+</div>
-                  <div class="text-xs text-surface-400">Active workspaces</div>
-                </div>
-                <div class="reveal-item" style="--delay: 340ms;">
-                  <div class="text-2xl font-bold text-surface-900 mb-1">99.9%</div>
-                  <div class="text-xs text-surface-400">Uptime</div>
+              <div class="reveal-item bg-accent-soft rounded-xl border border-accent/10 p-6" style="--delay: 180ms;">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                    <Icon name="lucide:trending-down" class="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <div class="text-2xl font-bold text-surface-900">70%</div>
+                    <div class="text-sm text-surface-500">fewer status meetings with agent-assisted workflows</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -415,7 +411,7 @@
               to="/login"
               class="inline-flex items-center gap-2 px-8 py-3.5 border border-surface-200 text-surface-700 font-medium rounded-lg hover:bg-surface-100 transition-all duration-150 active:scale-[0.98] text-base"
             >
-              Log in to your workspace
+              Sign in to your workspace
             </NuxtLink>
           </div>
           <p class="reveal-item mt-6 text-xs text-surface-400" style="--delay: 240ms;">
@@ -425,7 +421,7 @@
       </section>
 
       <!-- Footer -->
-      <footer class="border-t border-surface-200 py-12 bg-white reveal-section">
+      <footer class="border-t border-surface-200 py-12 bg-surface-50 reveal-section">
         <div class="max-w-7xl mx-auto px-6">
           <div class="reveal-item flex flex-col md:flex-row items-center justify-between gap-6" style="--delay: 0ms;">
             <div class="flex items-center gap-2">
@@ -436,8 +432,8 @@
             </div>
 
             <div class="flex items-center gap-6 text-sm text-surface-500">
-              <NuxtLink to="/login" class="hover:text-surface-900 transition-colors duration-150">Log in</NuxtLink>
-              <NuxtLink to="/register" class="hover:text-surface-900 transition-colors duration-150">Sign up</NuxtLink>
+              <NuxtLink to="/login" class="hover:text-surface-900 transition-colors duration-150">Sign in</NuxtLink>
+              <NuxtLink to="/register" class="hover:text-surface-900 transition-colors duration-150">Get started</NuxtLink>
             </div>
 
             <p class="text-xs text-surface-400">

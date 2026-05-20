@@ -237,7 +237,7 @@
         <div class="flex gap-2 items-end">
           <button
             v-if="attachments.length < 3"
-            class="p-2 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0 h-10"
+            class="flex items-center justify-center w-10 h-10 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0"
             :class="{ 'opacity-50 cursor-not-allowed': isUploadingAttachment }"
             @click="attachmentInput?.click()"
           >

@@ -529,7 +529,7 @@
               <button
                 v-if="attachments.length > 0"
                 type="button"
-                class="p-2 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0 h-10"
+                class="flex items-center justify-center w-10 h-10 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0"
                 :class="{ 'bg-primary-50 border-primary-300 text-primary-600': showAttachmentPicker }"
                 title="Add image reference"
                 @click="showAttachmentPicker = !showAttachmentPicker; mentionActive = false"

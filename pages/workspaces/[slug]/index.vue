@@ -4,7 +4,7 @@
       <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div class="min-w-0">
           <h1 class="text-xl font-bold text-surface-900">{{ workspace.name }}</h1>
-          <p v-if="workspace.description" class="text-xs text-surface-400 mt-1">{{ workspace.description }}</p>
+          <p v-if="workspace.description" class="text-sm text-surface-500 mt-1">{{ workspace.description }}</p>
         </div>
         <div class="flex items-center gap-3 flex-shrink-0">
           <NuxtLink :to="`/workspaces/${workspace.slug}/settings`">
@@ -57,7 +57,7 @@
               class="w-[36px] h-[36px] rounded-lg flex items-center justify-center text-xs text-white"
               :style="{ background: project.color }"
             >
-              <span class="text-[10px] font-bold">{{ projectInitials(project.name) }}</span>
+              <span class="text-xs font-bold">{{ projectInitials(project.name) }}</span>
             </div>
             <button
               class="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-surface-400 hover:text-red-500"
@@ -67,10 +67,10 @@
             </button>
           </div>
           <h3 class="text-sm font-semibold mb-1">{{ project.name }}</h3>
-          <p v-if="project.description" class="text-[11px] text-surface-400 leading-snug mb-3 line-clamp-2">
+          <p v-if="project.description" class="text-xs text-surface-500 leading-snug mb-3 line-clamp-2">
             {{ project.description }}
           </p>
-          <div class="flex gap-4 text-[10px] text-surface-400">
+          <div class="flex gap-4 text-xs text-surface-500">
             <span class="flex items-center gap-1">
               <Icon name="lucide:inbox" class="w-3 h-3 text-accent" />
               {{ (project._count?.tasks || 0) - (project._count?.doneTasks || 0) }} open
@@ -122,7 +122,7 @@
         />
       </div>
       <template v-if="deleteConfirmName !== projectToDelete.name">
-        <p class="text-[11px] text-error-500 mt-1">You must type the project name exactly to confirm.</p>
+        <p class="text-xs text-error-600 mt-1">You must type the project name exactly to confirm.</p>
       </template>
     </ModalConfirmation>
   </div>

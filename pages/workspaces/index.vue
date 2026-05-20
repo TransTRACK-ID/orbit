@@ -3,7 +3,7 @@
     <div class="flex items-center gap-3 mb-1">
       <h1 class="text-xl font-bold text-surface-900">Workspaces</h1>
       <button
-        class="px-3 py-1.5 rounded-lg border border-surface-200 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
+        class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-semibold flex items-center gap-1.5 hover:bg-surface-50 transition-colors"
         @click="showCreateModal = true"
       >
         <Icon name="lucide:plus" class="w-3 h-3" />
@@ -35,7 +35,7 @@
       <div v-for="ws in workspaces" :key="ws.id" class="mb-9">
         <div class="flex items-center gap-2.5 mb-4">
           <div
-            class="w-6 h-6 rounded-md flex items-center justify-center text-[10px] text-white flex-shrink-0"
+            class="w-6 h-6 rounded-md flex items-center justify-center text-xs text-white flex-shrink-0"
             :style="{ background: getWsColor(ws) }"
           >
             <Icon name="lucide:folder" class="w-3 h-3" />
@@ -43,11 +43,11 @@
           <NuxtLink :to="`/workspaces/${ws.slug}`" class="text-sm font-semibold text-surface-900 hover:text-accent transition-colors">
             {{ ws.name }}
           </NuxtLink>
-          <span class="text-[10px] text-surface-400 bg-surface-200 px-2 py-0.5 rounded-full font-semibold">
+          <span class="text-xs text-surface-500 bg-surface-100 px-2 py-0.5 rounded-full font-medium">
             {{ ws._count?.projects || 0 }} projects · {{ ws._count?.members || 0 }} members
           </span>
           <NuxtLink
-            class="ml-auto px-2.5 py-1 rounded-md border border-surface-200 text-[10px] font-semibold flex items-center gap-1 hover:bg-surface-50 transition-colors"
+            class="ml-auto px-2.5 py-1 rounded-md border border-surface-200 text-xs font-semibold flex items-center gap-1 hover:bg-surface-50 transition-colors"
             :to="`/workspaces/${ws.slug}`"
           >
             <Icon name="lucide:arrow-right" class="w-2.5 h-2.5" />
@@ -56,7 +56,7 @@
         </div>
 
         <!-- Project cards (loaded on demand from detailed page) -->
-        <div v-if="ws.description" class="text-[11px] text-surface-400 leading-snug mb-3">
+        <div v-if="ws.description" class="text-sm text-surface-500 leading-snug mb-3">
           {{ ws.description }}
         </div>
 
@@ -74,7 +74,7 @@
             </div>
             <div class="min-w-0">
               <p class="text-xs font-semibold text-surface-900 truncate">{{ ws.name }}</p>
-              <p class="text-[10px] text-surface-400 mt-0.5">
+              <p class="text-xs text-surface-500 mt-0.5">
                 {{ ws._count?.projects || 0 }} projects · {{ ws._count?.members || 0 }} members
               </p>
             </div>

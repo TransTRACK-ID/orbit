@@ -1,14 +1,22 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-surface-50 px-4">
-    <div class="w-full max-w-md">
+  <div class="min-h-screen flex items-center justify-center bg-surface-50 px-4 relative overflow-hidden">
+    <!-- Ambient warm glow -->
+    <div
+      class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-40 pointer-events-none"
+      style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.06), transparent 70%);"
+    />
+
+    <div class="w-full max-w-md relative z-10">
       <!-- Brand -->
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center gap-1.5 mb-3">
-          <Icon name="lucide:orbit" class="w-5 h-5 text-accent" />
-          <span class="text-sm font-bold tracking-tight text-surface-900">Orbit</span>
+        <div class="inline-flex items-center justify-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <Icon name="lucide:orbit" class="w-5 h-5 text-accent" />
+          </div>
+          <span class="text-base font-bold tracking-tight text-surface-900">Orbit</span>
         </div>
-        <h1 class="text-lg font-semibold text-surface-900">Let's get you set up</h1>
-        <p class="text-[11px] text-surface-500 mt-1">Two quick steps and you're ready to go</p>
+        <h1 class="text-xl font-semibold text-surface-900">Let's get you set up</h1>
+        <p class="text-xs text-surface-500 mt-1.5">Two quick steps and you're ready to go</p>
       </div>
 
       <!-- Progress dots -->
@@ -28,15 +36,15 @@
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-xl border border-surface-200 p-8">
+      <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
         <!-- Step 1: Create workspace -->
         <div v-if="step === 1">
-          <h2 class="text-sm font-semibold text-surface-900 mb-1">Create your workspace</h2>
-          <p class="text-[11px] text-surface-500 mb-5">This is where your projects live.</p>
+          <h2 class="text-base font-semibold text-surface-900 mb-1">Create your workspace</h2>
+          <p class="text-xs text-surface-500 mb-5">This is where your projects live.</p>
 
-          <div class="space-y-4">
+          <div class="space-y-5">
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Workspace name</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Workspace name</label>
               <TextInput
                 v-model="workspaceName"
                 type="text"
@@ -44,7 +52,7 @@
                 :error-message="step1Error"
                 @input="step1Error = ''"
               />
-              <p class="text-[11px] text-surface-500 mt-1.5">
+              <p class="text-xs text-surface-500 mt-1.5">
                 Slug: <span class="font-mono text-surface-700">{{ workspaceSlug }}</span>
               </p>
             </div>
@@ -57,12 +65,12 @@
 
         <!-- Step 2: Create project -->
         <div v-else-if="step === 2">
-          <h2 class="text-sm font-semibold text-surface-900 mb-1">Create your first project</h2>
-          <p class="text-[11px] text-surface-500 mb-5">You can add more later.</p>
+          <h2 class="text-base font-semibold text-surface-900 mb-1">Create your first project</h2>
+          <p class="text-xs text-surface-500 mb-5">You can add more later.</p>
 
-          <div class="space-y-4">
+          <div class="space-y-5">
             <div>
-              <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Project name</label>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Project name</label>
               <TextInput
                 v-model="projectName"
                 type="text"
@@ -78,7 +86,7 @@
                 type="checkbox"
                 class="mt-0.5 w-3.5 h-3.5 rounded border-surface-300 text-accent focus:ring-accent"
               />
-              <span class="text-[11px] text-surface-600 leading-snug">
+              <span class="text-xs text-surface-600 leading-snug">
                 Add sample tasks so I can see how it works
               </span>
             </label>
@@ -90,7 +98,7 @@
         </div>
 
         <!-- Step 3: All set -->
-        <div v-if="step === 3" class="text-center max-w-md mx-auto">
+        <div v-if="step === 3" class="text-center">
           <!-- Success Icon -->
           <div
             class="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4"
@@ -99,12 +107,12 @@
           </div>
 
           <!-- Headline -->
-          <h2 class="text-lg font-semibold text-surface-900 mb-2">
+          <h2 class="text-xl font-semibold text-surface-900 mb-2">
             {{ agentCreated ? 'Agent ready!' : 'Your workspace is ready' }}
           </h2>
 
           <!-- Subtitle -->
-          <p class="text-sm text-surface-500 mb-6 max-w-xs mx-auto">
+          <p class="text-xs text-surface-500 mb-6 max-w-xs mx-auto leading-relaxed">
             {{
               agentCreated
                 ? `${selectedTemplate?.name} is set up and ready to help. You can always add more agents later from the Agents page.`
@@ -115,12 +123,13 @@
           <!-- Error Banner -->
           <div
             v-if="agentError"
-            class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-left"
+            class="flex items-start gap-2 mb-4 p-2.5 rounded-lg bg-error-50 border border-error-100 text-left"
           >
-            <p class="text-xs text-red-700">{{ agentError }}</p>
+            <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
+            <p class="text-xs text-error-600">{{ agentError }}</p>
           </div>
 
-          <!-- Template Selector (only shown if not yet created) -->
+          <!-- Template Selector -->
           <template v-if="!agentCreated">
             <div class="grid grid-cols-3 gap-3 mb-6">
               <button
@@ -150,7 +159,7 @@
                   {{ template.role }}
                 </div>
 
-                <!-- Loading overlay for the clicked template -->
+                <!-- Loading overlay -->
                 <div
                   v-if="creatingAgent && selectedTemplate?.key === template.key"
                   class="absolute inset-0 bg-white/80 flex items-center justify-center"
@@ -168,15 +177,15 @@
           <div class="flex flex-col gap-2">
             <button
               v-if="!agentCreated"
-              class="w-full px-3 py-2 rounded-lg border border-surface-200 text-sm font-semibold text-surface-700 hover:bg-surface-50 transition-colors"
+              class="w-full px-3 py-2.5 rounded-lg border border-surface-200 text-sm font-semibold text-surface-700 hover:bg-surface-50 transition-colors"
               @click="goToBoard"
             >
               Skip for now
             </button>
 
-            <button
-              class="w-full px-3 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="creatingAgent"
+            <Button
+              class="w-full"
+              :loading="creatingAgent"
               @click="goToBoard"
             >
               {{
@@ -184,7 +193,7 @@
                   ? 'Go to your board'
                   : 'Continue without agent'
               }}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

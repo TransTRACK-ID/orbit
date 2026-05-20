@@ -488,6 +488,7 @@ watch(newMessage, () => {
 })
 
 onMounted(() => {
+  autoResizeTextarea()
   scrollToBottom()
 })
 

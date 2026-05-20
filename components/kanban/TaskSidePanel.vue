@@ -2022,6 +2022,7 @@ onMounted(async () => {
     editingDescription.value = task.value?.description || ''
     editingTitle.value = task.value?.title || ''
     editingBranchName.value = task.value?.branchName || ''
+    nextTick(() => autoResizeCommentTextarea())
   }
 
   // Initialize lastCompletionTimestamp from the most recent "Done" log

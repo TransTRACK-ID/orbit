@@ -237,7 +237,7 @@
         <div class="flex gap-2 items-end">
           <button
             v-if="attachments.length < 3"
-            class="flex items-center justify-center w-10 h-10 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0"
+            class="flex items-center justify-center px-2.5 py-2.5 h-10 w-10 rounded-lg border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors flex-shrink-0"
             :class="{ 'opacity-50 cursor-not-allowed': isUploadingAttachment }"
             @click="attachmentInput?.click()"
           >
@@ -257,7 +257,7 @@
                ref="textareaRef"
                v-model="newMessage"
                :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
-               class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y"
+                class="w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y min-h-10"
                :disabled="isSending"
                rows="1"
                @keydown="handleKeydown"

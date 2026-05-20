@@ -1,32 +1,40 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-surface-50 px-4">
-    <div class="w-full max-w-sm animate-scale-in">
+  <div class="min-h-screen flex items-center justify-center px-4 bg-surface-50 relative overflow-hidden">
+    <!-- Ambient warm glow -->
+    <div
+      class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-40 pointer-events-none"
+      style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.06), transparent 70%);"
+    />
+
+    <div class="w-full max-w-sm animate-scale-in relative z-10">
       <!-- Brand -->
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center gap-1.5 mb-3">
-          <Icon name="lucide:orbit" class="w-5 h-5 text-accent" />
-          <span class="text-sm font-bold tracking-tight text-surface-900">Orbit</span>
+        <div class="inline-flex items-center justify-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <Icon name="lucide:orbit" class="w-5 h-5 text-accent" />
+          </div>
+          <span class="text-base font-bold tracking-tight text-surface-900">Orbit</span>
         </div>
-        <h1 class="text-lg font-semibold text-surface-900">Create account</h1>
-        <p class="text-[11px] text-surface-500 mt-1">Start organizing your projects</p>
+        <h1 class="text-xl font-semibold text-surface-900">Create your account</h1>
+        <p class="text-xs text-surface-500 mt-1.5">Start organizing your projects with your team</p>
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-xl border border-surface-200 p-5">
-        <form @submit.prevent="handleRegister" class="space-y-4">
+      <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+        <form @submit.prevent="handleRegister" class="space-y-5">
           <div>
-            <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Full name</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Full name</label>
             <TextInput
               v-model="name"
               type="text"
-              placeholder="John Doe"
+              placeholder="Jane Smith"
               :error-message="errors.name"
               required
             />
           </div>
 
           <div>
-            <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Email</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Email</label>
             <TextInput
               v-model="email"
               type="email"
@@ -37,7 +45,7 @@
           </div>
 
           <div>
-            <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Password</label>
+            <label class="block text-xs font-medium text-surface-600 mb-1.5">Password</label>
             <TextInput
               v-model="password"
               type="password"
@@ -51,11 +59,17 @@
             Create account
           </Button>
 
-          <p v-if="authError" class="text-error-500 text-xs text-center">{{ authError }}</p>
+          <div
+            v-if="authError"
+            class="flex items-start gap-2 p-2.5 rounded-lg bg-error-50 border border-error-100"
+          >
+            <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
+            <p class="text-xs text-error-600">{{ authError }}</p>
+          </div>
         </form>
 
-        <div class="mt-5 pt-4 border-t border-surface-100 text-center">
-          <p class="text-[11px] text-surface-500">
+        <div class="mt-6 pt-5 border-t border-surface-100 text-center">
+          <p class="text-xs text-surface-500">
             Already have an account?
             <NuxtLink to="/login" class="text-accent font-semibold hover:text-accent-hover transition-colors">
               Sign in

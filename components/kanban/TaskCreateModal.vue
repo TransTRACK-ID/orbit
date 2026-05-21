@@ -328,30 +328,7 @@
                 </div>
               </div>
 
-              <!-- Project linking without agent (optional) -->
-              <div v-if="form.assigneeType !== 'agent'" class="flex flex-col gap-3">
-                <div v-if="props.projects && props.projects.length > 0">
-                  <label for="task-project" class="block text-xs font-medium text-surface-600 mb-1.5">
-                    Project <span class="text-surface-400 font-normal">(optional)</span>
-                  </label>
-                  <select
-                    id="task-project"
-                    v-model="form.repositoryId"
-                    class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
-                  >
-                    <option value="">None</option>
-                    <option v-for="proj in props.projects" :key="proj.id" :value="proj.id">
-                      {{ proj.name }}
-                    </option>
-                  </select>
-                  <p class="text-xs text-surface-500 mt-1">Link for tracking</p>
-                </div>
-                <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
-                  <p class="text-xs text-surface-600">
-                    No other projects available.
-                  </p>
-                </div>
-              </div>
+
             </div>
           </div>
 

@@ -42,14 +42,6 @@
       {{ stripMarkdown(task.description) }}
     </p>
 
-    <!-- Agent badge (only when running) -->
-    <div v-if="task.agentEnabled && isAgentRunning" class="flex items-center gap-1.5 mt-1">
-      <span class="agentic-badge">
-        <span class="agentic-dot" />
-        <span class="text-xs font-medium">Agent running</span>
-      </span>
-    </div>
-
     <!-- Footer: Meta + Assignee -->
     <div class="flex items-center justify-between text-xs text-surface-400 mt-auto gap-2">
       <div class="flex items-center gap-2">
@@ -64,17 +56,27 @@
       </div>
 
       <div class="flex items-center gap-1.5">
-        <!-- Human assignee always shown if exists -->
-        <span
+        <!-- Assignee avatar -->
+        <div
           v-if="task.assignee"
-          class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-          :style="{ background: task.assignee.color || '#6366F1' }"
+          class="relative"
           :title="resolveAgentName(task.assignee.name, task.assigneeId, task.assigneeType)"
         >
-          {{ task.assignee.initials || computedInitials(task.assignee.name) }}
-        </span>
+          <span
+            class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+            :style="{ background: agentAssigneeColor }"
+          >
+            {{ agentAssigneeInitials }}
+          </span>
+          <!-- Agent running pulse dot -->
+          <span
+            v-if="isAgentRunning"
+            class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white"
+            style="animation: agentic-pulse 1.5s ease-in-out infinite"
+          />
+        </div>
 
-        <!-- Bot icon only if agent enabled but idle -->
+        <!-- Bot icon when agent enabled but no assignee -->
         <Icon v-else-if="task.agentEnabled" name="lucide:bot" class="w-4 h-4 text-surface-400" />
       </div>
     </div>
@@ -132,6 +134,23 @@ const isAgentRunning = computed(() => {
   if (!props.task.assignee) return false
   if (!props.task.status?.name) return false
   return /progress/i.test(props.task.status.name)
+})
+
+const agentAssigneeColor = computed(() => {
+  if (props.task.assigneeType === 'agent' && props.task.assigneeId) {
+    const agent = agents.value.find(a => a.id === props.task.assigneeId)
+    if (agent?.color) return agent.color
+  }
+  return props.task.assignee?.color || '#6366F1'
+})
+
+const agentAssigneeInitials = computed(() => {
+  const name = resolveAgentName(
+    props.task.assignee?.name || '',
+    props.task.assigneeId,
+    props.task.assigneeType
+  )
+  return props.task.assignee?.initials || computedInitials(name)
 })
 
 /** Pointer position when the user pressed down — used to distinguish a click

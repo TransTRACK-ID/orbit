@@ -4,13 +4,27 @@ const props = defineProps({
   src: {
     type: [null, String],
     default: null
+  },
+  size: {
+    type: String,
+    default: 'md'
+  }
+})
+
+const sizeClass = computed(() => {
+  switch (props.size) {
+    case 'xs': return 'h-6 min-w-6'
+    case 'sm': return 'h-5 min-w-5'
+    case 'md': return 'h-10 min-w-10'
+    case 'lg': return 'h-12 min-w-12'
+    default: return 'h-10 min-w-10'
   }
 })
 </script>
 
 <template>
-  <div class="aspect-square h-10 min-w-10 overflow-hidden rounded-full bg-gray-300"
-    :class="src ? 'border border-gray-300' : ''">
+  <div class="aspect-square overflow-hidden rounded-full bg-gray-300"
+    :class="[sizeClass, src ? 'border border-gray-300' : '']">
     <div v-if="props.src" class="size-full bg-cover bg-center" :style="`background-image: url(${props.src})`" />
 
     <div v-else class="flex size-full items-center justify-center">

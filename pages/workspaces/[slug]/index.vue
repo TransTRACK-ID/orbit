@@ -68,7 +68,7 @@
                 <Icon
                   v-if="step.completed"
                   name="lucide:check"
-                  class="w-3 h-3 text-surface-900"
+                  class="w-3 h-3 text-white"
                 />
                 <span v-else class="text-[10px] font-bold text-surface-600">{{ index + 1 }}</span>
               </div>
@@ -154,7 +154,7 @@
             </p>
 
             <!-- Stats row -->
-            <div class="flex gap-4 text-xs text-surface-500">
+            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-surface-500">
               <span class="flex items-center gap-1">
                 <Icon name="lucide:inbox" class="w-3 h-3 text-accent" />
                 {{ (project._count?.tasks || 0) - (project._count?.doneTasks || 0) }} open

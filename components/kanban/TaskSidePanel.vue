@@ -292,7 +292,7 @@
             </div>
           </div>
 
-          <div class="mb-6 p-4 bg-surface-50 rounded-xl">
+          <div v-if="isBacklog" class="mb-6 p-4 bg-surface-50 rounded-xl">
             <label class="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -307,7 +307,7 @@
             </p>
           </div>
 
-          <div class="mb-6">
+          <div v-if="isBacklog" class="mb-6">
             <h5 class="text-xs font-semibold text-surface-500 uppercase mb-2">Repository</h5>
             <div v-if="repositories && repositories.length > 0">
               <div class="relative">

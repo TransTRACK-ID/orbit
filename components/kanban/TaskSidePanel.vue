@@ -190,8 +190,9 @@
                 class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
               >
                 <button
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
-                  @click.stop="assignTo()"
+                  @click="assignTo()"
                 >
                   <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
                   Unassigned
@@ -201,9 +202,10 @@
                 <button
                   v-for="m in members"
                   :key="m.userId"
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.assigneeId === m.userId && task.assigneeType === 'user' }"
-                  @click.stop="assignTo(m.userId, 'user')"
+                  @click="assignTo(m.userId, 'user')"
                 >
                   <Avatar :name="m.user?.name || 'U'" size="sm" />
                   <span class="truncate">{{ m.user?.name }}</span>
@@ -213,9 +215,10 @@
                 <button
                   v-for="a in agents"
                   :key="a.id"
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.assigneeId === a.id && task.assigneeType === 'agent' }"
-                  @click.stop="assignTo(a.id, 'agent')"
+                  @click="assignTo(a.id, 'agent')"
                 >
                   <span
                     class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
@@ -249,8 +252,9 @@
                 class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
               >
                 <button
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
-                  @click.stop="setObserver()"
+                  @click="setObserver()"
                 >
                   <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
                   None
@@ -260,9 +264,10 @@
                 <button
                   v-for="m in members"
                   :key="m.userId"
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.observerId === m.userId }"
-                  @click.stop="setObserver(m.userId)"
+                  @click="setObserver(m.userId)"
                 >
                   <Avatar :name="m.user?.name || 'U'" size="sm" />
                   <span class="truncate">{{ m.user?.name }}</span>
@@ -1974,8 +1979,8 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
     agentEnabled: isAgent,
   }
 
-  // Auto-generate branch name when assigning an agent
-  if (isAgent && !task.value.branchName) {
+  // Auto-generate branch name when assigning an agent in backlog
+  if (isBacklog.value && isAgent && !task.value.branchName) {
     const generatedBranch = generateAgentBranchName({
       ...task.value,
       assigneeId: assigneeId || null,
@@ -1988,9 +1993,16 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
     }
   }
 
-  const updated = await updateTaskApi(task.value.id, updateData)
-  task.value = updated
-  emit('updated', updated)
+  try {
+    const updated = await updateTaskApi(task.value.id, updateData)
+    task.value = updated
+    emit('updated', updated)
+  } catch (err) {
+    console.error('Failed to update assignee:', err)
+    if (task.value.branchName) {
+      editingBranchName.value = task.value.branchName
+    }
+  }
 }
 
 async function setObserver(observerId?: string) {
@@ -2001,8 +2013,8 @@ async function setObserver(observerId?: string) {
     observerId: observerId || null,
   }
 
-  // Regenerate branch name if agent task and branch not yet set
-  if (task.value.assigneeType === 'agent' && !task.value.branchName) {
+  // Regenerate branch name if agent task is in backlog and branch not yet set
+  if (isBacklog.value && task.value.assigneeType === 'agent' && !task.value.branchName) {
     const generatedBranch = generateAgentBranchName({
       ...task.value,
       observerId: observerId || null,
@@ -2014,9 +2026,17 @@ async function setObserver(observerId?: string) {
     }
   }
 
-  const updated = await updateTaskApi(task.value.id, updateData)
-  task.value = updated
-  emit('updated', updated)
+  try {
+    const updated = await updateTaskApi(task.value.id, updateData)
+    task.value = updated
+    emit('updated', updated)
+  } catch (err) {
+    console.error('Failed to update observer:', err)
+    // Revert editing branch name on error
+    if (task.value.branchName) {
+      editingBranchName.value = task.value.branchName
+    }
+  }
 }
 
 async function loadPersistedComments() {

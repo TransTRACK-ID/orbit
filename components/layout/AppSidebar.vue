@@ -174,17 +174,16 @@
           </div>
         </div>
 
-        <div :class="sidebarCollapsed ? 'px-0 flex justify-center' : 'px-4'" class="py-2">
-          <button
-            class="flex items-center gap-2 text-xs text-surface-400 hover:text-surface-600 transition-colors"
-            :title="sidebarCollapsed ? (isDark ? 'Light mode' : 'Dark mode') : undefined"
-            @click="toggleDarkMode"
-          >
-            <Icon v-if="isDark" name="lucide:sun" class="w-4 h-4" />
-            <Icon v-else name="lucide:moon" class="w-4 h-4" />
-            <span v-if="!sidebarCollapsed" class="text-sm">{{ isDark ? 'Light mode' : 'Dark mode' }}</span>
-          </button>
-        </div>
+        <button
+          class="sidebar-item w-full text-surface-400 hover:text-surface-600"
+          :class="sidebarCollapsed ? 'justify-center px-0' : ''"
+          :title="sidebarCollapsed ? (isDark ? 'Light mode' : 'Dark mode') : undefined"
+          @click="toggleDarkMode"
+        >
+          <Icon v-if="isDark" name="lucide:sun" class="w-4 h-4" />
+          <Icon v-else name="lucide:moon" class="w-4 h-4" />
+          <span v-if="!sidebarCollapsed" class="text-sm">{{ isDark ? 'Light mode' : 'Dark mode' }}</span>
+        </button>
       </div>
     </div>
   </aside>

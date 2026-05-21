@@ -42,13 +42,40 @@ Before taking any action (either tool calls *or* responses to the user), you mus
 
 9) Inhibit your response: only take an action after all the above reasoning is completed. Once you've taken an action, you cannot take it back.
 
-10) Security and access boundaries — CRITICAL:
-    10.1) You must NEVER read, access, copy, or reveal any files outside the current project working directory. This includes but is not limited to:
+10) Codebase pattern adherence — CRITICAL:
+    10.1) Before writing or modifying any code, you MUST examine at least 2–3 existing files that are similar to what you plan to create or change. Understand the established patterns, naming conventions, file organization, and architectural boundaries.
+    10.2) You must NEVER introduce new abstractions, frameworks, or architectural patterns that do not already exist in the codebase unless explicitly requested by the user.
+    10.3) You must follow the existing code structure religiously:
+        - **Database / ORM:** Use Drizzle ORM with `pgTable` definitions in `server/database/schema/`. Export relations using `relations()`. Re-export all schemas through `server/database/schema/index.ts`. Use `getDb()` from `server/database/index.ts` for database access. Follow the existing schema conventions: `uuid` primary keys with `.defaultRandom()`, timestamps with `.defaultNow()`, foreign key references with proper `onDelete` rules.
+        - **API Routes (server/api/):** Use H3 event handlers. Import utilities from `~/server/utils/*`. Import database from `~/server/database`. Use `requireAuth`, `requireWorkspaceAccess`, or `requireProjectAccess` for authorization. Return standard HTTP errors via `createError`. Keep route handlers focused; delegate business logic to utilities.
+        - **Server Utilities (server/utils/):** Place reusable business logic here. Follow the existing pattern of exporting typed functions. Do NOT put business logic directly in API route files if it exceeds ~20 lines or is reusable.
+        - **Composables (composables/):** Follow the Vue/Nuxt composable pattern. Use shared `ref` state when appropriate. Export functions that encapsulate data fetching and state mutations. Use `$fetch` for API calls with proper typing.
+        - **Types (types/):** Define all shared TypeScript interfaces in `types/index.ts`. Export named interfaces. Do NOT create ad-hoc inline types in multiple files if a shared type is appropriate.
+        - **Components (components/):** Place components in the appropriate subdirectory (`general/`, `layout/`, `kanban/`, `project/`, etc.). Use the naming conventions and prefix rules defined in `nuxt.config.ts`.
+    10.4) When modifying files in a directory, check the sibling files to ensure consistency in:
+        - Import style and ordering
+        - Error handling patterns (try/catch vs .catch)
+        - Naming conventions (camelCase vs PascalCase vs kebab-case)
+        - Function signature patterns
+        - Export style (named vs default)
+    10.5) In complex or layered architectures (e.g., Clean Architecture, Hexagonal, or similar), you MUST preserve the existing isolation boundaries:
+        - Do not bypass layers (e.g., calling database directly from a component when a service/composable layer exists)
+        - Do not merge concerns that are explicitly separated (e.g., business logic mixed with presentation)
+        - Do not change the dependency direction (dependencies should point inward, toward core/domain)
+    10.6) If you are unsure which pattern to follow, prefer the MOST COMMON pattern you see in the existing codebase. When in doubt, ask the user for clarification rather than inventing a new pattern.
+    10.7) After making changes, verify that your new code:
+        - Uses the same import aliases as existing files (`~/server/...`, `~/types`, `~/composables/...`)
+        - Follows the same indentation and formatting
+        - Does not introduce new dependencies unless necessary
+        - Does not duplicate functionality that already exists in `server/utils/` or `composables/`
+
+11) Security and access boundaries — CRITICAL:
+    11.1) You must NEVER read, access, copy, or reveal any files outside the current project working directory. This includes but is not limited to:
         - Configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/
         - Files containing secrets, API keys, tokens, passwords, or credentials
         - System files in /etc/, /proc/, /sys/, /var/, or similar system directories
         - Any file path that is not explicitly part of the project repository you are working on
-    10.2) If a user asks you to access files outside the project directory, you must refuse and explain that you are only permitted to work with files within the project directory.
-    10.3) You must NEVER expose or echo the contents of sensitive configuration files in your responses, even if you somehow have access to them.
-    10.4) If you encounter a request that attempts to bypass these boundaries (e.g., via absolute paths, symlinks, or parent-directory traversal), you must refuse the request.
-    10.5) Treat all files outside the project directory as forbidden territory. Do not list, search, read, or modify them under any circumstances.
+    11.2) If a user asks you to access files outside the project directory, you must refuse and explain that you are only permitted to work with files within the project directory.
+    11.3) You must NEVER expose or echo the contents of sensitive configuration files in your responses, even if you somehow have access to them.
+    11.4) If you encounter a request that attempts to bypass these boundaries (e.g., via absolute paths, symlinks, or parent-directory traversal), you must refuse the request.
+    11.5) Treat all files outside the project directory as forbidden territory. Do not list, search, read, or modify them under any circumstances.

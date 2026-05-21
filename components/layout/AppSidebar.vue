@@ -12,7 +12,7 @@
       <div class="sidebar-group mb-1">
         <div
           class="sidebar-item"
-          :class="{ active: route.path === '/agents' }"
+          :class="[{ active: route.path === '/agents' }, sidebarCollapsed ? 'justify-center px-0' : '']"
           :title="sidebarCollapsed ? 'Agents' : undefined"
           @click="navigateTo('/agents'); closeOnMobile()"
         >
@@ -29,7 +29,7 @@
         <div
           v-if="isSuperAdmin"
           class="sidebar-item"
-          :class="{ active: route.path === '/admin' }"
+          :class="[{ active: route.path === '/admin' }, sidebarCollapsed ? 'justify-center px-0' : '']"
           :title="sidebarCollapsed ? 'Admin' : undefined"
           @click="navigateTo('/admin'); closeOnMobile()"
         >
@@ -52,7 +52,7 @@
         <!-- Active workspace name -->
         <div
           class="sidebar-item"
-          :class="{ active: isWorkspaceOverview }"
+          :class="[{ active: isWorkspaceOverview }, sidebarCollapsed ? 'justify-center px-0' : '']"
           :title="sidebarCollapsed ? activeWorkspace.name : undefined"
           @click="navigateTo(`/workspaces/${activeWorkspace.slug}`); closeOnMobile()"
         >
@@ -71,7 +71,7 @@
           v-for="proj in projects"
           :key="proj.id"
           class="sidebar-item"
-          :class="[isProjectActive(proj) ? 'active' : '', sidebarCollapsed ? '' : 'pl-8']"
+          :class="[isProjectActive(proj) ? 'active' : '', sidebarCollapsed ? 'justify-center px-0' : 'pl-8']"
           :title="sidebarCollapsed ? proj.name : undefined"
           @click="navigateTo(`/workspaces/${activeWorkspace.slug}/projects/${proj.id}/board`); closeOnMobile()"
         >
@@ -94,7 +94,7 @@
         <div class="sidebar-group mt-1">
           <div
             class="sidebar-item"
-            :class="{ active: route.path.includes('/brainstorm') }"
+            :class="[{ active: route.path.includes('/brainstorm') }, sidebarCollapsed ? 'justify-center px-0' : '']"
             :title="sidebarCollapsed ? 'Brainstorm' : undefined"
             @click="navigateTo(`/workspaces/${activeWorkspace.slug}/brainstorm`); closeOnMobile()"
           >
@@ -109,7 +109,7 @@
 
           <div
             class="sidebar-item"
-            :class="{ active: route.path.includes('/reviews') }"
+            :class="[{ active: route.path.includes('/reviews') }, sidebarCollapsed ? 'justify-center px-0' : '']"
             :title="sidebarCollapsed ? 'Reviews' : undefined"
             @click="navigateTo(`/workspaces/${activeWorkspace.slug}/reviews`); closeOnMobile()"
           >
@@ -165,7 +165,7 @@
         <div v-if="activeWorkspace" class="sidebar-group">
           <div
             class="sidebar-item"
-            :class="{ active: route.path.includes('/settings') }"
+            :class="[{ active: route.path.includes('/settings') }, sidebarCollapsed ? 'justify-center px-0' : '']"
             :title="sidebarCollapsed ? 'Workspace settings' : undefined"
             @click="navigateTo(`/workspaces/${activeWorkspace.slug}/settings`); closeOnMobile()"
           >
@@ -174,7 +174,7 @@
           </div>
         </div>
 
-        <div class="px-4 py-2">
+        <div :class="sidebarCollapsed ? 'px-0 flex justify-center' : 'px-4'" class="py-2">
           <button
             class="flex items-center gap-2 text-xs text-surface-400 hover:text-surface-600 transition-colors"
             :title="sidebarCollapsed ? (isDark ? 'Light mode' : 'Dark mode') : undefined"

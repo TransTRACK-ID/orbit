@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { logActivityFeed } from '~/server/utils/activity'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -28,6 +29,16 @@ export default defineEventHandler(async (event) => {
       title: body.title.trim(),
     })
     .returning()
+
+  await logActivityFeed({
+    workspaceId: id,
+    userId: user.id,
+    action: 'brainstorm_created',
+    entityType: 'brainstorm',
+    entityId: brainstorm.id,
+    entityName: body.title.trim(),
+    message: `created brainstorm "${body.title.trim()}"`,
+  })
 
   return brainstorm
 })

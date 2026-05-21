@@ -154,7 +154,7 @@
               <label class="block text-xs font-medium text-surface-500 mb-1">Assignee</label>
               <button
                 class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
-                @click="showAssigneePicker = !showAssigneePicker"
+                @click="showObserverPicker = false; showAssigneePicker = !showAssigneePicker"
               >
                 <template v-if="task.assignee">
                   <span
@@ -191,7 +191,7 @@
               >
                 <button
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
-                  @click="assignTo()"
+                  @click.stop="assignTo()"
                 >
                   <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
                   Unassigned
@@ -203,7 +203,7 @@
                   :key="m.userId"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.assigneeId === m.userId && task.assigneeType === 'user' }"
-                  @click="assignTo(m.userId, 'user')"
+                  @click.stop="assignTo(m.userId, 'user')"
                 >
                   <Avatar :name="m.user?.name || 'U'" size="sm" />
                   <span class="truncate">{{ m.user?.name }}</span>
@@ -215,7 +215,7 @@
                   :key="a.id"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.assigneeId === a.id && task.assigneeType === 'agent' }"
-                  @click="assignTo(a.id, 'agent')"
+                  @click.stop="assignTo(a.id, 'agent')"
                 >
                   <span
                     class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
@@ -232,7 +232,7 @@
               <label class="block text-xs font-medium text-surface-500 mb-1">Observer</label>
               <button
                 class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
-                @click="showObserverPicker = !showObserverPicker"
+                @click="showAssigneePicker = false; showObserverPicker = !showObserverPicker"
               >
                 <template v-if="task.observer">
                   <Avatar :name="task.observer.name" size="sm" />
@@ -250,7 +250,7 @@
               >
                 <button
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
-                  @click="setObserver()"
+                  @click.stop="setObserver()"
                 >
                   <span class="w-5 h-5 rounded-full border-2 border-dashed border-surface-300 flex items-center justify-center flex-shrink-0" />
                   None
@@ -262,7 +262,7 @@
                   :key="m.userId"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.observerId === m.userId }"
-                  @click="setObserver(m.userId)"
+                  @click.stop="setObserver(m.userId)"
                 >
                   <Avatar :name="m.user?.name || 'U'" size="sm" />
                   <span class="truncate">{{ m.user?.name }}</span>

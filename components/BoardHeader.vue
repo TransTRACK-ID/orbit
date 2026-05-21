@@ -104,7 +104,7 @@
         </button>
         <button
           class="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium flex items-center gap-1.5 hover:bg-accent-hover transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-          title="Assign all unassigned tasks to available AI agents"
+          title="Assign all unassigned backlog tasks to available AI agents"
           @click="handleAutoAssign"
         >
           <Icon name="lucide:zap" class="w-3.5 h-3.5" />
@@ -194,10 +194,20 @@ async function handleAutoAssign() {
     await fetchTasks(projectId)
   }
 
-  const unassigned = tasks.value.filter((t: Task) => !t.assigneeId)
+  // Find the default/todo status (first one or named "todo/backlog/to do")
+  const todoStatus = props.statuses.find((s: Status) =>
+    /todo|backlog|to\s*do/i.test(s.name)
+  ) || props.statuses[0]
+
+  // Only auto-assign tasks in todo/backlog status that are unassigned
+  const unassigned = tasks.value.filter((t: Task) => {
+    if (t.assigneeId) return false
+    if (!todoStatus) return true // fallback if no status found
+    return t.statusId === todoStatus.id
+  })
 
   if (unassigned.length === 0) {
-    addLog('System', 'No unassigned tasks to auto-assign')
+    addLog('System', 'No unassigned tasks in backlog to auto-assign')
     return
   }
 
@@ -227,6 +237,6 @@ async function handleAutoAssign() {
     }
   }
 
-  addLog('System', `Auto-assigned ${assignedCount}/${unassigned.length} tasks to runtime agents`)
+  addLog('System', `Auto-assigned ${assignedCount}/${unassigned.length} backlog tasks to runtime agents`)
 }
 </script>

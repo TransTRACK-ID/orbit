@@ -104,6 +104,7 @@
         </button>
         <button
           class="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium flex items-center gap-1.5 hover:bg-accent-hover transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+          title="Assign all unassigned tasks to available AI agents"
           @click="handleAutoAssign"
         >
           <Icon name="lucide:zap" class="w-3.5 h-3.5" />

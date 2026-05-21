@@ -1954,10 +1954,10 @@ function slugifyBranchSegment(text: string): string {
 function generateAgentBranchName(t: Task): string {
   const label = t.labels?.length ? slugifyBranchSegment(t.labels[0].name) : 'task'
   const identity = t.id.slice(0, 8)
-  const assignee = t.assigneeType === 'agent' && t.assignee
-    ? slugifyBranchSegment(t.assignee.name)
-    : t.observer
-      ? slugifyBranchSegment(t.observer.name)
+  const assignee = t.observer
+    ? slugifyBranchSegment(t.observer.name)
+    : t.assigneeType === 'agent' && t.assignee
+      ? slugifyBranchSegment(t.assignee.name)
       : 'unassigned'
   const feature = slugifyBranchSegment(t.title)
   return `${label}/${identity}/${assignee}/${feature}`

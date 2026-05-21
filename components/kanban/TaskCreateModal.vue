@@ -489,10 +489,10 @@ function generateAgentBranchNameForCreate(): string {
   const firstLabel = props.labels?.find(l => selectedLabels.value.includes(l.id))
   const label = firstLabel ? slugifyBranchSegment(firstLabel.name) : 'task'
   const identity = 'new'
-  const assignee = form.assigneeType === 'agent' && selectedAssignee.value
-    ? slugifyBranchSegment(selectedAssignee.value.name)
-    : selectedObserver.value
-      ? slugifyBranchSegment(selectedObserver.value.name)
+  const assignee = selectedObserver.value
+    ? slugifyBranchSegment(selectedObserver.value.name)
+    : form.assigneeType === 'agent' && selectedAssignee.value
+      ? slugifyBranchSegment(selectedAssignee.value.name)
       : 'unassigned'
   const feature = slugifyBranchSegment(form.title || 'feature')
   return `${label}/${identity}/${assignee}/${feature}`

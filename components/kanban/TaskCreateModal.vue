@@ -292,18 +292,8 @@
 
             <!-- Agent Section -->
             <div class="flex flex-col gap-3">
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  v-model="form.agentEnabled"
-                  class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
-                />
-                <span class="text-sm font-medium text-surface-700">Enable AI Agent</span>
-                <span class="text-xs text-surface-500 ml-auto">Auto-creates branch & PR</span>
-              </label>
-
-              <!-- Agent options -->
-              <div v-if="form.agentEnabled" class="bg-surface-50 rounded-lg p-4 flex flex-col gap-3">
+              <!-- Agent options (shown when assignee is an agent) -->
+              <div v-if="form.assigneeType === 'agent'" class="bg-surface-50 rounded-lg p-4 flex flex-col gap-3">
                 <div v-if="props.repositories && props.repositories.length > 0">
                   <label for="task-repo-agent" class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
                   <select
@@ -346,7 +336,7 @@
               </div>
 
               <!-- Repo linking without agent (optional) -->
-              <div v-else class="flex flex-col gap-3">
+              <div v-if="form.assigneeType !== 'agent'" class="flex flex-col gap-3">
                 <div v-if="props.repositories && props.repositories.length > 0">
                   <label for="task-repo" class="block text-xs font-medium text-surface-600 mb-1.5">
                     Repository <span class="text-surface-400 font-normal">(optional)</span>
@@ -361,7 +351,7 @@
                       {{ repo.name }} / {{ repo.defaultBranch }}
                     </option>
                   </select>
-                  <p class="text-xs text-surface-500 mt-1">Link for tracking; agent features disabled</p>
+                  <p class="text-xs text-surface-500 mt-1">Link for tracking</p>
                 </div>
                 <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
                   <p class="text-xs text-surface-600">
@@ -445,7 +435,6 @@ const form = reactive({
   description: '',
   repositoryId: null as string | null,
   branchName: '' as string | null,
-  agentEnabled: false,
 })
 
 const showAssigneePicker = ref(false)
@@ -510,8 +499,15 @@ function computedInitials(name: string) {
 function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, color?: string, initials?: string) {
   showAssigneePicker.value = false
   form.assigneeId = id || null
+  const wasAgent = form.assigneeType === 'agent'
   form.assigneeType = type || null
   selectedAssignee.value = name ? { name, color, initials } : null
+
+  // Reset agent-specific fields when switching from agent to non-agent
+  if (wasAgent && type !== 'agent') {
+    form.repositoryId = null
+    form.branchName = ''
+  }
 }
 
 function selectObserver(id?: string, name?: string) {
@@ -615,7 +611,7 @@ async function handleCreate() {
     error.value = 'Status is required'
     return
   }
-  if (form.agentEnabled && props.repositories && props.repositories.length > 0 && !form.repositoryId) {
+  if (form.assigneeType === 'agent' && props.repositories && props.repositories.length > 0 && !form.repositoryId) {
     error.value = 'Agent requires a repository for code context'
     return
   }
@@ -642,7 +638,7 @@ async function handleCreate() {
       repositoryId: form.repositoryId || undefined,
       labelIds: selectedLabels.value,
       branchName: form.branchName || null,
-      agentEnabled: form.agentEnabled,
+      agentEnabled: form.assigneeType === 'agent',
     })
 
     // Upload images after task is created

@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { logActivityFeed } from '~/server/utils/activity'
 import { eq, count, and, asc } from 'drizzle-orm'
 import { z } from 'zod'
 
@@ -124,6 +125,17 @@ export default defineEventHandler(async (event) => {
     .returning()
 
   const task = (inserted as { id: string }[])[0]
+
+  // Log activity
+  await logActivityFeed({
+    workspaceId: brainstorm.workspaceId,
+    userId: user.id,
+    action: 'task_created',
+    entityType: 'task',
+    entityId: task.id,
+    entityName: title,
+    message: `created task "${title}" from brainstorm "${brainstorm.title}"`,
+  })
 
   // Auto-select "improvement" label — find or create it
   let improvementLabel = await db.query.labels.findFirst({

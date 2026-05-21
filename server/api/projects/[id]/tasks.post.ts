@@ -1,11 +1,12 @@
 import { requireProjectAccess } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { createTaskSchema } from '~/server/utils/validation'
+import { logActivityFeed } from '~/server/utils/activity'
 import { eq, count, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id: projectId } = getRouterParams(event)
-  const { user } = await requireProjectAccess(event, projectId)
+  const { user, workspace } = await requireProjectAccess(event, projectId)
   const body = await readValidatedBody(event, createTaskSchema.parse)
   const db = getDb()
 
@@ -74,6 +75,17 @@ export default defineEventHandler(async (event) => {
         with: { label: true },
       },
     },
+  })
+
+  // Log activity
+  await logActivityFeed({
+    workspaceId: workspace.id,
+    userId: user.id,
+    action: 'task_created',
+    entityType: 'task',
+    entityId: task.id,
+    entityName: body.title,
+    message: `created task "${body.title}"`,
   })
 
   const { agentAssignee, assignee, ...rest } = createdTask || {}

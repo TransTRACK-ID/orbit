@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { updateTaskSchema } from '~/server/utils/validation'
+import { logActivityFeed } from '~/server/utils/activity'
 import { eq } from 'drizzle-orm'
 
 function unifyAssignee(task: any) {
@@ -97,6 +98,32 @@ export default defineEventHandler(async (event) => {
         action: 'assignee_change',
         oldValue: { assigneeId: existing.assigneeId, assigneeType: existing.assigneeType },
         newValue: { assigneeId: newAssigneeId, assigneeType: newAssigneeType },
+      })
+    }
+  }
+
+  // Log generic task edit activity if any changes were made
+  const hasStatusChange = body.statusId && body.statusId !== existing.statusId
+  const hasAssigneeChange = (body.assigneeId !== undefined || body.assigneeType !== undefined) &&
+    (newAssigneeId !== oldAssigneeId || newAssigneeType !== existing.assigneeType)
+  const hasContentChanges = Object.keys(dataToUpdate).some(
+    (k) => !['statusId', 'assigneeId', 'agentAssigneeId', 'assigneeType'].includes(k)
+  )
+  const hasAnyChanges = hasContentChanges || hasStatusChange || hasAssigneeChange || labelIds !== undefined
+  if (hasAnyChanges) {
+    const taskProject = await db.query.tasks.findFirst({
+      where: eq(schema.tasks.id, id),
+      with: { project: true },
+    })
+    if (taskProject?.project) {
+      await logActivityFeed({
+        workspaceId: taskProject.project.workspaceId,
+        userId: user.id,
+        action: 'task_edited',
+        entityType: 'task',
+        entityId: id,
+        entityName: existing.title,
+        message: `edited task "${existing.title}"`,
       })
     }
   }

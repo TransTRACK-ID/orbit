@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { createCommentSchema } from '~/server/utils/validation'
+import { logActivityFeed } from '~/server/utils/activity'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -24,6 +25,23 @@ export default defineEventHandler(async (event) => {
     userId: user.id,
     action: 'comment_added',
   })
+
+  // Log to workspace activity feed
+  const task = await db.query.tasks.findFirst({
+    where: eq(schema.tasks.id, id),
+    with: { project: true },
+  })
+  if (task?.project) {
+    await logActivityFeed({
+      workspaceId: task.project.workspaceId,
+      userId: user.id,
+      action: 'comment_added',
+      entityType: 'task',
+      entityId: id,
+      entityName: task.title,
+      message: `commented on task "${task.title}"`,
+    })
+  }
 
   // Fetch with user relation
   const created = await db.query.comments.findFirst({

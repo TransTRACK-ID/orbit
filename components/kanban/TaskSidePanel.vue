@@ -1943,14 +1943,52 @@ async function autoCreatePr() {
   await checkExistingPr()
 }
 
+function slugifyBranchSegment(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+}
+
+function generateAgentBranchName(t: Task): string {
+  const label = t.labels?.length ? slugifyBranchSegment(t.labels[0].name) : 'task'
+  const identity = t.id.slice(0, 8)
+  const assignee = t.assigneeType === 'agent' && t.assignee
+    ? slugifyBranchSegment(t.assignee.name)
+    : t.observer
+      ? slugifyBranchSegment(t.observer.name)
+      : 'unassigned'
+  const feature = slugifyBranchSegment(t.title)
+  return `${label}/${identity}/${assignee}/${feature}`
+}
+
 async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   showAssigneePicker.value = false
   if (!task.value) return
-  const updated = await updateTaskApi(task.value.id, {
+
+  const isAgent = assigneeType === 'agent'
+  const updateData: Record<string, any> = {
     assigneeId: assigneeId || null,
     assigneeType: assigneeType || null,
-    agentEnabled: assigneeType === 'agent',
-  })
+    agentEnabled: isAgent,
+  }
+
+  // Auto-generate branch name when assigning an agent
+  if (isAgent && !task.value.branchName) {
+    const generatedBranch = generateAgentBranchName({
+      ...task.value,
+      assigneeId: assigneeId || null,
+      assigneeType: assigneeType || null,
+      assignee: isAgent ? props.agents.find(a => a.id === assigneeId) || task.value.assignee : null,
+    })
+    if (validateBranchName(generatedBranch) === '') {
+      updateData.branchName = generatedBranch
+      editingBranchName.value = generatedBranch
+    }
+  }
+
+  const updated = await updateTaskApi(task.value.id, updateData)
   task.value = updated
   emit('updated', updated)
 }
@@ -1958,9 +1996,25 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
 async function setObserver(observerId?: string) {
   showObserverPicker.value = false
   if (!task.value) return
-  const updated = await updateTaskApi(task.value.id, {
+
+  const updateData: Record<string, any> = {
     observerId: observerId || null,
-  })
+  }
+
+  // Regenerate branch name if agent task and branch not yet set
+  if (task.value.assigneeType === 'agent' && !task.value.branchName) {
+    const generatedBranch = generateAgentBranchName({
+      ...task.value,
+      observerId: observerId || null,
+      observer: props.members.find(m => m.userId === observerId)?.user || task.value.observer,
+    })
+    if (validateBranchName(generatedBranch) === '') {
+      updateData.branchName = generatedBranch
+      editingBranchName.value = generatedBranch
+    }
+  }
+
+  const updated = await updateTaskApi(task.value.id, updateData)
   task.value = updated
   emit('updated', updated)
 }

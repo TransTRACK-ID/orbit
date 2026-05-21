@@ -420,6 +420,17 @@ watch(() => form.branchName, () => {
   branchNameError.value = ''
 })
 
+// Update branch name feature segment when title changes and agent is assigned
+watch(() => form.title, (newTitle) => {
+  if (form.assigneeType === 'agent' && form.branchName) {
+    const segments = form.branchName.split('/')
+    if (segments.length === 4) {
+      segments[3] = slugifyBranchSegment(newTitle || 'feature')
+      form.branchName = segments.join('/')
+    }
+  }
+})
+
 const DEFAULT_LABELS = [
   { name: 'bug', color: '#ef4444' },
   { name: 'feature', color: '#22c55e' },
@@ -466,6 +477,27 @@ function computedInitials(name: string) {
   return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
+function slugifyBranchSegment(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+}
+
+function generateAgentBranchNameForCreate(): string {
+  const firstLabel = props.labels?.find(l => selectedLabels.value.includes(l.id))
+  const label = firstLabel ? slugifyBranchSegment(firstLabel.name) : 'task'
+  const identity = 'new'
+  const assignee = form.assigneeType === 'agent' && selectedAssignee.value
+    ? slugifyBranchSegment(selectedAssignee.value.name)
+    : selectedObserver.value
+      ? slugifyBranchSegment(selectedObserver.value.name)
+      : 'unassigned'
+  const feature = slugifyBranchSegment(form.title || 'feature')
+  return `${label}/${identity}/${assignee}/${feature}`
+}
+
 function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, color?: string, initials?: string) {
   showAssigneePicker.value = false
   form.assigneeId = id || null
@@ -478,12 +510,22 @@ function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, col
     form.repositoryId = null
     form.branchName = ''
   }
+
+  // Auto-fill branch name when assigning an agent
+  if (type === 'agent' && !form.branchName) {
+    form.branchName = generateAgentBranchNameForCreate()
+  }
 }
 
 function selectObserver(id?: string, name?: string) {
   showObserverPicker.value = false
   form.observerId = id || null
   selectedObserver.value = name ? { name } : null
+
+  // Regenerate branch name if agent task and no custom branch entered
+  if (form.assigneeType === 'agent' && !form.branchName) {
+    form.branchName = generateAgentBranchNameForCreate()
+  }
 }
 
 function openAssigneePicker() {

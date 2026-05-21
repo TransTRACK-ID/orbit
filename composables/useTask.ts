@@ -34,6 +34,7 @@ export const useTask = () => {
     labelIds?: string[]
     parentTaskId?: string | null
     branchName?: string | null
+    agentEnabled?: boolean
   }) {
     const task = await $fetch<Task>(`/api/projects/${projectId}/tasks`, {
       method: 'POST',

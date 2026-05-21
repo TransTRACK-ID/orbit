@@ -180,14 +180,14 @@ import type { Task, Status } from '~/types'
 const props = defineProps<{
   statuses: Status[]
   tasks: Task[]
-  viewMode: 'kanban' | 'table'
+  viewMode: 'kanban' | 'table' | 'list'
 }>()
 
 const emit = defineEmits<{
   createTask: []
   updateTask: [data: { id: string; statusId: string; position: number }]
   openTask: [task: Task]
-  'update:viewMode': [mode: 'kanban' | 'table']
+  'update:viewMode': [mode: 'kanban' | 'table' | 'list']
 }>()
 
 const sortedTasks = computed(() => {
@@ -200,6 +200,7 @@ const sortedTasks = computed(() => {
 })
 
 function isAgentInProgress(task: Task): boolean {
+  if (!task.agentEnabled) return false
   if (task.assigneeType !== 'agent') return false
   if (!task.assignee) return false
   if (!task.status?.name) return false

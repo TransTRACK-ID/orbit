@@ -23,6 +23,14 @@
         >
           <Icon name="lucide:table" class="w-3.5 h-3.5" />
         </button>
+        <button
+          class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+          :class="{ 'bg-surface-100 text-surface-900': viewMode === 'list', 'text-surface-500': viewMode !== 'list' }"
+          title="List view"
+          @click="$emit('update:viewMode', 'list')"
+        >
+          <Icon name="lucide:list" class="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <button
@@ -57,13 +65,13 @@ import type { Task, Status } from '~/types'
 const props = defineProps<{
   statuses: Status[]
   taskCount: number
-  viewMode?: 'kanban' | 'table'
+  viewMode?: 'kanban' | 'table' | 'list'
 }>()
 
 const emit = defineEmits<{
   createTask: []
   autoAssign: []
-  'update:viewMode': [mode: 'kanban' | 'table']
+  'update:viewMode': [mode: 'kanban' | 'table' | 'list']
 }>()
 
 const { addLog } = useLog()

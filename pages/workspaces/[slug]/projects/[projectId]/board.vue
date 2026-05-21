@@ -21,26 +21,38 @@
         @dismiss="showAgentTooltip = false"
       />
 
-      <KanbanBoard
-        v-if="viewMode === 'kanban'"
-        :statuses="statuses"
-        :tasks="tasks"
-        :view-mode="viewMode"
-        @update:view-mode="viewMode = $event"
-        @create-task="handleCreateTask"
-        @update-task="handleUpdateTask"
-        @open-task="handleOpenTask"
-      />
-      <KanbanTaskTable
-        v-else
-        :statuses="statuses"
-        :tasks="tasks"
-        :view-mode="viewMode"
-        @update:view-mode="viewMode = $event"
-        @create-task="handleCreateTask"
-        @update-task="handleUpdateTask"
-        @open-task="handleOpenTask"
-      />
+      <KeepAlive>
+        <KanbanBoard
+          v-if="viewMode === 'kanban'"
+          :statuses="statuses"
+          :tasks="tasks"
+          :view-mode="viewMode"
+          @update:view-mode="viewMode = $event"
+          @create-task="handleCreateTask"
+          @update-task="handleUpdateTask"
+          @open-task="handleOpenTask"
+        />
+        <KanbanTaskTable
+          v-else-if="viewMode === 'table'"
+          :statuses="statuses"
+          :tasks="tasks"
+          :view-mode="viewMode"
+          @update:view-mode="viewMode = $event"
+          @create-task="handleCreateTask"
+          @update-task="handleUpdateTask"
+          @open-task="handleOpenTask"
+        />
+        <KanbanTaskList
+          v-else-if="viewMode === 'list'"
+          :statuses="statuses"
+          :tasks="tasks"
+          :view-mode="viewMode"
+          @update:view-mode="viewMode = $event"
+          @create-task="handleCreateTask"
+          @update-task="handleUpdateTask"
+          @open-task="handleOpenTask"
+        />
+      </KeepAlive>
     </template>
 
     <!-- Task side panel (existing) -->
@@ -103,7 +115,7 @@ const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
 
-const viewMode = useLocalStorage<'kanban' | 'table'>(`orbit-board-view-${projectId.value}`, 'kanban')
+const viewMode = useLocalStorage<'kanban' | 'table' | 'list'>(`orbit-board-view-${projectId.value}`, 'kanban')
 
 // Server-side fetch workspace + repositories so the repository
 // promo banner never flashes with the wrong state on initial load.
@@ -208,7 +220,7 @@ async function handleUpdateTask(data: { id: string; statusId?: string; position?
     if (project.value?.workspaceId) {
       persistLog(project.value.workspaceId, { entityType: 'task', entityId: data.id, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
     }
-    if (updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
+    if (updated.agentEnabled && updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, data.id)
       await startRuntime(data.id)
     }

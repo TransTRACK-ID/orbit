@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, doublePrecision, timestamp, integer } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, doublePrecision, timestamp, integer, boolean } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { users } from './users'
 import { agents } from './agents'
@@ -29,6 +29,7 @@ export const tasks = pgTable('tasks', {
   dueDate: timestamp('due_date'),
   estimate: integer('estimate'),
   branchName: varchar('branch_name', { length: 100 }),
+  agentEnabled: boolean('agent_enabled').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

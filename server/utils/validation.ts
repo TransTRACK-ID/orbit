@@ -113,6 +113,7 @@ export const createTaskSchema = z.object({
   estimate: z.number().int().positive().nullable().optional(),
   labelIds: z.array(z.string().uuid()).optional(),
   branchName: validBranchName,
+  agentEnabled: z.boolean().optional(),
 })
 
 export const updateTaskSchema = z.object({
@@ -129,6 +130,7 @@ export const updateTaskSchema = z.object({
   estimate: z.number().int().positive().nullable().optional(),
   labelIds: z.array(z.string().uuid()).optional(),
   branchName: validBranchName,
+  agentEnabled: z.boolean().optional(),
 })
 
 // ─── Agent ───

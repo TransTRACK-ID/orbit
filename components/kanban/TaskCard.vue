@@ -1,60 +1,63 @@
 <template>
   <div
     class="kanban-card"
-    :class="{ agentic: isAgentInProgress, highlighted: isHighlighted }"
+    :class="{ agentic: isAgentRunning, highlighted: isHighlighted }"
     :data-id="task.id"
     @pointerdown="onPointerDown"
     @pointerup="onPointerUp"
   >
-    <!-- Priority badge -->
-    <KanbanPriorityBadge
-      v-if="task.priority && task.priority !== 'none'"
-      :priority="task.priority"
-      class="mb-1.5"
-    />
+    <!-- Top: Labels + Priority -->
+    <div class="flex items-center gap-1.5 mb-1.5">
+      <span
+        v-for="label in visibleLabels"
+        :key="label.id"
+        class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+        :style="{ backgroundColor: label.color + '18', color: label.color }"
+      >
+        {{ label.name }}
+      </span>
+      <KanbanPriorityBadge
+        v-if="task.priority && task.priority !== 'none'"
+        :priority="task.priority"
+        class="ml-auto"
+      />
+    </div>
 
     <!-- Title -->
-    <div class="text-xs font-semibold leading-snug mb-0.5 text-surface-900 line-clamp-2">
+    <h4 class="text-sm font-semibold text-surface-900 leading-snug mb-1 line-clamp-2">
       {{ task.title }}
-    </div>
+    </h4>
 
-    <!-- Description -->
-    <div v-if="task.description" class="text-[11px] text-surface-500 leading-snug mb-2 line-clamp-2">
-      {{ task.description }}
-    </div>
+    <!-- Description (optional, 1 line max) -->
+    <p
+      v-if="task.description"
+      class="text-xs text-surface-500 leading-snug mb-2 line-clamp-1"
+    >
+      {{ stripMarkdown(task.description) }}
+    </p>
 
-    <!-- Agentic In Progress badge -->
-    <div v-if="isAgentInProgress" class="flex items-center gap-1.5 mb-1.5">
+    <!-- Agent badge (only when running) -->
+    <div v-if="task.agentEnabled && isAgentRunning" class="flex items-center gap-1.5 mb-2">
       <span class="agentic-badge">
         <span class="agentic-dot" />
-        <span>Agentic · {{ resolveAgentName(task.assignee?.name || '', task.assigneeId, task.assigneeType) }}</span>
+        <span class="text-[10px] font-medium text-primary-600">Agent running</span>
       </span>
     </div>
 
-    <!-- Footer -->
-    <div class="flex items-center gap-2 text-[10px] text-surface-500">
-      <!-- Labels (first 2) -->
-      <template v-if="task.labels && task.labels.length > 0">
-        <span
-          v-for="label in task.labels.slice(0, 2)"
-          :key="label.id"
-          class="px-1.5 py-0.5 rounded text-[10px] font-medium"
-          :style="{ backgroundColor: label.color + '18', color: label.color }"
-        >
-          {{ label.name }}
-        </span>
-      </template>
-
-      <!-- Comments -->
-      <span v-if="task._count?.comments" class="flex items-center gap-0.5 ml-auto">
+    <!-- Footer: Meta + Assignee -->
+    <div class="flex items-center gap-2 text-[10px] text-surface-400 mt-auto">
+      <span v-if="task.dueDate" class="flex items-center gap-1">
+        <Icon name="lucide:calendar" class="w-3 h-3" />
+        {{ formatShortDate(task.dueDate) }}
+      </span>
+      <span v-if="task._count?.comments" class="flex items-center gap-1">
         <Icon name="lucide:message-square" class="w-3 h-3" />
         {{ task._count.comments }}
       </span>
 
-      <!-- Spacer when no comments to push assignee right -->
-      <span v-else class="ml-auto" />
+      <span class="ml-auto" />
 
-      <!-- Assignee -->
+      <!-- Human assignee always shown if exists -->
       <span
         v-if="task.assignee"
         class="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white flex-shrink-0"
@@ -63,6 +66,9 @@
       >
         {{ task.assignee.initials || computedInitials(task.assignee.name) }}
       </span>
+
+      <!-- Bot icon only if agent enabled but idle -->
+      <Icon v-else-if="task.agentEnabled" name="lucide:bot" class="w-4 h-4 text-surface-400" />
     </div>
   </div>
 </template>
@@ -81,6 +87,15 @@ const emit = defineEmits<{
 
 const { agents } = useAgent()
 const isHighlighted = computed(() => highlightedTaskId.value === props.task.id)
+
+const visibleLabels = computed(() => props.task.labels?.slice(0, 2) || [])
+
+const isAgentRunning = computed(() => {
+  if (!props.task.agentEnabled) return false
+  if (!props.task.assignee) return false
+  if (!props.task.status?.name) return false
+  return /progress/i.test(props.task.status.name)
+})
 
 /** Pointer position when the user pressed down — used to distinguish a click
  *  from a drag. SortableJS prevents native `click` events on draggable items
@@ -109,17 +124,22 @@ function resolveAgentName(name: string, assigneeId: string | null, assigneeType:
   return name
 }
 
-const isAgentInProgress = computed(() => {
-  return (
-    props.task.assigneeType === 'agent' &&
-    props.task.assignee &&
-    props.task.status?.name &&
-    /progress/i.test(props.task.status.name)
-  )
-})
-
 function computedInitials(name: string) {
   return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\[([^\]]+)\]\(.*?\)/g, '$1')
+    .replace(/[*_~`#>-]/g, '')
+    .replace(/\n+/g, ' ')
+    .trim()
+}
+
+function formatShortDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 </script>
 

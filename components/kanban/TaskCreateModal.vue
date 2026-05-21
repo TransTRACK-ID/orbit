@@ -168,42 +168,89 @@
             <p class="text-xs text-surface-500 mt-1">Assign a human reviewer to check the task result before completion</p>
           </div>
 
-          <div v-if="props.repositories && props.repositories.length > 0">
-            <label class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
-            <select
-              v-model="form.repositoryId"
-              required
-              class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
-            >
-              <option value="" disabled selected>Select a repository</option>
-              <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
-                {{ repo.name }} — {{ repo.defaultBranch }}
-              </option>
-            </select>
-            <p class="text-xs text-surface-500 mt-1">Links this task to a repository for agent context</p>
-          </div>
-          <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
-            <p class="text-xs text-surface-600">
-              No repositories connected.
-              <NuxtLink
-                :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                class="text-accent font-medium underline hover:text-accent-hover transition-colors"
-              >
-                Connect one
-              </NuxtLink>
-              to enable agent context and branch tracking.
-            </p>
-          </div>
+          <!-- Agent Toggle Section -->
+          <div class="border-t border-surface-200 pt-4 mt-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                v-model="form.agentEnabled"
+                class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
+              />
+              <span class="text-sm font-medium text-surface-700">Enable AI Agent</span>
+              <span class="text-xs text-surface-500 ml-auto">Auto-creates branch & PR</span>
+            </label>
 
-          <div>
-            <label class="block text-xs font-medium text-surface-600 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
-            <TextInput
-              v-model="form.branchName"
-              placeholder="feature/my-branch-name"
-              :class="{ 'border-error-500': branchNameError }"
-            />
-            <p v-if="branchNameError" class="text-xs text-error-600 mt-1">{{ branchNameError }}</p>
-            <p v-else class="text-xs text-surface-500 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
+            <!-- Agent options -->
+            <div v-if="form.agentEnabled" class="mt-3 pl-6 border-l-2 border-surface-200 space-y-3">
+              <div v-if="props.repositories && props.repositories.length > 0">
+                <label class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
+                <select
+                  v-model="form.repositoryId"
+                  required
+                  class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                >
+                  <option value="" disabled selected>Select a repository</option>
+                  <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
+                    {{ repo.name }} — {{ repo.defaultBranch }}
+                  </option>
+                </select>
+                <p class="text-xs text-surface-500 mt-1">Required for agent code context</p>
+              </div>
+              <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
+                <p class="text-xs text-surface-600">
+                  No repositories connected.
+                  <NuxtLink
+                    :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                    class="text-accent font-medium underline hover:text-accent-hover transition-colors"
+                  >
+                    Connect one
+                  </NuxtLink>
+                  to enable agent features.
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-surface-600 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
+                <TextInput
+                  v-model="form.branchName"
+                  placeholder="feature/my-branch-name"
+                  :class="{ 'border-error-500': branchNameError }"
+                />
+                <p v-if="branchNameError" class="text-xs text-error-600 mt-1">{{ branchNameError }}</p>
+                <p v-else class="text-xs text-surface-500 mt-1">Custom branch name for git worktree. Defaults to task-&lt;title&gt; if empty.</p>
+              </div>
+            </div>
+
+            <!-- Repo linking without agent (optional) -->
+            <div v-else class="mt-3">
+              <div v-if="props.repositories && props.repositories.length > 0">
+                <label class="block text-xs font-medium text-surface-600 mb-1.5">
+                  Repository <span class="text-surface-400 font-normal">(optional)</span>
+                </label>
+                <select
+                  v-model="form.repositoryId"
+                  class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                >
+                  <option value="">None</option>
+                  <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
+                    {{ repo.name }} — {{ repo.defaultBranch }}
+                  </option>
+                </select>
+                <p class="text-xs text-surface-500 mt-1">Link for tracking; agent features disabled</p>
+              </div>
+              <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
+                <p class="text-xs text-surface-600">
+                  No repositories connected.
+                  <NuxtLink
+                    :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                    class="text-accent font-medium underline hover:text-accent-hover transition-colors"
+                  >
+                    Connect one
+                  </NuxtLink>
+                  for optional branch tracking.
+                </p>
+              </div>
+            </div>
           </div>
 
           <KanbanMarkdownEditor v-model="form.description" :rows="3" />
@@ -370,6 +417,7 @@ const form = reactive({
   description: '',
   repositoryId: null as string | null,
   branchName: '' as string | null,
+  agentEnabled: false,
 })
 
   const showAssigneePicker = ref(false)
@@ -539,8 +587,8 @@ async function handleCreate() {
     error.value = 'Status is required'
     return
   }
-  if (props.repositories && props.repositories.length > 0 && !form.repositoryId) {
-    error.value = 'Repository is required'
+  if (form.agentEnabled && props.repositories && props.repositories.length > 0 && !form.repositoryId) {
+    error.value = 'Agent requires a repository for code context'
     return
   }
   if (selectedLabels.value.length === 0) {
@@ -566,6 +614,7 @@ async function handleCreate() {
       repositoryId: form.repositoryId || undefined,
       labelIds: selectedLabels.value,
       branchName: form.branchName || null,
+      agentEnabled: form.agentEnabled,
     })
 
     // Upload images after task is created

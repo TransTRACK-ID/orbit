@@ -1,5 +1,14 @@
 <template>
   <header class="h-[52px] flex items-center gap-2.5 px-4 bg-white border-b border-surface-200 flex-shrink-0 z-30">
+    <!-- Desktop sidebar toggle -->
+    <button
+      class="hidden lg:flex w-7 h-7 items-center justify-center rounded border border-surface-200 text-surface-500 hover:bg-surface-50 transition-colors"
+      title="Toggle sidebar"
+      @click="toggleSidebarCollapse"
+    >
+      <Icon name="lucide:panel-left" class="w-3.5 h-3.5" />
+    </button>
+
     <!-- Mobile toggle -->
     <button class="hidden max-lg:flex w-7 h-7 items-center justify-center rounded border border-surface-200 text-surface-500" @click="toggleSidebar">
       <Icon name="lucide:menu" class="w-3.5 h-3.5" />
@@ -199,5 +208,5 @@ async function handleSignOut() {
   navigateTo('/login')
 }
 
-const { toggle: toggleSidebar } = useSidebar()
+const { toggle: toggleSidebar, toggleCollapse: toggleSidebarCollapse } = useSidebar()
 </script>

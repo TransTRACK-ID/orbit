@@ -292,21 +292,6 @@
             </div>
           </div>
 
-          <div v-if="isBacklog" class="mb-6 p-4 bg-surface-50 rounded-xl">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                :checked="task.agentEnabled"
-                class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent"
-                @change="handleUpdate('agentEnabled', ($event.target as HTMLInputElement).checked)"
-              />
-              <span class="text-sm font-medium text-surface-700">Enable AI Agent</span>
-            </label>
-            <p class="text-[10px] text-surface-400 mt-1 ml-6">
-              {{ task.agentEnabled ? 'Agent can auto-create branches and PRs' : 'Agent features disabled for this task' }}
-            </p>
-          </div>
-
           <div v-if="isBacklog" class="mb-6">
             <h5 class="text-xs font-semibold text-surface-500 uppercase mb-2">Repository</h5>
             <div v-if="repositories && repositories.length > 0">
@@ -1967,6 +1952,7 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   const updated = await updateTaskApi(task.value.id, {
     assigneeId: assigneeId || null,
     assigneeType: assigneeType || null,
+    agentEnabled: assigneeType === 'agent',
   })
   task.value = updated
   emit('updated', updated)

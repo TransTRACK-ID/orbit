@@ -6,6 +6,16 @@
       style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.06), transparent 70%);"
     />
 
+    <!-- Dark mode toggle -->
+    <button
+      type="button"
+      class="absolute top-4 right-4 p-2 rounded-lg bg-white/80 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors z-20"
+      @click="toggle"
+      aria-label="Toggle dark mode"
+    >
+      <Icon :name="isDark ? 'lucide:sun' : 'lucide:moon'" class="w-4 h-4" />
+    </button>
+
     <div class="w-full max-w-sm animate-scale-in relative z-10">
       <!-- Brand -->
       <div class="text-center mb-8">
@@ -20,7 +30,7 @@
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+      <div class="bg-white dark:bg-surface-100 rounded-xl border border-surface-200 dark:border-surface-300 shadow-sm p-6">
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div :class="{ 'animate-shake': errors.email }">
             <label class="block text-xs font-medium text-surface-600 mb-1.5">Email</label>
@@ -70,7 +80,7 @@
           </Transition>
         </form>
 
-        <div class="mt-6 pt-5 border-t border-surface-100 text-center">
+        <div class="mt-6 pt-5 border-t border-surface-100 dark:border-surface-700 text-center">
           <p class="text-xs text-surface-500">
             Don't have an account?
             <NuxtLink to="/register" class="text-accent font-semibold hover:text-accent-hover transition-colors duration-150">
@@ -91,6 +101,7 @@ definePageMeta({
 
 const { signIn, status, getSession } = useAuth()
 const { needsOnboarding, ensureWorkspacesLoaded } = useOnboarding()
+const { isDark, toggle } = useDarkMode()
 
 const email = ref('')
 const password = ref('')

@@ -20,7 +20,7 @@
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+      <div class="bg-white dark:bg-surface-100 rounded-xl border border-surface-200 dark:border-surface-300 shadow-sm p-6">
         <form @submit.prevent="handleRegister" class="space-y-5">
           <div :class="{ 'animate-shake': errors.name }">
             <label class="block text-xs font-medium text-surface-600 mb-1.5">Full name</label>
@@ -81,7 +81,7 @@
           </Transition>
         </form>
 
-        <div class="mt-6 pt-5 border-t border-surface-100 text-center">
+        <div class="mt-6 pt-5 border-t border-surface-100 dark:border-surface-700 text-center">
           <p class="text-xs text-surface-500">
             Already have an account?
             <NuxtLink to="/login" class="text-accent font-semibold hover:text-accent-hover transition-colors duration-150">

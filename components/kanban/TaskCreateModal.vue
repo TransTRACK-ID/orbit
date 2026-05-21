@@ -431,6 +431,18 @@ watch(() => form.title, (newTitle) => {
   }
 })
 
+// Update branch name label segment when labels change and agent is assigned
+watch(() => selectedLabels.value, () => {
+  if (form.assigneeType === 'agent' && form.branchName) {
+    const segments = form.branchName.split('/')
+    if (segments.length === 4) {
+      const firstLabel = props.labels?.find(l => selectedLabels.value.includes(l.id))
+      segments[0] = firstLabel ? slugifyBranchSegment(firstLabel.name) : 'task'
+      form.branchName = segments.join('/')
+    }
+  }
+}, { deep: true })
+
 const DEFAULT_LABELS = [
   { name: 'bug', color: '#ef4444' },
   { name: 'feature', color: '#22c55e' },
@@ -511,8 +523,8 @@ function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, col
     form.branchName = ''
   }
 
-  // Auto-fill branch name when assigning an agent
-  if (type === 'agent' && !form.branchName) {
+  // Auto-fill or regenerate branch name when assigning an agent
+  if (type === 'agent') {
     form.branchName = generateAgentBranchNameForCreate()
   }
 }
@@ -522,8 +534,8 @@ function selectObserver(id?: string, name?: string) {
   form.observerId = id || null
   selectedObserver.value = name ? { name } : null
 
-  // Regenerate branch name if agent task and no custom branch entered
-  if (form.assigneeType === 'agent' && !form.branchName) {
+  // Regenerate branch name when observer changes for agent tasks
+  if (form.assigneeType === 'agent') {
     form.branchName = generateAgentBranchNameForCreate()
   }
 }

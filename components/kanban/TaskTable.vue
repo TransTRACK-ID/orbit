@@ -2,14 +2,74 @@
   <div class="flex flex-col h-full">
     <BoardHeader
       :statuses="statuses"
+      :labels="labels"
       :task-count="tasks.length"
       :view-mode="viewMode"
+      :search-query="searchQuery"
+      :sort-field="sortField"
+      :sort-direction="sortDirection"
+      :show-filters="showFilters"
+      :active-filter-count="activeFilterCount"
+      :active-filter-chips="activeFilterChips"
       @create-task="$emit('createTask')"
       @update:view-mode="$emit('update:viewMode', $event)"
+      @update:search="$emit('update:search', $event)"
+      @update:sort-field="$emit('update:sortField', $event)"
+      @update:sort-direction="$emit('update:sortDirection', $event)"
+      @update:show-filters="$emit('update:showFilters', $event)"
+      @remove-chip="onRemoveChip"
+      @clear-filters="$emit('clearFilters')"
     />
 
+    <!-- Filter panel -->
+    <Transition
+      enter-active-class="transition-all duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition-all duration-150 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-1"
+    >
+      <BoardFilterPanel
+        v-if="showFilters"
+        :statuses="statuses"
+        :labels="labels"
+        :selected-statuses="selectedStatuses"
+        :selected-priorities="selectedPriorities"
+        :selected-labels="selectedLabels"
+        :selected-assignee-type="selectedAssigneeType"
+        :agent-enabled-filter="agentEnabledFilter"
+        @update:selected-statuses="$emit('update:selectedStatuses', $event)"
+        @update:selected-priorities="$emit('update:selectedPriorities', $event)"
+        @update:selected-labels="$emit('update:selectedLabels', $event)"
+        @update:selected-assignee-type="$emit('update:selectedAssigneeType', $event)"
+        @update:agent-enabled-filter="$emit('update:agentEnabledFilter', $event)"
+      />
+    </Transition>
+
     <div class="flex-1 overflow-auto px-3 sm:px-5 pb-4">
-      <table class="w-full text-left border-collapse">
+      <!-- Filter empty state -->
+      <div
+        v-if="tasks.length === 0 && totalTaskCount > 0"
+        class="flex flex-col items-center justify-center py-16"
+      >
+        <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
+          <Icon name="lucide:filter-x" class="w-7 h-7 text-surface-400" />
+        </div>
+        <h3 class="text-lg font-semibold text-surface-900 mb-1">No tasks match your filters</h3>
+        <p class="text-sm text-surface-500 text-center max-w-sm mb-6">
+          Try adjusting your filters or clear them to see all tasks.
+        </p>
+        <button
+          class="px-4 py-2 bg-accent text-white rounded-lg text-xs font-semibold hover:bg-accent-hover transition-colors"
+          @click="$emit('clearFilters')"
+        >
+          <Icon name="lucide:x" class="w-3.5 h-3.5 inline mr-1" />
+          Clear all filters
+        </button>
+      </div>
+
+      <table v-else-if="tasks.length > 0" class="w-full text-left border-collapse">
         <thead class="sticky top-0 z-10 bg-surface-50">
           <tr class="border-b border-surface-200">
             <th class="py-3 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-36">
@@ -156,31 +216,47 @@
               </span>
             </td>
           </tr>
-
-          <tr v-if="tasks.length === 0">
-            <td colspan="7" class="py-12 text-center">
-              <div class="flex flex-col items-center gap-2.5">
-                <div class="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center">
-                  <Icon name="lucide:inbox" class="w-5 h-5 text-surface-400" />
-                </div>
-                <span class="text-sm font-medium text-surface-600">No tasks yet</span>
-                <span class="text-xs text-surface-400">Click "New Task" to get started</span>
-              </div>
-            </td>
-          </tr>
         </tbody>
       </table>
+
+      <!-- Global empty state -->
+      <div
+        v-if="tasks.length === 0 && totalTaskCount === 0"
+        class="flex flex-col items-center justify-center py-16"
+      >
+        <div class="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
+          <Icon name="lucide:inbox" class="w-5 h-5 text-surface-400" />
+        </div>
+        <span class="text-sm font-medium text-surface-600">No tasks yet</span>
+        <span class="text-xs text-surface-400 mt-1">Click "New Task" to get started</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Task, Status } from '~/types'
+import type { Task, Status, Label, TaskPriority } from '~/types'
+import { sortTasks, type SortState } from '~/composables/useBoardFilterSort'
+import BoardFilterPanel from './BoardFilterPanel.vue'
 
 const props = defineProps<{
   statuses: Status[]
+  labels: Label[]
   tasks: Task[]
   viewMode: 'kanban' | 'table' | 'list'
+  sortField?: SortState['field']
+  sortDirection?: SortState['direction']
+  // Filter state
+  searchQuery: string
+  showFilters: boolean
+  selectedStatuses: string[]
+  selectedPriorities: TaskPriority[]
+  selectedLabels: string[]
+  selectedAssigneeType: 'user' | 'agent' | 'unassigned' | null
+  agentEnabledFilter: boolean | null
+  activeFilterCount: number
+  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
+  totalTaskCount: number
 }>()
 
 const emit = defineEmits<{
@@ -188,15 +264,39 @@ const emit = defineEmits<{
   updateTask: [data: { id: string; statusId: string; position: number }]
   openTask: [task: Task]
   'update:viewMode': [mode: 'kanban' | 'table' | 'list']
+  'update:search': [value: string]
+  'update:sortField': [field: SortState['field']]
+  'update:sortDirection': [direction: SortState['direction']]
+  'update:showFilters': [show: boolean]
+  'update:selectedStatuses': [statuses: string[]]
+  'update:selectedPriorities': [priorities: TaskPriority[]]
+  'update:selectedLabels': [labels: string[]]
+  'update:selectedAssigneeType': [type: 'user' | 'agent' | 'unassigned' | null]
+  'update:agentEnabledFilter': [enabled: boolean | null]
+  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
+  'clearFilters': []
 }>()
 
+function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
+  emit('removeChip', chip)
+}
+
 const sortedTasks = computed(() => {
-  return [...props.tasks].sort((a, b) => {
-    const statusOrderA = props.statuses.findIndex(s => s.id === a.statusId)
-    const statusOrderB = props.statuses.findIndex(s => s.id === b.statusId)
-    if (statusOrderA !== statusOrderB) return statusOrderA - statusOrderB
-    return a.position - b.position
-  })
+  const sortConfig: SortState = {
+    field: props.sortField || 'manual',
+    direction: props.sortDirection || 'asc',
+  }
+
+  if (sortConfig.field === 'manual') {
+    return [...props.tasks].sort((a, b) => {
+      const statusOrderA = props.statuses.findIndex(s => s.id === a.statusId)
+      const statusOrderB = props.statuses.findIndex(s => s.id === b.statusId)
+      if (statusOrderA !== statusOrderB) return statusOrderA - statusOrderB
+      return a.position - b.position
+    })
+  }
+
+  return sortTasks(props.tasks, sortConfig)
 })
 
 function isAgentInProgress(task: Task): boolean {

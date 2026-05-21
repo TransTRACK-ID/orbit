@@ -151,7 +151,7 @@
       :labels="labels"
       :members="members"
       :agents="agents"
-      :repositories="repositories"
+      :projects="workspaceProjects"
       :project-id="project?.id || ''"
       @close="showCreateModal = false"
       @created="handleTaskCreated"
@@ -175,7 +175,7 @@ const route = useRoute()
 const projectId = computed(() => route.params.projectId as string)
 
 const { tasks, loading, fetchTasks, createTask, updateTask } = useTask()
-const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
+const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels, fetchProjects, projects: workspaceProjects } = useProject()
 const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
 const { repositories } = useRepository()
@@ -404,6 +404,11 @@ const { startRuntime } = useAgentRuntime()
 onMounted(async () => {
   if (!workspace.value) {
     workspace.value = await getWorkspaceBySlug(route.params.slug as string)
+  }
+
+  // Fetch workspace projects for the task creation modal
+  if (workspace.value) {
+    await fetchProjects(workspace.value.id)
   }
 
   // If SSR failed or repositories aren't loaded yet, fetch them client-side.

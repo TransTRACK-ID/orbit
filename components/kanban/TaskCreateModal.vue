@@ -294,31 +294,24 @@
             <div class="flex flex-col gap-3">
               <!-- Agent options (shown when assignee is an agent) -->
               <div v-if="form.assigneeType === 'agent'" class="bg-surface-50 rounded-lg p-4 flex flex-col gap-3">
-                <div v-if="props.repositories && props.repositories.length > 0">
-                  <label for="task-repo-agent" class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
+                <div v-if="props.projects && props.projects.length > 0">
+                  <label for="task-project-agent" class="block text-xs font-medium text-surface-600 mb-1.5">Project <span class="text-error-500">*</span></label>
                   <select
-                    id="task-repo-agent"
+                    id="task-project-agent"
                     v-model="form.repositoryId"
                     required
                     class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
                   >
-                    <option value="" disabled selected>Select a repository</option>
-                    <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
-                      {{ repo.name }} / {{ repo.defaultBranch }}
+                    <option value="" disabled selected>Select a project</option>
+                    <option v-for="proj in props.projects" :key="proj.id" :value="proj.id">
+                      {{ proj.name }}
                     </option>
                   </select>
-                  <p class="text-xs text-surface-500 mt-1">Required for agent code context</p>
+                  <p class="text-xs text-surface-500 mt-1">Required for agent task context</p>
                 </div>
                 <div v-else class="p-3 rounded-lg bg-white border border-surface-200">
                   <p class="text-xs text-surface-600">
-                    No repositories connected.
-                    <NuxtLink
-                      :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                      class="text-accent font-medium underline hover:text-accent-hover transition-colors"
-                    >
-                      Connect one
-                    </NuxtLink>
-                    to enable agent features.
+                    No other projects available.
                   </p>
                 </div>
 
@@ -335,34 +328,27 @@
                 </div>
               </div>
 
-              <!-- Repo linking without agent (optional) -->
+              <!-- Project linking without agent (optional) -->
               <div v-if="form.assigneeType !== 'agent'" class="flex flex-col gap-3">
-                <div v-if="props.repositories && props.repositories.length > 0">
-                  <label for="task-repo" class="block text-xs font-medium text-surface-600 mb-1.5">
-                    Repository <span class="text-surface-400 font-normal">(optional)</span>
+                <div v-if="props.projects && props.projects.length > 0">
+                  <label for="task-project" class="block text-xs font-medium text-surface-600 mb-1.5">
+                    Project <span class="text-surface-400 font-normal">(optional)</span>
                   </label>
                   <select
-                    id="task-repo"
+                    id="task-project"
                     v-model="form.repositoryId"
                     class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
                   >
                     <option value="">None</option>
-                    <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
-                      {{ repo.name }} / {{ repo.defaultBranch }}
+                    <option v-for="proj in props.projects" :key="proj.id" :value="proj.id">
+                      {{ proj.name }}
                     </option>
                   </select>
                   <p class="text-xs text-surface-500 mt-1">Link for tracking</p>
                 </div>
                 <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
                   <p class="text-xs text-surface-600">
-                    No repositories connected.
-                    <NuxtLink
-                      :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                      class="text-accent font-medium underline hover:text-accent-hover transition-colors"
-                    >
-                      Connect one
-                    </NuxtLink>
-                    for optional branch tracking.
+                    No other projects available.
                   </p>
                 </div>
               </div>
@@ -389,7 +375,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Status, Label, Task, ProjectMember, Repository } from '~/types'
+import type { Status, Label, Task, ProjectMember, Project } from '~/types'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 
@@ -401,7 +387,7 @@ const props = defineProps<{
   projectId: string
   members: ProjectMember[]
   agents: Agent[]
-  repositories?: Repository[]
+  projects?: Project[]
 }>()
 
 const emit = defineEmits<{
@@ -611,8 +597,8 @@ async function handleCreate() {
     error.value = 'Status is required'
     return
   }
-  if (form.assigneeType === 'agent' && props.repositories && props.repositories.length > 0 && !form.repositoryId) {
-    error.value = 'Agent requires a repository for code context'
+  if (form.assigneeType === 'agent' && props.projects && props.projects.length > 0 && !form.repositoryId) {
+    error.value = 'Agent requires a project for task context'
     return
   }
   if (selectedLabels.value.length === 0) {

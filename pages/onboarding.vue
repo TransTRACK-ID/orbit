@@ -2,11 +2,11 @@
   <div class="min-h-screen flex items-center justify-center bg-surface-50 px-4 relative overflow-hidden">
     <!-- Ambient warm glow -->
     <div
-      class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-40 pointer-events-none"
+      class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-40 pointer-events-none dark:opacity-70"
       style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.06), transparent 70%);"
     />
     <div
-      class="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-20 pointer-events-none"
+      class="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-20 pointer-events-none dark:opacity-40"
       style="background: radial-gradient(ellipse at center, rgb(207 81 61 / 0.04), transparent 65%);"
     />
 
@@ -40,7 +40,7 @@
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+      <div class="bg-surface-100 rounded-xl border border-surface-200 shadow-sm p-6">
         <Transition
           mode="out-in"
           enter-active-class="transition-all duration-300 ease-out"

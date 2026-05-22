@@ -870,24 +870,50 @@
                           Open PR
                         </a>
                         
-                        <!-- Open Preview -->
-                        <button
-                          v-if="previewAvailable"
-                          class="flex h-8 items-center gap-1.5 rounded-lg bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-primary-700 active:scale-95 transition-all"
-                          @click="showPreviewModal = true"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                          Open Preview
-                        </button>
-                        <!-- Restart Preview -->
-                        <button
-                          v-if="previewAvailable"
-                          class="flex h-8 items-center gap-1.5 rounded-lg bg-surface-200 px-3 text-[11px] font-semibold text-surface-600 shadow-sm hover:bg-surface-300 active:scale-95 transition-all"
-                          :disabled="previewRestarting"
-                          :class="{ 'opacity-50 cursor-not-allowed': previewRestarting }"
-                          :title="previewRestarting ? 'Restarting...' : 'Restart preview server (reinstall deps + clear cache)'"
-                          @click="handleRestartPreview"
-                        >
+                         <!-- Open Preview -->
+                         <button
+                           v-if="previewAvailable"
+                           class="flex h-8 items-center gap-1.5 rounded-lg bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-primary-700 active:scale-95 transition-all"
+                           @click="showPreviewModal = true"
+                         >
+                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                           Open Preview
+                           <span
+                             class="ml-1 inline-flex items-center rounded px-1.5 py-0 text-[9px] font-bold"
+                             :class="previewMode === 'build' ? 'bg-amber-400/30 text-amber-100' : 'bg-white/20 text-white'"
+                           >{{ previewMode === 'build' ? 'SSR' : 'DEV' }}</span>
+                         </button>
+                         <!-- Preview Mode Toggle -->
+                         <div
+                           v-if="previewAvailable && !previewRestarting"
+                           class="flex items-center rounded-lg bg-surface-100 p-0.5"
+                         >
+                           <button
+                             class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
+                             :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+                             title="Fast dev server (SPA mode, no SSR)"
+                             @click="previewMode = 'dev'"
+                           >
+                             Dev
+                           </button>
+                           <button
+                             class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
+                             :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+                             title="Production build with full SSR support (slower startup)"
+                             @click="previewMode = 'build'"
+                           >
+                             SSR
+                           </button>
+                         </div>
+                         <!-- Restart Preview -->
+                         <button
+                           v-if="previewAvailable"
+                           class="flex h-8 items-center gap-1.5 rounded-lg bg-surface-200 px-3 text-[11px] font-semibold text-surface-600 shadow-sm hover:bg-surface-300 active:scale-95 transition-all"
+                           :disabled="previewRestarting"
+                           :class="{ 'opacity-50 cursor-not-allowed': previewRestarting }"
+                           :title="previewRestarting ? 'Restarting...' : `Restart preview server in ${previewMode === 'build' ? 'SSR' : 'dev'} mode (reinstall deps + clear cache)`"
+                           @click="handleRestartPreview"
+                         >
                           <svg
                             v-if="previewRestarting"
                             class="animate-spin w-3 h-3"
@@ -1099,6 +1125,14 @@
     >
       <div class="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
         <span class="text-sm font-semibold text-surface-700 flex-shrink-0">Live Preview</span>
+        <span
+          class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border"
+          :class="previewMode === 'build'
+            ? 'bg-amber-50 border-amber-200 text-amber-700'
+            : 'bg-emerald-50 border-emerald-200 text-emerald-700'"
+        >
+          {{ previewMode === 'build' ? 'SSR Mode' : 'Dev Mode' }}
+        </span>
         <div class="flex-1 flex items-center gap-2 bg-surface-50 rounded-lg px-3 py-1.5 border border-surface-200">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <input
@@ -1236,19 +1270,38 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           <p class="text-sm font-medium">No preview available yet</p>
           <p class="text-xs">Start a preview server to see your changes live.</p>
-          <Button
-            :disabled="previewStarting || !task"
-            :loading="previewStarting"
-            @click="handleStartPreview"
-          >
-            <template v-if="previewStarting">
-              Starting preview server...
-            </template>
-            <template v-else>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
-              Start Preview
-            </template>
-          </Button>
+           <!-- Preview Mode Selector -->
+           <div class="flex items-center rounded-lg bg-surface-100 p-0.5 mb-1">
+             <button
+               class="h-8 px-3 rounded-md text-xs font-semibold transition-all"
+               :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+               title="Fast dev server (SPA mode, no SSR)"
+               @click="previewMode = 'dev'"
+             >
+               Dev Mode
+             </button>
+             <button
+               class="h-8 px-3 rounded-md text-xs font-semibold transition-all"
+               :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+               title="Production build with full SSR support (slower startup)"
+               @click="previewMode = 'build'"
+             >
+               SSR Mode
+             </button>
+           </div>
+           <Button
+             :disabled="previewStarting || !task"
+             :loading="previewStarting"
+             @click="handleStartPreview"
+           >
+             <template v-if="previewStarting">
+               Starting preview server...
+             </template>
+             <template v-else>
+               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
+               Start Preview
+             </template>
+           </Button>
         </div>
       </div>
     </div>
@@ -1375,6 +1428,7 @@ const committedPreviewPath = ref('/')
 const previewLogs = ref<string[]>([])
 const previewFailed = ref(false)
 const previewFailReason = ref('')
+const previewMode = ref<'dev' | 'build'>('dev')
 let previewLogsPollInterval: ReturnType<typeof setInterval> | null = null
 const logsContainer = ref<HTMLDivElement | null>(null)
 
@@ -1886,9 +1940,11 @@ async function checkPreview() {
       failed?: boolean
       failReason?: string | null
       url?: string | null
+      mode?: 'dev' | 'build'
     }>(`/api/tasks/${task.value.id}/preview-status`)
     previewAvailable.value = status.available
     previewUrl.value = status.url || ''
+    if (status.mode) previewMode.value = status.mode
     // If server is starting or failed, ensure UI reflects that
     if (status.failed) {
       previewFailed.value = true
@@ -1906,10 +1962,11 @@ async function checkPreview() {
 async function fetchPreviewLogs() {
   if (!task.value) return
   try {
-    const result = await $fetch<{ logs: string[]; ready: boolean; failed: boolean; failReason: string | null }>(`/api/tasks/${task.value.id}/preview-logs`)
+    const result = await $fetch<{ logs: string[]; ready: boolean; failed: boolean; failReason: string | null; mode?: 'dev' | 'build' }>(`/api/tasks/${task.value.id}/preview-logs`)
     previewLogs.value = result.logs
     previewFailed.value = result.failed
     if (result.failReason) previewFailReason.value = result.failReason
+    if (result.mode) previewMode.value = result.mode
     // If the server reports ready, sync our local state
     if (result.ready) {
       previewAvailable.value = true
@@ -1949,11 +2006,13 @@ async function handleStartPreview() {
   previewStarting.value = true
   startLogPolling()
   try {
-    const result = await $fetch<{ available: boolean; url: string; message: string }>(`/api/tasks/${task.value.id}/preview-start`, {
+    const result = await $fetch<{ available: boolean; url: string; message: string; mode?: 'dev' | 'build' }>(`/api/tasks/${task.value.id}/preview-start`, {
       method: 'POST',
+      body: { mode: previewMode.value },
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
+    if (result.mode) previewMode.value = result.mode
     // Continue polling logs for a few more seconds after the API returns
     let attempts = 0
     const pollInterval = setInterval(async () => {
@@ -1987,11 +2046,13 @@ async function handleRestartPreview() {
   previewUrl.value = ''
   startLogPolling()
   try {
-    const result = await $fetch<{ available: boolean; url: string; message: string }>(`/api/tasks/${task.value.id}/preview-restart`, {
+    const result = await $fetch<{ available: boolean; url: string; message: string; mode?: 'dev' | 'build' }>(`/api/tasks/${task.value.id}/preview-restart`, {
       method: 'POST',
+      body: { mode: previewMode.value },
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
+    if (result.mode) previewMode.value = result.mode
     let attempts = 0
     const pollInterval = setInterval(async () => {
       attempts++

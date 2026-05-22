@@ -43,5 +43,6 @@ export default defineEventHandler(async (event) => {
     failed: devServer.failed,
     failReason: devServer.failReason || null,
     url: devServer.ready ? `/api/preview/${task.id}` : null,
+    mode: devServer.mode,
   }
 })

@@ -57,13 +57,18 @@ export default defineEventHandler(async (event) => {
     await new Promise(r => setTimeout(r, 1000))
   }
 
+  // Parse mode from request body (default to 'dev')
+  const body = await readBody(event).catch(() => ({}))
+  const mode = body?.mode === 'build' ? 'build' : 'dev'
+
   // Start fresh (installs deps, clears cache, runs nuxt prepare, starts dev server)
   try {
-    const devServer = await startDevServer(worktreeDir, task.repository.id || undefined, task.id)
+    const devServer = await startDevServer(worktreeDir, task.repository.id || undefined, task.id, mode)
     return {
       available: true,
       url: `/api/preview/${task.id}`,
-      message: 'Preview server restarted successfully',
+      message: `Preview server restarted successfully (${mode} mode)`,
+      mode: devServer.mode,
     }
   } catch (err: any) {
     throw createError({ statusCode: 500, statusMessage: `Failed to restart preview: ${err.message}` })

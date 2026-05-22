@@ -123,6 +123,66 @@ Optional catch-all `[[...path]]` doesn't work reliably in Nitro for empty paths.
    curl -v http://localhost:3031/api/preview/{taskId}/
    ```
 
+## Preview Modes
+
+The preview system supports two modes:
+
+### Dev Mode (Default)
+- Uses `nuxt dev` — fast startup, live reloading via Vite
+- **SSR is disabled** via `nuxt.config.preview-override.ts` to avoid Vite Node IPC issues
+- Best for: Active development, quick visual feedback
+
+### Build Mode (SSR)
+- Runs `nuxt build` then `nuxt preview --port {port}`
+- **SSR is fully enabled** — production-like behavior
+- Slower startup (~30-60s for build step)
+- Best for: QA review, SEO verification, testing server routes, hydration behavior
+
+### How Mode Selection Works
+
+1. User selects mode via the **Dev / SSR** toggle in the task panel or preview modal
+2. `POST /api/tasks/{id}/preview-start` or `preview-restart` receives `{ mode: 'dev' | 'build' }`
+3. `dev-server-orchestrator.ts` routes to the appropriate adapter:
+   - **Dev**: patches `nuxt.config` with `ssr: false`, runs `nuxt dev`
+   - **Build**: skips SSR patch, runs `nuxt build`, then `nuxt preview`
+4. The mode is stored in `DevServerInfo.mode` and returned in status/logs responses
+
+### API Changes for Mode
+
+```typescript
+// POST /api/tasks/{id}/preview-start
+// Body: { mode?: 'dev' | 'build' }  (default: 'dev')
+
+// Response now includes:
+{
+  available: boolean,
+  url: string,
+  message: string,
+  mode: 'dev' | 'build'
+}
+
+// GET /api/tasks/{id}/preview-status
+// Response now includes:
+{
+  available: boolean,
+  starting: boolean,
+  failed: boolean,
+  failReason: string | null,
+  url: string | null,
+  mode: 'dev' | 'build'
+}
+
+// GET /api/tasks/{id}/preview-logs
+// Response now includes:
+{
+  logs: string[],
+  ready: boolean,
+  failed: boolean,
+  failReason: string | null,
+  mode: 'dev' | 'build'
+}
+```
+
 ## Environment Variables
 
 - `NUXT_APP_BASE_URL` — Set when spawning dev server so Nuxt knows its base path

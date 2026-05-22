@@ -10,6 +10,8 @@ const execAsync = promisify(exec)
 // Version marker — MUST see this in logs or server is still running old code
 const CODE_VERSION = 'v3-USE-NPM-20250514'
 
+export type PreviewMode = 'dev' | 'build'
+
 export type DevServerInfo = {
   worktreeDir: string
   proc: ReturnType<typeof spawn>
@@ -20,6 +22,7 @@ export type DevServerInfo = {
   logs: string[]
   failed: boolean
   failReason?: string
+  mode: PreviewMode
 }
 
 const activeDevServers = new Map<string, DevServerInfo>()
@@ -36,6 +39,7 @@ function getOrCreateDevServerInfo(worktreeDir: string): DevServerInfo {
       installedDeps: false,
       logs: [],
       failed: false,
+      mode: 'dev',
     }
     activeDevServers.set(worktreeDir, info)
   }
@@ -192,6 +196,50 @@ async function runInstall(worktreeDir: string, cmd: string, args: string[], env:
       appendLog(worktreeDir, 'Install timed out after 180s')
       resolve({ ok: false, stdout, stderr })
     }, 180000)
+  })
+}
+
+async function runBuild(worktreeDir: string, cmd: string, args: string[], env: Record<string, string> = {}): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const fullCmd = `${cmd} ${args.join(' ')}`
+    appendLog(worktreeDir, `$ ${fullCmd}`)
+    const child = spawn(cmd, args, {
+      cwd: worktreeDir,
+      env: { ...process.env, ...env },
+      shell: false,
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      stdout += text
+      text.split('\n').filter(Boolean).forEach((line) => appendLog(worktreeDir, line))
+    })
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      stderr += text
+      text.split('\n').filter(Boolean).forEach((line) => appendLog(worktreeDir, `ERR: ${line}`))
+    })
+
+    child.on('exit', (code) => {
+      appendLog(worktreeDir, `Build exit code: ${code}`)
+      resolve({ ok: code === 0, stdout, stderr })
+    })
+
+    child.on('error', (err) => {
+      appendLog(worktreeDir, `Build spawn error: ${err.message}`)
+      resolve({ ok: false, stdout, stderr })
+    })
+
+    // Hard timeout for build (5 minutes)
+    setTimeout(() => {
+      try { child.kill('SIGTERM') } catch {}
+      appendLog(worktreeDir, 'Build timed out after 300s')
+      resolve({ ok: false, stdout, stderr })
+    }, 300000)
   })
 }
 
@@ -438,7 +486,39 @@ export default defineNuxtConfig({
   }
 }
 
-function detectDevCommand(worktreeDir: string, port: number): { command: string; args: string[]; env: Record<string, string> } | null {
+function unpatchNuxtForPreview(worktreeDir: string): void {
+  if (!isNuxtProject(worktreeDir)) return
+
+  // Remove the preview-override extends from nuxt.config so build mode
+  // runs with the project's original SSR configuration.
+  const configPaths = [
+    path.join(worktreeDir, 'nuxt.config.ts'),
+    path.join(worktreeDir, 'nuxt.config.js'),
+  ]
+  for (const configPath of configPaths) {
+    if (!existsSync(configPath)) continue
+    try {
+      const content = readFileSync(configPath, 'utf-8')
+      // Skip if not patched
+      if (!content.includes('preview-override')) break
+
+      // Remove the extends line that references preview-override
+      const patched = content.replace(
+        /\n\s*extends:\s*\['\.\/nuxt\.config\.preview-override'\],?/,
+        ''
+      )
+      if (patched !== content) {
+        writeFileSync(configPath, patched)
+        appendLog(worktreeDir, `Removed preview-override from ${path.basename(configPath)} (build mode)`)
+      }
+    } catch (err: any) {
+      appendLog(worktreeDir, `Failed to unpatch nuxt config: ${err.message}`)
+    }
+    break
+  }
+}
+
+function detectDevCommand(worktreeDir: string, port: number, mode: PreviewMode = 'dev'): { command: string; args: string[]; env: Record<string, string> } | null {
   // Use the same package manager for running as for installing
   const pm = detectPackageManager(worktreeDir)
   const runCmd = pm?.cmd || 'npm'
@@ -448,6 +528,21 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
     try {
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'))
       const scripts = pkg.scripts || {}
+
+      if (mode === 'build') {
+        // For build mode, use preview command if available, otherwise nuxt preview
+        if (scripts.preview) {
+          return { command: runCmd, args: ['run', 'preview', '--', '--port', String(port)], env: {} }
+        }
+        // Fall back to npx nuxt preview for Nuxt projects
+        if (isNuxtProject(worktreeDir)) {
+          return { command: 'npx', args: ['nuxt', 'preview', '--port', String(port)], env: {} }
+        }
+        // Generic preview fallback
+        return { command: runCmd, args: ['run', 'start', '--', '--port', String(port)], env: {} }
+      }
+
+      // Dev mode (original logic)
       if (scripts.dev) {
         // Pass port via -- --port for frameworks that support it (Vite, Nuxt, Next)
         return { command: runCmd, args: ['run', 'dev', '--', '--port', String(port)], env: {} }
@@ -481,9 +576,14 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
   return null
 }
 
-export async function startDevServer(worktreeDir: string, repositoryId?: string, taskId?: string): Promise<DevServerInfo> {
+export async function startDevServer(
+  worktreeDir: string,
+  repositoryId?: string,
+  taskId?: string,
+  mode: PreviewMode = 'dev'
+): Promise<DevServerInfo> {
   const existing = activeDevServers.get(worktreeDir)
-  if (existing && existing.ready) {
+  if (existing && existing.ready && existing.mode === mode) {
     return existing
   }
 
@@ -511,7 +611,7 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
   const port = getAvailablePort()
   const baseUrl = `http://localhost:${port}`
 
-  appendLog(worktreeDir, `${CODE_VERSION} Starting dev server for ${worktreeDir} on port ${port}`)
+  appendLog(worktreeDir, `${CODE_VERSION} Starting ${mode} preview server for ${worktreeDir} on port ${port}`)
 
   // Copy .env from repo root to worktree if missing
   copyEnvToWorktree(worktreeDir)
@@ -527,6 +627,17 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
       appendLog(worktreeDir, 'Cleaned .nuxt cache')
     } catch (err: any) {
       appendLog(worktreeDir, `Failed to clean .nuxt cache: ${err.message}`)
+    }
+  }
+
+  // Also clean .output for build mode to ensure fresh build
+  const outputPath = path.join(worktreeDir, '.output')
+  if (mode === 'build' && existsSync(outputPath)) {
+    try {
+      rmSync(outputPath, { recursive: true, force: true })
+      appendLog(worktreeDir, 'Cleaned .output directory for fresh build')
+    } catch (err: any) {
+      appendLog(worktreeDir, `Failed to clean .output: ${err.message}`)
     }
   }
 
@@ -549,9 +660,9 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     }
   }
 
-  const devCmd = detectDevCommand(worktreeDir, port)
+  const devCmd = detectDevCommand(worktreeDir, port, mode)
   if (!devCmd) {
-    const reason = `No dev command detected in ${worktreeDir}. Ensure package.json with a "dev" script exists.`
+    const reason = `No ${mode} command detected in ${worktreeDir}. Ensure package.json with a "${mode === 'build' ? 'preview' : 'dev'}" script exists.`
     const info = getOrCreateDevServerInfo(worktreeDir)
     info.failed = true
     info.failReason = reason
@@ -559,9 +670,17 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     throw new Error(reason)
   }
 
-  // For Nuxt projects: patch config to disable SSR for live preview to avoid
+  // For Nuxt projects in DEV mode only: patch config to disable SSR for live preview to avoid
   // the Vite Node IPC socket race condition. Must run BEFORE nuxt prepare.
-  patchNuxtForPreview(worktreeDir)
+  // For BUILD mode, we keep SSR enabled for true production-like preview.
+  if (mode === 'dev') {
+    patchNuxtForPreview(worktreeDir)
+  } else {
+    appendLog(worktreeDir, 'Build mode: SSR enabled (removing preview override)')
+    unpatchNuxtForPreview(worktreeDir)
+  }
+
+  const isNuxt = isNuxtProject(worktreeDir)
 
   // Run nuxt prepare to generate .nuxt/ files before starting dev server
   const nuxtBin = path.join(worktreeDir, 'node_modules', '.bin', 'nuxt')
@@ -579,9 +698,31 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     }
   }
 
+  // For BUILD mode on Nuxt projects: run nuxt build first
+  if (mode === 'build' && isNuxt) {
+    appendLog(worktreeDir, '=== Running Nuxt build for preview (this may take 30-60s) ===')
+    const buildResult = await runBuild(worktreeDir, 'npx', ['nuxt', 'build'], {
+      CI: 'true',
+      NUXT_TELEMETRY_DISABLED: '1',
+      ...(taskId ? { NUXT_APP_BASE_URL: `/api/preview/${taskId}/` } : {}),
+      ...repositoryEnv,
+    })
+
+    if (!buildResult.ok) {
+      const reason = `Nuxt build failed. Check logs above for errors.`
+      const info = getOrCreateDevServerInfo(worktreeDir)
+      info.failed = true
+      info.failReason = reason
+      appendLog(worktreeDir, reason)
+      throw new Error(reason)
+    }
+
+    appendLog(worktreeDir, '=== Nuxt build completed successfully ===')
+  }
+
   const env = {
     ...process.env,
-    NODE_ENV: 'development',
+    NODE_ENV: mode === 'build' ? 'production' : 'development',
     PORT: String(port),
     NUXT_PORT: String(port),
     VITE_PORT: String(port),
@@ -608,6 +749,7 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
   info.installedDeps = installedDeps
   info.failed = false
   info.failReason = undefined
+  info.mode = mode
 
   // Capture dev server output into logs
   proc.stdout?.on('data', (chunk: Buffer) => {
@@ -628,33 +770,33 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
   })
 
   proc.on('exit', (code, signal) => {
-    appendLog(worktreeDir, `Dev server exited with code=${code} signal=${signal}`)
+    appendLog(worktreeDir, `${mode} server exited with code=${code} signal=${signal}`)
     info.ready = false
     if (code !== 0 && code !== null) {
       info.failed = true
-      info.failReason = `Dev server crashed with exit code ${code}`
+      info.failReason = `${mode} server crashed with exit code ${code}`
     }
     // Do NOT delete from activeDevServers so logs remain accessible
   })
 
   proc.on('error', (err) => {
-    appendLog(worktreeDir, `Dev server spawn error: ${err.message}`)
+    appendLog(worktreeDir, `${mode} server spawn error: ${err.message}`)
     info.failed = true
-    info.failReason = `Failed to start dev server: ${err.message}`
+    info.failReason = `Failed to start ${mode} server: ${err.message}`
   })
 
-  const ready = await waitForPort(port, proc, worktreeDir, 120000)
+  const ready = await waitForPort(port, proc, worktreeDir, mode === 'build' ? 60000 : 120000)
   if (!ready) {
     try { proc.kill('SIGTERM') } catch {}
     info.ready = false
     info.failed = true
-    info.failReason = `Dev server failed to start on port ${port} within 120s. Check logs for details.`
+    info.failReason = `${mode} server failed to start on port ${port} within ${mode === 'build' ? '60' : '120'}s. Check logs for details.`
     appendLog(worktreeDir, info.failReason)
     throw new Error(info.failReason)
   }
 
   info.ready = true
-  appendLog(worktreeDir, `Ready at ${baseUrl}`)
+  appendLog(worktreeDir, `Ready at ${baseUrl} (${mode} mode)`)
   return info
 }
 

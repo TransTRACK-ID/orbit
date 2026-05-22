@@ -58,12 +58,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
   }
 
+  // Parse mode from request body (default to 'dev')
+  const body = await readBody(event).catch(() => ({}))
+  const mode = body?.mode === 'build' ? 'build' : 'dev'
+
   try {
-    const devServer = await startDevServer(worktreeDir, task.repository.id || undefined, task.id)
+    const devServer = await startDevServer(worktreeDir, task.repository.id || undefined, task.id, mode)
     return {
       available: true,
       url: `/api/preview/${task.id}`,
-      message: 'Preview server started successfully',
+      message: `Preview server started successfully (${mode} mode)`,
+      mode: devServer.mode,
     }
   } catch (err: any) {
     throw createError({ statusCode: 500, statusMessage: `Failed to start preview: ${err.message}` })

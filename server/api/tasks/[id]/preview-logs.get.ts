@@ -38,5 +38,6 @@ export default defineEventHandler(async (event) => {
     ready: devServer?.ready || false,
     failed: devServer?.failed || false,
     failReason: devServer?.failReason || null,
+    mode: devServer?.mode || 'dev',
   }
 })

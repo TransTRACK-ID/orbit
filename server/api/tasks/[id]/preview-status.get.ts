@@ -32,14 +32,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
 
-  const devServer = getDevServerByTask(task)
+  const devServer = getDevServerByTask(task, { includeNotReady: true })
   if (!devServer) {
     return { available: false }
   }
 
   return {
-    available: true,
-    url: `/api/preview/${task.id}`,
-    // Raw port is intentionally NEVER exposed to the client
+    available: devServer.ready,
+    starting: !devServer.ready && !devServer.failed,
+    failed: devServer.failed,
+    failReason: devServer.failReason || null,
+    url: devServer.ready ? `/api/preview/${task.id}` : null,
   }
 })

@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
 
-  const devServer = getDevServerByTask(task)
+  const devServer = getDevServerByTask(task, { includeNotReady: true })
   const logs = getDevServerLogs(devServer?.worktreeDir || '')
 
   return {

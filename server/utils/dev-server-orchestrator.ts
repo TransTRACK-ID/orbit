@@ -60,18 +60,19 @@ export function getDevServerStatus(worktreeDir: string): DevServerInfo | undefin
   return activeDevServers.get(worktreeDir)
 }
 
-export function getDevServerByTask(task: { id: string; repository?: { url: string; name?: string | null } | null }): DevServerInfo | undefined {
+export function getDevServerByTask(
+  task: { id: string; repository?: { url: string; name?: string | null } | null },
+  opts: { includeNotReady?: boolean } = {}
+): DevServerInfo | undefined {
   if (!task.repository?.url) return undefined
   const cloneDir = resolveCloneDir(task.repository.url, task.repository.name)
   const worktreeDir = resolveWorktreeDir(cloneDir, task.id)
   const info = activeDevServers.get(worktreeDir)
-  if (info && info.ready) return info
+  if (info && (info.ready || opts.includeNotReady)) return info
 
   // Fallback: scan activeDevServers for any worktree matching this task ID
-  // This covers edge cases where the worktree has a random suffix or the
-  // path was computed with a different projectsDir.
   for (const [dir, serverInfo] of activeDevServers) {
-    if (dir.includes(`.task-${task.id}`) && serverInfo.ready) {
+    if (dir.includes(`.task-${task.id}`) && (serverInfo.ready || opts.includeNotReady)) {
       return serverInfo
     }
   }

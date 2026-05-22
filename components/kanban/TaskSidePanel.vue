@@ -1880,9 +1880,23 @@ async function loadAttachments() {
 async function checkPreview() {
   if (!task.value) return
   try {
-    const status = await $fetch<{ available: boolean; url?: string }>(`/api/tasks/${task.value.id}/preview-status`)
+    const status = await $fetch<{
+      available: boolean
+      starting?: boolean
+      failed?: boolean
+      failReason?: string | null
+      url?: string | null
+    }>(`/api/tasks/${task.value.id}/preview-status`)
     previewAvailable.value = status.available
     previewUrl.value = status.url || ''
+    // If server is starting or failed, ensure UI reflects that
+    if (status.failed) {
+      previewFailed.value = true
+      if (status.failReason) previewFailReason.value = status.failReason
+    }
+    if (status.starting) {
+      previewStarting.value = true
+    }
   } catch {
     previewAvailable.value = false
     previewUrl.value = ''

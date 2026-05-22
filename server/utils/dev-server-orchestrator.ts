@@ -494,6 +494,7 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
 
   const env = {
     ...process.env,
+    NODE_ENV: 'development',
     PORT: String(port),
     NUXT_PORT: String(port),
     VITE_PORT: String(port),

@@ -9,6 +9,7 @@ import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
+import { fireCrashWebhook } from '~/server/utils/crash-notify'
 
 const execAsync = promisify(exec)
 
@@ -1146,13 +1147,69 @@ This ensures your response is readable in the UI.`
       clearTimeout(runtimeTimeout)
       hasOutput = true
       const msg = `Failed to start opencode: ${err.message}`
-      await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+      await pushToStreams(entry, JSON.stringify({ step: msg, isCrash: true, timestamp: Date.now() }))
       persistLog(msg)
+      // Persist structured crash log
+      try {
+        await db.insert(schema.activityLogs).values({
+          taskId: id,
+          userId: user.id,
+          action: 'agent_crash',
+          newValue: {
+            exitCode: null,
+            signal: null,
+            type: 'spawn_error',
+            message: msg,
+          },
+        })
+      } catch {}
+      // Fire webhook notification
+      await fireCrashWebhook({
+        taskId: id,
+        taskTitle: task.title,
+        exitCode: null,
+        signal: null,
+        type: 'spawn_error',
+        message: msg,
+      })
     })
 
     proc.on('exit', async (code) => {
       clearInterval(heartbeat)
       clearTimeout(runtimeTimeout)
+
+      const isCrash = code === null
+      const isError = code !== null && code !== 0
+
+      if (isCrash || isError) {
+        const crashType = isCrash ? 'crash' : 'error'
+        const crashMessage = isCrash
+          ? `Agent process was killed unexpectedly (signal: ${proc.signalCode ?? 'unknown'}). This may indicate OOM or a runtime crash.`
+          : `Agent exited with error code ${code}`
+        // Persist structured crash / error activity log
+        try {
+          await db.insert(schema.activityLogs).values({
+            taskId: id,
+            userId: user.id,
+            action: isCrash ? 'agent_crash' : 'agent_error',
+            newValue: {
+              exitCode: code,
+              signal: proc.signalCode ?? null,
+              type: crashType,
+              message: crashMessage,
+            },
+          })
+        } catch {}
+        // Fire webhook notification
+        await fireCrashWebhook({
+          taskId: id,
+          taskTitle: task.title,
+          exitCode: code,
+          signal: proc.signalCode ?? null,
+          type: crashType,
+          message: crashMessage,
+        })
+      }
 
       if (code === 0 && branchName) {
         try {
@@ -1267,8 +1324,19 @@ This ensures your response is readable in the UI.`
         }
       }
 
-      const msg = code === 0 ? 'Done' : `Exited with code ${code}`
-      await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+      const isCrashFinal = code === null
+      const isErrorFinal = code !== null && code !== 0
+      const msg = code === 0
+        ? 'Done'
+        : isCrashFinal
+          ? `Agent crashed (signal: ${proc.signalCode ?? 'killed'})`
+          : `Agent exited with error (code ${code})`
+      await pushToStreams(entry, JSON.stringify({
+        step: msg,
+        isCrash: isCrashFinal,
+        isError: isErrorFinal,
+        timestamp: Date.now(),
+      }))
       persistLog(msg)
 
       // Persist the agent's final text response so it survives page refresh.

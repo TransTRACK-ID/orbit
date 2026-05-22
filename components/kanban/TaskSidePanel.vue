@@ -705,113 +705,215 @@
               </button>
             </div>
 
-            <div v-if="task?.agentEnabled" class="mt-8 pt-6 border-t border-surface-100">
-              <div class="flex items-center gap-2 mb-3">
-                <button
-                  class="flex items-center gap-1 flex-1 text-left group"
-                  @click="runtimeLogsExpanded = !runtimeLogsExpanded"
-                >
-                  <ChevronDown
-                    class="w-3 h-3 text-surface-400 transition-transform duration-200"
-                    :class="{ 'rotate-180': runtimeLogsExpanded }"
-                  />
-                  <label class="text-xs font-medium text-surface-500 cursor-pointer group-hover:text-surface-700 transition-colors">
-                    Runtime ({{ runtimeLogsForTask.length }})
-                  </label>
-                </button>
-                <button
-                  v-if="isAgentInProgress && !runtimeActive"
-                  class="text-[10px] font-semibold px-2 py-1 rounded-md bg-primary-500 text-white hover:bg-primary-600 transition-colors flex items-center gap-1"
-                  @click="startRuntime(task.id); prUrl = ''; prError = ''"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                  Run
-                </button>
-                <button
-                  v-if="runtimeActive"
-                  class="text-[10px] font-semibold px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-1"
-                  @click="stopRuntime(task.id)"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                  Stop
-                </button>
-              </div>
-
-              <template v-if="runtimeLogsForTask.length > 0 || runtimeActive">
-
-              <div class="flex items-start gap-2 text-sm text-surface-500 mb-2">
-                <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-600"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M9 14h6"/><path d="M12 14v4"/></svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <span class="font-medium text-surface-700">Runtime</span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-semibold">LIVE</span>
+            <div v-if="task?.agentEnabled" class="mt-8 pt-6 border-t border-surface-100 space-y-4">
+              <!-- Premium Agent Status Banners -->
+              
+              <!-- State 1: Running -->
+              <div v-if="runtimeActive" class="relative overflow-hidden rounded-xl border border-primary-200/50 bg-gradient-to-r from-primary-50/70 to-indigo-50/70 p-4 shadow-sm backdrop-blur-md">
+                <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-primary-400/10 blur-xl"></div>
+                <div class="flex items-center gap-3">
+                  <!-- Pulsing Bot Avatar -->
+                  <div class="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-600 text-white shadow-md shadow-primary-500/20">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-lg bg-primary-400 opacity-25"></span>
+                    <svg class="h-5 w-5 animate-pulse" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
                   </div>
-                  <p class="text-sm text-surface-600 truncate mt-0.5">{{ latestRuntimeLog?.message || 'Waiting...' }}</p>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-semibold text-primary-800 uppercase tracking-wider">Agent Execution</span>
+                      <span class="inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-[9px] font-bold text-primary-700 animate-pulse">
+                        Active
+                      </span>
+                    </div>
+                    <p class="mt-0.5 text-xs text-primary-600 font-medium truncate">
+                      {{ latestRuntimeLog?.message || 'Agent is autonomously working on this task...' }}
+                    </p>
+                  </div>
+                  <button
+                    class="flex h-8 items-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-rose-700 active:scale-95 transition-all"
+                    @click="stopRuntime(task.id)"
+                  >
+                    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+                    </svg>
+                    Stop
+                  </button>
                 </div>
               </div>
 
-              <div
-                v-if="runtimeLogsExpanded"
-                class="space-y-0.5 max-h-40 overflow-y-auto rounded-lg bg-surface-50 p-2"
-              >
-                <div
-                  v-for="log in runtimeLogsForTask"
-                  :key="log.id"
-                  class="flex items-start gap-1.5 py-0.5 text-[11px] leading-snug"
-                >
-                  <span class="text-surface-600 font-mono flex-1 min-w-0">{{ log.message }}</span>
-                  <span class="text-surface-400 flex-shrink-0 whitespace-nowrap">{{ log.displayTime }}</span>
+              <!-- State 2: Crashed -->
+              <div v-else-if="runtimeState === 'crashed'" class="relative overflow-hidden rounded-xl border border-rose-200/50 bg-gradient-to-r from-rose-50/70 to-red-50/70 p-4 shadow-sm">
+                <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-red-400/10 blur-xl"></div>
+                <div class="flex items-start gap-3">
+                  <!-- Danger Alert Icon -->
+                  <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-rose-600 text-white shadow-md shadow-rose-500/20">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-semibold text-rose-800 uppercase tracking-wider">Agent Crashed</span>
+                      <span class="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-700">
+                        Killed
+                      </span>
+                    </div>
+                    <p class="mt-1 text-xs text-rose-700 leading-relaxed font-medium">
+                      The agent exited unexpectedly (likely due to an Out of Memory issue or system crash). Diagnostic details have been logged for the administrator.
+                    </p>
+                    <div class="mt-3 flex gap-2">
+                      <button
+                        class="flex h-8 items-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-rose-700 active:scale-95 transition-all"
+                        @click="startRuntime(task.id); prError = ''"
+                      >
+                        <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                          <polygon points="5,3 19,12 5,21" />
+                        </svg>
+                        Restart Agent
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div v-if="runtimeCompleted && !runtimeActive" class="mt-3">
-                <div
-                  v-if="prSkipped"
-                  class="w-full text-[11px] px-3 py-2 rounded-lg bg-surface-100 text-surface-500 flex items-center justify-center gap-1.5"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                  No code changes to commit
+              <!-- State 3: Error -->
+              <div v-else-if="runtimeState === 'error'" class="relative overflow-hidden rounded-xl border border-amber-200/50 bg-gradient-to-r from-amber-50/70 to-orange-50/70 p-4 shadow-sm">
+                <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-400/10 blur-xl"></div>
+                <div class="flex items-start gap-3">
+                  <!-- Error/Alert Icon -->
+                  <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-amber-600 text-white shadow-md shadow-amber-500/20">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-semibold text-amber-800 uppercase tracking-wider">Execution Failed</span>
+                      <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">
+                        Failed
+                      </span>
+                    </div>
+                    <p class="mt-1 text-xs text-amber-700 leading-relaxed font-medium">
+                      The agent encountered a non-zero exit code or terminal execution error.
+                    </p>
+                    <div class="mt-3 flex gap-2">
+                      <button
+                        class="flex h-8 items-center gap-1.5 rounded-lg bg-amber-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-amber-700 active:scale-95 transition-all"
+                        @click="startRuntime(task.id); prError = ''"
+                      >
+                        <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                          <polygon points="5,3 19,12 5,21" />
+                        </svg>
+                        Retry Execution
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  v-else-if="prLoading"
-                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-500 text-white flex items-center justify-center gap-1.5 opacity-70 cursor-wait"
-                  disabled
-                >
-                  <svg class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                  Creating PR...
-                </button>
-                <a
-                  v-else-if="prUrl"
-                  :href="prUrl"
-                  target="_blank"
-                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5 no-underline"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  Open PR
-                </a>
-                <button
-                  v-else
-                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5"
-                  @click="handleCreatePr"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
-                  Create PR
-                </button>
-                <p v-if="prError" class="text-[10px] text-red-500 mt-1">{{ prError }}</p>
               </div>
-            </template>
 
-              <div v-if="previewAvailable" class="mt-3">
-                <button
-                  class="w-full text-[11px] font-semibold px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
-                  @click="showPreviewModal = true"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  Open Preview
-                </button>
+              <!-- State 4: Done / Completed -->
+              <div v-else-if="runtimeCompleted" class="relative overflow-hidden rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50/70 to-green-50/70 p-4 shadow-sm">
+                <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-400/10 blur-xl"></div>
+                <div class="flex items-start gap-3">
+                  <!-- Success Badge -->
+                  <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-md shadow-emerald-500/20">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-semibold text-emerald-850 uppercase tracking-wider">Agent Completed</span>
+                      <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
+                        Finished
+                      </span>
+                    </div>
+                    <p class="mt-1 text-xs text-emerald-700 leading-relaxed font-medium">
+                      Agent completed execution successfully! All checks passed.
+                    </p>
+                    
+                    <!-- PR / Preview Actions -->
+                    <div class="mt-3 flex flex-col gap-2">
+                      <div v-if="prSkipped" class="w-full text-[11px] px-3 py-2 rounded-lg bg-emerald-100/50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        No code changes to commit
+                      </div>
+                      
+                      <div v-else class="flex flex-wrap gap-2">
+                        <!-- Create / Open PR -->
+                        <button
+                          v-if="!prUrl"
+                          class="flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+                          :disabled="prLoading"
+                          @click="handleCreatePr"
+                        >
+                          <svg v-if="prLoading" class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          </svg>
+                          <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                          {{ prLoading ? 'Creating PR...' : 'Create PR' }}
+                        </button>
+                        
+                        <a
+                          v-else
+                          :href="prUrl"
+                          target="_blank"
+                          class="flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all no-underline"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          Open PR
+                        </a>
+                        
+                        <!-- Open Preview -->
+                        <button
+                          v-if="previewAvailable"
+                          class="flex h-8 items-center gap-1.5 rounded-lg bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-primary-700 active:scale-95 transition-all"
+                          @click="showPreviewModal = true"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          Open Preview
+                        </button>
+                      </div>
+                      <p v-if="prError" class="text-[10px] text-red-500 mt-1 font-medium">{{ prError }}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              <!-- State 5: Idle -->
+              <div v-else-if="isAgentInProgress" class="relative overflow-hidden rounded-xl border border-surface-200 bg-gradient-to-r from-surface-50 to-surface-100/55 p-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                  <!-- Robot Avatar -->
+                  <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-surface-200 text-surface-600">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Agent Assigned</span>
+                      <span class="inline-flex items-center rounded-full bg-surface-200 px-2 py-0.5 text-[9px] font-bold text-surface-600">
+                        Ready
+                      </span>
+                    </div>
+                    <p class="mt-0.5 text-xs text-surface-500 font-medium">
+                      The agent is ready. Click Run to start autonomous execution.
+                    </p>
+                  </div>
+                  <button
+                    class="flex h-8 items-center gap-1.5 rounded-lg bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-primary-700 active:scale-95 transition-all"
+                    @click="startRuntime(task.id); prError = ''"
+                  >
+                    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                    Run Agent
+                  </button>
+                </div>
+              </div>
+            </div>
 
               <!-- Review Feedback Section -->
               <div v-if="task?.agentEnabled && prUrl && isReviewStatus" class="mt-8 pt-6 border-t border-surface-100">
@@ -952,7 +1054,6 @@
               </div>
             </div>
           </div>
-        </div>
       </template>
   </div>
 
@@ -1579,8 +1680,9 @@ const commentsToShow = computed(() => {
 })
 const commentsHasMore = computed(() => allComments.value.length > COMMENTS_COLLAPSE_THRESHOLD)
 
-const { startRuntime, stopRuntime, isRunning } = useAgentRuntime()
+const { startRuntime, stopRuntime, isRunning, getRunState } = useAgentRuntime()
 const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)
+const runtimeState = computed(() => task.value ? getRunState(task.value.id) : 'idle')
 
 // ─── Attachments ───
 const { fetchAttachments } = useTask()

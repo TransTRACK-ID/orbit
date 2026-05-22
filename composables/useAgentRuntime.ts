@@ -1,6 +1,10 @@
 const eventSources = new Map<string, EventSource>()
 const activeRuntimes = ref<Record<string, boolean>>({})
 
+/** Tracks the terminal state of a task's last agent run */
+export type AgentRunState = 'running' | 'done' | 'crashed' | 'error' | 'idle'
+const taskRunStates = ref<Record<string, AgentRunState>>({})
+
 export const useAgentRuntime = () => {
   const { addLog } = useLog()
 
@@ -36,6 +40,9 @@ export const useAgentRuntime = () => {
     const es = new EventSource(url)
     let receivedDone = false
 
+    // Mark as running immediately
+    taskRunStates.value = { ...taskRunStates.value, [taskId]: 'running' }
+
     es.onopen = () => {
       addLog('Runtime', '[CONN] Live stream connected', taskId)
     }
@@ -45,8 +52,16 @@ export const useAgentRuntime = () => {
         const data = JSON.parse(e.data)
         if (data.step) {
           addLog('Runtime', `> ${data.step}`, taskId)
-          // Detect natural completion so we can clean up state
-          if (/>?\s*Done$/.test(data.step) || />?\s*Exited with code/.test(data.step)) {
+
+          // Detect crash / error from structured SSE flags
+          if (data.isCrash) {
+            taskRunStates.value = { ...taskRunStates.value, [taskId]: 'crashed' }
+            receivedDone = true
+          } else if (data.isError) {
+            taskRunStates.value = { ...taskRunStates.value, [taskId]: 'error' }
+            receivedDone = true
+          } else if (/^Done$/.test(data.step.trim())) {
+            taskRunStates.value = { ...taskRunStates.value, [taskId]: 'done' }
             receivedDone = true
           }
         }
@@ -57,7 +72,7 @@ export const useAgentRuntime = () => {
     }
 
     es.onerror = () => {
-      // The browser auto-reconnects by default.  We only clean up when the
+      // The browser auto-reconnects by default. We only clean up when the
       // server has told us it's done OR when the connection is truly closed
       // (readyState === CLOSED after the browser gives up reconnecting).
       if (receivedDone || es.readyState === EventSource.CLOSED) {
@@ -85,10 +100,16 @@ export const useAgentRuntime = () => {
     return !!activeRuntimes.value[taskId]
   }
 
+  function getRunState(taskId: string): AgentRunState {
+    return taskRunStates.value[taskId] ?? 'idle'
+  }
+
   return {
     activeRuntimes: readonly(activeRuntimes),
+    taskRunStates: readonly(taskRunStates),
     startRuntime,
     stopRuntime,
     isRunning,
+    getRunState,
   }
 }

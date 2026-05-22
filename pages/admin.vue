@@ -250,6 +250,139 @@
           </div>
         </div>
       </div>
+
+      <!-- Diagnostics Tab -->
+      <div v-if="activeTab === 'diagnostics'" class="space-y-6">
+        <!-- Section 1: System Health & Memory Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Memory Stats -->
+          <div class="bg-white border border-surface-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider mb-3">Node.js Memory</h3>
+            <div class="space-y-2 text-[11px]">
+              <div class="flex justify-between border-b border-surface-50 pb-1.5">
+                <span class="text-surface-500 font-medium">RSS (Resident Set Size)</span>
+                <span class="font-bold text-surface-900 font-mono">{{ diagnosticsData?.memoryMb?.rss || 0 }} MB</span>
+              </div>
+              <div class="flex justify-between border-b border-surface-50 pb-1.5">
+                <span class="text-surface-500 font-medium">Heap Used</span>
+                <span class="font-bold text-surface-900 font-mono">{{ diagnosticsData?.memoryMb?.heapUsed || 0 }} / {{ diagnosticsData?.memoryMb?.heapTotal || 0 }} MB</span>
+              </div>
+              <div class="flex justify-between border-b border-surface-50 pb-1.5">
+                <span class="text-surface-500 font-medium">External</span>
+                <span class="font-bold text-surface-900 font-mono">{{ diagnosticsData?.memoryMb?.external || 0 }} MB</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Processes -->
+          <div class="bg-white border border-surface-200 rounded-xl p-4 shadow-sm md:col-span-2">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Active Agent Processes ({{ diagnosticsData?.runningTasks?.length || 0 }})</h3>
+              <button 
+                class="text-[10px] font-semibold text-accent hover:underline flex items-center gap-1"
+                @click="refreshDiagnostics"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Refresh
+              </button>
+            </div>
+            <div v-if="diagnosticsData?.runningTasks?.length" class="overflow-x-auto">
+              <table class="w-full text-[11px]">
+                <thead class="bg-surface-50 border-b border-surface-200">
+                  <tr>
+                    <th class="text-left px-3 py-1.5 font-semibold text-surface-500">Task ID</th>
+                    <th class="text-left px-3 py-1.5 font-semibold text-surface-500">PID</th>
+                    <th class="text-right px-3 py-1.5 font-semibold text-surface-500">Active SSE Streams</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="task in diagnosticsData.runningTasks" :key="task.taskId" class="border-b border-surface-100 last:border-0 hover:bg-surface-50">
+                    <td class="px-3 py-2 font-mono text-surface-700 truncate max-w-xs">{{ task.taskId }}</td>
+                    <td class="px-3 py-2 font-mono text-surface-900">{{ task.pid || 'N/A' }}</td>
+                    <td class="px-3 py-2 text-right font-medium text-surface-600">{{ task.streamCount }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="text-[11px] text-surface-400 py-6 text-center">
+              No active agent processes running.
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Linux Meminfo (Optional) -->
+        <div v-if="diagnosticsData?.procMemInfo" class="bg-white border border-surface-200 rounded-xl p-4 shadow-sm">
+          <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider mb-3">Host Memory Details (/proc/meminfo)</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[11px]">
+            <div v-for="(val, key) in diagnosticsData.procMemInfo" :key="key" class="bg-surface-50 rounded-lg p-2.5 border border-surface-100">
+              <span class="text-surface-400 font-medium block truncate" :title="key">{{ key }}</span>
+              <span class="font-bold text-surface-800 text-sm mt-0.5 block font-mono">{{ val }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Crash History -->
+        <div class="bg-white border border-surface-200 rounded-xl overflow-hidden shadow-sm">
+          <h3 class="text-xs font-semibold text-surface-700 px-4 py-3 bg-surface-50 border-b border-surface-200 uppercase tracking-wider">Recent Crashes & Failures</h3>
+          <div v-if="diagnosticsData?.crashEvents?.length" class="overflow-x-auto">
+            <table class="w-full text-[11px]">
+              <thead class="bg-surface-50 border-b border-surface-200 text-surface-500 font-semibold">
+                <tr>
+                  <th class="text-left px-4 py-2">Timestamp</th>
+                  <th class="text-left px-4 py-2">Event</th>
+                  <th class="text-left px-4 py-2">Task</th>
+                  <th class="text-left px-4 py-2">Triggered By</th>
+                  <th class="text-left px-4 py-2">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="event in diagnosticsData.crashEvents" :key="event.id" class="border-b border-surface-100 last:border-0 hover:bg-surface-50 transition-colors">
+                  <td class="px-4 py-2.5 text-surface-400 font-mono whitespace-nowrap">{{ formatDateTime(event.createdAt) }}</td>
+                  <td class="px-4 py-2.5">
+                    <span 
+                      class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase"
+                      :class="event.action === 'agent_crash' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-amber-50 text-amber-600 border border-amber-200'"
+                    >
+                      {{ event.action === 'agent_crash' ? 'Crash / OOM' : 'Error' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2.5 font-medium text-surface-900">
+                    <span class="truncate block max-w-[200px]" :title="event.taskTitle">{{ event.taskTitle }}</span>
+                    <span class="text-[9px] font-mono text-surface-400 block">{{ event.taskId }}</span>
+                  </td>
+                  <td class="px-4 py-2.5 text-surface-600">{{ event.triggeredBy }}</td>
+                  <td class="px-4 py-2.5 font-mono text-surface-500 whitespace-pre-wrap max-w-sm overflow-hidden text-ellipsis">
+                    <span v-if="event.exitCode !== null">Exit Code: {{ event.exitCode }}</span>
+                    <span v-if="event.signal"> | Signal: {{ event.signal }}</span>
+                    <p class="text-[10px] text-surface-400 mt-0.5 line-clamp-2" :title="event.message">{{ event.message }}</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="text-[11px] text-surface-400 py-12 text-center">
+            No agent crash or execution failure logs found.
+          </div>
+        </div>
+
+        <!-- Section 4: Full Runtime Logs -->
+        <div class="bg-white border border-surface-200 rounded-xl overflow-hidden shadow-sm">
+          <div class="px-4 py-3 bg-surface-50 border-b border-surface-200 flex items-center justify-between">
+            <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Raw Agent Terminal Log History (Last 200 Logs)</h3>
+            <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
+          </div>
+          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="p-4 bg-surface-955 font-mono text-xs text-surface-300 max-h-[500px] overflow-y-auto space-y-1 select-text scrollbar-thin">
+            <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="hover:bg-surface-900/50 py-0.5 px-1 rounded flex items-start gap-3">
+              <span class="text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
+              <span class="text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
+              <span class="text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
+            </div>
+          </div>
+          <div v-else class="text-[11px] text-surface-400 py-12 text-center">
+            No live raw execution logs available.
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Template Modal -->
@@ -410,6 +543,7 @@ const tabs = [
   { id: 'projects', label: 'Projects' },
   { id: 'activity', label: 'Activity' },
   { id: 'templates', label: 'Templates' },
+  { id: 'diagnostics', label: 'Diagnostics' },
 ]
 const activeTab = ref('users')
 
@@ -418,8 +552,9 @@ const { data: projectsData, pending: projectsPending } = await useFetch<{ projec
 const { data: activityData, pending: activityPending } = await useFetch<ActivityData>('/api/admin/activity', { key: 'admin-activity' })
 
 const { data: templatesData, pending: templatesPending, refresh: refreshTemplates } = await useFetch<{ templates: AdminTemplate[] }>('/api/admin/templates', { key: 'admin-templates' })
+const { data: diagnosticsData, pending: diagnosticsPending, refresh: refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
 
-const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value)
+const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value || diagnosticsPending.value)
 
 // Template modal state
 const showTemplateModal = ref(false)
@@ -615,5 +750,10 @@ function taskBarHeight(count: number | string) {
   const max = Math.max(...dailyTasks.map((d: any) => Number(d.count)), 1)
   const pct = max > 0 ? (numCount / max) * 100 : 4
   return `${Math.max(Math.round(pct), 4)}%`
+}
+
+function formatShortTime(date: string | Date | null) {
+  if (!date) return '-'
+  return new Date(date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 }
 </script>

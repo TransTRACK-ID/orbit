@@ -312,11 +312,11 @@
 
         <!-- Section 2: Linux Meminfo (Optional) -->
         <div v-if="diagnosticsData?.procMemInfo" class="bg-white border border-surface-200 rounded-xl p-4 shadow-sm">
-          <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider mb-3">Host Memory Details (/proc/meminfo)</h3>
+          <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider mb-3">Host Memory Details</h3>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[11px]">
             <div v-for="(val, key) in diagnosticsData.procMemInfo" :key="key" class="bg-surface-50 rounded-lg p-2.5 border border-surface-100">
-              <span class="text-surface-400 font-medium block truncate" :title="key">{{ key }}</span>
-              <span class="font-bold text-surface-800 text-sm mt-0.5 block font-mono">{{ val }}</span>
+              <span class="text-surface-400 font-medium block truncate" :title="key">{{ formatMemLabel(key) }}</span>
+              <span class="font-bold text-surface-800 text-sm mt-0.5 block font-mono">{{ formatMemInfo(val) }}</span>
             </div>
           </div>
         </div>
@@ -371,8 +371,8 @@
             <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Raw Agent Terminal Log History (Last 200 Logs)</h3>
             <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
           </div>
-          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="p-4 bg-surface-955 font-mono text-xs text-surface-300 max-h-[500px] overflow-y-auto space-y-1 select-text scrollbar-thin">
-            <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="hover:bg-surface-900/50 py-0.5 px-1 rounded flex items-start gap-3">
+          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="p-4 bg-surface-950 font-mono text-xs text-surface-300 max-h-[500px] overflow-y-auto space-y-1 select-text scrollbar-thin">
+            <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
               <span class="text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
               <span class="text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
               <span class="text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
@@ -755,5 +755,86 @@ function taskBarHeight(count: number | string) {
 function formatShortTime(date: string | Date | null) {
   if (!date) return '-'
   return new Date(date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+}
+
+const memLabelMap: Record<string, string> = {
+  MemTotal: 'Total Memory',
+  MemFree: 'Free Memory',
+  MemAvailable: 'Available Memory',
+  Buffers: 'Buffers',
+  Cached: 'Cached',
+  SwapCached: 'Swap Cached',
+  Active: 'Active',
+  Inactive: 'Inactive',
+  'Active(anon)': 'Active (Anonymous)',
+  'Inactive(anon)': 'Inactive (Anonymous)',
+  'Active(file)': 'Active (File)',
+  'Inactive(file)': 'Inactive (File)',
+  Unevictable: 'Unevictable',
+  Mlocked: 'Mlocked',
+  SwapTotal: 'Total Swap',
+  SwapFree: 'Free Swap',
+  Dirty: 'Dirty',
+  Writeback: 'Writeback',
+  AnonPages: 'Anonymous Pages',
+  Mapped: 'Mapped',
+  Shmem: 'Shared Memory',
+  KReclaimable: 'Reclaimable',
+  Slab: 'Slab',
+  SReclaimable: 'Reclaimable Slab',
+  SUnreclaim: 'Unreclaimable Slab',
+  KernelStack: 'Kernel Stack',
+  PageTables: 'Page Tables',
+  NFS_Unstable: 'NFS Unstable',
+  Bounce: 'Bounce',
+  WritebackTmp: 'Writeback Temp',
+  CommitLimit: 'Commit Limit',
+  Committed_AS: 'Committed AS',
+  VmallocTotal: 'VMalloc Total',
+  VmallocUsed: 'VMalloc Used',
+  VmallocChunk: 'VMalloc Chunk',
+  Percpu: 'Per CPU',
+  HardwareCorrupted: 'Hardware Corrupted',
+  AnonHugePages: 'Anonymous Huge Pages',
+  ShmemHugePages: 'Shared Huge Pages',
+  ShmemPmdMapped: 'Shared PMD Mapped',
+  FileHugePages: 'File Huge Pages',
+  FilePmdMapped: 'File PMD Mapped',
+  CmaTotal: 'CMA Total',
+  CmaFree: 'CMA Free',
+  HugePages_Total: 'Huge Pages Total',
+  HugePages_Free: 'Huge Pages Free',
+  HugePages_Rsvd: 'Huge Pages Reserved',
+  HugePages_Surp: 'Huge Pages Surplus',
+  Hugepagesize: 'Huge Page Size',
+  Hugetlb: 'Huge TLB',
+  DirectMap4k: 'Direct Map 4K',
+  DirectMap2M: 'Direct Map 2M',
+  DirectMap1G: 'Direct Map 1G',
+}
+
+function formatMemLabel(key: string): string {
+  return memLabelMap[key] || key.replace(/([A-Z])/g, ' $1').trim()
+}
+
+function formatMemInfo(val: string | number): string {
+  if (typeof val === 'number') {
+    return formatBytes(val * 1024)
+  }
+  const match = String(val).match(/^([\d.]+)\s*kB$/i)
+  if (match) {
+    const kb = parseFloat(match[1])
+    return formatBytes(kb * 1024)
+  }
+  return String(val)
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const clamped = Math.min(i, units.length - 1)
+  const size = bytes / Math.pow(1024, clamped)
+  return `${size.toFixed(2)} ${units[clamped]}`
 }
 </script>

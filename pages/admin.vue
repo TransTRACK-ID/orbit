@@ -336,27 +336,65 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="event in diagnosticsData.crashEvents" :key="event.id" class="border-b border-surface-100 last:border-0 hover:bg-surface-50 transition-colors">
-                  <td class="px-4 py-2.5 text-surface-400 font-mono whitespace-nowrap">{{ formatDateTime(event.createdAt) }}</td>
-                  <td class="px-4 py-2.5">
-                    <span 
-                      class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase"
-                      :class="event.action === 'agent_crash' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-amber-50 text-amber-600 border border-amber-200'"
-                    >
-                      {{ event.action === 'agent_crash' ? 'Crash / OOM' : 'Error' }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-2.5 font-medium text-surface-900">
-                    <span class="truncate block max-w-[200px]" :title="event.taskTitle">{{ event.taskTitle }}</span>
-                    <span class="text-[9px] font-mono text-surface-400 block">{{ event.taskId }}</span>
-                  </td>
-                  <td class="px-4 py-2.5 text-surface-600">{{ event.triggeredBy }}</td>
-                  <td class="px-4 py-2.5 font-mono text-surface-500 whitespace-pre-wrap max-w-sm overflow-hidden text-ellipsis">
-                    <span v-if="event.exitCode !== null">Exit Code: {{ event.exitCode }}</span>
-                    <span v-if="event.signal"> | Signal: {{ event.signal }}</span>
-                    <p class="text-[10px] text-surface-400 mt-0.5 line-clamp-2" :title="event.message">{{ event.message }}</p>
-                  </td>
-                </tr>
+                <template v-for="event in diagnosticsData.crashEvents" :key="event.id">
+                  <tr 
+                    class="border-b border-surface-100 last:border-0 hover:bg-surface-50 transition-colors cursor-pointer"
+                    @click="toggleExpand(event.id)"
+                  >
+                    <td class="px-4 py-2.5 text-surface-400 font-mono whitespace-nowrap">
+                      <div class="flex items-center gap-1.5">
+                        <ChevronRight class="w-3 h-3 text-surface-300 transition-transform" :class="isExpanded(event.id) ? 'rotate-90' : ''" />
+                        {{ formatDateTime(event.createdAt) }}
+                      </div>
+                    </td>
+                    <td class="px-4 py-2.5">
+                      <span 
+                        class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase"
+                        :class="event.action === 'agent_crash' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-amber-50 text-amber-600 border border-amber-200'"
+                      >
+                        {{ event.action === 'agent_crash' ? 'Crash / OOM' : 'Error' }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-2.5 font-medium text-surface-900">
+                      <span class="truncate block max-w-[200px]" :title="event.taskTitle">{{ event.taskTitle }}</span>
+                      <span class="text-[9px] font-mono text-surface-400 block">{{ event.taskId }}</span>
+                    </td>
+                    <td class="px-4 py-2.5 text-surface-600">{{ event.triggeredBy }}</td>
+                    <td class="px-4 py-2.5 font-mono text-surface-500 max-w-sm">
+                      <span v-if="event.exitCode !== null">Exit Code: {{ event.exitCode }}</span>
+                      <span v-if="event.signal"> | Signal: {{ event.signal }}</span>
+                      <p class="text-[10px] text-surface-400 mt-0.5 line-clamp-2" :title="event.message">{{ event.message }}</p>
+                    </td>
+                  </tr>
+                  <tr v-if="isExpanded(event.id)" class="bg-surface-50/50">
+                    <td colspan="5" class="px-4 py-3">
+                      <div class="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                          <h4 class="text-[10px] font-bold text-surface-700 uppercase tracking-wider">Full Crash Details</h4>
+                          <button 
+                            class="text-[10px] text-surface-400 hover:text-surface-600 flex items-center gap-1 transition-colors"
+                            @click.stop="copyCrashDetails(event)"
+                          >
+                            <Copy size="12" />
+                            Copy Details
+                          </button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[10px]">
+                          <div><span class="text-surface-400">Task ID:</span> <span class="font-mono text-surface-700">{{ event.taskId }}</span></div>
+                          <div><span class="text-surface-400">Action:</span> <span class="font-mono text-surface-700">{{ event.action }}</span></div>
+                          <div><span class="text-surface-400">Exit Code:</span> <span class="font-mono text-surface-700">{{ event.exitCode ?? 'N/A' }}</span></div>
+                          <div><span class="text-surface-400">Signal:</span> <span class="font-mono text-surface-700">{{ event.signal ?? 'N/A' }}</span></div>
+                          <div><span class="text-surface-400">Triggered By:</span> <span class="font-mono text-surface-700">{{ event.triggeredBy }}</span></div>
+                          <div><span class="text-surface-400">Timestamp:</span> <span class="font-mono text-surface-700">{{ formatDateTime(event.createdAt) }}</span></div>
+                        </div>
+                        <div v-if="event.message" class="mt-2">
+                          <span class="text-[10px] text-surface-400 font-medium">Message:</span>
+                          <pre class="mt-1 text-[10px] font-mono text-surface-700 bg-surface-50 dark:bg-surface-800 p-2 rounded border border-surface-100 dark:border-surface-700 whitespace-pre-wrap break-all">{{ event.message }}</pre>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -371,11 +409,23 @@
             <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Raw Agent Terminal Log History (Last 200 Logs)</h3>
             <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
           </div>
-          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="p-4 bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto space-y-1 select-text scrollbar-thin">
-            <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="hover:bg-surface-100 dark:hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
-              <span class="text-surface-400 dark:text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
-              <span class="text-primary-600 dark:text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
-              <span class="text-surface-800 dark:text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
+          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto select-text scrollbar-thin">
+            <div class="sticky top-0 z-10 bg-white dark:bg-surface-950 border-b border-surface-200 dark:border-surface-800 p-2 flex items-center justify-between">
+              <span class="text-[10px] text-surface-400">{{ diagnosticsData.recentRuntimeLogs.length }} log entries</span>
+              <button 
+                class="text-[10px] text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
+                @click="copyAllLogs"
+              >
+                <Copy size="12" />
+                {{ copiedLogs ? 'Copied!' : 'Copy All' }}
+              </button>
+            </div>
+            <div class="p-4 space-y-1">
+              <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="group hover:bg-surface-100 dark:hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
+                <span class="text-surface-400 dark:text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
+                <span class="text-primary-600 dark:text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
+                <span class="text-surface-800 dark:text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
+              </div>
             </div>
           </div>
           <div v-else class="text-[11px] text-surface-400 py-12 text-center">
@@ -555,6 +605,8 @@ const { data: templatesData, pending: templatesPending, refresh: refreshTemplate
 const { data: diagnosticsData, pending: diagnosticsPending, refresh: refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
 
 const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value || diagnosticsPending.value)
+
+const copiedLogs = ref(false)
 
 // Template modal state
 const showTemplateModal = ref(false)
@@ -836,5 +888,35 @@ function formatBytes(bytes: number): string {
   const clamped = Math.min(i, units.length - 1)
   const size = bytes / Math.pow(1024, clamped)
   return `${size.toFixed(2)} ${units[clamped]}`
+}
+
+function copyCrashDetails(event: any) {
+  const details = [
+    `Crash Event Details`,
+    `==================`,
+    `Timestamp: ${formatDateTime(event.createdAt)}`,
+    `Action: ${event.action}`,
+    `Task: ${event.taskTitle} (${event.taskId})`,
+    `Triggered By: ${event.triggeredBy}`,
+    `Exit Code: ${event.exitCode ?? 'N/A'}`,
+    `Signal: ${event.signal ?? 'N/A'}`,
+    ``,
+    `Message:`,
+    event.message || 'No message',
+  ].join('\n')
+
+  navigator.clipboard.writeText(details).catch(() => {})
+}
+
+function copyAllLogs() {
+  if (!diagnosticsData.value?.recentRuntimeLogs?.length) return
+  const logs = diagnosticsData.value.recentRuntimeLogs
+    .map((log: any) => `[${formatShortTime(log.createdAt)}] [${log.taskTitle}] ${log.message}`)
+    .join('\n')
+
+  navigator.clipboard.writeText(logs).then(() => {
+    copiedLogs.value = true
+    setTimeout(() => copiedLogs.value = false, 2000)
+  }).catch(() => {})
 }
 </script>

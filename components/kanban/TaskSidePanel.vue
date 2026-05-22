@@ -1182,33 +1182,74 @@
           <Close class="w-4 h-4" />
         </button>
       </div>
-      <div v-if="previewUrl" class="flex-1">
+      <!-- Preview Content: iframe, logs, or start prompt -->
+      <div class="flex-1 flex flex-col min-h-0">
+        <!-- Iframe when ready -->
         <iframe
+          v-if="previewUrl && !previewFailed"
           :src="previewIframeUrl"
-          class="w-full h-full border-0"
+          class="w-full h-full border-0 flex-1"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
         />
-      </div>
-      <div
-        v-else
-        class="flex-1 flex flex-col items-center justify-center text-surface-400 gap-3"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        <p class="text-sm font-medium">No preview available yet</p>
-        <p class="text-xs">Start a preview server to see your changes live.</p>
-        <Button
-          :disabled="previewStarting || !task"
-          :loading="previewStarting"
-          @click="handleStartPreview"
+
+        <!-- Log viewer when starting or failed -->
+        <div
+          v-else-if="previewStarting || previewRestarting || previewFailed || previewLogs.length > 0"
+          class="flex-1 flex flex-col min-h-0 bg-surface-900"
         >
-          <template v-if="previewStarting">
-            Starting preview server...
-          </template>
-          <template v-else>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
-            Start Preview
-          </template>
-        </Button>
+          <!-- Header bar -->
+          <div class="flex items-center justify-between px-4 py-2 bg-surface-800 border-b border-surface-700">
+            <div class="flex items-center gap-2">
+              <svg v-if="previewFailed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-400"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <svg v-else-if="previewStarting || previewRestarting" class="animate-spin w-4 h-4 text-primary-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              <span class="text-xs font-semibold" :class="previewFailed ? 'text-red-400' : 'text-primary-400'">
+                {{ previewFailed ? 'Preview Failed' : previewRestarting ? 'Restarting Preview Server...' : 'Starting Preview Server...' }}
+              </span>
+            </div>
+            <span class="text-[10px] text-surface-500 font-mono">{{ previewLogs.length }} lines</span>
+          </div>
+
+          <!-- Scrollable logs -->
+          <div ref="logsContainer" class="flex-1 overflow-auto p-3 font-mono text-[11px] leading-relaxed space-y-0.5">
+            <div
+              v-for="(line, idx) in previewLogs"
+              :key="idx"
+              class="break-all"
+              :class="line.includes('ERR:') || line.includes('error') || line.includes('failed') || line.includes('CRITICAL') ? 'text-red-400' : line.includes('WARN') || line.includes('warn') ? 'text-amber-400' : 'text-surface-300'"
+            >
+              {{ line }}
+            </div>
+            <div v-if="previewLogs.length === 0" class="text-surface-500 italic">Waiting for logs...</div>
+          </div>
+
+          <!-- Error summary when failed -->
+          <div v-if="previewFailed && previewFailReason" class="px-4 py-3 bg-red-950/50 border-t border-red-900">
+            <p class="text-xs text-red-300 font-medium">{{ previewFailReason }}</p>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div
+          v-else
+          class="flex-1 flex flex-col items-center justify-center text-surface-400 gap-3"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <p class="text-sm font-medium">No preview available yet</p>
+          <p class="text-xs">Start a preview server to see your changes live.</p>
+          <Button
+            :disabled="previewStarting || !task"
+            :loading="previewStarting"
+            @click="handleStartPreview"
+          >
+            <template v-if="previewStarting">
+              Starting preview server...
+            </template>
+            <template v-else>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
+              Start Preview
+            </template>
+          </Button>
+        </div>
       </div>
     </div>
   </div>
@@ -1331,6 +1372,11 @@ const previewRestarting = ref(false)
 const previewFullscreen = ref(false)
 const previewPath = ref('/')
 const committedPreviewPath = ref('/')
+const previewLogs = ref<string[]>([])
+const previewFailed = ref(false)
+const previewFailReason = ref('')
+let previewLogsPollInterval: ReturnType<typeof setInterval> | null = null
+const logsContainer = ref<HTMLDivElement | null>(null)
 
 const previewIframeUrl = computed(() => {
   if (!previewUrl.value) return ''
@@ -1362,9 +1408,14 @@ watch(showPreviewModal, (isOpen) => {
   if (isOpen) {
     previewPath.value = '/'
     committedPreviewPath.value = '/'
+    // If preview is already running, start polling logs so user sees them immediately
+    if (previewStarting.value || previewRestarting.value || previewLogs.value.length > 0) {
+      startLogPolling()
+    }
   } else {
     previewStarting.value = false
     previewFullscreen.value = false
+    stopLogPolling()
   }
 })
 
@@ -1838,56 +1889,116 @@ async function checkPreview() {
   }
 }
 
+async function fetchPreviewLogs() {
+  if (!task.value) return
+  try {
+    const result = await $fetch<{ logs: string[]; ready: boolean; failed: boolean; failReason: string | null }>(`/api/tasks/${task.value.id}/preview-logs`)
+    previewLogs.value = result.logs
+    previewFailed.value = result.failed
+    if (result.failReason) previewFailReason.value = result.failReason
+    // If the server reports ready, sync our local state
+    if (result.ready) {
+      previewAvailable.value = true
+      previewStarting.value = false
+      previewRestarting.value = false
+      previewFailed.value = false
+    }
+    // Auto-scroll to bottom
+    nextTick(() => {
+      const el = logsContainer.value
+      if (el) el.scrollTop = el.scrollHeight
+    })
+  } catch {
+    // ignore polling errors
+  }
+}
+
+function startLogPolling() {
+  if (previewLogsPollInterval) clearInterval(previewLogsPollInterval)
+  previewLogs.value = []
+  previewFailed.value = false
+  previewFailReason.value = ''
+  // Poll immediately then every 1s
+  fetchPreviewLogs()
+  previewLogsPollInterval = setInterval(fetchPreviewLogs, 1000)
+}
+
+function stopLogPolling() {
+  if (previewLogsPollInterval) {
+    clearInterval(previewLogsPollInterval)
+    previewLogsPollInterval = null
+  }
+}
+
 async function handleStartPreview() {
   if (!task.value || previewStarting.value) return
   previewStarting.value = true
+  startLogPolling()
   try {
     const result = await $fetch<{ available: boolean; url: string; message: string }>(`/api/tasks/${task.value.id}/preview-start`, {
       method: 'POST',
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
-    // Poll for a few seconds to confirm the server is truly ready
+    // Continue polling logs for a few more seconds after the API returns
     let attempts = 0
     const pollInterval = setInterval(async () => {
       attempts++
       await checkPreview()
-      if (previewAvailable.value || attempts >= 10) {
+      await fetchPreviewLogs()
+      if (previewAvailable.value || previewFailed.value || attempts >= 15) {
         clearInterval(pollInterval)
+        if (!previewAvailable.value && !previewFailed.value) {
+          // Timed out without becoming ready or failing — mark as failed
+          previewFailed.value = true
+          previewFailReason.value = 'Preview server did not become ready within 30s. Check logs above for details.'
+        }
         previewStarting.value = false
+        stopLogPolling()
       }
     }, 2000)
-  } catch {
+  } catch (err: any) {
     previewStarting.value = false
+    previewFailed.value = true
+    previewFailReason.value = err?.data?.statusMessage || err?.message || 'Failed to start preview server'
+    // Fetch one last set of logs so the user sees the error
+    await fetchPreviewLogs()
+    stopLogPolling()
   }
 }
 
 async function handleRestartPreview() {
   if (!task.value || previewRestarting.value) return
   previewRestarting.value = true
-  // Temporarily hide the iframe to show loading state
-  const oldPreviewUrl = previewUrl.value
   previewUrl.value = ''
+  startLogPolling()
   try {
     const result = await $fetch<{ available: boolean; url: string; message: string }>(`/api/tasks/${task.value.id}/preview-restart`, {
       method: 'POST',
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
-    // Poll for a few seconds to confirm the server is truly ready
     let attempts = 0
     const pollInterval = setInterval(async () => {
       attempts++
       await checkPreview()
-      if (previewAvailable.value || attempts >= 10) {
+      await fetchPreviewLogs()
+      if (previewAvailable.value || previewFailed.value || attempts >= 15) {
         clearInterval(pollInterval)
+        if (!previewAvailable.value && !previewFailed.value) {
+          previewFailed.value = true
+          previewFailReason.value = 'Preview server did not become ready within 30s. Check logs above for details.'
+        }
         previewRestarting.value = false
+        stopLogPolling()
       }
     }, 2000)
-  } catch {
-    // Restore old URL on failure so user can retry
-    previewUrl.value = oldPreviewUrl
+  } catch (err: any) {
     previewRestarting.value = false
+    previewFailed.value = true
+    previewFailReason.value = err?.data?.statusMessage || err?.message || 'Failed to restart preview server'
+    await fetchPreviewLogs()
+    stopLogPolling()
   }
 }
 

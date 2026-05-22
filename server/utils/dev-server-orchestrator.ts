@@ -17,9 +17,44 @@ export type DevServerInfo = {
   baseUrl: string
   ready: boolean
   installedDeps: boolean
+  logs: string[]
+  failed: boolean
+  failReason?: string
 }
 
 const activeDevServers = new Map<string, DevServerInfo>()
+
+function getOrCreateDevServerInfo(worktreeDir: string): DevServerInfo {
+  let info = activeDevServers.get(worktreeDir)
+  if (!info) {
+    info = {
+      worktreeDir,
+      proc: null as any,
+      port: 0,
+      baseUrl: '',
+      ready: false,
+      installedDeps: false,
+      logs: [],
+      failed: false,
+    }
+    activeDevServers.set(worktreeDir, info)
+  }
+  return info
+}
+
+function appendLog(worktreeDir: string, line: string) {
+  const info = getOrCreateDevServerInfo(worktreeDir)
+  const timestamp = new Date().toISOString().split('T')[1].slice(0, 8)
+  info.logs.push(`[${timestamp}] ${line}`)
+  // Keep only last 500 lines to prevent unbounded memory growth
+  if (info.logs.length > 500) {
+    info.logs = info.logs.slice(-500)
+  }
+}
+
+export function getDevServerLogs(worktreeDir: string): string[] {
+  return activeDevServers.get(worktreeDir)?.logs || []
+}
 
 export function getDevServerStatus(worktreeDir: string): DevServerInfo | undefined {
   return activeDevServers.get(worktreeDir)
@@ -115,74 +150,134 @@ function verifyCriticalModules(worktreeDir: string): boolean {
   return true
 }
 
+async function runInstall(worktreeDir: string, cmd: string, args: string[], env: Record<string, string> = {}): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const fullCmd = `${cmd} ${args.join(' ')}`
+    appendLog(worktreeDir, `$ ${fullCmd}`)
+    const child = spawn(cmd, args, {
+      cwd: worktreeDir,
+      env: { ...process.env, ...env },
+      shell: false,
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      stdout += text
+      text.split('\n').filter(Boolean).forEach((line) => appendLog(worktreeDir, line))
+    })
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      stderr += text
+      text.split('\n').filter(Boolean).forEach((line) => appendLog(worktreeDir, `ERR: ${line}`))
+    })
+
+    child.on('exit', (code) => {
+      appendLog(worktreeDir, `Exit code: ${code}`)
+      resolve({ ok: code === 0, stdout, stderr })
+    })
+
+    child.on('error', (err) => {
+      appendLog(worktreeDir, `Spawn error: ${err.message}`)
+      resolve({ ok: false, stdout, stderr })
+    })
+
+    // Hard timeout
+    setTimeout(() => {
+      try { child.kill('SIGTERM') } catch {}
+      appendLog(worktreeDir, 'Install timed out after 180s')
+      resolve({ ok: false, stdout, stderr })
+    }, 180000)
+  })
+}
+
 async function installDependencies(worktreeDir: string): Promise<boolean> {
   const nodeModulesPath = path.join(worktreeDir, 'node_modules')
 
+  appendLog(worktreeDir, '=== Starting dependency installation ===')
+
   // Always do a clean install for QA worktrees.
   if (existsSync(nodeModulesPath)) {
-    console.log(`[dev-server] Removing existing node_modules in ${worktreeDir} for clean install...`)
+    appendLog(worktreeDir, 'Removing existing node_modules for clean install...')
     try {
       rmSync(nodeModulesPath, { recursive: true, force: true })
-      console.log(`[dev-server] Removed stale node_modules`)
+      appendLog(worktreeDir, 'Removed stale node_modules')
     } catch (err: any) {
-      console.warn(`[dev-server] Failed to remove node_modules: ${err.message}`)
+      appendLog(worktreeDir, `Failed to remove node_modules: ${err.message}`)
     }
   }
 
   const pm = detectPackageManager(worktreeDir)
   if (!pm) {
-    console.warn(`[dev-server] No package manager detected in ${worktreeDir}`)
+    appendLog(worktreeDir, 'No package manager detected')
     return false
   }
 
   // Primary install attempt
-  console.log(`[dev-server] Installing dependencies with ${pm.cmd} in ${worktreeDir}...`)
-  try {
-    const installCmd = pm.cmd === 'npm'
-      ? `${pm.cmd} ${pm.args.join(' ')}`
-      : `${pm.cmd} ${pm.args.join(' ')}`
-
-    const { stdout, stderr } = await execAsync(installCmd, {
-      cwd: worktreeDir,
-      timeout: 180000,
-      env: { ...process.env, CI: 'true' },
-    })
-    if (stderr) console.warn(`[dev-server] Install stderr: ${stderr.slice(0, 500)}`)
-    console.log(`[dev-server] ${pm.cmd} install completed`)
-  } catch (err: any) {
-    console.error(`[dev-server] ${pm.cmd} install failed: ${err.message}`)
-    if (err.stderr) console.error(`[dev-server] Install error: ${err.stderr.slice(0, 500)}`)
-    // Continue to verify — partial install might still work
+  appendLog(worktreeDir, `Installing dependencies with ${pm.cmd}...`)
+  const primary = await runInstall(worktreeDir, pm.cmd, pm.args, { CI: 'true' })
+  if (primary.ok) {
+    appendLog(worktreeDir, `${pm.cmd} install completed`)
+  } else {
+    appendLog(worktreeDir, `${pm.cmd} install failed`)
   }
 
   // Verify critical Nuxt modules are present
   if (verifyCriticalModules(worktreeDir)) {
-    console.log(`[dev-server] All critical modules verified`)
+    appendLog(worktreeDir, 'All critical modules verified')
     return true
   }
 
-  // Fallback: try npm install (most reliable)
-  if (pm.cmd !== 'npm') {
-    console.log(`[dev-server] Falling back to npm install...`)
-    try {
-      const { stdout, stderr } = await execAsync('npm install', {
-        cwd: worktreeDir,
-        timeout: 180000,
-        env: { ...process.env, CI: 'true' },
-      })
-      if (stderr) console.warn(`[dev-server] npm stderr: ${stderr.slice(0, 500)}`)
-      console.log(`[dev-server] npm install completed`)
-    } catch (err: any) {
-      console.error(`[dev-server] npm fallback failed: ${err.message}`)
+  // Fallback 1: npm with --legacy-peer-deps (fixes common peer dep conflicts in Nuxt 4 migrations)
+  if (pm.cmd === 'npm' && (primary.stderr.includes('ERESOLVE') || primary.stderr.includes('peer dependency'))) {
+    appendLog(worktreeDir, 'Detected peer dependency conflict, retrying with --legacy-peer-deps...')
+    const legacy = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
+    if (legacy.ok) {
+      appendLog(worktreeDir, 'npm install --legacy-peer-deps completed')
+    } else {
+      appendLog(worktreeDir, 'npm install --legacy-peer-deps failed')
     }
 
     if (verifyCriticalModules(worktreeDir)) {
-      console.log(`[dev-server] Critical modules verified after npm fallback`)
+      appendLog(worktreeDir, 'Critical modules verified after --legacy-peer-deps')
       return true
     }
   }
 
-  console.error(`[dev-server] CRITICAL: Nuxt modules still missing after install. Dev server will fail.`)
+  // Fallback 2: try npm install (most reliable universal fallback)
+  if (pm.cmd !== 'npm') {
+    appendLog(worktreeDir, 'Falling back to npm install...')
+    const fallback = await runInstall(worktreeDir, 'npm', ['install'], { CI: 'true' })
+    if (fallback.ok) {
+      appendLog(worktreeDir, 'npm install completed')
+    } else {
+      appendLog(worktreeDir, 'npm fallback failed')
+    }
+
+    if (verifyCriticalModules(worktreeDir)) {
+      appendLog(worktreeDir, 'Critical modules verified after npm fallback')
+      return true
+    }
+  }
+
+  // Fallback 3: npm with --legacy-peer-deps (universal last resort)
+  appendLog(worktreeDir, 'Last resort: npm install --legacy-peer-deps...')
+  const lastResort = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
+  if (lastResort.ok) {
+    appendLog(worktreeDir, 'npm install --legacy-peer-deps completed')
+  } else {
+    appendLog(worktreeDir, 'npm install --legacy-peer-deps failed')
+  }
+
+  if (verifyCriticalModules(worktreeDir)) {
+    appendLog(worktreeDir, 'Critical modules verified after last resort')
+    return true
+  }
+
+  appendLog(worktreeDir, 'CRITICAL: Nuxt modules still missing after all install attempts. Dev server will fail.')
   return false
 }
 
@@ -297,7 +392,6 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     console.log(`[dev-server] Killing previous dev server for ${worktreeDir} before restart`)
     try {
       existing.proc.kill('SIGTERM')
-      // Poll until process actually exits (up to 5s)
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 500))
         if (existing.proc.killed || existing.proc.exitCode !== null) break
@@ -307,13 +401,17 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
         await new Promise(r => setTimeout(r, 1000))
       }
     } catch {}
-    activeDevServers.delete(worktreeDir)
+    // Preserve logs but mark as not ready so we start fresh
+    existing.ready = false
+    existing.logs = []
+    existing.failed = false
+    existing.failReason = undefined
   }
 
   const port = getAvailablePort()
   const baseUrl = `http://localhost:${port}`
 
-  console.log(`[dev-server] ${CODE_VERSION} Starting dev server for ${worktreeDir} on port ${port}`)
+  appendLog(worktreeDir, `${CODE_VERSION} Starting dev server for ${worktreeDir} on port ${port}`)
 
   // Copy .env from repo root to worktree if missing
   copyEnvToWorktree(worktreeDir)
@@ -326,9 +424,9 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
   if (existsSync(nuxtCachePath)) {
     try {
       rmSync(nuxtCachePath, { recursive: true, force: true })
-      console.log(`[dev-server] Cleaned .nuxt cache in ${worktreeDir}`)
+      appendLog(worktreeDir, 'Cleaned .nuxt cache')
     } catch (err: any) {
-      console.warn(`[dev-server] Failed to clean .nuxt cache: ${err.message}`)
+      appendLog(worktreeDir, `Failed to clean .nuxt cache: ${err.message}`)
     }
   }
 
@@ -345,30 +443,35 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
       for (const ev of envVars) {
         repositoryEnv[ev.key] = ev.value
       }
-      console.log(`[dev-server] Loaded ${envVars.length} repository env vars for repository ${repositoryId}`)
+      appendLog(worktreeDir, `Loaded ${envVars.length} repository env vars`)
     } catch (err: any) {
-      console.warn(`[dev-server] Failed to load repository env vars: ${err.message}`)
+      appendLog(worktreeDir, `Failed to load repository env vars: ${err.message}`)
     }
   }
 
   const devCmd = detectDevCommand(worktreeDir, port)
   if (!devCmd) {
-    throw new Error(`No dev command detected in ${worktreeDir}. Ensure package.json with a "dev" script exists.`)
+    const reason = `No dev command detected in ${worktreeDir}. Ensure package.json with a "dev" script exists.`
+    const info = getOrCreateDevServerInfo(worktreeDir)
+    info.failed = true
+    info.failReason = reason
+    appendLog(worktreeDir, reason)
+    throw new Error(reason)
   }
 
   // Run nuxt prepare to generate .nuxt/ files before starting dev server
   const nuxtBin = path.join(worktreeDir, 'node_modules', '.bin', 'nuxt')
   if (existsSync(nuxtBin)) {
-    console.log(`[dev-server] Running nuxt prepare...`)
+    appendLog(worktreeDir, 'Running nuxt prepare...')
     try {
-      await execAsync(`${nuxtBin} prepare`, {
-        cwd: worktreeDir,
-        timeout: 60000,
-        env: { ...process.env, CI: 'true' },
-      })
-      console.log(`[dev-server] nuxt prepare completed`)
+      const prepareResult = await runInstall(worktreeDir, nuxtBin, ['prepare'], { CI: 'true' })
+      if (prepareResult.ok) {
+        appendLog(worktreeDir, 'nuxt prepare completed')
+      } else {
+        appendLog(worktreeDir, `nuxt prepare failed: ${prepareResult.stderr.slice(0, 500)}`)
+      }
     } catch (err: any) {
-      console.warn(`[dev-server] nuxt prepare failed: ${err.message}`)
+      appendLog(worktreeDir, `nuxt prepare failed: ${err.message}`)
     }
   }
 
@@ -379,12 +482,8 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     VITE_PORT: String(port),
     NEXT_PORT: String(port),
     NUXT_TELEMETRY_DISABLED: '1',
-    // Override AUTH_ORIGIN so the dev server uses its own port for auth
-    // instead of inheriting the production container's value.
     AUTH_ORIGIN: `http://localhost:${port}`,
-    // Tell Nuxt/Vue Router its base URL so it mounts correctly under the proxy path
     ...(taskId ? { NUXT_APP_BASE_URL: `/api/preview/${taskId}/` } : {}),
-    // Repository env vars take highest precedence (after devCmd.env)
     ...repositoryEnv,
     ...devCmd.env,
   }
@@ -396,53 +495,61 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     env,
   })
 
-  const info: DevServerInfo = {
-    worktreeDir,
-    proc,
-    port,
-    baseUrl,
-    ready: false,
-    installedDeps,
-  }
+  const info = getOrCreateDevServerInfo(worktreeDir)
+  info.proc = proc
+  info.port = port
+  info.baseUrl = baseUrl
+  info.ready = false
+  info.installedDeps = installedDeps
+  info.failed = false
+  info.failReason = undefined
 
-  activeDevServers.set(worktreeDir, info)
-
-  // Log dev server output for debugging
+  // Capture dev server output into logs
   proc.stdout?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString().trim()
-    if (text) {
-      console.log(`[dev-server ${worktreeDir}] ${text.slice(0, 200)}`)
-    }
+    const text = chunk.toString()
+    text.split('\n').filter(Boolean).forEach((line) => {
+      appendLog(worktreeDir, line)
+      // Also echo to server console for debugging
+      console.log(`[dev-server ${worktreeDir}] ${line.slice(0, 200)}`)
+    })
   })
 
   proc.stderr?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString().trim()
-    if (text) {
-      console.error(`[dev-server ${worktreeDir}] ${text.slice(0, 200)}`)
-    }
+    const text = chunk.toString()
+    text.split('\n').filter(Boolean).forEach((line) => {
+      appendLog(worktreeDir, `ERR: ${line}`)
+      console.error(`[dev-server ${worktreeDir}] ${line.slice(0, 200)}`)
+    })
   })
 
   proc.on('exit', (code, signal) => {
-    console.log(`[dev-server] ${worktreeDir} exited with code=${code} signal=${signal} (${CODE_VERSION})`)
-    activeDevServers.delete(worktreeDir)
-    // Note: node_modules cleanup is done in stopDevServer() after QA completes,
-    // NOT here, to prevent race conditions with concurrent server restarts
+    appendLog(worktreeDir, `Dev server exited with code=${code} signal=${signal}`)
+    info.ready = false
+    if (code !== 0 && code !== null) {
+      info.failed = true
+      info.failReason = `Dev server crashed with exit code ${code}`
+    }
+    // Do NOT delete from activeDevServers so logs remain accessible
   })
 
   proc.on('error', (err) => {
-    console.error(`[dev-server] ${worktreeDir} error: ${err.message} (${CODE_VERSION})`)
-    activeDevServers.delete(worktreeDir)
+    appendLog(worktreeDir, `Dev server spawn error: ${err.message}`)
+    info.failed = true
+    info.failReason = `Failed to start dev server: ${err.message}`
   })
 
   const ready = await waitForPort(port, proc, 120000)
   if (!ready) {
     try { proc.kill('SIGTERM') } catch {}
-    activeDevServers.delete(worktreeDir)
-    throw new Error(`Dev server failed to start on port ${port} within 120s (${CODE_VERSION})`)
+    info.ready = false
+    info.failed = true
+    info.failReason = `Dev server failed to start on port ${port} within 120s. Check logs for details.`
+    appendLog(worktreeDir, info.failReason)
+    throw new Error(info.failReason)
   }
 
   info.ready = true
-  console.log(`[dev-server] Ready at ${baseUrl} for ${worktreeDir}`)
+  appendLog(worktreeDir, `Ready at ${baseUrl}`)
   return info
 }
 
@@ -467,7 +574,9 @@ export async function stopDevServer(worktreeDir: string): Promise<void> {
     await new Promise(r => setTimeout(r, 1000))
   }
 
-  activeDevServers.delete(worktreeDir)
+  // Mark as stopped but keep logs for diagnostics
+  info.ready = false
+  info.failed = false
 }
 
 export function stopAllDevServers(): void {

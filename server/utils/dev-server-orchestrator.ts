@@ -338,7 +338,12 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, worktre
       // Reject 5xx errors (server broken or still initializing)
       const statusNum = Number(status)
       if (status && status !== '000' && !isNaN(statusNum) && statusNum >= 200 && statusNum < 500) {
-        appendLog(worktreeDir, `Port ${port} ready (HTTP ${status})`)
+        appendLog(worktreeDir, `Port ${port} responsive (HTTP ${status}), waiting 3s for full Nuxt/Vite initialization...`)
+        // Give Nuxt extra time to finish setting up the Vite Node IPC socket.
+        // Without this delay, the first proxied request arrives before NUXT_VITE_NODE_OPTIONS
+        // is configured, causing "Vite Node IPC socket path not configured" errors.
+        await new Promise(r => setTimeout(r, 3000))
+        appendLog(worktreeDir, `Port ${port} ready`)
         return true
       }
 
@@ -355,6 +360,16 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, worktre
   return false
 }
 
+function isNuxtProject(worktreeDir: string): boolean {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(worktreeDir, 'package.json'), 'utf-8'))
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+    return 'nuxt' in deps
+  } catch {
+    return false
+  }
+}
+
 function detectDevCommand(worktreeDir: string, port: number): { command: string; args: string[]; env: Record<string, string> } | null {
   // Use the same package manager for running as for installing
   const pm = detectPackageManager(worktreeDir)
@@ -366,8 +381,12 @@ function detectDevCommand(worktreeDir: string, port: number): { command: string;
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'))
       const scripts = pkg.scripts || {}
       if (scripts.dev) {
-        // Pass port via -- --port for frameworks that support it (Vite, Nuxt, Next)
-        return { command: runCmd, args: ['run', 'dev', '--', '--port', String(port)], env: {} }
+        const nuxt = isNuxtProject(worktreeDir)
+        // For Nuxt projects, add --no-fork to run the Vite server and Nitro in the same
+        // process. This avoids the Unix socket IPC (NUXT_VITE_NODE_OPTIONS) that breaks
+        // in containerized/sandboxed live preview environments.
+        const extraArgs = nuxt ? ['--no-fork'] : []
+        return { command: runCmd, args: ['run', 'dev', '--', '--port', String(port), ...extraArgs], env: {} }
       }
       if (scripts.start) {
         return { command: runCmd, args: ['run', 'start', '--', '--port', String(port)], env: {} }

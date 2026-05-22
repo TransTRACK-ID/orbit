@@ -117,7 +117,7 @@
               class="flex-1"
               @keydown.enter.prevent="handleAddComment"
             />
-            <Button :disabled="!newComment" @click="handleAddComment">Send</Button>
+            <Button :disabled="!newComment || sendingComment" :loading="sendingComment" @click="handleAddComment">Send</Button>
           </div>
         </div>
       </div>
@@ -143,6 +143,7 @@ const loading = ref(true)
 const task = ref<Task | null>(null)
 const comments = ref<Comment[]>([])
 const newComment = ref('')
+const sendingComment = ref(false)
 
 onMounted(async () => {
   try {
@@ -156,13 +157,16 @@ onMounted(async () => {
 })
 
 async function handleAddComment() {
-  if (!newComment.value) return
+  if (!newComment.value || sendingComment.value) return
+  sendingComment.value = true
   try {
     await addComment(taskId.value, newComment.value)
     newComment.value = ''
     comments.value = await fetchComments(taskId.value)
   } catch (err) {
     console.error('Failed to add comment:', err)
+  } finally {
+    sendingComment.value = false
   }
 }
 

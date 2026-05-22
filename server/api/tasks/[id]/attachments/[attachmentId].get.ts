@@ -10,6 +10,7 @@ function getMimeType(path: string): string {
     case '.png': return 'image/png'
     case '.jpg':
     case '.jpeg': return 'image/jpeg'
+    case '.html': return 'text/html'
     default: return 'application/octet-stream'
   }
 }

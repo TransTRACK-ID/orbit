@@ -170,7 +170,7 @@
               v-if="pendingImages.length < 3"
               tabindex="0"
               role="button"
-              aria-label="Upload image attachments"
+              aria-label="Upload attachments"
               class="border-2 border-dashed border-surface-300 rounded-lg p-4 text-center cursor-pointer hover:border-accent hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent focus:bg-surface-50 outline-none transition-colors"
               @click="fileInput?.click()"
               @keydown.enter.prevent="fileInput?.click()"
@@ -182,28 +182,32 @@
                 <svg class="w-6 h-6 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M12 16h.01M8 16h.01M16 16h.01" />
                 </svg>
-                <span class="text-xs text-surface-500">Drop images here or click to upload</span>
-                <span class="text-xs text-surface-500">PNG, JPEG, JPG — max 10 MB</span>
+                <span class="text-xs text-surface-500">Drop files here or click to upload</span>
+                <span class="text-xs text-surface-500">PNG, JPEG, JPG, HTML — max 10 MB</span>
               </div>
               <input
                 ref="fileInput"
                 type="file"
-                accept="image/png,image/jpeg,image/jpg"
+                accept="image/png,image/jpeg,image/jpg,.html,text/html"
                 multiple
                 class="hidden"
                 @change="handleFileSelect"
               />
             </div>
 
-            <!-- Image previews with progress -->
+            <!-- File previews with progress -->
             <div v-if="pendingImages.length > 0" class="flex flex-wrap gap-2">
               <div
                 v-for="(img, idx) in pendingImages"
                 :key="img.id"
                 class="relative group"
               >
-                <div class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+                <div v-if="img.isImage" class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
                   <img :src="img.preview" alt="Attachment preview" class="w-full h-full object-cover" />
+                </div>
+                <div v-else class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100 flex flex-col items-center justify-center gap-0.5 px-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 2 2 2"/><path d="M14 13l2 2-2 2"/></svg>
+                  <span class="text-[8px] text-surface-500 truncate w-full text-center leading-tight">{{ img.file.name }}</span>
                 </div>
 
                 <!-- Progress overlay -->
@@ -389,6 +393,7 @@ interface PendingImage {
   id: string
   file: File
   preview: string
+  isImage: boolean
   status: 'pending' | 'uploading' | 'done' | 'error'
   progress: number
 }
@@ -559,10 +564,10 @@ function toggleLabel(labelId: string) {
   }
 }
 
-function validateImage(file: File): string | null {
-  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg']
+function validateFile(file: File): string | null {
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'text/html']
   if (!allowedTypes.includes(file.type)) {
-    return 'Only PNG, JPEG, and JPG images are allowed.'
+    return 'Only PNG, JPEG, JPG images and HTML files are allowed.'
   }
   if (file.size > 10 * 1024 * 1024) {
     return 'File too large (max 10 MB).'
@@ -574,15 +579,17 @@ function addImageFiles(files: FileList | null) {
   if (!files) return
   for (const file of Array.from(files)) {
     if (pendingImages.value.length >= 3) break
-    const validationError = validateImage(file)
+    const validationError = validateFile(file)
     if (validationError) {
       error.value = validationError
       continue
     }
+    const isImage = file.type.startsWith('image/')
     pendingImages.value.push({
       id: Math.random().toString(36).substring(2, 9),
       file,
-      preview: URL.createObjectURL(file),
+      preview: isImage ? URL.createObjectURL(file) : '',
+      isImage,
       status: 'pending',
       progress: 0,
     })

@@ -744,6 +744,8 @@ export async function startDevServer(
       // Nuxt runtime config mappings
       NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}`,
       NUXT_API_BASE_URL: `/api/preview/${taskId}`,
+      // Explicit flag so handlers can detect preview mode without relying on hostname
+      ORBIT_PREVIEW: 'true',
     } : {}),
     ...repositoryEnv,
     ...devCmd.env,

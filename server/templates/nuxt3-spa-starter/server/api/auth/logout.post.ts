@@ -1,4 +1,4 @@
-import { resolveApiBaseUrl } from '../utils/api-url';
+import { resolveApiBaseUrl, isPreviewMode } from '../utils/api-url';
 
 export default defineEventHandler(async (event) => {
   try {
@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
     const baseUrl = resolveApiBaseUrl(config.apiBaseUrl || config.public.baseAPI);
 
     // Preview mode: no external API available, return mock response
-    if (baseUrl.includes('127.0.0.1') || baseUrl.includes('localhost')) {
+    if (isPreviewMode(config)) {
       return { status: 'success', message: 'Logged out (preview)' };
     }
 

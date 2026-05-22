@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="$emit('cancel')">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-[#1C1C1E]/50 p-4" @click.self="$emit('cancel')">
       <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-sm p-6 animate-scale-in">
         <div class="flex flex-col items-center text-center gap-2 mb-6">
           <div

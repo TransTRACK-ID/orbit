@@ -368,18 +368,25 @@
     <!-- Invite modal -->
     <ModalConfirmation
       v-if="showInvite"
-      title="Invite Member"
+      title="Invite member"
+      subtitle="An invitation email will be sent to this address."
       confirm-text="Invite"
       :is-loading="inviteLoading"
+      :confirm-disabled="!inviteEmail.trim() || !!inviteError"
       @confirm="handleInvite"
       @cancel="showInvite = false"
     >
-      <TextInput
-        v-model="inviteEmail"
-        type="email"
-        placeholder="Enter email address"
-        class="mb-3"
-      />
+      <div class="w-full mt-2">
+        <TextInput
+          v-model="inviteEmail"
+          type="email"
+          label="Email address"
+          placeholder="Enter email address"
+          :is-error="!!inviteError"
+          :error-message="inviteError"
+          @on-input="inviteError = ''"
+        />
+      </div>
     </ModalConfirmation>
 
     <!-- Delete confirmation -->
@@ -415,6 +422,17 @@ const saved = ref(false)
 const showInvite = ref(false)
 const inviteEmail = ref('')
 const inviteLoading = ref(false)
+const inviteError = ref('')
+
+const { success: toastSuccess, error: toastError } = useToast()
+
+watch(showInvite, (val) => {
+  if (val) {
+    inviteEmail.value = ''
+    inviteError.value = ''
+  }
+})
+
 const confirmDelete = ref(false)
 const deletingWorkspace = ref(false)
 
@@ -607,14 +625,26 @@ async function handleDeleteRepo(repoId: string) {
 }
 
 async function handleInvite() {
-  if (!workspace.value || !inviteEmail.value || inviteLoading.value) return
+  if (!workspace.value || !inviteEmail.value.trim() || inviteLoading.value) return
+
+  const email = inviteEmail.value.trim()
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    inviteError.value = 'Please enter a valid email address'
+    return
+  }
+
   inviteLoading.value = true
+  inviteError.value = ''
   try {
-    await useWorkspace().inviteMember(workspace.value.id, inviteEmail.value)
+    await useWorkspace().inviteMember(workspace.value.id, email)
     showInvite.value = false
     inviteEmail.value = ''
+    toastSuccess(`Invitation sent to ${email}`, 'Member invited')
   } catch (err: any) {
-    console.error('Invite failed:', err)
+    const message = err?.data?.message || err?.message || 'Failed to send invitation'
+    inviteError.value = message
+    toastError(message, 'Invite failed')
   } finally {
     inviteLoading.value = false
   }

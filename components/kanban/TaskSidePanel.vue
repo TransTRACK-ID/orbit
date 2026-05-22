@@ -1133,6 +1133,7 @@
       message="Are you sure you want to delete this task? This action cannot be undone."
       confirm-text="Delete"
       variant="danger"
+      :is-loading="deleting"
       @confirm="handleDelete"
       @cancel="confirmDelete = false"
     />
@@ -1203,6 +1204,7 @@ const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
 const showAttachmentPicker = ref(false)
 const confirmDelete = ref(false)
+const deleting = ref(false)
 const duplicating = ref(false)
 
 // ─── Comment area attachments ───
@@ -2641,12 +2643,17 @@ async function handleAddComment() {
 }
 
 async function handleDelete() {
-  if (!task.value) return
-  const taskName = task.value.title
-  const taskId = task.value.id
-  await deleteTaskApi(taskId)
-  persistLog(props.workspaceId, { entityType: 'task', entityId: taskId, entityName: taskName, action: 'delete', message: `Deleted task "${taskName}"` })
-  emit('deleted', taskId)
+  if (!task.value || deleting.value) return
+  deleting.value = true
+  try {
+    const taskName = task.value.title
+    const taskId = task.value.id
+    await deleteTaskApi(taskId)
+    persistLog(props.workspaceId, { entityType: 'task', entityId: taskId, entityName: taskName, action: 'delete', message: `Deleted task "${taskName}"` })
+    emit('deleted', taskId)
+  } finally {
+    deleting.value = false
+  }
 }
 
 async function handleDuplicate() {

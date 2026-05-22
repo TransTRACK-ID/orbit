@@ -837,9 +837,25 @@
                       Agent completed execution successfully! All checks passed.
                     </p>
                     
-                    <!-- PR / Preview Actions -->
-                    <div class="mt-3 flex flex-col gap-2">
-                      <div v-if="prSkipped" class="w-full text-[11px] px-3 py-2 rounded-lg bg-emerald-100/50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1.5">
+                     <!-- Mode Change Pending Notice -->
+                     <div
+                       v-if="previewAvailable && previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+                       class="text-[11px] px-3 py-2 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5"
+                     >
+                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0">
+                         <circle cx="12" cy="12" r="10"/>
+                         <line x1="12" y1="8" x2="12" y2="12"/>
+                         <line x1="12" y1="16" x2="12.01" y2="16"/>
+                       </svg>
+                       <span class="flex-1">
+                         Mode changed to <span class="font-semibold">{{ previewMode === 'build' ? 'SSR' : 'Dev' }}</span>.
+                         Click <span class="font-semibold">Restart</span> to apply.
+                       </span>
+                     </div>
+
+                     <!-- PR / Preview Actions -->
+                     <div class="mt-3 flex flex-col gap-2">
+                       <div v-if="prSkipped" class="w-full text-[11px] px-3 py-2 rounded-lg bg-emerald-100/50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1.5">
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                         No code changes to commit
                       </div>
@@ -1254,6 +1270,32 @@
           <Close class="w-4 h-4" />
         </button>
       </div>
+
+      <!-- Mode Change Pending Banner -->
+      <div
+        v-if="previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+        class="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p class="text-xs text-amber-700 flex-1">
+          <span class="font-semibold">Mode change pending:</span>
+          Preview is running in {{ runningPreviewMode === 'build' ? 'SSR' : 'Dev' }} mode.
+          Click the <span class="font-semibold">Restart</span> button above to switch to {{ previewMode === 'build' ? 'SSR' : 'Dev' }} mode.
+          <span v-if="previewMode === 'build'" class="text-amber-600">(~30-60s build)</span>
+          <span v-else class="text-amber-600">(~5-10s restart)</span>
+        </p>
+        <button
+          class="text-xs font-semibold px-2.5 py-1 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors flex-shrink-0"
+          @click="handleRestartPreview"
+        >
+          Restart Now
+        </button>
+      </div>
+
       <!-- Preview Content: iframe, logs, or start prompt -->
       <div class="flex-1 flex flex-col min-h-0">
         <!-- Iframe when ready -->

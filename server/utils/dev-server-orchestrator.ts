@@ -706,10 +706,12 @@ export async function startDevServer(
       NUXT_TELEMETRY_DISABLED: '1',
       ...(taskId ? {
         NUXT_APP_BASE_URL: `/api/preview/${taskId}/`,
-        // Set base URL env vars during build so they're baked into the production bundle
-        API_BASE_URL: `/api/preview/${taskId}/`,
-        NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}/`,
-        NUXT_API_BASE_URL: `/api/preview/${taskId}/`,
+        // Set base URL env vars during build so they're baked into the production bundle.
+        // Note: API_BASE_URL intentionally omits the trailing slash so apps that do
+        // simple string concatenation (e.g. `${baseURL}/api/...`) don't produce double slashes.
+        API_BASE_URL: `/api/preview/${taskId}`,
+        NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}`,
+        NUXT_API_BASE_URL: `/api/preview/${taskId}`,
       } : {}),
       ...repositoryEnv,
     })
@@ -738,11 +740,13 @@ export async function startDevServer(
     ...(taskId ? {
       NUXT_APP_BASE_URL: `/api/preview/${taskId}/`,
       // Generic base URL for any framework - the previewed app can use this
-      // to construct API calls, auth callbacks, or any absolute URLs
-      API_BASE_URL: `/api/preview/${taskId}/`,
+      // to construct API calls, auth callbacks, or any absolute URLs.
+      // Intentionally omits trailing slash to prevent double slashes in apps
+      // that do simple string concatenation like `${baseURL}/api/...`.
+      API_BASE_URL: `/api/preview/${taskId}`,
       // Nuxt runtime config mappings
-      NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}/`,
-      NUXT_API_BASE_URL: `/api/preview/${taskId}/`,
+      NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}`,
+      NUXT_API_BASE_URL: `/api/preview/${taskId}`,
     } : {}),
     ...repositoryEnv,
     ...devCmd.env,

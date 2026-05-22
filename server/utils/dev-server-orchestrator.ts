@@ -704,7 +704,13 @@ export async function startDevServer(
     const buildResult = await runBuild(worktreeDir, 'npx', ['nuxt', 'build'], {
       CI: 'true',
       NUXT_TELEMETRY_DISABLED: '1',
-      ...(taskId ? { NUXT_APP_BASE_URL: `/api/preview/${taskId}/` } : {}),
+      ...(taskId ? {
+        NUXT_APP_BASE_URL: `/api/preview/${taskId}/`,
+        // Set base URL env vars during build so they're baked into the production bundle
+        API_BASE_URL: `/api/preview/${taskId}/`,
+        NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}/`,
+        NUXT_API_BASE_URL: `/api/preview/${taskId}/`,
+      } : {}),
       ...repositoryEnv,
     })
 
@@ -734,6 +740,9 @@ export async function startDevServer(
       // Generic base URL for any framework - the previewed app can use this
       // to construct API calls, auth callbacks, or any absolute URLs
       API_BASE_URL: `/api/preview/${taskId}/`,
+      // Nuxt runtime config mappings
+      NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}/`,
+      NUXT_API_BASE_URL: `/api/preview/${taskId}/`,
     } : {}),
     ...repositoryEnv,
     ...devCmd.env,

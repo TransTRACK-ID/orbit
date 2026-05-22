@@ -17,6 +17,7 @@ export const projects = pgTable('projects', {
   icon: varchar('icon', { length: 50 }),
   templateId: varchar('template_id', { length: 50 }),
   stack: varchar('stack', { length: 20 }),
+  defaultView: varchar('default_view', { length: 20 }).notNull().default('kanban'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

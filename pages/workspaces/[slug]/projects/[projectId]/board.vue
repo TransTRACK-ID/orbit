@@ -21,26 +21,110 @@
         @dismiss="showAgentTooltip = false"
       />
 
-      <KanbanBoard
-        v-if="viewMode === 'kanban'"
-        :statuses="statuses"
-        :tasks="tasks"
-        :view-mode="viewMode"
-        @update:view-mode="viewMode = $event"
-        @create-task="handleCreateTask"
-        @update-task="handleUpdateTask"
-        @open-task="handleOpenTask"
-      />
-      <KanbanTaskTable
-        v-else
-        :statuses="statuses"
-        :tasks="tasks"
-        :view-mode="viewMode"
-        @update:view-mode="viewMode = $event"
-        @create-task="handleCreateTask"
-        @update-task="handleUpdateTask"
-        @open-task="handleOpenTask"
-      />
+      <KeepAlive>
+        <KanbanBoard
+          v-if="viewMode === 'kanban'"
+          :statuses="statuses"
+          :labels="labels"
+          :tasks="filteredTasks"
+          :view-mode="viewMode"
+          :sort-field="sort.field"
+          :sort-direction="sort.direction"
+          :search-query="filters.search"
+          :show-filters="showFilters"
+          :selected-statuses="filters.statuses"
+          :selected-priorities="filters.priorities"
+          :selected-labels="filters.labels"
+          :selected-assignee-type="filters.assigneeType"
+          :agent-enabled-filter="filters.agentEnabled"
+          :active-filter-count="activeFilterCount"
+          :active-filter-chips="activeFilterChips"
+          :total-task-count="tasks.length"
+          @update:view-mode="viewMode = $event"
+          @create-task="handleCreateTask"
+          @update-task="handleUpdateTask"
+          @open-task="handleOpenTask"
+          @update:search="handleSearchUpdate"
+          @update:sort-field="handleSortFieldUpdate"
+          @update:sort-direction="handleSortDirectionUpdate"
+          @update:show-filters="showFilters = $event"
+          @update:selected-statuses="handleStatusesUpdate"
+          @update:selected-priorities="handlePrioritiesUpdate"
+          @update:selected-labels="handleLabelsUpdate"
+          @update:selected-assignee-type="handleAssigneeTypeUpdate"
+          @update:agent-enabled-filter="handleAgentEnabledUpdate"
+          @remove-chip="handleRemoveChip"
+          @clear-filters="clearAllFilters"
+        />
+        <KanbanTaskTable
+          v-else-if="viewMode === 'table'"
+          :statuses="statuses"
+          :labels="labels"
+          :tasks="filteredTasks"
+          :view-mode="viewMode"
+          :sort-field="sort.field"
+          :sort-direction="sort.direction"
+          :search-query="filters.search"
+          :show-filters="showFilters"
+          :selected-statuses="filters.statuses"
+          :selected-priorities="filters.priorities"
+          :selected-labels="filters.labels"
+          :selected-assignee-type="filters.assigneeType"
+          :agent-enabled-filter="filters.agentEnabled"
+          :active-filter-count="activeFilterCount"
+          :active-filter-chips="activeFilterChips"
+          :total-task-count="tasks.length"
+          @update:view-mode="viewMode = $event"
+          @create-task="handleCreateTask"
+          @update-task="handleUpdateTask"
+          @open-task="handleOpenTask"
+          @update:search="handleSearchUpdate"
+          @update:sort-field="handleSortFieldUpdate"
+          @update:sort-direction="handleSortDirectionUpdate"
+          @update:show-filters="showFilters = $event"
+          @update:selected-statuses="handleStatusesUpdate"
+          @update:selected-priorities="handlePrioritiesUpdate"
+          @update:selected-labels="handleLabelsUpdate"
+          @update:selected-assignee-type="handleAssigneeTypeUpdate"
+          @update:agent-enabled-filter="handleAgentEnabledUpdate"
+          @remove-chip="handleRemoveChip"
+          @clear-filters="clearAllFilters"
+        />
+        <KanbanTaskList
+          v-else-if="viewMode === 'list'"
+          :statuses="statuses"
+          :labels="labels"
+          :tasks="filteredTasks"
+          :view-mode="viewMode"
+          :sort-field="sort.field"
+          :sort-direction="sort.direction"
+          :search-query="filters.search"
+          :show-filters="showFilters"
+          :selected-statuses="filters.statuses"
+          :selected-priorities="filters.priorities"
+          :selected-labels="filters.labels"
+          :selected-assignee-type="filters.assigneeType"
+          :agent-enabled-filter="filters.agentEnabled"
+          :active-filter-count="activeFilterCount"
+          :active-filter-chips="activeFilterChips"
+          :total-task-count="tasks.length"
+          @update:view-mode="viewMode = $event"
+          @create-task="handleCreateTask"
+          @update-task="handleUpdateTask"
+          @open-task="handleOpenTask"
+          @update:search="handleSearchUpdate"
+          @update:sort-field="handleSortFieldUpdate"
+          @update:sort-direction="handleSortDirectionUpdate"
+          @update:show-filters="showFilters = $event"
+          @update:selected-statuses="handleStatusesUpdate"
+          @update:selected-priorities="handlePrioritiesUpdate"
+          @update:selected-labels="handleLabelsUpdate"
+          @update:selected-assignee-type="handleAssigneeTypeUpdate"
+          @update:agent-enabled-filter="handleAgentEnabledUpdate"
+          @remove-chip="handleRemoveChip"
+          @clear-filters="clearAllFilters"
+        />
+      </KeepAlive>
     </template>
 
     <!-- Task side panel (existing) -->
@@ -76,11 +160,12 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, ProjectMember, Workspace, Repository } from '~/types'
+import type { Task, Status, Label, ProjectMember, Workspace, Repository, TaskPriority } from '~/types'
 import type { Agent } from '~/types'
 import { flashHighlight } from '~/composables/useKanban'
 import { useLocalStorage } from '@vueuse/core'
 import AgentReadyTooltip from '~/components/onboarding/AgentReadyTooltip.vue'
+import { useBoardFilterSort, type FilterState, type SortState } from '~/composables/useBoardFilterSort'
 
 definePageMeta({
   layout: 'default',
@@ -102,8 +187,187 @@ const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
 const members = ref<ProjectMember[]>([])
 const showCreateModal = ref(false)
+const showFilters = ref(false)
 
-const viewMode = useLocalStorage<'kanban' | 'table'>(`orbit-board-view-${projectId.value}`, 'kanban')
+const viewMode = useLocalStorage<'kanban' | 'table' | 'list'>(`orbit-board-view-${projectId.value}`, 'kanban')
+
+// --- Filter / Sort State ---
+const { filters, sort, loadFromStorage, saveToStorage, filteredTasks: applyFilters } = useBoardFilterSort(projectId.value)
+
+onMounted(() => {
+  loadFromStorage()
+})
+
+const filteredTasks = computed(() => {
+  return applyFilters(tasks.value)
+})
+
+// --- Active filter chips ---
+const priorityLabels: Record<TaskPriority, string> = {
+  urgent: 'Urgent',
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+  none: 'None',
+}
+
+const assigneeTypeLabels: Record<string, string> = {
+  user: 'User',
+  agent: 'Agent',
+  unassigned: 'Unassigned',
+}
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (filters.search.trim()) count++
+  count += filters.statuses.length
+  count += filters.priorities.length
+  count += filters.labels.length
+  if (filters.assigneeType !== null) count++
+  if (filters.agentEnabled !== null) count++
+  return count
+})
+
+interface FilterChip {
+  key: string
+  label: string
+  type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled'
+}
+
+const activeFilterChips = computed((): FilterChip[] => {
+  const chips: FilterChip[] = []
+
+  if (filters.search.trim()) {
+    chips.push({
+      key: `search-${filters.search}`,
+      label: `Search: "${filters.search}"`,
+      type: 'search',
+    })
+  }
+
+  for (const id of filters.statuses) {
+    const status = statuses.value.find(s => s.id === id)
+    if (status) {
+      chips.push({
+        key: `status-${id}`,
+        label: `Status: ${status.name}`,
+        type: 'status',
+      })
+    }
+  }
+
+  for (const value of filters.priorities) {
+    chips.push({
+      key: `priority-${value}`,
+      label: `Priority: ${priorityLabels[value]}`,
+      type: 'priority',
+    })
+  }
+
+  for (const id of filters.labels) {
+    const label = labels.value.find(l => l.id === id)
+    if (label) {
+      chips.push({
+        key: `label-${id}`,
+        label: `Label: ${label.name}`,
+        type: 'label',
+      })
+    }
+  }
+
+  if (filters.assigneeType) {
+    chips.push({
+      key: `assignee-${filters.assigneeType}`,
+      label: `Assignee: ${assigneeTypeLabels[filters.assigneeType]}`,
+      type: 'assigneeType',
+    })
+  }
+
+  if (filters.agentEnabled !== null) {
+    chips.push({
+      key: `agent-${filters.agentEnabled}`,
+      label: filters.agentEnabled ? 'Agent: Enabled' : 'Agent: Disabled',
+      type: 'agentEnabled',
+    })
+  }
+
+  return chips
+})
+
+// --- Event handlers ---
+function handleSearchUpdate(value: string) {
+  filters.search = value
+  saveToStorage()
+}
+
+function handleSortFieldUpdate(field: SortState['field']) {
+  sort.field = field
+  saveToStorage()
+}
+
+function handleSortDirectionUpdate(direction: SortState['direction']) {
+  sort.direction = direction
+  saveToStorage()
+}
+
+function handleStatusesUpdate(statuses_: string[]) {
+  filters.statuses = statuses_
+  saveToStorage()
+}
+
+function handlePrioritiesUpdate(priorities: TaskPriority[]) {
+  filters.priorities = priorities
+  saveToStorage()
+}
+
+function handleLabelsUpdate(labels_: string[]) {
+  filters.labels = labels_
+  saveToStorage()
+}
+
+function handleAssigneeTypeUpdate(type: 'user' | 'agent' | 'unassigned' | null) {
+  filters.assigneeType = type
+  saveToStorage()
+}
+
+function handleAgentEnabledUpdate(enabled: boolean | null) {
+  filters.agentEnabled = enabled
+  saveToStorage()
+}
+
+function handleRemoveChip(chip: FilterChip) {
+  switch (chip.type) {
+    case 'search':
+      filters.search = ''
+      break
+    case 'status':
+      filters.statuses = filters.statuses.filter(id => id !== chip.key.replace('status-', ''))
+      break
+    case 'priority':
+      filters.priorities = filters.priorities.filter(p => p !== chip.key.replace('priority-', '') as TaskPriority)
+      break
+    case 'label':
+      filters.labels = filters.labels.filter(id => id !== chip.key.replace('label-', ''))
+      break
+    case 'assigneeType':
+      filters.assigneeType = null
+      break
+    case 'agentEnabled':
+      filters.agentEnabled = null
+      break
+  }
+  saveToStorage()
+}
+
+function clearAllFilters() {
+  filters.search = ''
+  filters.statuses = []
+  filters.priorities = []
+  filters.labels = []
+  filters.assigneeType = null
+  filters.agentEnabled = null
+  saveToStorage()
+}
 
 // Server-side fetch workspace + repositories so the repository
 // promo banner never flashes with the wrong state on initial load.
@@ -206,9 +470,9 @@ async function handleUpdateTask(data: { id: string; statusId?: string; position?
     const newStatus = statuses.value.find(s => s.id === data.statusId)
     const oldStatus = statuses.value.find(s => s.id === oldTask.statusId)
     if (project.value?.workspaceId) {
-      persistLog(project.value.workspaceId, { entityType: 'task', entityId: data.id, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: data.id, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?' }" to "${newStatus?.name || '?' }"` })
     }
-    if (updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
+    if (updated.agentEnabled && updated.assigneeType === 'agent' && updated.assignee && updated.status?.name && /progress/i.test(updated.status.name)) {
       addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, data.id)
       await startRuntime(data.id)
     }

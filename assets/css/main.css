@@ -96,9 +96,21 @@
 @layer components {
   /* ─── Kanban Board (prototype style) ─── */
   .kanban-card {
-    @apply bg-white rounded-lg border border-surface-200 p-3 cursor-pointer
-           hover:border-accent hover:shadow-lg hover:-translate-y-px
-           transition-all duration-150 ease-in-out shadow-sm;
+    @apply bg-white rounded-lg p-3 cursor-pointer
+           border border-surface-200
+           transition-all duration-150 ease-in-out;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+
+  .kanban-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.03);
+    border-color: var(--color-surface-300, #d1d5db);
+  }
+
+  .kanban-card:focus-visible {
+    outline: 2px solid var(--color-accent, #CF513D);
+    outline-offset: 1px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   .kanban-card.is-dragging,
@@ -107,7 +119,7 @@
   }
 
   .kanban-card-ghost {
-    @apply opacity-60 bg-surface-50 border-dashed;
+    @apply opacity-50 bg-surface-50 border-dashed border-surface-300;
   }
 
   .kanban-column-body .sortable-drag {
@@ -119,12 +131,11 @@
   }
 
   .kanban-card.agentic {
-    border-color: rgb(99 102 241 / 0.25);
     box-shadow: 0 0 0 1px rgb(99 102 241 / 0.08), 0 4px 12px rgb(99 102 241 / 0.06);
   }
 
   .agentic-badge {
-    @apply inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full;
+    @apply inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full;
     background: rgb(99 102 241 / 0.06);
     color: rgb(79 70 229);
     border: 1px solid rgb(99 102 241 / 0.12);
@@ -166,12 +177,12 @@
   }
 
   .card-priority {
-    @apply inline-flex items-center gap-1 text-[10px] font-semibold uppercase
+    @apply inline-flex items-center gap-1 text-xs font-semibold
            px-2 py-0.5 rounded-full;
   }
 
   .card-type {
-    @apply px-2 py-0.5 rounded-full text-[9px] font-semibold;
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold;
   }
 
   .card-type.feature {

@@ -43,6 +43,7 @@ export default defineEventHandler(async (event) => {
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       estimate: body.estimate || null,
       branchName: body.branchName || null,
+      agentEnabled: body.agentEnabled ?? false,
     })
     .returning()
 

@@ -56,6 +56,7 @@ export interface Project {
   icon: string | null
   templateId: string | null
   stack: string | null
+  defaultView: 'kanban' | 'table' | 'list'
   createdAt: string
   updatedAt: string
   _count?: { tasks: number; doneTasks: number; members: number }
@@ -142,6 +143,7 @@ export interface Task {
   dueDate: string | null
   estimate: number | null
   branchName: string | null
+  agentEnabled: boolean
   createdAt: string
   updatedAt: string
   assignee?: TaskAssignee | null

@@ -48,6 +48,10 @@ export default defineEventHandler(async (event) => {
     dataToUpdate.dueDate = new Date(dataToUpdate.dueDate)
   }
 
+  if (dataToUpdate.agentEnabled !== undefined) {
+    dataToUpdate.agentEnabled = dataToUpdate.agentEnabled
+  }
+
   if (assigneeId !== undefined || assigneeType !== undefined) {
     const resolvedType = assigneeType !== undefined ? assigneeType : existing.assigneeType
     dataToUpdate.assigneeType = resolvedType || null

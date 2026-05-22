@@ -5,7 +5,7 @@
     <div class="absolute right-0 top-0 bottom-0 w-[600px] max-w-[100vw] sm:max-w-[90vw] bg-white shadow-2xl border-l border-surface-200 animate-slide-in-right flex flex-col">
       <!-- Agent runtime indicator — floating top-right, only when CLI is actively processing -->
       <div
-        v-if="runtimeActive"
+        v-if="task?.agentEnabled && runtimeActive"
         class="absolute top-20 right-6 z-30"
       >
         <Tooltip
@@ -95,7 +95,7 @@
               @blur="handleTitleBlur"
               @keydown.enter.prevent="handleTitleEnter"
             />
-            <div v-if="task.branchName || isBacklog" class="flex flex-col gap-1 mt-2">
+            <div v-if="task.assigneeType === 'agent'" class="flex flex-col gap-1 mt-2">
               <div class="flex items-center gap-2 text-sm text-surface-600">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
                 <span class="text-[11px] text-surface-500">Branch</span>
@@ -154,7 +154,7 @@
               <label class="block text-xs font-medium text-surface-500 mb-1">Assignee</label>
               <button
                 class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
-                @click="showAssigneePicker = !showAssigneePicker"
+                @click="showObserverPicker = false; showAssigneePicker = !showAssigneePicker"
               >
                 <template v-if="task.assignee">
                   <span
@@ -178,7 +178,7 @@
                 <ChevronDown class="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
               </button>
 
-              <div v-if="isAgentInProgress" class="flex items-center gap-1.5 mt-2">
+              <div v-if="task?.agentEnabled && isAgentInProgress" class="flex items-center gap-1.5 mt-2">
                 <span class="agentic-badge">
                   <span class="agentic-dot" />
                   <span>Agentic · {{ task.assignee?.name }}</span>
@@ -190,6 +190,7 @@
                 class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
               >
                 <button
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
                   @click="assignTo()"
                 >
@@ -201,6 +202,7 @@
                 <button
                   v-for="m in members"
                   :key="m.userId"
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.assigneeId === m.userId && task.assigneeType === 'user' }"
                   @click="assignTo(m.userId, 'user')"
@@ -213,6 +215,7 @@
                 <button
                   v-for="a in agents"
                   :key="a.id"
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.assigneeId === a.id && task.assigneeType === 'agent' }"
                   @click="assignTo(a.id, 'agent')"
@@ -232,7 +235,7 @@
               <label class="block text-xs font-medium text-surface-500 mb-1">Observer</label>
               <button
                 class="w-full flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 hover:border-surface-300 transition-colors text-left"
-                @click="showObserverPicker = !showObserverPicker"
+                @click="showAssigneePicker = false; showObserverPicker = !showObserverPicker"
               >
                 <template v-if="task.observer">
                   <Avatar :name="task.observer.name" size="sm" />
@@ -249,6 +252,7 @@
                 class="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-surface-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
               >
                 <button
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:bg-surface-50 transition-colors"
                   @click="setObserver()"
                 >
@@ -260,6 +264,7 @@
                 <button
                   v-for="m in members"
                   :key="m.userId"
+                  type="button"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
                   :class="{ 'bg-primary-50': task.observerId === m.userId }"
                   @click="setObserver(m.userId)"
@@ -292,37 +297,37 @@
             </div>
           </div>
 
-          <div v-if="repositories && repositories.length > 0" class="mb-6">
-            <label class="block text-xs font-medium text-surface-500 mb-1.5">Repository</label>
-            <div class="relative">
-              <select
-                :value="task.repositoryId"
-                :disabled="!isBacklog"
-                class="w-full text-sm rounded-lg border border-surface-200 pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                :class="isBacklog ? 'bg-white cursor-pointer' : 'bg-surface-50 text-surface-500 cursor-not-allowed'"
-                @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value)"
-              >
-                <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
-                  {{ repo.name }} — {{ repo.defaultBranch }}
-                </option>
-              </select>
-              <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+          <div v-if="isBacklog && task.assigneeType === 'agent'" class="mb-6">
+            <h5 class="text-xs font-semibold text-surface-500 uppercase mb-2">Repository <span class="text-error-500">*</span></h5>
+            <div v-if="repositories && repositories.length > 0">
+              <div class="relative">
+                <select
+                  :value="task.repositoryId || ''"
+                  required
+                  class="w-full text-sm rounded-lg border border-surface-200 pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none bg-white cursor-pointer"
+                  @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value || null)"
+                >
+                  <option value="" disabled>Select a repository</option>
+                  <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
+                    {{ repo.name }} — {{ repo.defaultBranch }}
+                  </option>
+                </select>
+                <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+              </div>
+              <p class="text-[10px] text-surface-400 mt-1.5">Required for agent code context</p>
             </div>
-            <p class="text-[10px] text-surface-400 mt-1.5">
-              {{ isBacklog ? 'Repository can only be changed while task is in backlog' : 'Repository cannot be changed after task leaves backlog' }}
-            </p>
-          </div>
-          <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200 mb-6">
-            <p class="text-xs text-surface-500">
-              No repositories connected.
-              <NuxtLink
-                :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                class="text-accent font-medium hover:text-accent-hover"
-                @click="$emit('close')"
-              >
-                Add one in settings
-              </NuxtLink>
-            </p>
+            <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
+              <p class="text-xs text-surface-500">
+                No repositories connected.
+                <NuxtLink
+                  :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                  class="text-accent font-medium hover:text-accent-hover"
+                  @click="$emit('close')"
+                >
+                  Add one in settings
+                </NuxtLink>
+              </p>
+            </div>
           </div>
 
           <div class="mb-6">
@@ -483,7 +488,7 @@
                     ref="commentInputRef"
                     v-model="newComment"
                     rows="1"
-                    :placeholder="isAgentInProgress ? 'Message the agent...' : 'Write a comment... (type @ to mention someone)'"
+                    :placeholder="task?.agentEnabled && isAgentInProgress ? 'Message the agent...' : 'Write a comment... (type @ to mention someone)'"
                     class="block px-2.5 w-full border-none text-surface-900 bg-transparent focus:ring-0 outline-none resize-none py-2"
                     :disabled="isSendingToAgent"
                     @keydown.enter="handleCommentEnter"
@@ -498,7 +503,7 @@
 
                 <!-- AGENT badge -->
                 <span
-                  v-if="isAgentInProgress && newComment.length > 0"
+                  v-if="task?.agentEnabled && isAgentInProgress && newComment.length > 0"
                   class="absolute right-2.5 top-2.5 text-[9px] font-semibold text-primary-400 pointer-events-none"
                 >
                   AGENT
@@ -599,7 +604,7 @@
                   class="text-xs py-1 px-3 h-7"
                   @click="handleAddComment"
                 >
-                  <template v-if="isAgentInProgress && !isSendingToAgent">
+                  <template v-if="task?.agentEnabled && isAgentInProgress && !isSendingToAgent">
                     <span class="flex items-center gap-1">
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
                       Send
@@ -684,7 +689,7 @@
               </button>
             </div>
 
-            <div v-if="task" class="mt-8 pt-6 border-t border-surface-100">
+            <div v-if="task?.agentEnabled" class="mt-8 pt-6 border-t border-surface-100">
               <div class="flex items-center gap-2 mb-3">
                 <button
                   class="flex items-center gap-1 flex-1 text-left group"
@@ -793,7 +798,7 @@
               </div>
 
               <!-- Review Feedback Section -->
-              <div v-if="prUrl && isReviewStatus" class="mt-8 pt-6 border-t border-surface-100">
+              <div v-if="task?.agentEnabled && prUrl && isReviewStatus" class="mt-8 pt-6 border-t border-surface-100">
                 <div class="flex items-center gap-2 mb-3">
                   <button
                     class="flex items-center gap-1 flex-1 text-left group"
@@ -1176,6 +1181,7 @@ const isTitleFocused = ref(false)
 
 const isAgentInProgress = computed(() => {
   return (
+    task.value?.agentEnabled &&
     task.value?.assigneeType === 'agent' &&
     task.value?.assignee &&
     task.value?.status?.name &&
@@ -1393,7 +1399,7 @@ function findMentionedAgent(body: string): { name: string; color?: string } | nu
  *  True when: the task is agent-assigned + in-progress, OR the runtime is
  *  actively processing, OR we're in the process of sending to the agent. */
 const showAgentChat = computed(() =>
-  isAgentInProgress.value || runtimeActive.value || isSendingToAgent.value
+  (task.value?.agentEnabled && (isAgentInProgress.value || runtimeActive.value)) || isSendingToAgent.value
 )
 
 /** The agent identity to show in chat UI — prefers the @mentioned agent,
@@ -1942,25 +1948,97 @@ async function autoCreatePr() {
   await checkExistingPr()
 }
 
+function slugifyBranchSegment(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+}
+
+function generateAgentBranchName(t: Task): string {
+  const label = t.labels?.length ? slugifyBranchSegment(t.labels[0].name) : 'task'
+  const identity = t.id.slice(0, 8)
+  const assignee = t.observer
+    ? slugifyBranchSegment(t.observer.name)
+    : t.assigneeType === 'agent' && t.assignee
+      ? slugifyBranchSegment(t.assignee.name)
+      : 'unassigned'
+  const feature = slugifyBranchSegment(t.title)
+  return `${label}/${identity}/${assignee}/${feature}`
+}
+
 async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   showAssigneePicker.value = false
   if (!task.value) return
-  const updated = await updateTaskApi(task.value.id, {
+
+  const isAgent = assigneeType === 'agent'
+  const updateData: Record<string, any> = {
     assigneeId: assigneeId || null,
     assigneeType: assigneeType || null,
-  })
-  task.value = updated
-  emit('updated', updated)
+    agentEnabled: isAgent,
+  }
+
+  // Auto-generate branch name when assigning an agent in backlog
+  if (isBacklog.value && isAgent) {
+    const generatedBranch = generateAgentBranchName({
+      ...task.value,
+      assigneeId: assigneeId || null,
+      assigneeType: assigneeType || null,
+      assignee: isAgent ? props.agents.find(a => a.id === assigneeId) || task.value.assignee : null,
+      observer: task.value.observer,
+    })
+    if (validateBranchName(generatedBranch) === '') {
+      updateData.branchName = generatedBranch
+      editingBranchName.value = generatedBranch
+    }
+  }
+
+  try {
+    const updated = await updateTaskApi(task.value.id, updateData)
+    task.value = updated
+    emit('updated', updated)
+  } catch (err) {
+    console.error('Failed to update assignee:', err)
+    if (task.value.branchName) {
+      editingBranchName.value = task.value.branchName
+    }
+  }
 }
 
 async function setObserver(observerId?: string) {
   showObserverPicker.value = false
   if (!task.value) return
-  const updated = await updateTaskApi(task.value.id, {
+
+  const updateData: Record<string, any> = {
     observerId: observerId || null,
-  })
-  task.value = updated
-  emit('updated', updated)
+  }
+
+  // Regenerate branch name for agent tasks in backlog whenever observer changes
+  if (isBacklog.value && task.value.assigneeType === 'agent') {
+    const newObserver = props.members.find(m => m.userId === observerId)?.user || null
+    const generatedBranch = generateAgentBranchName({
+      ...task.value,
+      observerId: observerId || null,
+      observer: newObserver,
+    })
+    if (validateBranchName(generatedBranch) === '') {
+      updateData.branchName = generatedBranch
+      editingBranchName.value = generatedBranch
+    }
+  }
+
+  try {
+    const updated = await updateTaskApi(task.value.id, updateData)
+    task.value = updated
+    emit('updated', updated)
+  } catch (err) {
+    console.error('Failed to update observer:', err)
+    // Revert editing branch name on error
+    if (task.value.branchName) {
+      editingBranchName.value = task.value.branchName
+    }
+  }
 }
 
 async function loadPersistedComments() {
@@ -2192,7 +2270,7 @@ async function handleUpdate(field: string, value: any) {
       const newStatus = props.statuses.find((s) => s.id === value)
       const oldStatus = props.statuses.find((s) => s.id === old.statusId)
       persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: updated.title, action: 'status_change', message: `Moved from "${oldStatus?.name || '?'}" to "${newStatus?.name || '?'}"` })
-      if (newStatus && /progress/i.test(newStatus.name) && updated.assigneeType === 'agent' && updated.assignee) {
+      if (newStatus && /progress/i.test(newStatus.name) && updated.agentEnabled && updated.assigneeType === 'agent' && updated.assignee) {
         addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, props.taskId)
         await startRuntime(updated.id)
       }
@@ -2380,10 +2458,10 @@ async function handleAddComment() {
   comments.value = await fetchComments(task.value.id)
 
   // Detect if the comment @mentions any agent by name (case-insensitive).
-  // If so, forward the comment to that agent's runtime — even if the task
-  // isn't currently assigned to an agent or "In Progress".
+  // If so, forward the comment to that agent's runtime — only when agent
+  // is enabled for this task.
   const mentionedAgent = findMentionedAgent(commentBody)
-  const shouldSendToAgent = isAgentInProgress.value || mentionedAgent !== null
+  const shouldSendToAgent = task.value?.agentEnabled && (isAgentInProgress.value || mentionedAgent !== null)
 
   if (shouldSendToAgent) {
     isSendingToAgent.value = true

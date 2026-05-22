@@ -2,15 +2,75 @@
   <div class="flex flex-col h-full">
     <BoardHeader
       :statuses="statuses"
+      :labels="labels"
       :task-count="tasks.length"
       :view-mode="viewMode"
+      :search-query="searchQuery"
+      :sort-field="sortField"
+      :sort-direction="sortDirection"
+      :show-filters="showFilters"
+      :active-filter-count="activeFilterCount"
+      :active-filter-chips="activeFilterChips"
       @create-task="$emit('createTask')"
       @update:view-mode="$emit('update:viewMode', $event)"
+      @update:search="$emit('update:search', $event)"
+      @update:sort-field="$emit('update:sortField', $event)"
+      @update:sort-direction="$emit('update:sortDirection', $event)"
+      @update:show-filters="$emit('update:showFilters', $event)"
+      @remove-chip="onRemoveChip"
+      @clear-filters="$emit('clearFilters')"
     />
 
-    <!-- Global empty state when no tasks exist -->
+    <!-- Filter panel -->
+    <Transition
+      enter-active-class="transition-all duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition-all duration-150 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-1"
+    >
+      <BoardFilterPanel
+        v-if="showFilters"
+        :statuses="statuses"
+        :labels="labels"
+        :selected-statuses="selectedStatuses"
+        :selected-priorities="selectedPriorities"
+        :selected-labels="selectedLabels"
+        :selected-assignee-type="selectedAssigneeType"
+        :agent-enabled-filter="agentEnabledFilter"
+        @update:selected-statuses="$emit('update:selectedStatuses', $event)"
+        @update:selected-priorities="$emit('update:selectedPriorities', $event)"
+        @update:selected-labels="$emit('update:selectedLabels', $event)"
+        @update:selected-assignee-type="$emit('update:selectedAssigneeType', $event)"
+        @update:agent-enabled-filter="$emit('update:agentEnabledFilter', $event)"
+      />
+    </Transition>
+
+    <!-- Filter empty state -->
     <div
-      v-if="tasks.length === 0"
+      v-if="tasks.length === 0 && totalTaskCount > 0"
+      class="flex-1 flex flex-col items-center justify-center px-4"
+    >
+      <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
+        <Icon name="lucide:filter-x" class="w-7 h-7 text-surface-400" />
+      </div>
+      <h3 class="text-lg font-semibold text-surface-900 mb-1">No tasks match your filters</h3>
+      <p class="text-sm text-surface-500 text-center max-w-sm mb-6">
+        Try adjusting your filters or clear them to see all tasks.
+      </p>
+      <button
+        class="px-4 py-2 bg-accent text-white rounded-lg text-xs font-semibold hover:bg-accent-hover transition-colors"
+        @click="$emit('clearFilters')"
+      >
+        <Icon name="lucide:x" class="w-3.5 h-3.5 inline mr-1" />
+        Clear all filters
+      </button>
+    </div>
+
+    <!-- Global empty state when no tasks exist at all -->
+    <div
+      v-else-if="tasks.length === 0 && totalTaskCount === 0"
       class="flex-1 flex flex-col items-center justify-center px-4"
     >
       <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
@@ -48,27 +108,63 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status } from '~/types'
+import type { Task, Status, Label, TaskPriority } from '~/types'
+import { sortTasks, type SortState } from '~/composables/useBoardFilterSort'
+import BoardFilterPanel from './BoardFilterPanel.vue'
 
 const props = defineProps<{
   statuses: Status[]
+  labels: Label[]
   tasks: Task[]
-  viewMode?: 'kanban' | 'table'
+  viewMode?: 'kanban' | 'table' | 'list'
+  sortField?: SortState['field']
+  sortDirection?: SortState['direction']
+  // Filter state
+  searchQuery: string
+  showFilters: boolean
+  selectedStatuses: string[]
+  selectedPriorities: TaskPriority[]
+  selectedLabels: string[]
+  selectedAssigneeType: 'user' | 'agent' | 'unassigned' | null
+  agentEnabledFilter: boolean | null
+  activeFilterCount: number
+  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
+  totalTaskCount: number
 }>()
 
 const emit = defineEmits<{
   createTask: []
   updateTask: [data: { id: string; statusId: string; position: number }]
   openTask: [task: Task]
-  'update:viewMode': [mode: 'kanban' | 'table']
+  'update:viewMode': [mode: 'kanban' | 'table' | 'list']
+  'update:search': [value: string]
+  'update:sortField': [field: SortState['field']]
+  'update:sortDirection': [direction: SortState['direction']]
+  'update:showFilters': [show: boolean]
+  'update:selectedStatuses': [statuses: string[]]
+  'update:selectedPriorities': [priorities: TaskPriority[]]
+  'update:selectedLabels': [labels: string[]]
+  'update:selectedAssigneeType': [type: 'user' | 'agent' | 'unassigned' | null]
+  'update:agentEnabledFilter': [enabled: boolean | null]
+  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
+  'clearFilters': []
 }>()
 
+function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
+  emit('removeChip', chip)
+}
+
 const columns = computed(() => {
-  return props.statuses.map((status) => ({
-    status,
-    tasks: [...props.tasks]
-      .filter((t) => t.statusId === status.id)
-      .sort((a, b) => a.position - b.position),
-  }))
+  return props.statuses.map((status) => {
+    const columnTasks = props.tasks.filter((t) => t.statusId === status.id)
+    const sortConfig: SortState = {
+      field: props.sortField || 'manual',
+      direction: props.sortDirection || 'asc',
+    }
+    return {
+      status,
+      tasks: sortTasks(columnTasks, sortConfig),
+    }
+  })
 })
 </script>

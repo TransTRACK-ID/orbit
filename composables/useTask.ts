@@ -65,6 +65,20 @@ export const useTask = () => {
     return task
   }
 
+  async function fetchTaskDetailComposite(id: string) {
+    const data = await $fetch<{
+      task: Task
+      comments: Comment[]
+      activityLogs: ActivityLog[]
+      attachments: Attachment[]
+      agentReplies: Array<{ id: string; body: string; createdAt: string; agentName: string; agentColor?: string }>
+    }>(`/api/tasks/${id}/detail`, { headers: ssrHeaders })
+    currentTask.value = data.task
+    comments.value = data.comments
+    activityLogs.value = data.activityLogs
+    return data
+  }
+
   async function fetchComments(taskId: string) {
     comments.value = await $fetch<Comment[]>(`/api/tasks/${taskId}/comments`, {
       headers: ssrHeaders,
@@ -152,6 +166,7 @@ export const useTask = () => {
     updateTask,
     deleteTask,
     fetchTaskDetail,
+    fetchTaskDetailComposite,
     fetchComments,
     addComment,
     fetchAttachments,

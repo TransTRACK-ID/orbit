@@ -137,7 +137,7 @@ const route = useRoute()
 const router = useRouter()
 const taskId = computed(() => route.params.taskId as string)
 
-const { fetchTaskDetail, fetchComments, addComment } = useTask()
+const { fetchTaskDetailComposite, addComment } = useTask()
 
 const loading = ref(true)
 const task = ref<Task | null>(null)
@@ -147,8 +147,9 @@ const sendingComment = ref(false)
 
 onMounted(async () => {
   try {
-    task.value = await fetchTaskDetail(taskId.value)
-    comments.value = await fetchComments(taskId.value)
+    const data = await fetchTaskDetailComposite(taskId.value)
+    task.value = data.task
+    comments.value = data.comments
   } catch (err) {
     console.error('Failed to load task:', err)
   } finally {

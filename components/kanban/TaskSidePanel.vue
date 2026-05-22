@@ -1396,6 +1396,7 @@ const emit = defineEmits<{
 
 const {
   fetchTaskDetail,
+  fetchTaskDetailComposite,
   fetchComments,
   addComment,
   fetchActivity,
@@ -2671,12 +2672,12 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeydown)
   try {
     await ensureDefaultLabels()
-    task.value = await fetchTaskDetail(props.taskId)
-    comments.value = await fetchComments(props.taskId)
-    activityLogs.value = await fetchActivity(props.taskId)
-    await fetchAgentReplies()
-    await loadAttachments()
-    await fetchBrowserSession()
+    const data = await fetchTaskDetailComposite(props.taskId)
+    task.value = data.task
+    comments.value = data.comments
+    activityLogs.value = data.activityLogs
+    attachments.value = data.attachments
+    agentReplies.value = data.agentReplies
   } catch {
     // Silently fail — panel will show empty state
   } finally {
@@ -2686,6 +2687,13 @@ onMounted(async () => {
     editingBranchName.value = task.value?.branchName || ''
     nextTick(() => autoResizeCommentTextarea())
   }
+
+  // Non-critical secondary data — load in parallel after UI renders
+  Promise.all([
+    fetchBrowserSession(),
+    checkExistingPr(),
+    checkPreview(),
+  ]).catch(() => {})
 
   // Initialize lastCompletionTimestamp from the most recent "Done" log
   // so the watch only reacts to NEW completions, not old persisted ones.
@@ -2717,10 +2725,7 @@ onMounted(async () => {
     }
   }
 
-    await checkExistingPr()
-    await checkPreview()
-
-    // Auto-load persisted PR comments if task is in review status
+  // Auto-load persisted PR comments if task is in review status
   if (prUrl.value && isReviewStatus.value) {
     await loadPersistedComments()
 

@@ -108,10 +108,10 @@ function copyEnvToWorktree(worktreeDir: string): void {
     if (existsSync(envPath) && envPath !== worktreeEnv) {
       try {
         copyFileSync(envPath, worktreeEnv)
-        console.log(`[dev-server] Copied .env from ${envPath} to worktree`)
+        appendLog(worktreeDir, `Copied .env from ${envPath} to worktree`)
         return
       } catch (err: any) {
-        console.warn(`[dev-server] Failed to copy .env: ${err.message}`)
+        appendLog(worktreeDir, `Failed to copy .env: ${err.message}`)
       }
     }
   }
@@ -145,7 +145,7 @@ function verifyCriticalModules(worktreeDir: string): boolean {
   ]
   const missing = criticalPaths.filter(p => !existsSync(p))
   if (missing.length > 0) {
-    console.warn(`[dev-server] Missing critical modules: ${missing.map(p => path.basename(p)).join(', ')}`)
+    appendLog(worktreeDir, `Missing critical modules: ${missing.map(p => path.basename(p)).join(', ')}`)
     return false
   }
   return true
@@ -299,14 +299,14 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
   return false
 }
 
-async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeoutMs = 120000): Promise<boolean> {
+async function waitForPort(port: number, proc: ReturnType<typeof spawn>, worktreeDir: string, timeoutMs = 120000): Promise<boolean> {
   const start = Date.now()
   let lastStatus = ''
 
   while (Date.now() - start < timeoutMs) {
     // Check if process died
     if (proc.killed || proc.exitCode !== null) {
-      console.error(`[dev-server] Process died before port ${port} was ready (exitCode=${proc.exitCode})`)
+      appendLog(worktreeDir, `Process died before port ${port} was ready (exitCode=${proc.exitCode})`)
       return false
     }
 
@@ -338,20 +338,20 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
       // Reject 5xx errors (server broken or still initializing)
       const statusNum = Number(status)
       if (status && status !== '000' && !isNaN(statusNum) && statusNum >= 200 && statusNum < 500) {
-        console.log(`[dev-server] Port ${port} ready (HTTP ${status})`)
+        appendLog(worktreeDir, `Port ${port} ready (HTTP ${status})`)
         return true
       }
 
       if (status !== lastStatus) {
         lastStatus = status
-        console.log(`[dev-server] Port ${port} not ready yet (HTTP ${status || 'no-response'}), elapsed: ${Date.now() - start}ms`)
+        appendLog(worktreeDir, `Port ${port} not ready yet (HTTP ${status || 'no-response'}), elapsed: ${Date.now() - start}ms`)
       }
     } catch (err: any) {
-      console.warn(`[dev-server] Port check error: ${err.message}`)
+      appendLog(worktreeDir, `Port check error: ${err.message}`)
     }
     await new Promise(r => setTimeout(r, 1500))
   }
-  console.error(`[dev-server] Port ${port} did not become ready within ${timeoutMs}ms`)
+  appendLog(worktreeDir, `Port ${port} did not become ready within ${timeoutMs}ms`)
   return false
 }
 
@@ -407,7 +407,7 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
   // Kill any previous dev server for this worktree to prevent
   // concurrent access to node_modules during reinstall
   if (existing) {
-    console.log(`[dev-server] Killing previous dev server for ${worktreeDir} before restart`)
+    appendLog(worktreeDir, 'Killing previous dev server before restart')
     try {
       existing.proc.kill('SIGTERM')
       for (let i = 0; i < 10; i++) {
@@ -555,7 +555,7 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
     info.failReason = `Failed to start dev server: ${err.message}`
   })
 
-  const ready = await waitForPort(port, proc, 120000)
+  const ready = await waitForPort(port, proc, worktreeDir, 120000)
   if (!ready) {
     try { proc.kill('SIGTERM') } catch {}
     info.ready = false

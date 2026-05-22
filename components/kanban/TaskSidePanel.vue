@@ -684,6 +684,31 @@
               {{ commentsExpanded ? 'Show less' : `Show ${allComments.length - COMMENTS_COLLAPSE_THRESHOLD} more` }}
             </button>
 
+            <div v-if="userActivityLogs.length > 0" class="mt-8 pt-6 border-t border-surface-100">
+              <label class="block text-xs font-medium text-surface-500 mb-3">Activity</label>
+              <div class="space-y-2">
+                <div
+                  v-for="log in activityLogsToShow"
+                  :key="log.id"
+                  class="flex items-start gap-2 text-sm text-surface-500"
+                >
+                  <Avatar :name="log.userName || 'U'" size="xs" />
+                  <div>
+                    <span class="font-medium text-surface-700">{{ log.userName }}</span>
+                    <span>{{ ' ' + log.message }}</span>
+                    <span class="text-xs text-surface-400 ml-1">{{ log.displayTime }}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                v-if="activityHasMore"
+                @click="activityExpanded = !activityExpanded"
+                class="mt-2 text-xs text-primary-600 font-medium hover:text-primary-700 transition-colors"
+              >
+                {{ activityExpanded ? 'Show less' : `Show ${userActivityLogs.length - ACTIVITY_COLLAPSE_THRESHOLD} more` }}
+              </button>
+            </div>
+
             <div v-if="task?.agentEnabled" class="mt-8 pt-6 border-t border-surface-100 space-y-4">
               <!-- Premium Agent Status Banners -->
               
@@ -2129,6 +2154,28 @@ function formatTimeFromMs(ts: number) {
 }
 
 const runtimeLogsExpanded = ref(false)
+
+const userActivityLogs = computed(() =>
+  activityLogs.value
+    .filter(log => log.action !== 'runtime_log' && log.action !== 'agent_reply')
+    .map(log => ({
+      id: log.id,
+      userName: log.user?.name || 'Unknown',
+      message: formatActivity(log),
+      displayTime: formatRelativeTime(log.createdAt),
+      timestamp: new Date(log.createdAt).getTime(),
+    }))
+)
+
+const ACTIVITY_COLLAPSE_THRESHOLD = 10
+const activityExpanded = ref(false)
+const activityLogsToShow = computed(() => {
+  if (activityExpanded.value || userActivityLogs.value.length <= ACTIVITY_COLLAPSE_THRESHOLD) {
+    return userActivityLogs.value
+  }
+  return userActivityLogs.value.slice(0, ACTIVITY_COLLAPSE_THRESHOLD)
+})
+const activityHasMore = computed(() => userActivityLogs.value.length > ACTIVITY_COLLAPSE_THRESHOLD)
 
 const runtimeLogsForTask = computed(() => {
   const inMemoryLogs = runtimeLogs.value

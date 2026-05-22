@@ -925,7 +925,7 @@
                             </div>
                             <!-- Inline tooltip when mode change is pending -->
                             <span
-                              v-if="previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+                              v-if="previewAvailable && previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
                               class="text-[10px] text-amber-600 font-medium flex items-center gap-1 animate-pulse"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1196,7 +1196,7 @@
           </div>
           <!-- Inline tooltip when mode change is pending -->
           <span
-            v-if="previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+            v-if="previewAvailable && previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
             class="text-[10px] text-amber-600 font-medium flex items-center gap-1 animate-pulse whitespace-nowrap"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1299,7 +1299,7 @@
 
       <!-- Mode Change Pending Banner -->
       <div
-        v-if="previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+        v-if="previewAvailable && previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
         class="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">

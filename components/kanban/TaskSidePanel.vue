@@ -42,9 +42,13 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </template>
             </IconButton>
-            <IconButton @click="handleDuplicate">
+            <IconButton
+              :disabled="duplicating"
+              @click="handleDuplicate"
+            >
               <template #icon>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <svg v-if="duplicating" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </template>
             </IconButton>
             <IconButton @click="confirmDelete = true">
@@ -1199,6 +1203,7 @@ const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
 const showAttachmentPicker = ref(false)
 const confirmDelete = ref(false)
+const duplicating = ref(false)
 
 // ─── Comment area attachments ───
 const pendingCommentAttachments = ref<Attachment[]>([])
@@ -2645,27 +2650,32 @@ async function handleDelete() {
 }
 
 async function handleDuplicate() {
-  if (!task.value) return
-  const backlog = props.statuses.find(s => /backlog/i.test(s.name))
-    || props.statuses.find(s => /todo/i.test(s.name))
-    || props.statuses[0]
-  if (!backlog) return
+  if (!task.value || duplicating.value) return
+  duplicating.value = true
+  try {
+    const backlog = props.statuses.find(s => /backlog/i.test(s.name))
+      || props.statuses.find(s => /todo/i.test(s.name))
+      || props.statuses[0]
+    if (!backlog) return
 
-  const dup = await createTaskApi(props.projectId, {
-    title: `${task.value.title} (copy)`,
-    statusId: backlog.id,
-    description: task.value.description,
-    priority: task.value.priority,
-    assigneeId: null,
-    assigneeType: null,
-    repositoryId: task.value.repositoryId,
-    branchName: task.value.branchName,
-    labelIds: task.value.labels?.map(l => l.id),
-  })
+    const dup = await createTaskApi(props.projectId, {
+      title: `${task.value.title} (copy)`,
+      statusId: backlog.id,
+      description: task.value.description,
+      priority: task.value.priority,
+      assigneeId: null,
+      assigneeType: null,
+      repositoryId: task.value.repositoryId,
+      branchName: task.value.branchName,
+      labelIds: task.value.labels?.map(l => l.id),
+    })
 
-  persistLog(props.workspaceId, { entityType: 'task', entityId: dup.id, entityName: dup.title, action: 'duplicate', message: `Duplicated from "${task.value.title}"` })
+    persistLog(props.workspaceId, { entityType: 'task', entityId: dup.id, entityName: dup.title, action: 'duplicate', message: `Duplicated from "${task.value.title}"` })
 
-  emit('duplicated', dup)
+    emit('duplicated', dup)
+  } finally {
+    duplicating.value = false
+  }
 }
 
 function formatDate(dateStr: string) {

@@ -391,6 +391,26 @@
                           <span class="text-[10px] text-surface-400 font-medium">Message:</span>
                           <pre class="mt-1 text-[10px] font-mono text-surface-700 bg-surface-50 dark:bg-surface-800 p-2 rounded border border-surface-100 dark:border-surface-700 whitespace-pre-wrap break-all">{{ event.message }}</pre>
                         </div>
+                        <div class="mt-3">
+                          <div class="flex items-center justify-between mb-1.5">
+                            <h5 class="text-[10px] font-bold text-surface-700 uppercase tracking-wider">Raw Agent Terminal Log History</h5>
+                            <span class="text-[9px] text-surface-400">Last 30 related logs</span>
+                          </div>
+                          <div class="bg-white dark:bg-surface-950 border border-surface-200 dark:border-surface-800 rounded-lg p-2 max-h-64 overflow-y-auto font-mono text-[10px] space-y-0.5">
+                            <div 
+                              v-for="log in getRelatedLogs(event)" 
+                              :key="log.id" 
+                              class="flex items-start gap-2 py-0.5 px-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800/50"
+                            >
+                              <span class="text-surface-400 dark:text-surface-600 flex-shrink-0 select-none">{{ formatShortTime(log.createdAt) }}</span>
+                              <span class="text-primary-600 dark:text-primary-400 font-bold flex-shrink-0 w-20 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
+                              <span class="text-surface-700 dark:text-surface-300 flex-1 whitespace-pre-wrap break-all">{{ log.message }}</span>
+                            </div>
+                            <div v-if="getRelatedLogs(event).length === 0" class="text-surface-400 text-center py-2">
+                              No terminal logs found for this crash event.
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -891,6 +911,11 @@ function formatBytes(bytes: number): string {
 }
 
 function copyCrashDetails(event: any) {
+  const relatedLogs = getRelatedLogs(event)
+  const logLines = relatedLogs.length > 0
+    ? relatedLogs.map((log: any) => `[${formatShortTime(log.createdAt)}] [${log.taskTitle}] ${log.message}`).join('\n')
+    : 'No terminal logs found for this crash event.'
+
   const details = [
     `Crash Event Details`,
     `==================`,
@@ -903,6 +928,10 @@ function copyCrashDetails(event: any) {
     ``,
     `Message:`,
     event.message || 'No message',
+    ``,
+    `Raw Agent Terminal Log History (Last ${relatedLogs.length} related logs)`,
+    `------------------------------------------------`,
+    logLines,
   ].join('\n')
 
   navigator.clipboard.writeText(details).catch(() => {})
@@ -918,5 +947,17 @@ function copyAllLogs() {
     copiedLogs.value = true
     setTimeout(() => copiedLogs.value = false, 2000)
   }).catch(() => {})
+}
+
+function getRelatedLogs(event: any) {
+  if (!diagnosticsData.value?.recentRuntimeLogs?.length) return []
+  const crashTime = new Date(event.createdAt).getTime()
+  const windowMs = 5 * 60 * 1000 // 5 minutes window before crash
+  return diagnosticsData.value.recentRuntimeLogs
+    .filter((log: any) => {
+      const logTime = new Date(log.createdAt).getTime()
+      return log.taskId === event.taskId && logTime <= crashTime && (crashTime - logTime) <= windowMs
+    })
+    .slice(0, 30)
 }
 </script>

@@ -729,7 +729,12 @@ export async function startDevServer(
     NEXT_PORT: String(port),
     NUXT_TELEMETRY_DISABLED: '1',
     AUTH_ORIGIN: `http://localhost:${port}`,
-    ...(taskId ? { NUXT_APP_BASE_URL: `/api/preview/${taskId}/` } : {}),
+    ...(taskId ? {
+      NUXT_APP_BASE_URL: `/api/preview/${taskId}/`,
+      // Generic base URL for any framework - the previewed app can use this
+      // to construct API calls, auth callbacks, or any absolute URLs
+      API_BASE_URL: `/api/preview/${taskId}/`,
+    } : {}),
     ...repositoryEnv,
     ...devCmd.env,
   }

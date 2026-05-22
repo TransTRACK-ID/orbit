@@ -186,6 +186,7 @@ The preview system supports two modes:
 ## Environment Variables
 
 - `NUXT_APP_BASE_URL` — Set when spawning dev server so Nuxt knows its base path
+- `API_BASE_URL` — Generic base URL for any framework. Use this in your app for API calls, auth callbacks, or constructing absolute URLs. Value: `/api/preview/{taskId}/`
 - `PORT` / `NUXT_PORT` / `VITE_PORT` — Random port (9000-9999) assigned to dev server
 - `AUTH_ORIGIN` — Set to `http://localhost:{port}` so auth works in preview
 

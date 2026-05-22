@@ -5,6 +5,11 @@ const activeRuntimes = ref<Record<string, boolean>>({})
 export type AgentRunState = 'running' | 'done' | 'crashed' | 'error' | 'idle'
 const taskRunStates = ref<Record<string, AgentRunState>>({})
 
+/** Auto-restart tracking to prevent infinite restart loops */
+const autoRestartCounts = new Map<string, number>()
+const pendingRestarts = new Map<string, ReturnType<typeof setTimeout>>()
+const MAX_AUTO_RESTARTS = 3
+
 export const useAgentRuntime = () => {
   const { addLog } = useLog()
 
@@ -53,16 +58,50 @@ export const useAgentRuntime = () => {
         if (data.step) {
           addLog('Runtime', `> ${data.step}`, taskId)
 
+          // Auto-restart on loop detection
+          if (data.autoRestart) {
+            const count = (autoRestartCounts.get(taskId) || 0) + 1
+            if (count > MAX_AUTO_RESTARTS) {
+              addLog('Runtime', `[AUTO-RESTART] Max restarts (${MAX_AUTO_RESTARTS}) reached. Stopping.`, taskId)
+              taskRunStates.value = { ...taskRunStates.value, [taskId]: 'crashed' }
+              receivedDone = true
+              autoRestartCounts.delete(taskId)
+              stopRuntime(taskId)
+              return
+            }
+            autoRestartCounts.set(taskId, count)
+            addLog('Runtime', `[AUTO-RESTART] Loop detected. Restarting (${count}/${MAX_AUTO_RESTARTS})...`, taskId)
+
+            // Cancel any existing pending restart for this task
+            const existing = pendingRestarts.get(taskId)
+            if (existing) {
+              clearTimeout(existing)
+              pendingRestarts.delete(taskId)
+            }
+
+            // Schedule a clean restart after a short delay
+            const timeout = setTimeout(() => {
+              pendingRestarts.delete(taskId)
+              stopRuntime(taskId)
+              startRuntime(taskId)
+            }, 3000)
+            pendingRestarts.set(taskId, timeout)
+            return
+          }
+
           // Detect crash / error from structured SSE flags
           if (data.isCrash) {
             taskRunStates.value = { ...taskRunStates.value, [taskId]: 'crashed' }
             receivedDone = true
+            autoRestartCounts.delete(taskId)
           } else if (data.isError) {
             taskRunStates.value = { ...taskRunStates.value, [taskId]: 'error' }
             receivedDone = true
+            autoRestartCounts.delete(taskId)
           } else if (/^Done$/.test(data.step.trim())) {
             taskRunStates.value = { ...taskRunStates.value, [taskId]: 'done' }
             receivedDone = true
+            autoRestartCounts.delete(taskId)
           }
         }
         if (data.agentReply) {
@@ -94,6 +133,13 @@ export const useAgentRuntime = () => {
       eventSources.delete(taskId)
     }
     activeRuntimes.value = { ...activeRuntimes.value, [taskId]: false }
+
+    // Cancel any pending auto-restart so manual stop always wins
+    const pending = pendingRestarts.get(taskId)
+    if (pending) {
+      clearTimeout(pending)
+      pendingRestarts.delete(taskId)
+    }
   }
 
   function isRunning(taskId: string): boolean {

@@ -359,6 +359,11 @@ export default defineEventHandler(async (event) => {
     let editedFiles: string[] = []
     let agentReplyContent = ''
 
+    // ── Loop detection: track recent bash commands ──
+    const LOOP_WINDOW_MS = 60_000
+    const LOOP_THRESHOLD = 4
+    const commandHistory: Array<{ command: string; timestamp: number }> = []
+
     let workDir = defaultProjectDir
     let branchName = ''
     let repoPlatform: 'github' | 'gitlab' | 'gitlab-self-hosted' = 'github'
@@ -1045,6 +1050,30 @@ This ensures your response is readable in the UI.`
     const heartbeat = setInterval(async () => {
       const idle = Math.round((Date.now() - lastActivity) / 1000)
       const alive = proc.exitCode === null
+
+      // ── Loop detection ──
+      if (alive && commandHistory.length > 0) {
+        const now = Date.now()
+        const counts = new Map<string, number>()
+        for (const c of commandHistory) {
+          if (now - c.timestamp < LOOP_WINDOW_MS) {
+            counts.set(c.command, (counts.get(c.command) || 0) + 1)
+          }
+        }
+        for (const [cmd, count] of counts) {
+          if (count >= LOOP_THRESHOLD) {
+            const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
+            await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
+            await persistLog(msg)
+            entry.isLoopKill = true
+            clearTimeout(runtimeTimeout)
+            clearInterval(heartbeat)
+            try { proc.kill('SIGKILL') } catch {}
+            return
+          }
+        }
+      }
+
       // Always report long idle times so users can see if it's stuck
       if (!hasOutput || idle > 30) {
         const msg = alive ? `Waiting for opencode (${idle}s)` : `Process exited (code ${proc.exitCode})`
@@ -1087,6 +1116,18 @@ This ensures your response is readable in the UI.`
                 editCount++
                 const filePath = input.filePath || input.path || 'unknown'
                 editedFiles.push(filePath)
+              }
+              // Track bash commands for loop detection
+              if (tool === 'bash') {
+                const cmd = (input.command || '').trim()
+                if (cmd) {
+                  commandHistory.push({ command: cmd, timestamp: Date.now() })
+                  // Prune old entries
+                  const cutoff = Date.now() - LOOP_WINDOW_MS
+                  while (commandHistory.length > 0 && commandHistory[0]!.timestamp < cutoff) {
+                    commandHistory.shift()
+                  }
+                }
               }
             }
             break
@@ -1180,8 +1221,9 @@ This ensures your response is readable in the UI.`
 
       const isCrash = code === null
       const isError = code !== null && code !== 0
+      const wasLoopKill = entry.isLoopKill
 
-      if (isCrash || isError) {
+      if (!wasLoopKill && (isCrash || isError)) {
         const crashType = isCrash ? 'crash' : 'error'
         const crashMessage = isCrash
           ? `Agent process was killed unexpectedly (signal: ${proc.signalCode ?? 'unknown'}). This may indicate OOM or a runtime crash.`
@@ -1211,7 +1253,7 @@ This ensures your response is readable in the UI.`
         })
       }
 
-      if (code === 0 && branchName) {
+      if (code === 0 && branchName && !wasLoopKill) {
         try {
           // Log branch state before committing for debugging
           try {
@@ -1324,32 +1366,43 @@ This ensures your response is readable in the UI.`
         }
       }
 
-      const isCrashFinal = code === null
-      const isErrorFinal = code !== null && code !== 0
-      const msg = code === 0
-        ? 'Done'
-        : isCrashFinal
-          ? `Agent crashed (signal: ${proc.signalCode ?? 'killed'})`
-          : `Agent exited with error (code ${code})`
-      await pushToStreams(entry, JSON.stringify({
-        step: msg,
-        isCrash: isCrashFinal,
-        isError: isErrorFinal,
-        timestamp: Date.now(),
-      }))
-      persistLog(msg)
+      if (wasLoopKill) {
+        // Signal the client to auto-restart; do NOT mark as crash/error
+        const msg = 'Agent will auto-restart after loop detection'
+        await pushToStreams(entry, JSON.stringify({
+          step: msg,
+          autoRestart: true,
+          timestamp: Date.now(),
+        }))
+        persistLog(msg)
+      } else {
+        const isCrashFinal = code === null
+        const isErrorFinal = code !== null && code !== 0
+        const msg = code === 0
+          ? 'Done'
+          : isCrashFinal
+            ? `Agent crashed (signal: ${proc.signalCode ?? 'killed'})`
+            : `Agent exited with error (code ${code})`
+        await pushToStreams(entry, JSON.stringify({
+          step: msg,
+          isCrash: isCrashFinal,
+          isError: isErrorFinal,
+          timestamp: Date.now(),
+        }))
+        persistLog(msg)
 
-      // Persist the agent's final text response so it survives page refresh.
-      if (agentReplyContent) {
-        try {
-          await db.insert(schema.activityLogs).values({
-            taskId: id,
-            userId: user.id,
-            action: 'agent_reply',
-            newValue: { message: agentReplyContent },
-          })
-        } catch (err: any) {
-          console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+        // Persist the agent's final text response so it survives page refresh.
+        if (agentReplyContent) {
+          try {
+            await db.insert(schema.activityLogs).values({
+              taskId: id,
+              userId: user.id,
+              action: 'agent_reply',
+              newValue: { message: agentReplyContent },
+            })
+          } catch (err: any) {
+            console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+          }
         }
       }
 

@@ -5,6 +5,8 @@ export type ProcState = {
   proc: ChildProcess
   streams: EventStream[]
   heartbeat: NodeJS.Timeout | null
+  /** Set to true when the process is killed because of a detected command loop */
+  isLoopKill?: boolean
 }
 
 export const activeProcesses = new Map<string, ProcState>()

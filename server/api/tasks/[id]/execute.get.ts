@@ -257,6 +257,8 @@ async function configureGitAuth(workDir: string, repoUrl: string, platform: stri
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
+  const query = getQuery(event)
+  const isAutoRestart = query.autoRestart === '1' || query.autoRestart === 'true'
 
   // Read and clear pending feedback (posted separately to avoid oversized URL params)
   const feedback = pendingFeedback.get(id) || ''
@@ -973,6 +975,36 @@ This ensures your response is readable in the UI.`
 
         message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}`
       }
+    } else if (isAutoRestart) {
+      // ── Auto-restart after loop detection: preserve full context ──
+      await pushAndPersist(`Auto-restart: recovering historical task context...`)
+
+      // Load conversation history so the agent doesn't forget past work
+      const historyLogs = await db.query.activityLogs.findMany({
+        where: eq(schema.activityLogs.taskId, id),
+        columns: { action: true, newValue: true, createdAt: true },
+        orderBy: [asc(schema.activityLogs.createdAt)],
+        limit: 60,
+      })
+      const historyLines: string[] = []
+      for (const l of historyLogs) {
+        if (l.action === 'agent_reply' && l.newValue?.message) {
+          historyLines.push(`Agent: ${l.newValue.message}`)
+        } else if (l.action === 'runtime_log' && l.newValue?.message?.startsWith('User:')) {
+          historyLines.push(l.newValue.message)
+        }
+      }
+      const historyContext = historyLines.length > 0
+        ? `\n\n[CONVERSATION HISTORY]\n${historyLines.join('\n')}\n`
+        : ''
+
+      // Always include the latest codebase changes
+      const changesContext = await getLatestChangesContext(workDir, repoDefaultBranch)
+      if (changesContext) {
+        await pushAndPersist(`Auto-restart: included latest codebase changes in context`)
+      }
+
+      message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted because it entered a command loop (repeating the same commands). This is a fresh process, but ALL previous conversation history and codebase state below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
     }
 
     // For initial runs and PR feedback, append attachments at the end.

@@ -21,7 +21,7 @@ export const useAgentRuntime = () => {
     }
   }
 
-  async function startRuntime(taskId: string, feedback?: string) {
+  async function startRuntime(taskId: string, feedback?: string, isAutoRestart?: boolean) {
     // If a runtime is already active, kill server process and stop it first
     if (eventSources.has(taskId) || activeRuntimes.value[taskId]) {
       await killServerProcess(taskId)
@@ -40,7 +40,7 @@ export const useAgentRuntime = () => {
       }
     }
 
-    const url = `/api/tasks/${taskId}/execute`
+    const url = `/api/tasks/${taskId}/execute${isAutoRestart ? '?autoRestart=1' : ''}`
 
     const es = new EventSource(url)
     let receivedDone = false
@@ -83,7 +83,7 @@ export const useAgentRuntime = () => {
             const timeout = setTimeout(() => {
               pendingRestarts.delete(taskId)
               stopRuntime(taskId)
-              startRuntime(taskId)
+              startRuntime(taskId, undefined, true)
             }, 3000)
             pendingRestarts.set(taskId, timeout)
             return

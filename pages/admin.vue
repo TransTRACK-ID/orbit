@@ -442,6 +442,16 @@
               >
                 <option v-for="opt in AUTO_REFRESH_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
+              <svg
+                v-if="diagnosticsRefreshing"
+                class="animate-spin w-3 h-3 text-primary-500"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
               <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
             </div>
           </div>
@@ -638,7 +648,7 @@ const { data: projectsData, pending: projectsPending } = await useFetch<{ projec
 const { data: activityData, pending: activityPending } = await useFetch<ActivityData>('/api/admin/activity', { key: 'admin-activity' })
 
 const { data: templatesData, pending: templatesPending, refresh: refreshTemplates } = await useFetch<{ templates: AdminTemplate[] }>('/api/admin/templates', { key: 'admin-templates' })
-const { data: diagnosticsData, pending: diagnosticsPending, refresh: refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
+const { data: diagnosticsData, pending: diagnosticsPending, refresh: _refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
 
 // ── Auto-refresh for diagnostics ──
 const AUTO_REFRESH_OPTIONS = [
@@ -650,6 +660,17 @@ const AUTO_REFRESH_OPTIONS = [
 ]
 const autoRefreshSeconds = ref(10)
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+/** Separate from diagnosticsPending so auto-refresh doesn't trigger full-page loading */
+const diagnosticsRefreshing = ref(false)
+
+async function refreshDiagnostics() {
+  diagnosticsRefreshing.value = true
+  try {
+    await _refreshDiagnostics()
+  } finally {
+    diagnosticsRefreshing.value = false
+  }
+}
 
 function startAutoRefresh() {
   stopAutoRefresh()

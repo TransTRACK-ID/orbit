@@ -30,7 +30,7 @@ export default defineNuxtConfig({
 
   modules: [
     '@sidebase/nuxt-auth',
-    'nuxt-icon',
+    '@nuxt/icon',
   ],
 
   auth: {

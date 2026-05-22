@@ -85,8 +85,18 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
     return { cmd: 'bun', args: ['install'] }
   }
+  if (existsSync(path.join(worktreeDir, 'pnpm-lock.yaml'))) {
+    return { cmd: 'pnpm', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
+    return { cmd: 'yarn', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'package-lock.json'))) {
+    return { cmd: 'npm', args: ['install'] }
+  }
   if (existsSync(path.join(worktreeDir, 'package.json'))) {
-    return { cmd: 'bun', args: ['install'] }
+    // Default to npm as the safest universal fallback in containerized environments
+    return { cmd: 'npm', args: ['install'] }
   }
   return null
 }
@@ -211,9 +221,10 @@ async function waitForPort(port: number, proc: ReturnType<typeof spawn>, timeout
         })
       })
 
-      // Wait for the server to be truly ready — NOT 503 Service Unavailable
+      // Wait for the server to be truly ready — accept 2xx-4xx (server is responsive)
+      // Reject 5xx errors (server broken or still initializing)
       const statusNum = Number(status)
-      if (status && status !== '000' && !isNaN(statusNum) && statusNum !== 503) {
+      if (status && status !== '000' && !isNaN(statusNum) && statusNum >= 200 && statusNum < 500) {
         console.log(`[dev-server] Port ${port} ready (HTTP ${status})`)
         return true
       }

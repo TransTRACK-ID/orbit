@@ -159,7 +159,14 @@
                 <td class="px-4 py-2.5 text-surface-500">{{ template.sourceType }}</td>
                 <td class="px-4 py-2.5 text-right">
                   <button class="text-accent hover:text-accent/80 font-semibold mr-3" @click="openTemplateModal(template)">Edit</button>
-                  <button class="text-error-500 hover:text-error-600 font-semibold" @click="deleteTemplate(template.id)">Delete</button>
+                  <button
+                    class="text-error-500 hover:text-error-600 font-semibold"
+                    :disabled="deletingTemplateId === template.id"
+                    :class="{ 'opacity-50 cursor-wait': deletingTemplateId === template.id }"
+                    @click="deleteTemplate(template.id)"
+                  >
+                    {{ deletingTemplateId === template.id ? 'Deleting...' : 'Delete' }}
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -626,7 +633,7 @@ const { data: diagnosticsData, pending: diagnosticsPending, refresh: refreshDiag
 
 const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value || diagnosticsPending.value)
 
-const copiedLogs = ref(false)
+const deletingTemplateId = ref<string | null>(null)
 
 // Template modal state
 const showTemplateModal = ref(false)
@@ -753,11 +760,14 @@ async function saveTemplate() {
 
 async function deleteTemplate(id: string) {
   if (!confirm(`Are you sure you want to delete template "${id}"?`)) return
+  deletingTemplateId.value = id
   try {
     await $fetch(`/api/admin/templates/${id}`, { method: 'DELETE' })
     await refreshTemplates()
   } catch (err: any) {
     alert(err?.data?.statusMessage || 'Failed to delete template')
+  } finally {
+    deletingTemplateId.value = null
   }
 }
 

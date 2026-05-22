@@ -99,10 +99,13 @@
         <div v-if="pullRequest.reviewState === 'changes_requested'" class="flex gap-2">
           <button
             class="flex-1 text-xs font-semibold px-3 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors flex items-center justify-center gap-1.5"
+            :disabled="fixingFeedback"
+            :class="{ 'opacity-70 cursor-wait': fixingFeedback }"
             @click="$emit('fix-feedback', pullRequest.id)"
           >
-            <Icon name="lucide:bot" class="w-3.5 h-3.5" />
-            Fix with Agent
+            <svg v-if="fixingFeedback" class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <Icon v-else name="lucide:bot" class="w-3.5 h-3.5" />
+            {{ fixingFeedback ? 'Fixing...' : 'Fix with Agent' }}
           </button>
         </div>
 
@@ -139,6 +142,7 @@ const props = defineProps<{
   loading?: boolean
   diffLoading?: boolean
   autoSync?: boolean
+  fixingFeedback?: boolean
 }>()
 
 defineEmits<{

@@ -85,7 +85,7 @@
               class="w-9 h-9 rounded-lg cursor-pointer border border-surface-200"
             />
           </div>
-          <Button @click="handleCreateLabel">
+          <Button @click="handleCreateLabel" :loading="creatingLabel">
             <Plus class="w-4 h-4" />
           </Button>
         </div>
@@ -109,6 +109,7 @@
       v-if="showCreateStatus"
       title="Add Status"
       confirm-text="Add"
+      :is-loading="creatingStatus"
       @confirm="handleCreateStatus"
       @cancel="showCreateStatus = false"
     >
@@ -132,6 +133,7 @@
       message="Are you sure? All tasks and data will be permanently removed."
       confirm-text="Delete"
       variant="danger"
+      :is-loading="deleting"
       @confirm="handleDelete"
       @cancel="confirmDelete = false"
     />
@@ -163,6 +165,9 @@ const saving = ref(false)
 const saved = ref(false)
 const confirmDelete = ref(false)
 const showCreateStatus = ref(false)
+const creatingStatus = ref(false)
+const creatingLabel = ref(false)
+const deleting = ref(false)
 
 const form = reactive({ name: '', description: '', color: '#F14848' })
 const newStatus = reactive({ name: '', color: '#94a3b8' })
@@ -194,23 +199,39 @@ async function handleUpdate() {
 }
 
 async function handleCreateStatus() {
-  if (!newStatus.name) return
-  await createStatus(projectId.value, { name: newStatus.name, color: newStatus.color })
-  showCreateStatus.value = false
-  newStatus.name = ''
-  newStatus.color = '#94a3b8'
+  if (!newStatus.name || creatingStatus.value) return
+  creatingStatus.value = true
+  try {
+    await createStatus(projectId.value, { name: newStatus.name, color: newStatus.color })
+    showCreateStatus.value = false
+    newStatus.name = ''
+    newStatus.color = '#94a3b8'
+  } finally {
+    creatingStatus.value = false
+  }
 }
 
 async function handleCreateLabel() {
-  if (!newLabel.name) return
-  await createLabel(projectId.value, { name: newLabel.name, color: newLabel.color })
-  newLabel.name = ''
-  newLabel.color = '#3b82f6'
+  if (!newLabel.name || creatingLabel.value) return
+  creatingLabel.value = true
+  try {
+    await createLabel(projectId.value, { name: newLabel.name, color: newLabel.color })
+    newLabel.name = ''
+    newLabel.color = '#3b82f6'
+  } finally {
+    creatingLabel.value = false
+  }
 }
 
 async function handleDelete() {
-  await deleteProject(projectId.value)
-  const slug = route.params.slug
-  router.push(`/workspaces/${slug}`)
+  if (deleting.value) return
+  deleting.value = true
+  try {
+    await deleteProject(projectId.value)
+    const slug = route.params.slug
+    router.push(`/workspaces/${slug}`)
+  } finally {
+    deleting.value = false
+  }
 }
 </script>

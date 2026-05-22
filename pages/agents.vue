@@ -130,10 +130,13 @@
           </button>
           <button
             class="px-2.5 py-1 rounded text-[9px] font-semibold border border-accent text-accent hover:bg-red-50 transition-colors flex items-center gap-1"
+            :disabled="deletingId === agent.id"
+            :class="{ 'opacity-60 cursor-wait': deletingId === agent.id }"
             @click="handleDelete(agent)"
           >
-            <Icon name="lucide:trash-2" class="w-2.5 h-2.5" />
-            Delete
+            <svg v-if="deletingId === agent.id" class="animate-spin w-2.5 h-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <Icon v-else name="lucide:trash-2" class="w-2.5 h-2.5" />
+            {{ deletingId === agent.id ? 'Deleting...' : 'Delete' }}
           </button>
         </div>
       </div>
@@ -227,10 +230,15 @@
               class="px-4 py-2 rounded-lg border border-surface-200 text-[11px] font-semibold hover:bg-surface-50 transition-colors"
               @click="closeModal"
             >Cancel</button>
-            <button
-              class="px-4 py-2 rounded-lg bg-accent text-white text-[11px] font-semibold hover:bg-accent-hover transition-colors"
-              @click="saveAgent"
-            >{{ editingAgent ? 'Save Changes' : 'Create Agent' }}</button>
+          <button
+            class="px-4 py-2 rounded-lg bg-accent text-white text-[11px] font-semibold hover:bg-accent-hover transition-colors flex items-center gap-1.5"
+            :disabled="saving"
+            :class="{ 'opacity-70 cursor-wait': saving }"
+            @click="saveAgent"
+          >
+            <svg v-if="saving" class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            {{ editingAgent ? 'Save Changes' : 'Create Agent' }}
+          </button>
           </div>
         </div>
       </div>
@@ -265,6 +273,8 @@ const agentColors = ['#7C3AED', '#2563EB', '#DC2626', '#D97706', '#0891B2', '#16
 
 const showModal = ref(false)
 const editingAgent = ref<Agent | null>(null)
+const saving = ref(false)
+const deletingId = ref<string | null>(null)
 
 const form = reactive({
   name: '',
@@ -348,23 +358,32 @@ function resetForm() {
 }
 
 async function saveAgent() {
-  if (!form.name.trim()) return
+  if (!form.name.trim() || saving.value) return
 
-  if (editingAgent.value) {
-    await updateAgent(editingAgent.value.id, { ...form })
-    addLog('System', `Updated agent "${form.name}"`)
-  } else {
-    await createAgent({ ...form })
-    addLog('System', `Created agent "${form.name}"`)
+  saving.value = true
+  try {
+    if (editingAgent.value) {
+      await updateAgent(editingAgent.value.id, { ...form })
+      addLog('System', `Updated agent "${form.name}"`)
+    } else {
+      await createAgent({ ...form })
+      addLog('System', `Created agent "${form.name}"`)
+    }
+    closeModal()
+  } finally {
+    saving.value = false
   }
-
-  closeModal()
 }
 
 async function handleDelete(agent: Agent) {
   if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return
-  await deleteAgentApi(agent.id)
-  addLog('System', `Deleted agent "${agent.name}"`)
+  deletingId.value = agent.id
+  try {
+    await deleteAgentApi(agent.id)
+    addLog('System', `Deleted agent "${agent.name}"`)
+  } finally {
+    deletingId.value = null
+  }
 }
 
 function runtimeName(id: string) {

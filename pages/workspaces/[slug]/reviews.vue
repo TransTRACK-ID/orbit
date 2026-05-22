@@ -51,6 +51,7 @@
         :loading="detailLoading"
         :diff-loading="diffLoading"
         :auto-sync="autoSyncEnabled"
+        :fixing-feedback="fixingFeedback"
         @sync="syncPr"
         @fix-feedback="fixFeedback"
       />
@@ -90,6 +91,7 @@ const detailLoading = ref(false)
 
 const prDiff = ref<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string } | null>(null)
 const diffLoading = ref(false)
+const fixingFeedback = ref(false)
 
 const bottleneckStats = ref<any>(null)
 const bottlenecksLoading = ref(false)
@@ -232,6 +234,8 @@ async function syncPr(id: string) {
 }
 
 async function fixFeedback(id: string) {
+  if (fixingFeedback.value) return
+  fixingFeedback.value = true
   try {
     const res = await $fetch<{ success: true; taskId: string; commentCount: number; feedbackLength: number }>(`/api/pull-requests/${id}/fix-feedback`, { method: 'POST' })
     if (res.success && res.taskId) {
@@ -246,6 +250,8 @@ async function fixFeedback(id: string) {
     }
   } catch (err) {
     console.error('Failed to fix feedback:', err)
+  } finally {
+    fixingFeedback.value = false
   }
 }
 

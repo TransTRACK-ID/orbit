@@ -208,9 +208,12 @@
                   </button>
                   <button
                     class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-surface-400 hover:text-red-500"
+                    :disabled="deletingRepoId === repo.id"
+                    :class="{ 'opacity-50 cursor-wait': deletingRepoId === repo.id }"
                     @click="handleDeleteRepo(repo.id)"
                   >
-                    <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+                    <svg v-if="deletingRepoId === repo.id" class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <Icon v-else name="lucide:trash-2" class="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -367,6 +370,7 @@
       v-if="showInvite"
       title="Invite Member"
       confirm-text="Invite"
+      :is-loading="inviteLoading"
       @confirm="handleInvite"
       @cancel="showInvite = false"
     >
@@ -385,6 +389,7 @@
       message="Are you sure you want to delete this workspace? All projects and data will be permanently removed."
       confirm-text="Delete"
       variant="danger"
+      :is-loading="deletingWorkspace"
       @confirm="handleDelete"
       @cancel="confirmDelete = false"
     />
@@ -409,7 +414,9 @@ const saving = ref(false)
 const saved = ref(false)
 const showInvite = ref(false)
 const inviteEmail = ref('')
+const inviteLoading = ref(false)
 const confirmDelete = ref(false)
+const deletingWorkspace = ref(false)
 
 // Repository state
 const showAddRepo = ref(false)
@@ -418,6 +425,7 @@ const editingRepoId = ref<string | null>(null)
 const editRepo = reactive({ name: '', url: '', defaultBranch: 'main', createBranch: true, platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted', token: '' })
 const addRepoLoading = ref(false)
 const editRepoLoading = ref(false)
+const deletingRepoId = ref<string | null>(null)
 const checkConnectionLoading = ref(false)
 const checkConnectionResult = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -588,25 +596,38 @@ async function handleEditRepo(repoId: string) {
 }
 
 async function handleDeleteRepo(repoId: string) {
-  if (!workspace.value) return
+  if (!workspace.value || deletingRepoId.value) return
   if (!confirm('Delete this repository? This cannot be undone.')) return
-  await deleteRepository(workspace.value.id, repoId)
+  deletingRepoId.value = repoId
+  try {
+    await deleteRepository(workspace.value.id, repoId)
+  } finally {
+    deletingRepoId.value = null
+  }
 }
 
 async function handleInvite() {
-  if (!workspace.value || !inviteEmail.value) return
+  if (!workspace.value || !inviteEmail.value || inviteLoading.value) return
+  inviteLoading.value = true
   try {
     await useWorkspace().inviteMember(workspace.value.id, inviteEmail.value)
     showInvite.value = false
     inviteEmail.value = ''
   } catch (err: any) {
     console.error('Invite failed:', err)
+  } finally {
+    inviteLoading.value = false
   }
 }
 
 async function handleDelete() {
-  if (!workspace.value) return
-  await deleteWorkspace(workspace.value.id)
-  router.push('/workspaces')
+  if (!workspace.value || deletingWorkspace.value) return
+  deletingWorkspace.value = true
+  try {
+    await deleteWorkspace(workspace.value.id)
+    router.push('/workspaces')
+  } finally {
+    deletingWorkspace.value = false
+  }
 }
 </script>

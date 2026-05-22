@@ -1,15 +1,11 @@
-import { requireAuth } from '~/server/utils/auth'
+import { requireSuperAdmin } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, desc, or } from 'drizzle-orm'
 import { activeProcesses } from '~/server/utils/runtime'
 import { readFileSync } from 'fs'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAuth(event)
-
-  if (user.role !== 'admin') {
-    throw createError({ statusCode: 403, statusMessage: 'Admin access required' })
-  }
+  const user = await requireSuperAdmin(event)
 
   const db = getDb()
 

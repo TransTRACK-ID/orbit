@@ -706,10 +706,9 @@ export async function startDevServer(
       NUXT_TELEMETRY_DISABLED: '1',
       ...(taskId ? {
         NUXT_APP_BASE_URL: `/api/preview/${taskId}/`,
-        // Set base URL env vars during build so they're baked into the production bundle.
-        // Note: API_BASE_URL intentionally omits the trailing slash so apps that do
-        // simple string concatenation (e.g. `${baseURL}/api/...`) don't produce double slashes.
-        API_BASE_URL: `/api/preview/${taskId}`,
+        // Server-side base URL must be ABSOLUTE so Nitro's $fetch can resolve it.
+        // Client-side uses NUXT_PUBLIC_API_BASE_URL (relative, through proxy).
+        API_BASE_URL: `http://127.0.0.1:${port}/api/preview/${taskId}`,
         NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}`,
         NUXT_API_BASE_URL: `/api/preview/${taskId}`,
       } : {}),
@@ -739,11 +738,9 @@ export async function startDevServer(
     AUTH_ORIGIN: `http://localhost:${port}`,
     ...(taskId ? {
       NUXT_APP_BASE_URL: `/api/preview/${taskId}/`,
-      // Generic base URL for any framework - the previewed app can use this
-      // to construct API calls, auth callbacks, or any absolute URLs.
-      // Intentionally omits trailing slash to prevent double slashes in apps
-      // that do simple string concatenation like `${baseURL}/api/...`.
-      API_BASE_URL: `/api/preview/${taskId}`,
+      // Server-side base URL must be ABSOLUTE so Nitro's $fetch can resolve it.
+      // Client-side uses NUXT_PUBLIC_API_BASE_URL (relative, through proxy).
+      API_BASE_URL: `http://127.0.0.1:${port}/api/preview/${taskId}`,
       // Nuxt runtime config mappings
       NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}`,
       NUXT_API_BASE_URL: `/api/preview/${taskId}`,

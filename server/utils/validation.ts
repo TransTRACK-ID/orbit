@@ -131,6 +131,7 @@ export const updateTaskSchema = z.object({
   labelIds: z.array(z.string().uuid()).optional(),
   branchName: validBranchName,
   agentEnabled: z.boolean().optional(),
+  observerId: z.string().uuid().nullable().optional(),
 })
 
 // ─── Agent ───

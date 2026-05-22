@@ -95,12 +95,12 @@
               @blur="handleTitleBlur"
               @keydown.enter.prevent="handleTitleEnter"
             />
-            <div v-if="task.branchName || task.assigneeType === 'agent'" class="flex flex-col gap-1 mt-2">
+            <div v-if="task.assigneeType === 'agent'" class="flex flex-col gap-1 mt-2">
               <div class="flex items-center gap-2 text-sm text-surface-600">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
                 <span class="text-[11px] text-surface-500">Branch</span>
                 <input
-                  v-if="isBacklog && task.assigneeType === 'agent'"
+                  v-if="isBacklog"
                   v-model="editingBranchName"
                   type="text"
                   placeholder="feature/my-branch"
@@ -1980,12 +1980,13 @@ async function assignTo(assigneeId?: string, assigneeType?: 'user' | 'agent') {
   }
 
   // Auto-generate branch name when assigning an agent in backlog
-  if (isBacklog.value && isAgent && !task.value.branchName) {
+  if (isBacklog.value && isAgent) {
     const generatedBranch = generateAgentBranchName({
       ...task.value,
       assigneeId: assigneeId || null,
       assigneeType: assigneeType || null,
       assignee: isAgent ? props.agents.find(a => a.id === assigneeId) || task.value.assignee : null,
+      observer: task.value.observer,
     })
     if (validateBranchName(generatedBranch) === '') {
       updateData.branchName = generatedBranch
@@ -2013,12 +2014,13 @@ async function setObserver(observerId?: string) {
     observerId: observerId || null,
   }
 
-  // Regenerate branch name if agent task is in backlog and branch not yet set
-  if (isBacklog.value && task.value.assigneeType === 'agent' && !task.value.branchName) {
+  // Regenerate branch name for agent tasks in backlog whenever observer changes
+  if (isBacklog.value && task.value.assigneeType === 'agent') {
+    const newObserver = props.members.find(m => m.userId === observerId)?.user || null
     const generatedBranch = generateAgentBranchName({
       ...task.value,
       observerId: observerId || null,
-      observer: props.members.find(m => m.userId === observerId)?.user || task.value.observer,
+      observer: newObserver,
     })
     if (validateBranchName(generatedBranch) === '') {
       updateData.branchName = generatedBranch

@@ -432,9 +432,18 @@
 
         <!-- Section 4: Full Runtime Logs -->
         <div class="bg-white border border-surface-200 rounded-xl overflow-hidden shadow-sm">
-          <div class="px-4 py-3 bg-surface-50 border-b border-surface-200 flex items-center justify-between">
+          <div class="px-4 py-3 bg-surface-50 border-b border-surface-200 flex items-center justify-between gap-3">
             <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Raw Agent Terminal Log History (Last 200 Logs)</h3>
-            <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-surface-400">Auto-refresh</span>
+              <select
+                v-model="autoRefreshSeconds"
+                class="text-[10px] bg-white border border-surface-200 rounded px-1.5 py-0.5 text-surface-600 outline-none focus:border-primary-500 cursor-pointer"
+              >
+                <option v-for="opt in AUTO_REFRESH_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+              <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
+            </div>
           </div>
           <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto select-text scrollbar-thin">
             <div class="sticky top-0 z-10 bg-white dark:bg-surface-950 border-b border-surface-200 dark:border-surface-800 p-2 flex items-center justify-between">
@@ -630,6 +639,45 @@ const { data: activityData, pending: activityPending } = await useFetch<Activity
 
 const { data: templatesData, pending: templatesPending, refresh: refreshTemplates } = await useFetch<{ templates: AdminTemplate[] }>('/api/admin/templates', { key: 'admin-templates' })
 const { data: diagnosticsData, pending: diagnosticsPending, refresh: refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
+
+// ── Auto-refresh for diagnostics ──
+const AUTO_REFRESH_OPTIONS = [
+  { label: 'Off', value: 0 },
+  { label: '5s', value: 5 },
+  { label: '10s', value: 10 },
+  { label: '30s', value: 30 },
+  { label: '1m', value: 60 },
+]
+const autoRefreshSeconds = ref(10)
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+  if (autoRefreshSeconds.value > 0 && activeTab.value === 'diagnostics') {
+    autoRefreshTimer = setInterval(() => {
+      refreshDiagnostics()
+    }, autoRefreshSeconds.value * 1000)
+  }
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
+}
+
+watch([autoRefreshSeconds, activeTab], () => {
+  startAutoRefresh()
+})
+
+onMounted(() => {
+  startAutoRefresh()
+})
+
+onBeforeUnmount(() => {
+  stopAutoRefresh()
+})
 
 const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value || diagnosticsPending.value)
 

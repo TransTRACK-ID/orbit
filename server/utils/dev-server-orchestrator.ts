@@ -233,7 +233,8 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
   }
 
   // Fallback 1: npm with --legacy-peer-deps (fixes common peer dep conflicts in Nuxt 4 migrations)
-  if (pm.cmd === 'npm' && (primary.stderr.includes('ERESOLVE') || primary.stderr.includes('peer dependency'))) {
+  const hasPeerConflict = primary.stderr.includes('ERESOLVE') || primary.stderr.includes('peer dependency')
+  if (pm.cmd === 'npm' && hasPeerConflict) {
     appendLog(worktreeDir, 'Detected peer dependency conflict, retrying with --legacy-peer-deps...')
     const legacy = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
     if (legacy.ok) {
@@ -264,17 +265,33 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
     }
   }
 
-  // Fallback 3: npm with --legacy-peer-deps (universal last resort)
-  appendLog(worktreeDir, 'Last resort: npm install --legacy-peer-deps...')
-  const lastResort = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
-  if (lastResort.ok) {
-    appendLog(worktreeDir, 'npm install --legacy-peer-deps completed')
+  // Fallback 3: npm with --legacy-peer-deps (universal last resort for non-npm PMs)
+  if (pm.cmd !== 'npm') {
+    appendLog(worktreeDir, 'Last resort: npm install --legacy-peer-deps...')
+    const lastResort = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
+    if (lastResort.ok) {
+      appendLog(worktreeDir, 'npm install --legacy-peer-deps completed')
+    } else {
+      appendLog(worktreeDir, 'npm install --legacy-peer-deps failed')
+    }
+
+    if (verifyCriticalModules(worktreeDir)) {
+      appendLog(worktreeDir, 'Critical modules verified after last resort')
+      return true
+    }
+  }
+
+  // Fallback 4: npm with --force (nuclear option for stubborn peer deps)
+  appendLog(worktreeDir, 'Nuclear option: npm install --force...')
+  const nuclear = await runInstall(worktreeDir, 'npm', ['install', '--force'], { CI: 'true' })
+  if (nuclear.ok) {
+    appendLog(worktreeDir, 'npm install --force completed')
   } else {
-    appendLog(worktreeDir, 'npm install --legacy-peer-deps failed')
+    appendLog(worktreeDir, 'npm install --force failed')
   }
 
   if (verifyCriticalModules(worktreeDir)) {
-    appendLog(worktreeDir, 'Critical modules verified after last resort')
+    appendLog(worktreeDir, 'Critical modules verified after --force')
     return true
   }
 
@@ -402,9 +419,8 @@ export async function startDevServer(worktreeDir: string, repositoryId?: string,
         await new Promise(r => setTimeout(r, 1000))
       }
     } catch {}
-    // Preserve logs but mark as not ready so we start fresh
+    // Mark as not ready so we start fresh, but PRESERVE logs for diagnostics
     existing.ready = false
-    existing.logs = []
     existing.failed = false
     existing.failReason = undefined
   }

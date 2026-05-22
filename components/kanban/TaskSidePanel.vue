@@ -879,6 +879,43 @@
                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                           Open Preview
                         </button>
+                        <!-- Restart Preview -->
+                        <button
+                          v-if="previewAvailable"
+                          class="flex h-8 items-center gap-1.5 rounded-lg bg-surface-200 px-3 text-[11px] font-semibold text-surface-600 shadow-sm hover:bg-surface-300 active:scale-95 transition-all"
+                          :disabled="previewRestarting"
+                          :class="{ 'opacity-50 cursor-not-allowed': previewRestarting }"
+                          :title="previewRestarting ? 'Restarting...' : 'Restart preview server (reinstall deps + clear cache)'"
+                          @click="handleRestartPreview"
+                        >
+                          <svg
+                            v-if="previewRestarting"
+                            class="animate-spin w-3 h-3"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          <svg
+                            v-else
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <polyline points="23 4 23 10 17 10" />
+                            <polyline points="1 20 1 14 7 14" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                          </svg>
+                          {{ previewRestarting ? 'Restarting...' : 'Restart' }}
+                        </button>
                       </div>
                       <p v-if="prError" class="text-[10px] text-red-500 mt-1 font-medium">{{ prError }}</p>
                     </div>
@@ -1052,10 +1089,14 @@
   <!-- Preview Modal -->
   <div
     v-if="showPreviewModal"
-    class="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+    class="fixed inset-0 z-[70] flex overflow-hidden transition-all duration-300"
+    :class="previewFullscreen ? 'bg-black' : 'bg-black/50 items-center justify-center p-4'"
     @click.self="showPreviewModal = false"
   >
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+    <div
+      class="bg-white flex flex-col overflow-hidden transition-all duration-300"
+      :class="previewFullscreen ? 'w-full h-full rounded-none' : 'rounded-xl shadow-2xl w-full max-w-5xl h-[85vh]'"
+    >
       <div class="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
         <span class="text-sm font-semibold text-surface-700 flex-shrink-0">Live Preview</span>
         <div class="flex-1 flex items-center gap-2 bg-surface-50 rounded-lg px-3 py-1.5 border border-surface-200">
@@ -1068,6 +1109,75 @@
             @keydown.enter="navigatePreview"
           >
         </div>
+        <button
+          v-if="previewUrl"
+          class="text-surface-400 hover:text-primary-600 flex-shrink-0 transition-colors"
+          :disabled="previewRestarting"
+          :class="{ 'opacity-50 cursor-not-allowed': previewRestarting }"
+          :title="previewRestarting ? 'Restarting preview...' : 'Restart preview server'"
+          @click="handleRestartPreview"
+        >
+          <svg
+            v-if="previewRestarting"
+            class="animate-spin w-4 h-4"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <svg
+            v-else
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+        <button
+          class="text-surface-400 hover:text-surface-600 flex-shrink-0 transition-colors"
+          :title="previewFullscreen ? 'Exit fullscreen' : 'Toggle fullscreen'"
+          @click="previewFullscreen = !previewFullscreen"
+        >
+          <svg
+            v-if="previewFullscreen"
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+          </svg>
+          <svg
+            v-else
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+          </svg>
+        </button>
         <button class="text-surface-400 hover:text-surface-600 flex-shrink-0" @click="showPreviewModal = false">
           <Close class="w-4 h-4" />
         </button>
@@ -1145,7 +1255,7 @@ import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Reposito
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
-import { nextTick, onUnmounted } from 'vue'
+import { nextTick, onMounted, onUnmounted } from 'vue'
 
 const { addLog, persistLog, logs: runtimeLogs } = useLog()
 const { createLabel } = useProject()
@@ -1217,6 +1327,8 @@ const previewAvailable = ref(false)
 const previewUrl = ref('')
 const showPreviewModal = ref(false)
 const previewStarting = ref(false)
+const previewRestarting = ref(false)
+const previewFullscreen = ref(false)
 const previewPath = ref('/')
 const committedPreviewPath = ref('/')
 
@@ -1252,7 +1364,26 @@ watch(showPreviewModal, (isOpen) => {
     committedPreviewPath.value = '/'
   } else {
     previewStarting.value = false
+    previewFullscreen.value = false
   }
+})
+
+// Handle Escape key: exit fullscreen first, then close modal
+function handlePreviewKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && showPreviewModal.value) {
+    if (previewFullscreen.value) {
+      e.stopPropagation()
+      previewFullscreen.value = false
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handlePreviewKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handlePreviewKeydown)
 })
 
 const uniqueAvailableLabels = computed(() => {
@@ -1728,6 +1859,35 @@ async function handleStartPreview() {
     }, 2000)
   } catch {
     previewStarting.value = false
+  }
+}
+
+async function handleRestartPreview() {
+  if (!task.value || previewRestarting.value) return
+  previewRestarting.value = true
+  // Temporarily hide the iframe to show loading state
+  const oldPreviewUrl = previewUrl.value
+  previewUrl.value = ''
+  try {
+    const result = await $fetch<{ available: boolean; url: string; message: string }>(`/api/tasks/${task.value.id}/preview-restart`, {
+      method: 'POST',
+    })
+    previewAvailable.value = result.available
+    previewUrl.value = result.url
+    // Poll for a few seconds to confirm the server is truly ready
+    let attempts = 0
+    const pollInterval = setInterval(async () => {
+      attempts++
+      await checkPreview()
+      if (previewAvailable.value || attempts >= 10) {
+        clearInterval(pollInterval)
+        previewRestarting.value = false
+      }
+    }, 2000)
+  } catch {
+    // Restore old URL on failure so user can retry
+    previewUrl.value = oldPreviewUrl
+    previewRestarting.value = false
   }
 }
 

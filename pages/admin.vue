@@ -260,6 +260,13 @@
 
       <!-- Diagnostics Tab -->
       <div v-if="activeTab === 'diagnostics'" class="space-y-6">
+        <div v-if="diagnosticsPending && !diagnosticsData" class="flex items-center justify-center gap-2 py-8">
+          <svg class="animate-spin w-4 h-4 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span class="text-xs text-surface-500">Loading diagnostics...</span>
+        </div>
         <!-- Section 1: System Health & Memory Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Memory Stats -->
@@ -709,7 +716,7 @@ onBeforeUnmount(() => {
   stopAutoRefresh()
 })
 
-const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value || diagnosticsPending.value)
+const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value)
 
 const deletingTemplateId = ref<string | null>(null)
 

@@ -1,6 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV !== 'production' },
+
+  devServer: {
+    host: '0.0.0.0',
+  },
 
   // Prevent Nuxt from treating the server/templates sub-projects as layers.
   // The templates contain their own nuxt.config.ts files but are NOT part of this app.
@@ -83,6 +87,8 @@ export default defineNuxtConfig({
       watch: {
         ignored: ['**/node_modules/**', '**/.git/**'],
       },
+      // Allow requests from the live preview proxy host
+      allowedHosts: 'all',
     },
   },
 })

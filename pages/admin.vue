@@ -455,7 +455,7 @@
               <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
             </div>
           </div>
-          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto select-text scrollbar-thin">
+          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" ref="logsScrollContainer" class="bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto select-text scrollbar-thin">
             <div class="sticky top-0 z-10 bg-white dark:bg-surface-950 border-b border-surface-200 dark:border-surface-800 p-2 flex items-center justify-between">
               <span class="text-[10px] text-surface-400">{{ diagnosticsData.recentRuntimeLogs.length }} log entries</span>
               <button 
@@ -662,13 +662,22 @@ const autoRefreshSeconds = ref(10)
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
 /** Separate from diagnosticsPending so auto-refresh doesn't trigger full-page loading */
 const diagnosticsRefreshing = ref(false)
+/** Ref to the scrollable log container so we can preserve scroll position across refreshes */
+const logsScrollContainer = ref<HTMLElement | null>(null)
 
 async function refreshDiagnostics() {
+  const scrollTop = logsScrollContainer.value?.scrollTop ?? 0
   diagnosticsRefreshing.value = true
   try {
     await _refreshDiagnostics()
   } finally {
     diagnosticsRefreshing.value = false
+    // Restore scroll position after Vue updates the DOM
+    nextTick(() => {
+      if (logsScrollContainer.value) {
+        logsScrollContainer.value.scrollTop = scrollTop
+      }
+    })
   }
 }
 

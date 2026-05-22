@@ -443,13 +443,13 @@
                 <input
                   ref="attachmentInput"
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg,.html,text/html"
+                  accept="image/png,image/jpeg,image/jpg,.html,text/html,.md,text/markdown,text/plain"
                   class="hidden"
                   @change="handleAttachmentFileSelect"
                 />
               </div>
             </div>
-            <p class="text-[10px] text-surface-400 mt-1">PNG, JPEG, HTML — max 10 MB</p>
+            <p class="text-[10px] text-surface-400 mt-1">PNG, JPEG, HTML, MD — max 10 MB</p>
           </div>
 
           <div>
@@ -597,7 +597,7 @@
                   <input
                     ref="commentAttachmentInput"
                     type="file"
-                    accept="image/png,image/jpeg,image/jpg,.html,text/html"
+                    accept="image/png,image/jpeg,image/jpg,.html,text/html,.md,text/markdown,text/plain"
                     class="hidden"
                     @change="handleCommentAttachmentFileSelect"
                   />

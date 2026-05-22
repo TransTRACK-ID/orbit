@@ -883,11 +883,11 @@
                              :class="previewMode === 'build' ? 'bg-amber-400/30 text-amber-100' : 'bg-white/20 text-white'"
                            >{{ previewMode === 'build' ? 'SSR' : 'DEV' }}</span>
                          </button>
-                         <!-- Preview Mode Toggle -->
-                         <div
-                           v-if="previewAvailable && !previewRestarting"
-                           class="flex items-center rounded-lg bg-surface-100 p-0.5"
-                         >
+                          <!-- Preview Mode Toggle -->
+                          <div
+                            v-if="previewAvailable"
+                            class="flex items-center rounded-lg bg-surface-100 p-0.5"
+                          >
                            <button
                              class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
                              :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
@@ -1135,7 +1135,6 @@
         </span>
         <!-- Mode Toggle in Modal -->
         <div
-          v-if="!previewRestarting && !previewStarting"
           class="flex items-center rounded-lg bg-surface-100 p-0.5 flex-shrink-0"
         >
           <button

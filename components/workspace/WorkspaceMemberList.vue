@@ -28,10 +28,12 @@
         />
         <IconButton
           v-if="member.role !== 'owner'"
+          :disabled="removingId === member.id"
           @click="handleRemove(member)"
         >
           <template #icon>
-            <Close class="w-3.5 h-3.5" />
+            <svg v-if="removingId === member.id" class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <Close v-else class="w-3.5 h-3.5" />
           </template>
         </IconButton>
       </div>
@@ -50,6 +52,7 @@ const { fetchMembers, removeMember } = useWorkspace()
 
 const members = ref<WorkspaceMember[]>([])
 const loading = ref(true)
+const removingId = ref<string | null>(null)
 
 onMounted(async () => {
   try {
@@ -62,11 +65,15 @@ onMounted(async () => {
 })
 
 async function handleRemove(member: WorkspaceMember) {
+  if (removingId.value) return
+  removingId.value = member.id
   try {
     await removeMember(props.workspaceId, member.userId)
     members.value = members.value.filter((m) => m.id !== member.id)
   } catch (err) {
     console.error('Failed to remove member:', err)
+  } finally {
+    removingId.value = null
   }
 }
 </script>

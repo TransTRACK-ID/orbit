@@ -1133,6 +1133,28 @@
         >
           {{ previewMode === 'build' ? 'SSR Mode' : 'Dev Mode' }}
         </span>
+        <!-- Mode Toggle in Modal -->
+        <div
+          v-if="!previewRestarting && !previewStarting"
+          class="flex items-center rounded-lg bg-surface-100 p-0.5 flex-shrink-0"
+        >
+          <button
+            class="h-6 px-2 rounded-md text-[10px] font-semibold transition-all"
+            :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+            title="Fast dev server (SPA mode, no SSR)"
+            @click="previewMode = 'dev'"
+          >
+            Dev
+          </button>
+          <button
+            class="h-6 px-2 rounded-md text-[10px] font-semibold transition-all"
+            :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+            title="Production build with full SSR support (slower startup)"
+            @click="previewMode = 'build'"
+          >
+            SSR
+          </button>
+        </div>
         <div class="flex-1 flex items-center gap-2 bg-surface-50 rounded-lg px-3 py-1.5 border border-surface-200">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <input

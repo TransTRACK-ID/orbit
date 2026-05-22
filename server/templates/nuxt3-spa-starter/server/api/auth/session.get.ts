@@ -4,6 +4,7 @@
 import { defineEventHandler, getCookie, createError } from 'h3';
 import { $fetch } from 'ofetch';
 import { useRuntimeConfig } from '#imports';
+import { resolveApiBaseUrl } from '../../utils/api-url';
 
 interface SessionResponse {
     status: string;
@@ -52,7 +53,7 @@ export default defineEventHandler(async (event) => {
 
         // Get the API base URL from runtime config
         const config = useRuntimeConfig();
-        const apiBaseUrl = config.public.baseAPI;
+        const apiBaseUrl = resolveApiBaseUrl(config.public.baseAPI);
 
         if (!apiBaseUrl) {
             throw createError({

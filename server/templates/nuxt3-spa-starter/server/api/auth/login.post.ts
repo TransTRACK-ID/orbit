@@ -7,6 +7,7 @@ import { useRuntimeConfig } from "#imports";
 import crypto from "crypto";
 import { createError, defineEventHandler, readBody, setCookie } from "h3";
 import { $fetch } from "ofetch";
+import { resolveApiBaseUrl } from "../../utils/api-url";
 
 interface LoginResponse {
   status: string;
@@ -92,7 +93,7 @@ export default defineEventHandler(async (event) => {
     const encryptedPayload = await encryptAES(plainText, appKey);
 
     // Forward the encrypted payload to the third-party API
-    const apiBaseUrl = config.public.baseAPI;
+    const apiBaseUrl = resolveApiBaseUrl(config.public.baseAPI);
     if (!apiBaseUrl) {
       throw createError({
         statusCode: 500,

@@ -1,6 +1,8 @@
+import { resolveApiBaseUrl } from '../utils/api-url';
+
 export default defineEventHandler(async (event) => {
   try {
-    const baseUrl = useRuntimeConfig().public.baseAPI;
+    const baseUrl = resolveApiBaseUrl(useRuntimeConfig().public.baseAPI);
 
     const body = await readBody(event);
 

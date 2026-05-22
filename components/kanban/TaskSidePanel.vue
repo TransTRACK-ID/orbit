@@ -731,12 +731,12 @@
                       </span>
                     </div>
                     <p class="mt-0.5 text-xs text-primary-600 font-medium truncate">
-                      {{ latestRuntimeLog?.message?.replace(/^>\s*/, '') || 'Agent is autonomously working on this task...' }}
+                      Agent is autonomously working on this task...
                     </p>
                   </div>
                   <button
                     class="flex h-8 items-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-rose-700 active:scale-95 transition-all"
-                    @click="stopRuntime(task.id)"
+                    @click="killServerProcess(task.id); stopRuntime(task.id)"
                   >
                     <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
                       <rect x="6" y="6" width="12" height="12" rx="1.5" />
@@ -1675,7 +1675,7 @@ const commentsToShow = computed(() => {
 })
 const commentsHasMore = computed(() => allComments.value.length > COMMENTS_COLLAPSE_THRESHOLD)
 
-const { startRuntime, stopRuntime, isRunning, getRunState } = useAgentRuntime()
+const { startRuntime, stopRuntime, killServerProcess, isRunning, getRunState } = useAgentRuntime()
 const runtimeActive = computed(() => task.value ? isRunning(task.value.id) : false)
 const runtimeState = computed(() => task.value ? getRunState(task.value.id) : 'idle')
 

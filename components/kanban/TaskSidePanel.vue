@@ -395,10 +395,12 @@
               <div
                 v-for="att in attachments"
                 :key="att.id"
-                class="relative group cursor-pointer"
-                @click="openLightbox(att)"
+                class="relative group"
+                :class="isImageAttachment(att) ? 'cursor-pointer' : 'cursor-default'"
+                @click="isImageAttachment(att) ? openLightbox(att) : openHtmlAttachment(att)"
               >
-                <div class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+                <!-- Image thumbnail -->
+                <div v-if="isImageAttachment(att)" class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
                   <img
                     :src="`/api/tasks/${props.taskId}/attachments/${att.id}`"
                     class="w-full h-full object-cover"
@@ -406,7 +408,12 @@
                     @error="hideImage($event)"
                   />
                 </div>
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors" />
+                <!-- HTML file thumbnail -->
+                <div v-else class="w-16 h-16 rounded-lg overflow-hidden border border-surface-200 bg-surface-100 flex flex-col items-center justify-center gap-0.5 px-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 2 2 2"/><path d="M14 13l2 2-2 2"/></svg>
+                  <span class="text-[8px] text-surface-500 truncate w-full text-center leading-tight">{{ att.originalName }}</span>
+                </div>
+                <div v-if="isImageAttachment(att)" class="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors" />
                 <button
                   v-if="isBacklog"
                   type="button"
@@ -436,13 +443,13 @@
                 <input
                   ref="attachmentInput"
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg"
+                  accept="image/png,image/jpeg,image/jpg,.html,text/html"
                   class="hidden"
                   @change="handleAttachmentFileSelect"
                 />
               </div>
             </div>
-            <p class="text-[10px] text-surface-400 mt-1">PNG, JPEG — max 10 MB</p>
+            <p class="text-[10px] text-surface-400 mt-1">PNG, JPEG, HTML — max 10 MB</p>
           </div>
 
           <div>
@@ -457,16 +464,20 @@
                 <div
                   v-for="att in pendingCommentAttachments"
                   :key="att.id"
-                  class="relative group cursor-pointer"
-                  @click="openLightbox(att)"
+                  class="relative group"
+                  :class="isImageAttachment(att) ? 'cursor-pointer' : 'cursor-default'"
+                  @click="isImageAttachment(att) ? openLightbox(att) : openHtmlAttachment(att)"
                 >
-                  <div class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+                  <div v-if="isImageAttachment(att)" class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
                     <img
                       :src="`/api/tasks/${props.taskId}/attachments/${att.id}`"
                       class="w-full h-full object-cover"
                       loading="lazy"
                       @error="hideImage($event)"
                     />
+                  </div>
+                  <div v-else class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 2 2 2"/><path d="M14 13l2 2-2 2"/></svg>
                   </div>
                   <button
                     type="button"
@@ -543,7 +554,7 @@
                   v-if="showAttachmentPicker && attachments.length > 0"
                   class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white border border-surface-200 rounded-lg shadow-lg p-2"
                 >
-                  <div class="text-[10px] font-medium text-surface-400 mb-1.5 px-1">Add image reference</div>
+                  <div class="text-[10px] font-medium text-surface-400 mb-1.5 px-1">Add attachment reference</div>
                   <div class="flex flex-wrap gap-2">
                     <button
                       v-for="att in attachments"
@@ -553,11 +564,16 @@
                       @click="insertAttachmentReference(att)"
                     >
                       <img
+                        v-if="isImageAttachment(att)"
                         :src="`/api/tasks/${props.taskId}/attachments/${att.id}`"
                         class="w-full h-full object-cover"
                         loading="lazy"
                         @error="hideImage"
                       />
+                      <div v-else class="w-full h-full flex flex-col items-center justify-center gap-0.5 px-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13l-2 2 2 2"/><path d="M14 13l2 2-2 2"/></svg>
+                        <span class="text-[7px] text-surface-500 truncate w-full text-center leading-tight">{{ att.originalName }}</span>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -581,7 +597,7 @@
                   <input
                     ref="commentAttachmentInput"
                     type="file"
-                    accept="image/png,image/jpeg,image/jpg"
+                    accept="image/png,image/jpeg,image/jpg,.html,text/html"
                     class="hidden"
                     @change="handleCommentAttachmentFileSelect"
                   />
@@ -1347,14 +1363,17 @@ function selectMention(option: { name: string }) {
   })
 }
 
-/** Insert a markdown image reference to an existing task attachment at the cursor position */
+/** Insert a markdown reference to an existing task attachment at the cursor position */
 function insertAttachmentReference(att: Attachment) {
   const textarea = commentInputRef.value
   if (!textarea) return
 
   const val = textarea.value
   const cursorPos = textarea.selectionStart || 0
-  const imageMarkdown = `![${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`
+  const isImage = isImageAttachment(att)
+  const markdown = isImage
+    ? `![${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`
+    : `[${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`
 
   // Insert at cursor with a leading space if not at start and no preceding space/newline
   const needsLeadingSpace = cursorPos > 0 && !/[\s\n]/.test(val[cursorPos - 1])
@@ -1364,13 +1383,13 @@ function insertAttachmentReference(att: Attachment) {
   const needsTrailingNewline = cursorPos === val.length || !/[\s\n]/.test(val[cursorPos] || '')
   const suffix = needsTrailingNewline ? '\n' : ''
 
-  const newVal = val.slice(0, cursorPos) + prefix + imageMarkdown + suffix + val.slice(cursorPos)
+  const newVal = val.slice(0, cursorPos) + prefix + markdown + suffix + val.slice(cursorPos)
   newComment.value = newVal
   showAttachmentPicker.value = false
 
   nextTick(() => {
     textarea.focus()
-    const newPos = cursorPos + prefix.length + imageMarkdown.length + suffix.length
+    const newPos = cursorPos + prefix.length + markdown.length + suffix.length
     textarea.setSelectionRange(newPos, newPos)
     autoResizeCommentTextarea()
   })
@@ -1615,8 +1634,16 @@ async function handleStartPreview() {
   }
 }
 
+function isImageAttachment(att: Attachment): boolean {
+  return att.mimeType.startsWith('image/')
+}
+
 function openLightbox(att: Attachment) {
   lightboxImage.value = att
+}
+
+function openHtmlAttachment(att: Attachment) {
+  window.open(`/api/tasks/${props.taskId}/attachments/${att.id}`, '_blank')
 }
 
 function closeLightbox() {
@@ -2145,6 +2172,7 @@ function parseMarkdown(md: string): string {
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="rounded-lg border border-surface-200 max-w-full my-2" />')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary-600 hover:text-primary-700 underline">$1</a>')
     .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
     .replace(/^(.*)$/gm, (match) => {
@@ -2433,7 +2461,9 @@ async function handleAddComment() {
   // Auto-insert markdown references for pending comment attachments
   if (pendingCommentAttachments.value.length > 0) {
     const attachmentMarkdown = pendingCommentAttachments.value
-      .map(att => `![${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`)
+      .map(att => isImageAttachment(att)
+        ? `![${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`
+        : `[${att.originalName}](/api/tasks/${props.taskId}/attachments/${att.id})`)
       .join('\n')
     if (commentBody) {
       commentBody += '\n\n' + attachmentMarkdown

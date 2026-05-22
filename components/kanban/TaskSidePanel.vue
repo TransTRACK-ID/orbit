@@ -727,7 +727,7 @@
                       </span>
                     </div>
                     <p class="mt-0.5 text-xs text-primary-600 font-medium truncate">
-                      {{ latestRuntimeLog?.message || 'Agent is autonomously working on this task...' }}
+                      {{ latestRuntimeLog?.message?.replace(/^>\s*/, '') || 'Agent is autonomously working on this task...' }}
                     </p>
                   </div>
                   <button
@@ -1004,18 +1004,6 @@
                         <span v-if="comment.isReview" class="text-[9px] text-amber-500 ml-auto">review</span>
                       </div>
                       <div class="text-[11px] text-surface-600 leading-relaxed review-feedback-body" v-html="parseMarkdown(comment.body)" />
-                    </div>
-                  </div>
-
-                  <!-- Agent working status banner -->
-                  <div
-                    v-if="runtimeActive && prComments.length > 0"
-                    class="mt-3 p-2.5 rounded-lg bg-primary-50 border border-primary-100 flex items-center gap-2.5"
-                  >
-                    <span class="w-2 h-2 rounded-full bg-primary-500 animate-pulse flex-shrink-0" />
-                    <div class="flex-1 min-w-0">
-                      <p class="text-[11px] font-medium text-primary-700">Agent is fixing feedback...</p>
-                      <p class="text-[10px] text-primary-500 truncate">{{ latestRuntimeLog?.message?.replace('> ', '') || 'Working...' }}</p>
                     </div>
                   </div>
 

@@ -103,18 +103,30 @@ function toggleAutoSync() {
   autoSyncEnabled.value = !autoSyncEnabled.value
 }
 
+async function syncAllPullRequests() {
+  if (!workspace.value) return
+  try {
+    await $fetch(`/api/workspaces/${workspace.value.id}/pull-requests/sync-all`, { method: 'POST' })
+  } catch (err) {
+    console.error('Bulk PR sync failed:', err)
+  }
+}
+
 function startAutoSync() {
   if (autoSyncTimer) clearInterval(autoSyncTimer)
+  // Run an immediate sync when auto-sync is turned on
+  syncAllPullRequests().then(() => Promise.all([loadPullRequests(), loadBottlenecks()]))
   autoSyncTimer = setInterval(async () => {
     if (!workspace.value) return
-    // Refresh the list and bottlenecks in the background
+    // Sync all open PRs against GitHub/GitLab, then refresh the list
+    await syncAllPullRequests()
     await Promise.all([
       loadPullRequests(),
       loadBottlenecks(),
     ])
-    // If a PR is selected, also sync its details so comments/status stay fresh
+    // If a PR is selected, reload its detail panel so status/comments stay fresh
     if (selectedPrId.value) {
-      await syncPr(selectedPrId.value)
+      await selectPr(selectedPrId.value)
     }
   }, 30000) // every 30 seconds
 }

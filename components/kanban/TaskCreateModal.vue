@@ -183,12 +183,12 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M12 16h.01M8 16h.01M16 16h.01" />
                 </svg>
                 <span class="text-xs text-surface-500">Drop files here or click to upload</span>
-                <span class="text-xs text-surface-500">PNG, JPEG, JPG, HTML — max 10 MB</span>
+                <span class="text-xs text-surface-500">PNG, JPEG, JPG, HTML, MD — max 10 MB</span>
               </div>
               <input
                 ref="fileInput"
                 type="file"
-                accept="image/png,image/jpeg,image/jpg,.html,text/html"
+                accept="image/png,image/jpeg,image/jpg,.html,text/html,.md,text/markdown,text/plain"
                 multiple
                 class="hidden"
                 @change="handleFileSelect"
@@ -565,9 +565,12 @@ function toggleLabel(labelId: string) {
 }
 
 function validateFile(file: File): string | null {
-  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'text/html']
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'text/html', 'text/markdown', 'text/plain']
   if (!allowedTypes.includes(file.type)) {
-    return 'Only PNG, JPEG, JPG images and HTML files are allowed.'
+    return 'Only PNG, JPEG, JPG images, HTML files, and Markdown files are allowed.'
+  }
+  if (file.type === 'text/plain' && !file.name.toLowerCase().endsWith('.md')) {
+    return 'Only PNG, JPEG, JPG images, HTML files, and Markdown files are allowed.'
   }
   if (file.size > 10 * 1024 * 1024) {
     return 'File too large (max 10 MB).'

@@ -8,7 +8,7 @@ import path from 'path'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const MAX_ATTACHMENTS = 3
-const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'text/html']
+const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'text/html', 'text/markdown', 'text/plain']
 const ATTACHMENTS_DIR = `${process.env.HOME || '/Users/zeinersyad'}/orbit-attachments`
 
 export default defineEventHandler(async (event) => {
@@ -53,10 +53,19 @@ export default defineEventHandler(async (event) => {
 
   // Validate MIME type
   const mimeType = file.type || 'application/octet-stream'
+  const originalName = file.filename || ''
+  const isMdByExtension = originalName.toLowerCase().endsWith('.md')
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Invalid file type. Only PNG, JPEG, JPG images and HTML files are allowed.',
+      statusMessage: 'Invalid file type. Only PNG, JPEG, JPG images, HTML files, and Markdown files are allowed.',
+    })
+  }
+  // Only allow text/plain for .md files to avoid accepting arbitrary text files
+  if (mimeType === 'text/plain' && !isMdByExtension) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid file type. Only PNG, JPEG, JPG images, HTML files, and Markdown files are allowed.',
     })
   }
 
@@ -65,12 +74,13 @@ export default defineEventHandler(async (event) => {
   const isPng = magic[0] === 0x89 && magic[1] === 0x50 && magic[2] === 0x4E && magic[3] === 0x47
   const isJpeg = magic[0] === 0xFF && magic[1] === 0xD8 && magic[2] === 0xFF
   const isHtml = mimeType === 'text/html'
+  const isMd = mimeType === 'text/markdown' || (mimeType === 'text/plain' && isMdByExtension)
   const isImage = isPng || isJpeg
 
-  if (!isImage && !isHtml) {
+  if (!isImage && !isHtml && !isMd) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Invalid file content. Only PNG, JPEG images and HTML files are allowed.',
+      statusMessage: 'Invalid file content. Only PNG, JPEG images, HTML files, and Markdown files are allowed.',
     })
   }
 
@@ -82,6 +92,17 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 400,
         statusMessage: 'Invalid HTML file. File must start with <!DOCTYPE or <html.',
+      })
+    }
+  }
+
+  // For Markdown files, do a basic content sanity check
+  if (isMd) {
+    const hasBinary = file.data.slice(0, 1024).includes(0)
+    if (hasBinary) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Invalid Markdown file. File appears to contain binary data.',
       })
     }
   }
@@ -100,8 +121,12 @@ export default defineEventHandler(async (event) => {
     ext = 'png'
   } else if (isJpeg) {
     ext = 'jpg'
-  } else {
+  } else if (isHtml) {
     ext = 'html'
+  } else if (isMd) {
+    ext = 'md'
+  } else {
+    ext = 'txt'
   }
   const filename = `${randomUUID()}.${ext}`
   const taskDir = path.join(ATTACHMENTS_DIR, taskId)

@@ -1110,7 +1110,7 @@
           >
         </div>
         <button
-          v-if="previewUrl"
+          v-if="previewUrl || previewFailed || previewRestarting"
           class="text-surface-400 hover:text-primary-600 flex-shrink-0 transition-colors"
           :disabled="previewRestarting"
           :class="{ 'opacity-50 cursor-not-allowed': previewRestarting }"

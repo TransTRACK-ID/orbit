@@ -30,6 +30,32 @@
         </div>
       </div>
 
+      <!-- Security Settings -->
+      <div class="bg-white border border-surface-200 rounded-xl p-4 mb-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-surface-900">Authentication</h3>
+            <p class="text-[11px] text-surface-500 mt-0.5">Require users to sign in before accessing the app.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-[11px] font-medium" :class="loginRequired ? 'text-surface-700' : 'text-surface-400'">
+              {{ loginRequired ? 'Required' : 'Optional' }}
+            </span>
+            <button
+              class="relative w-11 h-6 rounded-full transition-colors duration-200"
+              :class="loginRequired ? 'bg-accent' : 'bg-surface-300'"
+              @click="toggleLoginRequired"
+            >
+              <span
+                class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200"
+                :class="loginRequired ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
+        </div>
+        <p v-if="loginToggleError" class="text-[11px] text-error-500 mt-2">{{ loginToggleError }}</p>
+      </div>
+
       <!-- Tabs -->
       <div class="flex items-center gap-2 mb-4 border-b border-surface-200">
         <button
@@ -412,6 +438,33 @@ const tabs = [
   { id: 'templates', label: 'Templates' },
 ]
 const activeTab = ref('users')
+
+const loginRequired = ref(true)
+const loginToggleError = ref('')
+
+// Fetch app settings on mount
+onMounted(async () => {
+  try {
+    const settings = await $fetch('/api/settings')
+    loginRequired.value = settings?.loginRequired ?? true
+  } catch {
+    loginRequired.value = true
+  }
+})
+
+async function toggleLoginRequired() {
+  loginToggleError.value = ''
+  const newValue = !loginRequired.value
+  try {
+    await $fetch('/api/admin/settings', {
+      method: 'PATCH',
+      body: { loginRequired: newValue },
+    })
+    loginRequired.value = newValue
+  } catch (err: any) {
+    loginToggleError.value = err?.data?.statusMessage || 'Failed to update setting'
+  }
+}
 
 const { data: usersData, pending: usersPending } = await useFetch<{ users: AdminUser[]; total: number }>('/api/admin/users', { key: 'admin-users' })
 const { data: projectsData, pending: projectsPending } = await useFetch<{ projects: AdminProject[]; total: number }>('/api/admin/projects', { key: 'admin-projects' })

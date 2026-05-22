@@ -1,8 +1,15 @@
 import { getServerSession } from '#auth'
 import { eq } from 'drizzle-orm'
 import { getDb, schema } from '~/server/database'
+import { getAppSettings } from '~/server/utils/app-settings'
 
 export async function requireAuth(event: any) {
+  const settings = await getAppSettings()
+  if (!settings.loginRequired) {
+    // Return a guest user when login is not required
+    return { id: 'guest', email: 'guest@localhost', name: 'Guest', role: 'user' }
+  }
+
   const session = await getServerSession(event)
   if (!session?.user?.id) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })

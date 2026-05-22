@@ -98,7 +98,46 @@ const projectId = computed(() => route.params.projectId as string)
 const { tasks, loading, fetchTasks } = useTask()
 const { fetchProjectDetail, projectStatuses, projectLabels } = useProject()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
-const { addLog, persistLog } = useLog()
+const { logs: runtimeLogs, addLog, persistLog } = useLog()
+
+// Track which task IDs have already been advanced to review by the board-level
+// watcher, so we don't double-fire if the panel opens and closes quickly.
+const boardAdvancedTaskIds = new Set<string>()
+
+// Watch in-memory runtime logs so we can auto-advance agentic tasks to
+// "Review" when the agent finishes — even when the TaskSidePanel is closed.
+watch(runtimeLogs, async (logs) => {
+  if (!logs.length || !statuses.value.length) return
+  const reviewStatus = statuses.value.find(s => /review/i.test(s.name))
+  if (!reviewStatus) return
+
+  for (const log of logs) {
+    if (!/^>?\s*Done$/.test(log.msg)) continue
+    const taskId = log.taskId
+    if (!taskId) continue
+    // Skip if the panel is currently open for this task (it handles its own advancement)
+    if (showTaskSidePanel.value && selectedTask.value?.id === taskId) continue
+    // Skip if already handled by the board watcher for this completion
+    if (boardAdvancedTaskIds.has(taskId)) continue
+
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task || !task.agentEnabled) continue
+    // Only advance if not already in review/done
+    if (/review/i.test(task.status?.name || '') || /done/i.test(task.status?.name || '')) continue
+
+    boardAdvancedTaskIds.add(taskId)
+    try {
+      const updated = await $fetch<any>(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: { statusId: reviewStatus.id },
+      })
+      const idx = tasks.value.findIndex(t => t.id === taskId)
+      if (idx !== -1) tasks.value[idx] = updated
+    } catch {
+      // Silently fail — panel will handle it when the user opens the card
+    }
+  }
+}, { deep: false })
 
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])

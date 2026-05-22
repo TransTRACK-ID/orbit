@@ -1217,6 +1217,20 @@
             @keydown.enter="navigatePreview"
           >
         </div>
+        <!-- Log Toggle Button -->
+        <button
+          v-if="previewUrl && !previewFailed && !previewRestarting && !previewStarting"
+          class="flex items-center gap-1.5 flex-shrink-0 transition-colors"
+          :class="showLogsPanel ? 'text-primary-600' : 'text-surface-400 hover:text-surface-600'"
+          :title="showLogsPanel ? 'Hide server logs' : 'Show server logs'"
+          @click="showLogsPanel = !showLogsPanel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+        </button>
+
         <button
           v-if="previewUrl || previewFailed || previewRestarting"
           class="flex items-center gap-1.5 flex-shrink-0 transition-colors"
@@ -1324,17 +1338,9 @@
 
       <!-- Preview Content: iframe, logs, or start prompt -->
       <div class="flex-1 flex flex-col min-h-0">
-        <!-- Iframe when ready -->
-        <iframe
-          v-if="previewUrl && !previewFailed"
-          :src="previewIframeUrl"
-          class="w-full h-full border-0 flex-1"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
-        />
-
-        <!-- Log viewer when starting or failed -->
+        <!-- Log viewer when starting or failed (full screen) -->
         <div
-          v-else-if="previewStarting || previewRestarting || previewFailed || previewLogs.length > 0"
+          v-if="previewStarting || previewRestarting || previewFailed || (previewLogs.length > 0 && !previewUrl)"
           class="flex-1 flex flex-col min-h-0 bg-surface-900"
         >
           <!-- Header bar -->
@@ -1367,6 +1373,54 @@
             <p class="text-xs text-red-300 font-medium">{{ previewFailReason }}</p>
           </div>
         </div>
+
+        <!-- Iframe + collapsible logs when preview is ready -->
+        <template v-else-if="previewUrl && !previewFailed">
+          <!-- Iframe -->
+          <iframe
+            :src="previewIframeUrl"
+            class="w-full border-0"
+            :class="showLogsPanel ? 'flex-1 min-h-0' : 'flex-1'"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+          />
+
+          <!-- Collapsible log panel -->
+          <div
+            v-if="showLogsPanel"
+            class="flex flex-col border-t border-surface-200"
+            :class="previewFullscreen ? 'h-48' : 'h-40'"
+          >
+            <!-- Log panel header -->
+            <div class="flex items-center justify-between px-3 py-1.5 bg-surface-100 border-b border-surface-200 flex-shrink-0">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-500">
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" y1="19" x2="20" y2="19" />
+                </svg>
+                <span class="text-[10px] font-semibold text-surface-600">Server Logs</span>
+                <span class="text-[10px] text-surface-400 font-mono">{{ previewLogs.length }} lines</span>
+              </div>
+              <button
+                class="text-[10px] text-surface-400 hover:text-surface-600 transition-colors"
+                @click="showLogsPanel = false"
+              >
+                Hide
+              </button>
+            </div>
+            <!-- Scrollable logs -->
+            <div ref="logsContainer" class="flex-1 overflow-auto p-2 font-mono text-[10px] leading-relaxed space-y-0.5 bg-surface-900">
+              <div
+                v-for="(line, idx) in previewLogs"
+                :key="idx"
+                class="break-all"
+                :class="line.includes('ERR:') || line.includes('error') || line.includes('failed') || line.includes('CRITICAL') ? 'text-red-400' : line.includes('WARN') || line.includes('warn') ? 'text-amber-400' : 'text-surface-300'"
+              >
+                {{ line }}
+              </div>
+              <div v-if="previewLogs.length === 0" class="text-surface-500 italic">No logs available</div>
+            </div>
+          </div>
+        </template>
 
         <!-- Empty state -->
         <div
@@ -1540,6 +1594,7 @@ const previewFailed = ref(false)
 const previewFailReason = ref('')
 const previewMode = ref<'dev' | 'build'>('dev')
 const runningPreviewMode = ref<'dev' | 'build'>('dev')
+const showLogsPanel = ref(false)
 let previewLogsPollInterval: ReturnType<typeof setInterval> | null = null
 const logsContainer = ref<HTMLDivElement | null>(null)
 

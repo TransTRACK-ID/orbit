@@ -903,25 +903,39 @@
                           <!-- Preview Mode Toggle -->
                           <div
                             v-if="previewAvailable"
-                            class="flex items-center rounded-lg bg-surface-100 p-0.5"
+                            class="flex items-center gap-1.5"
                           >
-                           <button
-                             class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
-                             :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
-                             title="Fast dev server (SPA mode, no SSR)"
-                             @click="previewMode = 'dev'"
-                           >
-                             Dev
-                           </button>
-                           <button
-                             class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
-                             :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
-                             title="Production build with full SSR support (slower startup)"
-                             @click="previewMode = 'build'"
-                           >
-                             SSR
-                           </button>
-                         </div>
+                            <div class="flex items-center rounded-lg bg-surface-100 p-0.5">
+                              <button
+                                class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
+                                :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+                                :title="previewMode !== runningPreviewMode && previewMode !== 'dev' ? 'Click Restart to switch to Dev mode' : 'Fast dev server (SPA mode, no SSR)'"
+                                @click="previewMode = 'dev'"
+                              >
+                                Dev
+                              </button>
+                              <button
+                                class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
+                                :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+                                :title="previewMode !== runningPreviewMode && previewMode !== 'build' ? 'Click Restart to switch to SSR mode' : 'Production build with full SSR support (slower startup)'"
+                                @click="previewMode = 'build'"
+                              >
+                                SSR
+                              </button>
+                            </div>
+                            <!-- Inline tooltip when mode change is pending -->
+                            <span
+                              v-if="previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+                              class="text-[10px] text-amber-600 font-medium flex items-center gap-1 animate-pulse"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10" />
+                                <polyline points="1 20 1 14 7 14" />
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                              </svg>
+                              Restart to apply
+                            </span>
+                          </div>
                           <!-- Restart Preview -->
                           <button
                             v-if="previewAvailable"
@@ -1161,25 +1175,37 @@
           {{ runningPreviewMode === 'build' ? 'SSR Mode' : 'Dev Mode' }}
         </span>
         <!-- Mode Toggle in Modal -->
-        <div
-          class="flex items-center rounded-lg bg-surface-100 p-0.5 flex-shrink-0"
-        >
-          <button
-            class="h-6 px-2 rounded-md text-[10px] font-semibold transition-all"
-            :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
-            title="Fast dev server (SPA mode, no SSR)"
-            @click="previewMode = 'dev'"
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <div class="flex items-center rounded-lg bg-surface-100 p-0.5">
+            <button
+              class="h-6 px-2 rounded-md text-[10px] font-semibold transition-all"
+              :class="previewMode === 'dev' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+              :title="previewMode !== runningPreviewMode && previewMode !== 'dev' ? 'Click Restart to switch to Dev mode' : 'Fast dev server (SPA mode, no SSR)'"
+              @click="previewMode = 'dev'"
+            >
+              Dev
+            </button>
+            <button
+              class="h-6 px-2 rounded-md text-[10px] font-semibold transition-all"
+              :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
+              :title="previewMode !== runningPreviewMode && previewMode !== 'build' ? 'Click Restart to switch to SSR mode' : 'Production build with full SSR support (slower startup)'"
+              @click="previewMode = 'build'"
+            >
+              SSR
+            </button>
+          </div>
+          <!-- Inline tooltip when mode change is pending -->
+          <span
+            v-if="previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+            class="text-[10px] text-amber-600 font-medium flex items-center gap-1 animate-pulse whitespace-nowrap"
           >
-            Dev
-          </button>
-          <button
-            class="h-6 px-2 rounded-md text-[10px] font-semibold transition-all"
-            :class="previewMode === 'build' ? 'bg-white text-surface-700 shadow-sm' : 'text-surface-400 hover:text-surface-600'"
-            title="Production build with full SSR support (slower startup)"
-            @click="previewMode = 'build'"
-          >
-            SSR
-          </button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            Restart to apply
+          </span>
         </div>
         <div class="flex-1 flex items-center gap-2 bg-surface-50 rounded-lg px-3 py-1.5 border border-surface-200">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>

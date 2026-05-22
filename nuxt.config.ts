@@ -2,13 +2,18 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
 
-  // Explicitly ignore template directories that contain their own Nuxt projects
-  // (redundant with .nuxtignore but ensures they're excluded during all build phases)
+  // Prevent Nuxt from treating the server/templates sub-projects as layers.
+  // The templates contain their own nuxt.config.ts files but are NOT part of this app.
   ignore: [
+    'server/templates/**',
     '**/server/templates/**',
     '**/*.test.ts',
     '**/vitest.config.ts',
   ],
+
+  // Restrict Nuxt's workspace to the project root so it won't auto-discover
+  // nested nuxt.config.ts files (e.g. server/templates/*/nuxt.config.ts) as layers.
+  workspaceDir: '.',
 
   app: {
     head: {

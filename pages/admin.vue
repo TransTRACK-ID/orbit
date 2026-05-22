@@ -371,11 +371,11 @@
             <h3 class="text-xs font-semibold text-surface-700 uppercase tracking-wider">Raw Agent Terminal Log History (Last 200 Logs)</h3>
             <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
           </div>
-          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="p-4 bg-surface-950 font-mono text-xs text-surface-300 max-h-[500px] overflow-y-auto space-y-1 select-text scrollbar-thin">
-            <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
-              <span class="text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
-              <span class="text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
-              <span class="text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
+          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" class="p-4 bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto space-y-1 select-text scrollbar-thin">
+            <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="hover:bg-surface-100 dark:hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
+              <span class="text-surface-400 dark:text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
+              <span class="text-primary-600 dark:text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
+              <span class="text-surface-800 dark:text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
             </div>
           </div>
           <div v-else class="text-[11px] text-surface-400 py-12 text-center">

@@ -44,12 +44,6 @@ const onSubmitLogin = handleSubmit(async (values) => {
   });
 });
 
-function handleKeyPress(event: KeyboardEvent) {
-  if (event.key === "Enter") {
-    onSubmitLogin();
-  }
-}
-
 onMounted(async () => {
   await getSession();
 });
@@ -68,7 +62,6 @@ onMounted(async () => {
       <form
         class="mt-24 space-y-6"
         @submit.prevent="onSubmitLogin"
-        @keydown.enter.prevent="handleKeyPress"
       >
         <p class="text-sm text-gray-700">
           Please sign in to your account below.

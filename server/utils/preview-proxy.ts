@@ -207,6 +207,8 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
     const req = event.node.req
     const res = event.node.res
 
+    const REQUEST_TIMEOUT_MS = 30000 // 30s timeout to avoid infinite hangs
+
     const proxyReq = http.request(
       {
         hostname: '127.0.0.1',
@@ -217,6 +219,7 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
           ...req.headers,
           host: `localhost:${devServer.port}`,
         },
+        timeout: REQUEST_TIMEOUT_MS,
       },
       (proxyRes) => {
         const statusCode = proxyRes.statusCode || 200
@@ -342,6 +345,16 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
         }
       }
     )
+
+    proxyReq.on('timeout', () => {
+      console.error(`[preview-proxy] Request timeout for ${taskId}: ${fullTargetPath}`)
+      proxyReq.destroy()
+      if (!res.headersSent) {
+        res.statusCode = 504
+        res.end(`Preview proxy timeout: dev-server did not respond within ${REQUEST_TIMEOUT_MS}ms`)
+      }
+      reject(new Error(`Preview proxy timeout for ${taskId}: ${fullTargetPath}`))
+    })
 
     proxyReq.on('error', (err) => {
       console.error(`[preview-proxy] Request error for ${taskId}:`, err.message)

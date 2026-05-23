@@ -1381,7 +1381,7 @@
             :src="previewIframeUrl"
             class="w-full border-0"
             :class="showLogsPanel ? 'flex-1 min-h-0' : 'flex-1'"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-storage-access-by-user-activation"
           />
 
           <!-- Collapsible log panel -->

@@ -1,7 +1,7 @@
 // This endpoint handles session validation by forwarding the session token to the third-party API
 // The third-party API endpoint is ${process.env.NUXT_PUBLIC_API_BASE_URL}/api/v1/auth/session
 
-import { defineEventHandler, getCookie, createError } from 'h3';
+import { defineEventHandler, getCookie, getHeader, createError } from 'h3';
 import { $fetch } from 'ofetch';
 import { useRuntimeConfig } from '#imports';
 import { resolveApiBaseUrl, isPreviewMode } from '../../utils/api-url';
@@ -40,8 +40,30 @@ interface ErrorResponse {
 
 export default defineEventHandler(async (event) => {
     try {
-        // Get the session token from the cookie
-        const sessionToken = getCookie(event, 'session_token');
+        // Server-only base URL — can be absolute in preview mode so $fetch works
+        const config = useRuntimeConfig();
+
+        // Preview mode: no external API available, return mock session immediately.
+        // This bypasses cookie/header checks so preview login works reliably in iframe.
+        if (isPreviewMode(config)) {
+            return {
+                status: 'success',
+                data: {
+                    user: { id: 'preview-user', email: 'preview@example.com', name: 'Preview User' },
+                    companies: [{ id: 'preview-company', name: 'Preview Company' }]
+                }
+            };
+        }
+
+        // Get the session token from the cookie or Authorization header
+        let sessionToken = getCookie(event, 'session_token');
+        if (!sessionToken) {
+            const authHeader = getHeader(event, 'authorization') || '';
+            const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+            if (bearerMatch) {
+                sessionToken = bearerMatch[1];
+            }
+        }
 
         if (!sessionToken) {
             throw createError({
@@ -51,8 +73,6 @@ export default defineEventHandler(async (event) => {
             });
         }
 
-        // Server-only base URL — can be absolute in preview mode so $fetch works
-        const config = useRuntimeConfig();
         const apiBaseUrl = resolveApiBaseUrl(config.apiBaseUrl || config.public.baseAPI);
 
         if (!apiBaseUrl) {
@@ -61,17 +81,6 @@ export default defineEventHandler(async (event) => {
                 statusMessage: 'Server Error',
                 message: 'API base URL not configured'
             });
-        }
-
-        // Preview mode: no external API available, return mock session
-        if (isPreviewMode(config)) {
-            return {
-                status: 'success',
-                data: {
-                    user: { id: 'preview-user', email: 'preview@example.com', name: 'Preview User' },
-                    companies: [{ id: 'preview-company', name: 'Preview Company' }]
-                }
-            };
         }
 
         // Make the request to the third-party API to validate the session

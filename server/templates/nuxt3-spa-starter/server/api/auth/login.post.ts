@@ -104,8 +104,12 @@ export default defineEventHandler(async (event) => {
 
     // Preview mode: no external API available, return mock response
     if (isPreviewMode(config)) {
-      const mockToken = 'preview-mock-token-' + Date.now();
-      setCookie(event, 'session_token', mockToken, { httpOnly: true, path: '/' });
+      const mockToken = 'preview-mock-token';
+      // Use a stable token in preview to avoid race conditions with concurrent logins.
+      // Scope cookie to the app base path so it does not leak to parent app routes.
+      const basePath = process.env.NUXT_APP_BASE_URL || '/';
+      const cookiePath = basePath.endsWith('/') ? basePath : basePath + '/';
+      setCookie(event, 'session_token', mockToken, { httpOnly: true, path: cookiePath });
       return {
         status: 'success',
         data: {

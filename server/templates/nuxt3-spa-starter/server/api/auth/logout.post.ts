@@ -1,3 +1,4 @@
+import { deleteCookie } from 'h3';
 import { resolveApiBaseUrl, isPreviewMode } from '../utils/api-url';
 
 export default defineEventHandler(async (event) => {
@@ -7,6 +8,9 @@ export default defineEventHandler(async (event) => {
 
     // Preview mode: no external API available, return mock response
     if (isPreviewMode(config)) {
+      const basePath = process.env.NUXT_APP_BASE_URL || '/';
+      const cookiePath = basePath.endsWith('/') ? basePath : basePath + '/';
+      deleteCookie(event, 'session_token', { path: cookiePath });
       return { status: 'success', message: 'Logged out (preview)' };
     }
 

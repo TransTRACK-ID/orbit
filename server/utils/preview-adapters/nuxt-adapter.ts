@@ -11,13 +11,20 @@ export const NuxtAdapter: PreviewAdapter = {
 
   async detect(worktreeDir: string): Promise<boolean> {
     const pkgPath = path.join(worktreeDir, 'package.json')
-    if (!existsSync(pkgPath)) return false
+    console.log(`[nuxt-adapter] detect() checking ${pkgPath}, exists=${existsSync(pkgPath)}`)
+    if (!existsSync(pkgPath)) {
+      console.log(`[nuxt-adapter] package.json not found at ${pkgPath}`)
+      return false
+    }
 
     try {
       const pkg = JSON.parse(await require('fs').promises.readFile(pkgPath, 'utf-8'))
       const deps = { ...pkg.dependencies, ...pkg.devDependencies }
-      return 'nuxt' in deps
-    } catch {
+      const hasNuxt = 'nuxt' in deps
+      console.log(`[nuxt-adapter] package.json found, deps keys=${Object.keys(deps).slice(0, 10)}, hasNuxt=${hasNuxt}`)
+      return hasNuxt
+    } catch (err: any) {
+      console.error(`[nuxt-adapter] Error parsing package.json: ${err.message}`)
       return false
     }
   },

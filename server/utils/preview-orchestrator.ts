@@ -30,8 +30,21 @@ export async function startPreview(
 ): Promise<{ instanceId: string; url: string }> {
   const db = getDb()
 
+  console.log(`[preview-orchestrator] Starting preview for task ${taskId}`)
+  console.log(`[preview-orchestrator] Worktree directory: ${worktreeDir}`)
+  console.log(`[preview-orchestrator] Worktree exists: ${require('fs').existsSync(worktreeDir)}`)
+  
+  // List files in worktree for debugging
+  try {
+    const files = require('fs').readdirSync(worktreeDir)
+    console.log(`[preview-orchestrator] Worktree files: ${files.slice(0, 20).join(', ')}`)
+  } catch (err: any) {
+    console.error(`[preview-orchestrator] Cannot read worktree: ${err.message}`)
+  }
+
   const adapter = await detectFramework(worktreeDir)
   if (!adapter) {
+    console.error(`[preview-orchestrator] No framework adapter matched for ${worktreeDir}`)
     throw new Error('No framework detected. Cannot build preview.')
   }
 

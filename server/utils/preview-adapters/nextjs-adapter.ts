@@ -11,13 +11,17 @@ export const NextJsAdapter: PreviewAdapter = {
 
   async detect(worktreeDir: string): Promise<boolean> {
     const pkgPath = path.join(worktreeDir, 'package.json')
+    console.log(`[nextjs-adapter] detect() checking ${pkgPath}, exists=${existsSync(pkgPath)}`)
     if (!existsSync(pkgPath)) return false
 
     try {
       const pkg = JSON.parse(await require('fs').promises.readFile(pkgPath, 'utf-8'))
       const deps = { ...pkg.dependencies, ...pkg.devDependencies }
-      return 'next' in deps
-    } catch {
+      const hasNext = 'next' in deps
+      console.log(`[nextjs-adapter] package.json found, hasNext=${hasNext}`)
+      return hasNext
+    } catch (err: any) {
+      console.error(`[nextjs-adapter] Error parsing package.json: ${err.message}`)
       return false
     }
   },

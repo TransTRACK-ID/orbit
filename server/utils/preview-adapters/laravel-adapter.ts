@@ -10,7 +10,9 @@ export const LaravelAdapter: PreviewAdapter = {
   name: 'laravel',
 
   async detect(worktreeDir: string): Promise<boolean> {
-    return existsSync(path.join(worktreeDir, 'artisan'))
+    const hasArtisan = existsSync(path.join(worktreeDir, 'artisan'))
+    console.log(`[laravel-adapter] detect() checking ${worktreeDir}/artisan, exists=${hasArtisan}`)
+    return hasArtisan
   },
 
   async build(config: PreviewConfig): Promise<BuildResult> {

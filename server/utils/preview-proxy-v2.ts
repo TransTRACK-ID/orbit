@@ -84,11 +84,22 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
 
         // Rewrite Location header to preserve preview path
         const location = proxyRes.headers['location']
+        console.log(`[preview-proxy] Raw Location header: ${location}`)
         if (location && typeof location === 'string') {
+          // Handle absolute URLs like http://localhost:9638/login
+          let rewrittenLocation = location
+          
+          // Strip origin if it's localhost
+          if (location.startsWith('http://localhost:') || location.startsWith('https://localhost:')) {
+            const url = new URL(location)
+            rewrittenLocation = url.pathname + url.search + url.hash
+            console.log(`[preview-proxy] Stripped origin from Location: ${location} → ${rewrittenLocation}`)
+          }
+          
           // Only rewrite if it's an absolute path and doesn't already have the prefix
-          if (location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
-            proxyRes.headers['location'] = `/api/preview/${instanceId}${location}`
-            console.log(`[preview-proxy] Rewrote Location: ${location} → ${proxyRes.headers['location']}`)
+          if (rewrittenLocation.startsWith('/') && !rewrittenLocation.startsWith(`/api/preview/${instanceId}`)) {
+            proxyRes.headers['location'] = `/api/preview/${instanceId}${rewrittenLocation}`
+            console.log(`[preview-proxy] Rewrote Location: ${rewrittenLocation} → ${proxyRes.headers['location']}`)
           }
         }
 

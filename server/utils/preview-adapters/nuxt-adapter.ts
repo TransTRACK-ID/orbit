@@ -133,9 +133,30 @@ export const NuxtAdapter: PreviewAdapter = {
         ...config.envVars,
         NITRO_PORT: String(port),
         PORT: String(port),
+        NUXT_APP_BASE_URL: config.baseUrl,
         NUXT_PUBLIC_API_BASE_URL: config.baseUrl.replace(/\/$/, ''),
       },
       stdio: 'pipe',
+    })
+
+    // Log Nitro stdout/stderr for debugging
+    proc.stdout?.on('data', (data: Buffer) => {
+      const lines = data.toString().trim().split('\n')
+      for (const line of lines) {
+        if (line.trim()) console.log(`[nitro-server] ${line.trim()}`)
+      }
+    })
+    proc.stderr?.on('data', (data: Buffer) => {
+      const lines = data.toString().trim().split('\n')
+      for (const line of lines) {
+        if (line.trim()) console.error(`[nitro-server] ${line.trim()}`)
+      }
+    })
+    proc.on('error', (err) => {
+      console.error(`[nitro-server] Process error: ${err.message}`)
+    })
+    proc.on('exit', (code) => {
+      console.log(`[nitro-server] Process exited with code ${code}`)
     })
 
     // Wait a moment for the server to start

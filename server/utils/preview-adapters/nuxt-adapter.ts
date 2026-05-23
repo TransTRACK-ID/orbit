@@ -1,6 +1,6 @@
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
@@ -32,6 +32,16 @@ export const NuxtAdapter: PreviewAdapter = {
 
   async build(config: PreviewConfig): Promise<BuildResult> {
     const { worktreeDir, port, envVars, baseUrl } = config
+
+    // Fast path: if .output/public/index.html already exists, skip build
+    const existingStaticOutput = path.join(worktreeDir, '.output', 'public')
+    const existingIndexHtml = path.join(existingStaticOutput, 'index.html')
+    if (existsSync(existingIndexHtml)) {
+      console.log(`[nuxt-adapter] Found existing build output at ${existingStaticOutput}, skipping build`)
+      const publicContents = readdirSync(existingStaticOutput)
+      console.log(`[nuxt-adapter] Static output contents: ${publicContents.slice(0, 20).join(', ')}`)
+      return { success: true, outputDir: existingStaticOutput, isStatic: true }
+    }
 
     const buildEnv: NodeJS.ProcessEnv = {
       ...process.env,
@@ -67,7 +77,6 @@ export const NuxtAdapter: PreviewAdapter = {
       console.log(`[nuxt-adapter] Checking .output directory: ${outputDir}, exists=${existsSync(outputDir)}`)
       
       if (existsSync(outputDir)) {
-        const { readdirSync } = require('fs')
         const outputContents = readdirSync(outputDir)
         console.log(`[nuxt-adapter] .output contents: ${outputContents.join(', ')}`)
       }
@@ -79,7 +88,7 @@ export const NuxtAdapter: PreviewAdapter = {
       console.log(`[nuxt-adapter] serverOutput exists: ${existsSync(serverOutput)}`)
 
       if (existsSync(staticOutput)) {
-        const publicContents = require('fs').readdirSync(staticOutput)
+        const publicContents = readdirSync(staticOutput)
         console.log(`[nuxt-adapter] Static output contents: ${publicContents.slice(0, 20).join(', ')}`)
         return { success: true, outputDir: staticOutput, isStatic: true }
       }

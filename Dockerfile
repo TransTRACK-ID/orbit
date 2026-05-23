@@ -50,6 +50,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
+# Install PHP 8.2 and extensions required for Laravel preview builds
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    php8.2 \
+    php8.2-cli \
+    php8.2-mbstring \
+    php8.2-xml \
+    php8.2-curl \
+    php8.2-zip \
+    php8.2-tokenizer \
+    php8.2-pdo \
+    php8.2-sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer (PHP package manager) for Laravel dependency resolution
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && composer --version
+
 # Install bun in the runner (needed for agent runtime / opencode)
 RUN npm install -g bun && rm -rf /tmp/*
 

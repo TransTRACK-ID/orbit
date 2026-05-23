@@ -1376,6 +1376,17 @@
 
         <!-- Iframe + collapsible logs when preview is ready -->
         <template v-else-if="previewUrl && !previewFailed">
+          <!-- Preview Mode Banner -->
+          <div class="flex-shrink-0 px-3 py-1.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              <span class="text-[10px] font-medium text-amber-700">Preview Mode — Changes affect staging data</span>
+            </div>
+            <span class="text-[10px] text-amber-600/70">{{ previewMode === 'ssr' ? 'SSR' : 'Static' }}</span>
+          </div>
+
           <!-- Iframe -->
           <iframe
             :src="previewIframeUrl"

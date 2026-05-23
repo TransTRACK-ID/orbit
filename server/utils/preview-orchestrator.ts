@@ -77,7 +77,8 @@ function getAvailablePort(): number {
 export async function startPreview(
   taskId: string,
   repositoryId: string | undefined,
-  worktreeDir: string
+  worktreeDir: string,
+  repositoryEnvVars: Record<string, string> = {}
 ): Promise<{ instanceId: string; url: string }> {
   const db = getDb()
 
@@ -138,6 +139,7 @@ export async function startPreview(
     envVars: {
       ORBIT_PREVIEW: 'true',
       NUXT_IS_PREVIEW: 'true',
+      ...repositoryEnvVars,
     },
   }
 

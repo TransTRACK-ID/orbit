@@ -51,8 +51,18 @@ export default defineEventHandler(async (event) => {
     await stopPreview(existing.id)
   }
 
+  // Fetch repository environment variables from workspace settings
+  const repoEnvVars = await db.query.repositoryEnvVars.findMany({
+    where: eq(schema.repositoryEnvVars.repositoryId, task.repository.id),
+  })
+
+  const envVars: Record<string, string> = {}
+  for (const ev of repoEnvVars) {
+    envVars[ev.key] = ev.value
+  }
+
   try {
-    const result = await startPreview(task.id, task.repository.id || undefined, worktreeDir)
+    const result = await startPreview(task.id, task.repository.id || undefined, worktreeDir, envVars)
     return {
       available: true,
       url: result.url,

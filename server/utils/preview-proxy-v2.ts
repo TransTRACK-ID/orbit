@@ -85,10 +85,23 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
         // Rewrite Location header to preserve preview path
         const location = proxyRes.headers['location']
         if (location && typeof location === 'string') {
-          if (location.startsWith('/')) {
+          // Only rewrite if it's an absolute path and doesn't already have the prefix
+          if (location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
             proxyRes.headers['location'] = `/api/preview/${instanceId}${location}`
             console.log(`[preview-proxy] Rewrote Location: ${location} → ${proxyRes.headers['location']}`)
           }
+        }
+
+        // Rewrite Set-Cookie paths to include preview prefix
+        const setCookie = proxyRes.headers['set-cookie']
+        if (setCookie) {
+          proxyRes.headers['set-cookie'] = setCookie.map((cookie: string) => {
+            // Rewrite Path=/ to Path=/api/preview/{instanceId}/
+            // and Path=/api/ to Path=/api/preview/{instanceId}/api/
+            return cookie
+              .replace(/Path=\//g, `Path=/api/preview/${instanceId}/`)
+              .replace(/Path=\/api\//g, `Path=/api/preview/${instanceId}/api/`)
+          })
         }
 
         res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)

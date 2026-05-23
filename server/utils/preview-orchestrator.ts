@@ -14,6 +14,10 @@ const execAsync = promisify(exec)
 
 const activeServers = new Map<string, { server: http.Server | null; isStatic: boolean; childPid: number | null }>()
 
+export function isPreviewStatic(instanceId: string): boolean {
+  return activeServers.get(instanceId)?.isStatic ?? true
+}
+
 function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
     return { cmd: 'bun', args: ['install'] }

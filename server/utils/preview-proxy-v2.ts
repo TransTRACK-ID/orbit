@@ -2,6 +2,7 @@ import http from 'http'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from './auth'
+import { isPreviewStatic } from './preview-orchestrator'
 
 export async function proxyPreviewRequest(event: any, instanceId: string): Promise<void> {
   const user = await requireAuth(event)
@@ -60,7 +61,18 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
     const req = event.node.req
     const res = event.node.res
 
-    const targetPath = req.url?.replace(`/api/preview/${instanceId}`, '') || '/'
+    const isStatic = isPreviewStatic(instanceId)
+    console.log(`[preview-proxy] Instance ${instanceId} isStatic=${isStatic}`)
+    
+    let targetPath: string
+    if (isStatic) {
+      // For static server, strip the /api/preview/{id} prefix
+      targetPath = req.url?.replace(`/api/preview/${instanceId}`, '') || '/'
+    } else {
+      // For SSR Nitro, pass the full path including the prefix
+      // Nitro handles baseURL internally
+      targetPath = req.url || '/'
+    }
     console.log(`[preview-proxy] Target path: ${targetPath}`)
 
     const proxyReq = http.request(
@@ -84,35 +96,28 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
 
         // Rewrite Location header to preserve preview path
         const location = proxyRes.headers['location']
-        console.log(`[preview-proxy] Raw Location header: ${location}`)
         if (location && typeof location === 'string') {
-          // Handle absolute URLs like http://localhost:9638/login
-          let rewrittenLocation = location
-          
-          // Strip origin if it's localhost
-          if (location.startsWith('http://localhost:') || location.startsWith('https://localhost:')) {
-            const url = new URL(location)
-            rewrittenLocation = url.pathname + url.search + url.hash
-            console.log(`[preview-proxy] Stripped origin from Location: ${location} → ${rewrittenLocation}`)
+          // For static previews, Nitro doesn't prepend base URL to redirects
+          // so we need to add the /api/preview/{id} prefix
+          if (isStatic && location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
+            proxyRes.headers['location'] = `/api/preview/${instanceId}${location}`
+            console.log(`[preview-proxy] Rewrote Location: ${location} → ${proxyRes.headers['location']}`)
           }
-          
-          // Only rewrite if it's an absolute path and doesn't already have the prefix
-          if (rewrittenLocation.startsWith('/') && !rewrittenLocation.startsWith(`/api/preview/${instanceId}`)) {
-            proxyRes.headers['location'] = `/api/preview/${instanceId}${rewrittenLocation}`
-            console.log(`[preview-proxy] Rewrote Location: ${rewrittenLocation} → ${proxyRes.headers['location']}`)
-          }
+          // For SSR, Nitro already prepends base URL to redirects
+          // so Location headers are already correct
         }
 
-        // Rewrite Set-Cookie paths to include preview prefix
-        const setCookie = proxyRes.headers['set-cookie']
-        if (setCookie) {
-          proxyRes.headers['set-cookie'] = setCookie.map((cookie: string) => {
-            // Rewrite Path=/ to Path=/api/preview/{instanceId}/
-            // and Path=/api/ to Path=/api/preview/{instanceId}/api/
-            return cookie
-              .replace(/Path=\//g, `Path=/api/preview/${instanceId}/`)
-              .replace(/Path=\/api\//g, `Path=/api/preview/${instanceId}/api/`)
-          })
+        // Rewrite Set-Cookie paths for static previews only
+        // SSR Nitro handles cookie paths correctly with baseURL
+        if (isStatic) {
+          const setCookie = proxyRes.headers['set-cookie']
+          if (setCookie) {
+            proxyRes.headers['set-cookie'] = setCookie.map((cookie: string) => {
+              return cookie
+                .replace(/Path=\//g, `Path=/api/preview/${instanceId}/`)
+                .replace(/Path=\/api\//g, `Path=/api/preview/${instanceId}/api/`)
+            })
+          }
         }
 
         res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)

@@ -10,8 +10,10 @@ export default defineNuxtConfig({
   },
 
   app: {
-    pageTransition: { name: "page", mode: "out-in" },
-    layoutTransition: { name: "layout", mode: "out-in" },
+    // Disable transitions in preview mode — they can cause DOM instability
+    // in iframe contexts and are not essential for preview functionality.
+    pageTransition: process.env.ORBIT_PREVIEW === 'true' ? false : { name: "page", mode: "out-in" },
+    layoutTransition: process.env.ORBIT_PREVIEW === 'true' ? false : { name: "layout", mode: "out-in" },
     head: {
       charset: "utf-8",
       viewport: "width=device-width, initial-scale=1",

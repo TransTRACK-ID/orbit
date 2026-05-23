@@ -112,7 +112,10 @@ export default defineEventHandler(async (event) => {
       const basePath = process.env.NUXT_APP_BASE_URL || '/';
       const cookiePath = basePath.endsWith('/') ? basePath : basePath + '/';
       setCookie(event, 'session_token', mockToken, { httpOnly: true, path: cookiePath });
-      console.log(`[login] preview mode — returning mock response with cookie path=${cookiePath}`);
+      // Also set auth.token cookie (non-httpOnly) so @sidebase/nuxt-auth client library
+      // can read it on initialization and auto-authenticate after reloads.
+      setCookie(event, 'auth.token', mockToken, { httpOnly: false, path: cookiePath, maxAge: 60 * 60 * 24 });
+      console.log(`[login] preview mode — returning mock response with cookies at path=${cookiePath}`);
       return {
         status: 'success',
         data: {

@@ -1,6 +1,7 @@
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 import path from 'path'
 import type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
 
@@ -15,7 +16,7 @@ export const NextJsAdapter: PreviewAdapter = {
     if (!existsSync(pkgPath)) return false
 
     try {
-      const pkg = JSON.parse(await require('fs').promises.readFile(pkgPath, 'utf-8'))
+      const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
       const deps = { ...pkg.dependencies, ...pkg.devDependencies }
       const hasNext = 'next' in deps
       console.log(`[nextjs-adapter] package.json found, hasNext=${hasNext}`)

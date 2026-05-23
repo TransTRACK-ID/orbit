@@ -1,6 +1,7 @@
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 import path from 'path'
 import type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
 
@@ -18,7 +19,7 @@ export const NuxtAdapter: PreviewAdapter = {
     }
 
     try {
-      const pkg = JSON.parse(await require('fs').promises.readFile(pkgPath, 'utf-8'))
+      const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
       const deps = { ...pkg.dependencies, ...pkg.devDependencies }
       const hasNuxt = 'nuxt' in deps
       console.log(`[nuxt-adapter] package.json found, deps keys=${Object.keys(deps).slice(0, 10)}, hasNuxt=${hasNuxt}`)

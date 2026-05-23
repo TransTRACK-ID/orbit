@@ -1,4 +1,5 @@
 import http from 'http'
+import { existsSync, readdirSync } from 'fs'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { detectFramework } from './preview-adapters'
@@ -32,11 +33,11 @@ export async function startPreview(
 
   console.log(`[preview-orchestrator] Starting preview for task ${taskId}`)
   console.log(`[preview-orchestrator] Worktree directory: ${worktreeDir}`)
-  console.log(`[preview-orchestrator] Worktree exists: ${require('fs').existsSync(worktreeDir)}`)
+  console.log(`[preview-orchestrator] Worktree exists: ${existsSync(worktreeDir)}`)
   
   // List files in worktree for debugging
   try {
-    const files = require('fs').readdirSync(worktreeDir)
+    const files = readdirSync(worktreeDir)
     console.log(`[preview-orchestrator] Worktree files: ${files.slice(0, 20).join(', ')}`)
   } catch (err: any) {
     console.error(`[preview-orchestrator] Cannot read worktree: ${err.message}`)

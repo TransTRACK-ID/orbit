@@ -1,5 +1,8 @@
 import http from 'http'
+import { exec, spawn } from 'child_process'
+import { promisify } from 'util'
 import { existsSync, readdirSync } from 'fs'
+import path from 'path'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { detectFramework } from './preview-adapters'
@@ -7,7 +10,53 @@ import { createStaticServer } from './preview-static-server'
 import type { PreviewConfig } from './preview-adapters/types'
 import { appendPreviewLog } from './preview-logger'
 
+const execAsync = promisify(exec)
+
 const activeServers = new Map<string, { server: http.Server; isStatic: boolean }>()
+
+function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
+  if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
+    return { cmd: 'bun', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'pnpm-lock.yaml'))) {
+    return { cmd: 'pnpm', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
+    return { cmd: 'yarn', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'package-lock.json'))) {
+    return { cmd: 'npm', args: ['install'] }
+  }
+  if (existsSync(path.join(worktreeDir, 'package.json'))) {
+    return { cmd: 'npm', args: ['install'] }
+  }
+  return null
+}
+
+async function installDependencies(worktreeDir: string, instanceId: string): Promise<boolean> {
+  const pm = detectPackageManager(worktreeDir)
+  if (!pm) {
+    await appendPreviewLog(instanceId, 'No package manager detected')
+    return false
+  }
+
+  await appendPreviewLog(instanceId, `Installing dependencies with ${pm.cmd}...`)
+  try {
+    const { stdout, stderr } = await execAsync(`${pm.cmd} ${pm.args.join(' ')}`, {
+      cwd: worktreeDir,
+      env: { ...process.env, CI: 'true' },
+      timeout: 180000,
+    })
+    if (stderr) {
+      await appendPreviewLog(instanceId, `Install stderr: ${stderr.slice(0, 500)}`)
+    }
+    await appendPreviewLog(instanceId, 'Dependencies installed successfully')
+    return true
+  } catch (error: any) {
+    await appendPreviewLog(instanceId, `Install failed: ${error.message}`)
+    return false
+  }
+}
 
 function getAvailablePort(): number {
   const used = Array.from(activeServers.values())
@@ -63,6 +112,16 @@ export async function startPreview(
   const baseUrl = `/api/preview/${instanceId}/`
 
   await appendPreviewLog(instanceId, `Detected framework: ${adapter.name}`)
+
+  // Install dependencies first
+  const depsInstalled = await installDependencies(worktreeDir, instanceId)
+  if (!depsInstalled) {
+    await db.update(schema.previewInstances)
+      .set({ status: 'failed', failReason: 'Dependency installation failed' })
+      .where(eq(schema.previewInstances.id, instanceId))
+    throw new Error('Failed to install dependencies')
+  }
+
   await appendPreviewLog(instanceId, `Starting build on port ${port}...`)
 
   const config: PreviewConfig = {

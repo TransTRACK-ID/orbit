@@ -5,8 +5,9 @@ export function createStaticServer(outputDir: string, port: number): http.Server
   const server = http.createServer((req, res) => {
     return handler(req, res, {
       public: outputDir,
+      directoryListing: false,
       rewrites: [
-        { source: '!**/*.@(js|css|png|jpg|jpeg|gif|svg|ico|woff2|woff|ttf|eot|map|json)', destination: '/index.html' }
+        { source: '**', destination: '/index.html' }
       ],
       headers: [
         {

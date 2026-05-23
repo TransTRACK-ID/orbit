@@ -43,10 +43,14 @@ export default defineNuxtConfig({
   ],
 
   auth: {
-    // IMPORTANT: Set AUTH_ORIGIN to your public deployment URL (e.g. https://orbit.yourdomain.com)
-    // In Coolify, pass this as a build argument AND runtime environment variable.
-    // For local dev, use a relative path so it works on any port (e.g. 3000, 9475).
-    baseURL: process.env.AUTH_ORIGIN || '/api/auth',
+    // Use a relative baseURL so the auth module determines the origin at runtime
+    // via the incoming request's Host header (requrl). This works across all
+    // environments (dev, preview behind a proxy, production) without baking in
+    // any specific origin at build time.
+    //
+    // The @sidebase/nuxt-auth module's getServerOrigin() also checks
+    // process.env.AUTH_ORIGIN at runtime as a final override.
+    baseURL: '/api/auth',
     provider: {
       type: 'authjs',
       trustHost: true,

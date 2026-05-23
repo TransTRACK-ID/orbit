@@ -5,8 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
     container_name: orbit-web
     ports:
       - "3031:3000"

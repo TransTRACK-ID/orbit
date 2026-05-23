@@ -4,9 +4,10 @@ FROM oven/bun:1-slim AS builder
 
 WORKDIR /app
 
-# Accept AUTH_ORIGIN as build argument (set this to your Coolify domain in Coolify UI)
-ARG AUTH_ORIGIN
-ENV AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
+# AUTH_ORIGIN is no longer needed at build time — the auth module now uses
+# a relative baseURL ('/api/auth') and determines the origin at runtime from
+# the incoming request's Host header. Set AUTH_ORIGIN as a runtime env var
+# only if you need to override the auto-detected origin (e.g. behind a reverse proxy).
 
 # Install Node.js 20 in the builder — needed for reliable Nuxt/Vite builds
 # Bun uses JavaScriptCore and doesn't respect NODE_OPTIONS / V8 flags,

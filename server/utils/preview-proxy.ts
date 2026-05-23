@@ -3,9 +3,15 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import http from 'http'
+import zlib from 'zlib'
+import { promisify } from 'util'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 import { getDevServerByTask } from '~/server/utils/dev-server-orchestrator'
+
+const gunzipAsync = promisify(zlib.gunzip)
+const inflateAsync = promisify(zlib.inflate)
+const brotliDecompressAsync = promisify(zlib.brotliDecompress)
 
 function isTextResponse(headers: http.IncomingHttpHeaders): boolean {
   const ct = headers['content-type'] || ''
@@ -250,30 +256,62 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
             chunks.push(chunk)
           })
 
-          proxyRes.on('end', () => {
-            if (statusCode >= 400 && looksLikeAsset(targetPath)) {
-              if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
-                console.log(`[preview-proxy] ${taskId} dev-server returned ${statusCode} for ${targetPath}, filesystem fallback succeeded`)
-                resolve()
-                return
+          proxyRes.on('end', async () => {
+            try {
+              if (statusCode >= 400 && looksLikeAsset(targetPath)) {
+                if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
+                  console.log(`[preview-proxy] ${taskId} dev-server returned ${statusCode} for ${targetPath}, filesystem fallback succeeded`)
+                  resolve()
+                  return
+                }
               }
+
+              let raw = Buffer.concat(chunks)
+              const encoding = proxyRes.headers['content-encoding'] || proxyRes.headers['Content-Encoding']
+
+              if (encoding) {
+                try {
+                  if (encoding === 'gzip') {
+                    raw = await gunzipAsync(raw)
+                  } else if (encoding === 'deflate') {
+                    raw = await inflateAsync(raw)
+                  } else if (encoding === 'br') {
+                    raw = await brotliDecompressAsync(raw)
+                  }
+                } catch (err: any) {
+                  console.error(`[preview-proxy] ${taskId} decompression failed (${encoding}):`, err.message)
+                  delete headers['content-encoding']
+                  delete headers['Content-Encoding']
+                  res.writeHead(statusCode, headers)
+                  res.end(raw)
+                  resolve()
+                  return
+                }
+              }
+
+              let body = raw.toString('utf-8')
+              body = rewriteAssetUrls(body, proxyPrefix)
+
+              const modifiedBody = Buffer.from(body, 'utf-8')
+
+              headers['content-length'] = String(modifiedBody.length)
+              headers['cache-control'] = 'no-store'
+
+              if (statusCode >= 400) {
+                console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (text, ${modifiedBody.length} bytes)`)
+              }
+
+              res.writeHead(statusCode, headers)
+              res.end(modifiedBody)
+              resolve()
+            } catch (err: any) {
+              console.error(`[preview-proxy] ${taskId} response processing error:`, err.message)
+              if (!res.headersSent) {
+                res.statusCode = 502
+                res.end(`Preview proxy processing error: ${err.message}`)
+              }
+              reject(err)
             }
-
-            let body = Buffer.concat(chunks).toString('utf-8')
-            body = rewriteAssetUrls(body, proxyPrefix)
-
-            const modifiedBody = Buffer.from(body, 'utf-8')
-
-            headers['content-length'] = String(modifiedBody.length)
-            headers['cache-control'] = 'no-store'
-
-            if (statusCode >= 400) {
-              console.error(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} (text, ${modifiedBody.length} bytes)`)
-            }
-
-            res.writeHead(statusCode, headers)
-            res.end(modifiedBody)
-            resolve()
           })
 
           proxyRes.on('error', (err) => {

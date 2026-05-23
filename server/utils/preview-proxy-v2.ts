@@ -82,6 +82,15 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
         delete proxyRes.headers['content-security-policy']
         delete proxyRes.headers['Content-Security-Policy']
 
+        // Rewrite Location header to preserve preview path
+        const location = proxyRes.headers['location']
+        if (location && typeof location === 'string') {
+          if (location.startsWith('/')) {
+            proxyRes.headers['location'] = `/api/preview/${instanceId}${location}`
+            console.log(`[preview-proxy] Rewrote Location: ${location} → ${proxyRes.headers['location']}`)
+          }
+        }
+
         res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
         proxyRes.pipe(res)
         proxyRes.on('end', resolve)

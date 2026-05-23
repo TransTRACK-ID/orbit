@@ -222,6 +222,18 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
         delete headers['content-security-policy']
         delete headers['Content-Security-Policy']
 
+        // When we modify the response body (text rewriting), we must strip
+        // content-encoding and transfer-encoding. Otherwise the browser will
+        // try to decompress our modified text as gzip/brotli → crash or
+        // garbled output. This only affects text responses we rewrite below.
+        const willRewriteBody = isTextResponse(proxyRes.headers)
+        if (willRewriteBody) {
+          delete headers['content-encoding']
+          delete headers['Content-Encoding']
+          delete headers['transfer-encoding']
+          delete headers['Transfer-Encoding']
+        }
+
         if (statusCode >= 300 && statusCode < 400 && headers.location) {
           const location = headers.location as string
           console.log(`[preview-proxy] ${taskId} dev-server ${fullTargetPath} returned ${statusCode} redirect to: ${location}`)

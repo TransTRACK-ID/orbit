@@ -38,6 +38,12 @@ export default defineNuxtConfig({
   ssr: false,
 
   auth: {
+    // In Orbit Live Preview NUXT_APP_BASE_URL is set to /api/preview/{taskId}/.
+    // Without this, auth requests (e.g., /api/auth/login) hit the parent Orbit
+    // app instead of the preview dev server, causing "unsupported action login".
+    baseURL: process.env.NUXT_APP_BASE_URL
+      ? `${process.env.NUXT_APP_BASE_URL}api/auth`
+      : '/api/auth',
     provider: {
       type: "local",
       endpoints: {
@@ -46,11 +52,11 @@ export default defineNuxtConfig({
           method: "post",
         },
         signOut: {
-          path: "/signOut",
+          path: "/logout",
           method: "post",
         },
         getSession: {
-          path: "/getSession",
+          path: "/session",
           method: "get",
         },
       },

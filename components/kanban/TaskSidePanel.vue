@@ -1386,8 +1386,9 @@
             </div>
           </div>
 
-          <!-- Iframe -->
+          <!-- Iframe - destroyed during restart to clear memory -->
           <iframe
+            v-if="!previewRestarting"
             :key="previewInstanceId"
             :src="previewIframeUrl"
             class="w-full border-0"

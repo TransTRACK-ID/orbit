@@ -50,18 +50,24 @@ export const NuxtAdapter: PreviewAdapter = {
     
     if (configPath) {
       const originalConfig = await readFile(configPath, 'utf-8')
-      // Only inject if ssr is not already defined
-      if (!/ssr\s*:/.test(originalConfig)) {
-        const modifiedConfig = originalConfig.replace(
+      let modifiedConfig = originalConfig
+      
+      // Force ssr: false for previews to prevent auth redirect loops
+      if (/ssr\s*:/.test(originalConfig)) {
+        // Replace existing ssr: ... with ssr: false
+        modifiedConfig = originalConfig.replace(/ssr\s*:\s*[^,\n]+/, 'ssr: false')
+        console.log(`[nuxt-adapter] Replaced existing ssr with ssr: false in ${configPath}`)
+      } else {
+        // Inject ssr: false if not present
+        modifiedConfig = originalConfig.replace(
           /export\s+default\s+defineNuxtConfig\s*\(\s*\{/,
           'export default defineNuxtConfig({\n  ssr: false,'
         )
-        if (modifiedConfig !== originalConfig) {
-          writeFileSync(configPath, modifiedConfig)
-          console.log(`[nuxt-adapter] Injected ssr: false into ${configPath}`)
-        }
-      } else {
-        console.log(`[nuxt-adapter] nuxt.config already has ssr defined, skipping injection`)
+        console.log(`[nuxt-adapter] Injected ssr: false into ${configPath}`)
+      }
+      
+      if (modifiedConfig !== originalConfig) {
+        writeFileSync(configPath, modifiedConfig)
       }
     }
 

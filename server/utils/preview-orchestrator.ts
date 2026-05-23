@@ -12,7 +12,7 @@ import { appendPreviewLog } from './preview-logger'
 
 const execAsync = promisify(exec)
 
-const activeServers = new Map<string, { server: http.Server; isStatic: boolean }>()
+const activeServers = new Map<string, { server: http.Server | null; isStatic: boolean; childPid: number | null }>()
 
 function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
@@ -61,6 +61,7 @@ async function installDependencies(worktreeDir: string, instanceId: string): Pro
 function getAvailablePort(): number {
   const used = Array.from(activeServers.values())
     .map(s => {
+      if (!s.server) return null
       const addr = s.server.address()
       return addr && typeof addr === 'object' ? addr.port : null
     })
@@ -158,7 +159,8 @@ export async function startPreview(
 
     await appendPreviewLog(instanceId, `Build complete. Output: ${buildResult.outputDir}`)
 
-    let server: http.Server
+    let server: http.Server | null = null
+    let childPid: number | null = null
 
     if (buildResult.isStatic) {
       console.log(`[preview-orchestrator] Creating static server for ${buildResult.outputDir}`)
@@ -179,37 +181,17 @@ export async function startPreview(
       await appendPreviewLog(instanceId, `Static server listening on port ${port}`)
     } else {
       const serverInfo = await adapter.start(config, buildResult)
+      childPid = serverInfo.pid
       await db.update(schema.previewInstances)
         .set({ pid: serverInfo.pid })
         .where(eq(schema.previewInstances.id, instanceId))
       await appendPreviewLog(instanceId, `Production server started (pid: ${serverInfo.pid})`)
 
-      server = http.createServer((req, res) => {
-        const proxyReq = http.request({
-          hostname: '127.0.0.1',
-          port: serverInfo.port,
-          path: req.url,
-          method: req.method,
-          headers: req.headers,
-        }, (proxyRes) => {
-          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
-          proxyRes.pipe(res)
-        })
-
-        proxyReq.on('error', (err) => {
-          if (!res.headersSent) {
-            res.statusCode = 502
-            res.end(`Proxy error: ${err.message}`)
-          }
-        })
-
-        req.pipe(proxyReq)
-      })
-
-      server.listen(port, '127.0.0.1')
+      // For SSR, the Nitro server listens directly on the port — no proxy needed
+      // The preview proxy will connect directly to localhost:port
     }
 
-    activeServers.set(instanceId, { server, isStatic: buildResult.isStatic })
+    activeServers.set(instanceId, { server, isStatic: buildResult.isStatic, childPid })
 
     return {
       instanceId,
@@ -229,7 +211,16 @@ export async function stopPreview(instanceId: string): Promise<void> {
   const active = activeServers.get(instanceId)
 
   if (active) {
-    active.server.close()
+    if (active.server) {
+      active.server.close()
+    }
+    if (active.childPid) {
+      try {
+        process.kill(active.childPid, 'SIGTERM')
+      } catch {
+        // Process may already be dead
+      }
+    }
     activeServers.delete(instanceId)
   }
 

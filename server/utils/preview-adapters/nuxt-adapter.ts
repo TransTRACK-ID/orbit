@@ -1,6 +1,6 @@
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, readdirSync, writeFileSync } from 'fs'
+import { existsSync, readdirSync, writeFileSync, rmSync } from 'fs'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
@@ -73,7 +73,6 @@ export const NuxtAdapter: PreviewAdapter = {
     // Clear .nuxt cache to ensure clean build after config changes
     const nuxtCacheDir = path.join(worktreeDir, '.nuxt')
     if (existsSync(nuxtCacheDir)) {
-      const { rmSync } = require('fs')
       rmSync(nuxtCacheDir, { recursive: true, force: true })
       console.log(`[nuxt-adapter] Cleared .nuxt cache`)
     }

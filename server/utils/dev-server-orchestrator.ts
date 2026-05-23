@@ -711,6 +711,8 @@ export async function startDevServer(
         API_BASE_URL: `http://127.0.0.1:${port}/api/preview/${taskId}`,
         NUXT_PUBLIC_API_BASE_URL: `/api/preview/${taskId}`,
         NUXT_API_BASE_URL: `/api/preview/${taskId}`,
+        ORBIT_PREVIEW: 'true',
+        NUXT_IS_PREVIEW: 'true',
       } : {}),
       ...repositoryEnv,
     })
@@ -746,6 +748,7 @@ export async function startDevServer(
       NUXT_API_BASE_URL: `/api/preview/${taskId}`,
       // Explicit flag so handlers can detect preview mode without relying on hostname
       ORBIT_PREVIEW: 'true',
+      NUXT_IS_PREVIEW: 'true',
     } : {}),
     ...repositoryEnv,
     ...devCmd.env,

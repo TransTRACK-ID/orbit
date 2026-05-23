@@ -746,13 +746,6 @@ export async function startDevServer(
       NUXT_API_BASE_URL: `/api/preview/${taskId}`,
       // Explicit flag so handlers can detect preview mode without relying on hostname
       ORBIT_PREVIEW: 'true',
-      // Override @sidebase/nuxt-auth's computed runtime config to include the
-      // preview base path. Without this, the auth module's SSR session fetch
-      // would go to /api/auth/session instead of /api/preview/<taskId>/api/auth/session,
-      // causing the SSR render to crash (the route doesn't exist without the prefix).
-      NUXT_PUBLIC_AUTH_COMPUTED_ORIGIN: `http://localhost:${port}`,
-      NUXT_PUBLIC_AUTH_COMPUTED_PATHNAME: `/api/preview/${taskId}/api/auth`,
-      NUXT_PUBLIC_AUTH_COMPUTED_FULL_BASE_URL: `http://localhost:${port}/api/preview/${taskId}/api/auth`,
     } : {}),
     ...repositoryEnv,
     ...devCmd.env,

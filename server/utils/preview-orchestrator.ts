@@ -9,14 +9,11 @@ import { detectFramework } from './preview-adapters'
 import { createStaticServer } from './preview-static-server'
 import type { PreviewConfig } from './preview-adapters/types'
 import { appendPreviewLog } from './preview-logger'
+import { registerPreviewSubdomain, unregisterPreviewSubdomain } from '~/server/middleware/preview-subdomain-proxy'
 
 const execAsync = promisify(exec)
 
 const activeServers = new Map<string, { server: http.Server | null; isStatic: boolean; childPid: number | null }>()
-
-export function isPreviewStatic(instanceId: string): boolean {
-  return activeServers.get(instanceId)?.isStatic ?? true
-}
 
 function detectPackageManager(worktreeDir: string): { cmd: string; args: string[] } | null {
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
@@ -198,10 +195,13 @@ export async function startPreview(
     }
 
     activeServers.set(instanceId, { server, isStatic: buildResult.isStatic, childPid })
+    
+    // Register subdomain for proxy routing
+    registerPreviewSubdomain(instanceId, port)
 
     return {
       instanceId,
-      url: `/api/preview/${instanceId}`,
+      url: `https://preview-${instanceId}.orbit.transtrack.ai`,
     }
   } catch (error: any) {
     await db.update(schema.previewInstances)
@@ -240,6 +240,9 @@ export async function stopPreview(instanceId: string): Promise<void> {
     }
     activeServers.delete(instanceId)
   }
+
+  // Unregister subdomain
+  unregisterPreviewSubdomain(instanceId)
 
   await db.update(schema.previewInstances)
     .set({ status: 'stopped' })

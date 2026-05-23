@@ -36,9 +36,6 @@ export const NuxtAdapter: PreviewAdapter = {
     const buildEnv: NodeJS.ProcessEnv = {
       ...process.env,
       ...envVars,
-      NUXT_APP_BASE_URL: baseUrl,
-      NUXT_PUBLIC_API_BASE_URL: baseUrl.replace(/\/$/, ''),
-      API_BASE_URL: `http://127.0.0.1:${port}${baseUrl}`,
       NODE_ENV: 'production',
     }
 
@@ -169,8 +166,6 @@ export const NuxtAdapter: PreviewAdapter = {
         ...config.envVars,
         NITRO_PORT: String(port),
         PORT: String(port),
-        NUXT_APP_BASE_URL: config.baseUrl,
-        NUXT_PUBLIC_API_BASE_URL: config.baseUrl.replace(/\/$/, ''),
       },
       stdio: 'pipe',
     })

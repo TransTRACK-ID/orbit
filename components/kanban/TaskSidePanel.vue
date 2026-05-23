@@ -1374,7 +1374,7 @@
           </div>
         </div>
 
-        <!-- Iframe + collapsible logs when preview is ready -->
+        <!-- Preview content when ready -->
         <template v-else-if="previewUrl && !previewFailed">
           <!-- Preview Mode Banner -->
           <div class="flex-shrink-0 px-3 py-1.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
@@ -1386,15 +1386,53 @@
             </div>
           </div>
 
-          <!-- Iframe - destroyed during restart to clear memory -->
-          <iframe
-            v-if="!previewRestarting"
-            :key="previewInstanceId"
-            :src="previewIframeUrl"
-            class="w-full border-0"
-            :class="showLogsPanel ? 'flex-1 min-h-0' : 'flex-1'"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-storage-access-by-user-activation allow-top-navigation-by-user-activation"
-          />
+          <!-- Preview Link Card -->
+          <div class="flex-1 flex flex-col items-center justify-center gap-4 p-8 bg-surface-50">
+            <div class="text-center space-y-3">
+              <div class="w-12 h-12 bg-white rounded-xl shadow-sm border border-surface-200 flex items-center justify-center mx-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-500">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-surface-700">Preview Ready</h3>
+                <p class="text-[11px] text-surface-500 mt-1">Opens in a new browser tab</p>
+              </div>
+            </div>
+
+            <a
+              :href="previewUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              Open Preview
+            </a>
+
+            <div class="flex items-center gap-2 text-[10px] text-surface-400 font-mono bg-white px-3 py-1.5 rounded-md border border-surface-200">
+              <span class="truncate max-w-[280px]">{{ previewUrl }}</span>
+              <button
+                class="hover:text-surface-600 transition-colors p-0.5"
+                @click="copyPreviewUrl"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
+
+            <p class="text-[10px] text-amber-600 bg-amber-50 px-3 py-1.5 rounded-md">
+              ⚠️ Logging in uses staging credentials
+            </p>
+          </div>
 
           <!-- Collapsible log panel -->
           <div
@@ -2252,6 +2290,18 @@ async function handleRestartPreview() {
     await fetchPreviewLogs()
     stopLogPolling()
   }
+}
+
+function copyPreviewUrl() {
+  if (!previewUrl.value) return
+  navigator.clipboard.writeText(previewUrl.value)
+    .then(() => {
+      // Could show a toast here
+      console.log('Preview URL copied to clipboard')
+    })
+    .catch((err) => {
+      console.error('Failed to copy preview URL:', err)
+    })
 }
 
 function isImageAttachment(att: Attachment): boolean {

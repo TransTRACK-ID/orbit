@@ -222,7 +222,18 @@ export async function stopPreview(instanceId: string): Promise<void> {
     }
     if (active.childPid) {
       try {
+        // Try SIGTERM first
         process.kill(active.childPid, 'SIGTERM')
+        
+        // Wait 500ms and check if still alive, then SIGKILL
+        await new Promise(resolve => setTimeout(resolve, 500))
+        try {
+          process.kill(active.childPid, 0) // Check if alive
+          process.kill(active.childPid, 'SIGKILL')
+          console.log(`[preview-orchestrator] Killed process ${active.childPid} with SIGKILL`)
+        } catch {
+          // Process already dead, good
+        }
       } catch {
         // Process may already be dead
       }

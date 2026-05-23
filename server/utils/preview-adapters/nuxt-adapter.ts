@@ -70,6 +70,14 @@ export const NuxtAdapter: PreviewAdapter = {
     const hasNuxtBinary = existsSync(nuxtBinary)
     console.log(`[nuxt-adapter] Nuxt binary exists: ${hasNuxtBinary} at ${nuxtBinary}`)
 
+    // Clear .nuxt cache to ensure clean build after config changes
+    const nuxtCacheDir = path.join(worktreeDir, '.nuxt')
+    if (existsSync(nuxtCacheDir)) {
+      const { rmSync } = require('fs')
+      rmSync(nuxtCacheDir, { recursive: true, force: true })
+      console.log(`[nuxt-adapter] Cleared .nuxt cache`)
+    }
+
     const buildCommand = 'npx nuxt build'
     console.log(`[nuxt-adapter] Running build command: ${buildCommand}`)
 

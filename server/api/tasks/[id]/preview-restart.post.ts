@@ -43,6 +43,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
   }
 
+  // Fetch repository environment variables from workspace settings
+  const repoEnvVars = await db.query.repositoryEnvVars.findMany({
+    where: eq(schema.repositoryEnvVars.repositoryId, task.repository.id),
+  })
+
+  const envVars: Record<string, string> = {}
+  for (const ev of repoEnvVars) {
+    envVars[ev.key] = ev.value
+  }
+
   const existing = await db.query.previewInstances.findFirst({
     where: eq(schema.previewInstances.taskId, task.id),
   })
@@ -53,7 +63,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const result = await startPreview(task.id, task.repository.id || undefined, worktreeDir)
+    const result = await startPreview(task.id, task.repository.id || undefined, worktreeDir, envVars)
     return {
       available: true,
       url: result.url,

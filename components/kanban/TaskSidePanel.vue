@@ -1388,6 +1388,7 @@
 
           <!-- Iframe -->
           <iframe
+            :key="previewInstanceId"
             :src="previewIframeUrl"
             class="w-full border-0"
             :class="showLogsPanel ? 'flex-1 min-h-0' : 'flex-1'"
@@ -1593,6 +1594,7 @@ const showAssigneePicker = ref(false)
 const showObserverPicker = ref(false)
 const previewAvailable = ref(false)
 const previewUrl = ref('')
+const previewInstanceId = ref('')
 const showPreviewModal = ref(false)
 const previewStarting = ref(false)
 const previewRestarting = ref(false)
@@ -2131,6 +2133,7 @@ async function checkPreview() {
   } catch {
     previewAvailable.value = false
     previewUrl.value = ''
+    previewInstanceId.value = ''
   }
 }
 
@@ -2185,6 +2188,7 @@ async function handleStartPreview() {
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
+    if (result.instanceId) previewInstanceId.value = result.instanceId
     // Continue polling logs for a few more seconds after the API returns
     let attempts = 0
     const pollInterval = setInterval(async () => {
@@ -2216,6 +2220,7 @@ async function handleRestartPreview() {
   if (!task.value || previewRestarting.value) return
   previewRestarting.value = true
   previewUrl.value = ''
+  previewInstanceId.value = ''
   startLogPolling()
   try {
     const result = await $fetch<{ available: boolean; url: string; message: string; instanceId?: string }>(`/api/tasks/${task.value.id}/preview-restart`, {
@@ -2223,6 +2228,7 @@ async function handleRestartPreview() {
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
+    if (result.instanceId) previewInstanceId.value = result.instanceId
     let attempts = 0
     const pollInterval = setInterval(async () => {
       attempts++

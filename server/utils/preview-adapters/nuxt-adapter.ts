@@ -1,6 +1,6 @@
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, readdirSync } from 'fs'
+import { existsSync, readdirSync, writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
@@ -40,6 +40,29 @@ export const NuxtAdapter: PreviewAdapter = {
       NUXT_PUBLIC_API_BASE_URL: baseUrl.replace(/\/$/, ''),
       API_BASE_URL: `http://127.0.0.1:${port}${baseUrl}`,
       NODE_ENV: 'production',
+    }
+
+    // Disable SSR for preview to prevent auth redirect loops
+    // Local auth provider stores tokens client-side (localStorage), so SSR can't see them
+    const nuxtConfigPath = path.join(worktreeDir, 'nuxt.config.ts')
+    const nuxtConfigJsPath = path.join(worktreeDir, 'nuxt.config.js')
+    const configPath = existsSync(nuxtConfigPath) ? nuxtConfigPath : existsSync(nuxtConfigJsPath) ? nuxtConfigJsPath : null
+    
+    if (configPath) {
+      const originalConfig = await readFile(configPath, 'utf-8')
+      // Only inject if ssr is not already defined
+      if (!/ssr\s*:/.test(originalConfig)) {
+        const modifiedConfig = originalConfig.replace(
+          /export\s+default\s+defineNuxtConfig\s*\(\s*\{/,
+          'export default defineNuxtConfig({\n  ssr: false,'
+        )
+        if (modifiedConfig !== originalConfig) {
+          writeFileSync(configPath, modifiedConfig)
+          console.log(`[nuxt-adapter] Injected ssr: false into ${configPath}`)
+        }
+      } else {
+        console.log(`[nuxt-adapter] nuxt.config already has ssr defined, skipping injection`)
+      }
     }
 
     // Check if nuxt binary exists

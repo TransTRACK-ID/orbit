@@ -1384,7 +1384,6 @@
               </svg>
               <span class="text-[10px] font-medium text-amber-700">Preview Mode — Changes affect staging data</span>
             </div>
-            <span class="text-[10px] text-amber-600/70">{{ previewMode === 'ssr' ? 'SSR' : 'Static' }}</span>
           </div>
 
           <!-- Iframe -->
@@ -1392,7 +1391,7 @@
             :src="previewIframeUrl"
             class="w-full border-0"
             :class="showLogsPanel ? 'flex-1 min-h-0' : 'flex-1'"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-storage-access-by-user-activation"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-storage-access-by-user-activation allow-top-navigation-by-user-activation"
           />
 
           <!-- Collapsible log panel -->

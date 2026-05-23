@@ -33,7 +33,7 @@ export const NuxtAdapter: PreviewAdapter = {
   async build(config: PreviewConfig): Promise<BuildResult> {
     const { worktreeDir, port, envVars, baseUrl } = config
 
-    const buildEnv = {
+    const buildEnv: NodeJS.ProcessEnv = {
       ...process.env,
       ...envVars,
       NUXT_APP_BASE_URL: baseUrl,
@@ -42,21 +42,45 @@ export const NuxtAdapter: PreviewAdapter = {
       NODE_ENV: 'production',
     }
 
+    // Check if nuxt binary exists
+    const nuxtBinary = path.join(worktreeDir, 'node_modules', '.bin', 'nuxt')
+    const hasNuxtBinary = existsSync(nuxtBinary)
+    console.log(`[nuxt-adapter] Nuxt binary exists: ${hasNuxtBinary} at ${nuxtBinary}`)
+
+    const buildCommand = hasNuxtBinary ? 'npx nuxt build' : 'npx nuxt build'
+    console.log(`[nuxt-adapter] Running build command: ${buildCommand}`)
+
     try {
-      const { stdout, stderr } = await execAsync('npx nuxt build', {
+      const { stdout, stderr } = await execAsync(buildCommand, {
         cwd: worktreeDir,
         env: buildEnv,
         timeout: 300000,
       })
 
+      console.log(`[nuxt-adapter] Build stdout length: ${stdout.length}`)
       if (stderr) {
         console.warn('[nuxt-adapter] build stderr:', stderr)
+      }
+
+      // Check .output directory
+      const outputDir = path.join(worktreeDir, '.output')
+      console.log(`[nuxt-adapter] Checking .output directory: ${outputDir}, exists=${existsSync(outputDir)}`)
+      
+      if (existsSync(outputDir)) {
+        const { readdirSync } = require('fs')
+        const outputContents = readdirSync(outputDir)
+        console.log(`[nuxt-adapter] .output contents: ${outputContents.join(', ')}`)
       }
 
       const staticOutput = path.join(worktreeDir, '.output', 'public')
       const serverOutput = path.join(worktreeDir, '.output')
 
+      console.log(`[nuxt-adapter] staticOutput exists: ${existsSync(staticOutput)}`)
+      console.log(`[nuxt-adapter] serverOutput exists: ${existsSync(serverOutput)}`)
+
       if (existsSync(staticOutput)) {
+        const publicContents = require('fs').readdirSync(staticOutput)
+        console.log(`[nuxt-adapter] Static output contents: ${publicContents.slice(0, 20).join(', ')}`)
         return { success: true, outputDir: staticOutput, isStatic: true }
       }
 
@@ -66,6 +90,9 @@ export const NuxtAdapter: PreviewAdapter = {
 
       return { success: false, outputDir: '', isStatic: true, error: 'Build completed but no output directory found' }
     } catch (error: any) {
+      console.error(`[nuxt-adapter] Build error: ${error.message}`)
+      console.error(`[nuxt-adapter] Build error stdout: ${error.stdout || 'none'}`)
+      console.error(`[nuxt-adapter] Build error stderr: ${error.stderr || 'none'}`)
       return { success: false, outputDir: '', isStatic: true, error: error.message }
     }
   },

@@ -30,7 +30,7 @@ export const NextJsAdapter: PreviewAdapter = {
   async build(config: PreviewConfig): Promise<BuildResult> {
     const { worktreeDir, envVars, baseUrl } = config
 
-    const buildEnv = {
+    const buildEnv: NodeJS.ProcessEnv = {
       ...process.env,
       ...envVars,
       NEXT_PUBLIC_BASE_PATH: baseUrl.replace(/\/$/, ''),

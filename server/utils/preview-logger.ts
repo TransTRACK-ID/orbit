@@ -9,7 +9,7 @@ export async function appendPreviewLog(instanceId: string, line: string): Promis
 
   if (!instance) return
 
-  const logs = [...instance.logs, line].slice(-500)
+  const logs = [...(instance.logs || []), line].slice(-500)
 
   await db.update(schema.previewInstances)
     .set({ logs })

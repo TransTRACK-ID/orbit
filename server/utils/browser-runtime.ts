@@ -1,7 +1,6 @@
 import { spawn } from 'child_process'
 import type { EventStream } from 'h3'
-import type { DevServerInfo } from './dev-server-orchestrator'
-import { startDevServer } from './dev-server-orchestrator'
+import { startPreview, stopPreview } from './preview-orchestrator'
 
 export type BrowserRunConfig = {
   taskId: string
@@ -63,22 +62,24 @@ export async function runBrowserContainer(
     )
   }
 
-  // Ensure dev server is running
-  let devServer: DevServerInfo
+  // Ensure preview is running
+  let previewInfo: { instanceId: string; url: string }
   try {
     await pushToStream(
       stream,
-      JSON.stringify({ step: `Starting dev server in ${config.worktreeDir}...`, timestamp: Date.now() }),
+      JSON.stringify({ step: `Starting preview in ${config.worktreeDir}...`, timestamp: Date.now() }),
     )
-    devServer = await startDevServer(config.worktreeDir, config.repositoryId || undefined, config.taskId)
+    previewInfo = await startPreview(config.taskId, config.repositoryId || undefined, config.worktreeDir)
+    // Browser agent shares network namespace with web container, so it can access localhost:3000
+    const previewUrl = `http://localhost:3000${previewInfo.url}/`
     await pushToStream(
       stream,
-      JSON.stringify({ step: `Dev server ready at ${devServer.baseUrl}`, timestamp: Date.now() }),
+      JSON.stringify({ step: `Preview ready at ${previewUrl}`, timestamp: Date.now() }),
     )
   } catch (err: any) {
     await pushToStream(
       stream,
-      JSON.stringify({ step: `Dev server failed: ${err.message}`, timestamp: Date.now() }),
+      JSON.stringify({ step: `Preview failed: ${err.message}`, timestamp: Date.now() }),
     )
     throw err
   }
@@ -123,10 +124,12 @@ export async function runBrowserContainer(
     dockerArgs.push('-p', '5900:5900')
   }
 
+  const previewUrl = `http://localhost:3000${previewInfo.url}/`
+
   dockerArgs.push(
     'orbit/browser-agent:latest',
     '--task', taskText,
-    '--base-url', devServer.baseUrl,
+    '--base-url', previewUrl,
     '--output-dir', '/output',
     '--headless', String(!config.headed),
   )

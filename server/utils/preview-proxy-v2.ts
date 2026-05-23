@@ -26,10 +26,16 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
     throw createError({ statusCode: 404, statusMessage: 'Preview not found' })
   }
 
+  const task = instance.task as any
+  const workspaceId = task?.project?.workspaceId
+  if (!workspaceId) {
+    throw createError({ statusCode: 404, statusMessage: 'Preview workspace not found' })
+  }
+
   const member = await db.query.workspaceMembers.findFirst({
     where: (wm, { and, eq }) =>
       and(
-        eq(wm.workspaceId, instance.task.project.workspaceId),
+        eq(wm.workspaceId, workspaceId),
         eq(wm.userId, user.id)
       ),
   })
@@ -39,6 +45,7 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
   }
 
   if (instance.status !== 'running') {
+    console.log(`[preview-proxy] Instance ${instanceId} status is ${instance.status}, not running`)
     throw createError({ statusCode: 503, statusMessage: 'Preview is not running' })
   }
 
@@ -47,11 +54,14 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
     throw createError({ statusCode: 503, statusMessage: 'Preview port not configured' })
   }
 
+  console.log(`[preview-proxy] Proxying to instance ${instanceId} on port ${port}, path: ${event.node.req.url}`)
+
   return new Promise<void>((resolve, reject) => {
     const req = event.node.req
     const res = event.node.res
 
     const targetPath = req.url?.replace(`/api/preview/${instanceId}`, '') || '/'
+    console.log(`[preview-proxy] Target path: ${targetPath}`)
 
     const proxyReq = http.request(
       {
@@ -66,6 +76,7 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
         timeout: 30000,
       },
       (proxyRes) => {
+        console.log(`[preview-proxy] Proxy response status: ${proxyRes.statusCode}`)
         delete proxyRes.headers['x-frame-options']
         delete proxyRes.headers['X-Frame-Options']
         delete proxyRes.headers['content-security-policy']
@@ -79,6 +90,7 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
     )
 
     proxyReq.on('error', (err) => {
+      console.error(`[preview-proxy] Proxy error for instance ${instanceId} port ${port}: ${err.message}`)
       if (!res.headersSent) {
         res.statusCode = 502
         res.end(`Preview proxy error: ${err.message}`)

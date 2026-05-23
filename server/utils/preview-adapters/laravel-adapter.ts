@@ -18,7 +18,7 @@ export const LaravelAdapter: PreviewAdapter = {
   async build(config: PreviewConfig): Promise<BuildResult> {
     const { worktreeDir, envVars } = config
 
-    const buildEnv = {
+    const buildEnv: NodeJS.ProcessEnv = {
       ...process.env,
       ...envVars,
       NODE_ENV: 'production',

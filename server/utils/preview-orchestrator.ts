@@ -107,6 +107,10 @@ export async function startPreview(
     })
     .returning()
 
+  if (!instance) {
+    throw new Error('Failed to create preview instance in database')
+  }
+
   const instanceId = instance.id
   const port = getAvailablePort()
   const baseUrl = `/api/preview/${instanceId}/`
@@ -157,7 +161,21 @@ export async function startPreview(
     let server: http.Server
 
     if (buildResult.isStatic) {
+      console.log(`[preview-orchestrator] Creating static server for ${buildResult.outputDir}`)
+      
+      // Verify build output exists
+      if (!existsSync(buildResult.outputDir)) {
+        throw new Error(`Build output directory does not exist: ${buildResult.outputDir}`)
+      }
+      
+      const outputFiles = readdirSync(buildResult.outputDir)
+      console.log(`[preview-orchestrator] Output directory contents: ${outputFiles.slice(0, 20).join(', ')}`)
+      
       server = createStaticServer(buildResult.outputDir, port)
+      
+      // Wait a moment for server to start listening
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       await appendPreviewLog(instanceId, `Static server listening on port ${port}`)
     } else {
       const serverInfo = await adapter.start(config, buildResult)

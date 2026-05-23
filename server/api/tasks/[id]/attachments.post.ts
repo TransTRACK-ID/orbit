@@ -1,13 +1,12 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, count } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { mkdirSync, writeFileSync, existsSync } from 'fs'
 import { readMultipartFormData } from 'h3'
 import path from 'path'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
-const MAX_ATTACHMENTS = 3
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'text/html', 'text/markdown', 'text/plain']
 const ATTACHMENTS_DIR = `${process.env.HOME || '/Users/zeinersyad'}/orbit-attachments`
 
@@ -24,20 +23,6 @@ export default defineEventHandler(async (event) => {
 
   if (!task) {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
-  }
-
-  // Check attachment limit
-  const existingCount = await db
-    .select({ count: count() })
-    .from(schema.taskAttachments)
-    .where(eq(schema.taskAttachments.taskId, taskId))
-
-  const currentCount = Number(existingCount[0]?.count || 0)
-  if (currentCount >= MAX_ATTACHMENTS) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: `Attachment limit reached (max ${MAX_ATTACHMENTS})`,
-    })
   }
 
   // Parse multipart form

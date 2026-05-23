@@ -208,6 +208,31 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
     const res = event.node.res
 
     const REQUEST_TIMEOUT_MS = 30000 // 30s timeout to avoid infinite hangs
+    let responseTimer: NodeJS.Timeout | null = null
+    let timerCleared = false
+
+    function clearResponseTimer() {
+      if (!timerCleared && responseTimer) {
+        clearTimeout(responseTimer)
+        timerCleared = true
+      }
+    }
+
+    function startResponseTimer() {
+      responseTimer = setTimeout(() => {
+        if (!timerCleared) {
+          console.error(`[preview-proxy] Request timeout for ${taskId}: ${fullTargetPath}`)
+          proxyReq.destroy()
+          if (!res.headersSent) {
+            res.statusCode = 504
+            res.end(`Preview proxy timeout: dev-server did not respond within ${REQUEST_TIMEOUT_MS}ms`)
+          }
+          reject(new Error(`Preview proxy timeout for ${taskId}: ${fullTargetPath}`))
+        }
+      }, REQUEST_TIMEOUT_MS)
+    }
+
+    startResponseTimer()
 
     const proxyReq = http.request(
       {
@@ -219,7 +244,6 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
           ...req.headers,
           host: `localhost:${devServer.port}`,
         },
-        timeout: REQUEST_TIMEOUT_MS,
       },
       (proxyRes) => {
         const statusCode = proxyRes.statusCode || 200
@@ -260,6 +284,7 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
           })
 
           proxyRes.on('end', async () => {
+            clearResponseTimer()
             try {
               if (statusCode >= 400 && looksLikeAsset(targetPath)) {
                 if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
@@ -318,12 +343,14 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
           })
 
           proxyRes.on('error', (err) => {
+            clearResponseTimer()
             console.error(`[preview-proxy] Response error for ${taskId}:`, err.message)
             reject(err)
           })
         } else {
           if (statusCode >= 400 && looksLikeAsset(targetPath)) {
             proxyRes.destroy()
+            clearResponseTimer()
             if (tryServeFilesystemFallback(targetPath, devServer.worktreeDir, res)) {
               console.log(`[preview-proxy] ${taskId} dev-server returned ${statusCode} for ${targetPath}, filesystem fallback succeeded`)
               resolve()
@@ -337,8 +364,12 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
 
           res.writeHead(statusCode, headers)
           proxyRes.pipe(res)
-          proxyRes.on('end', resolve)
+          proxyRes.on('end', () => {
+            clearResponseTimer()
+            resolve()
+          })
           proxyRes.on('error', (err) => {
+            clearResponseTimer()
             console.error(`[preview-proxy] Response error for ${taskId}:`, err.message)
             reject(err)
           })
@@ -346,17 +377,8 @@ export async function proxyPreviewRequest(event: any, taskId: string): Promise<v
       }
     )
 
-    proxyReq.on('timeout', () => {
-      console.error(`[preview-proxy] Request timeout for ${taskId}: ${fullTargetPath}`)
-      proxyReq.destroy()
-      if (!res.headersSent) {
-        res.statusCode = 504
-        res.end(`Preview proxy timeout: dev-server did not respond within ${REQUEST_TIMEOUT_MS}ms`)
-      }
-      reject(new Error(`Preview proxy timeout for ${taskId}: ${fullTargetPath}`))
-    })
-
     proxyReq.on('error', (err) => {
+      clearResponseTimer()
       console.error(`[preview-proxy] Request error for ${taskId}:`, err.message)
       if (!res.headersSent) {
         res.statusCode = 502

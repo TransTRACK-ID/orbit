@@ -1,5 +1,5 @@
-import { deleteCookie } from 'h3';
-import { resolveApiBaseUrl, isPreviewMode } from '../utils/api-url';
+import { setCookie, createError } from 'h3';
+import { resolveApiBaseUrl } from '../utils/api-url';
 
 export default defineEventHandler(async (event) => {
   try {
@@ -7,10 +7,14 @@ export default defineEventHandler(async (event) => {
     const baseUrl = resolveApiBaseUrl(config.apiBaseUrl || config.public.baseAPI);
 
     // Preview mode: no external API available, return mock response
-    if (isPreviewMode(config)) {
+    const isPreview = process.env.ORBIT_PREVIEW === 'true' || process.env.NUXT_IS_PREVIEW === 'true';
+    console.log(`[logout] preview check: ORBIT_PREVIEW=${process.env.ORBIT_PREVIEW}, NUXT_IS_PREVIEW=${process.env.NUXT_IS_PREVIEW}, result=${isPreview}`);
+    if (isPreview) {
       const basePath = process.env.NUXT_APP_BASE_URL || '/';
       const cookiePath = basePath.endsWith('/') ? basePath : basePath + '/';
-      deleteCookie(event, 'session_token', { path: cookiePath });
+      // Clear cookie by setting maxAge to 0
+      setCookie(event, 'session_token', '', { httpOnly: true, path: cookiePath, maxAge: 0 });
+      console.log(`[logout] preview mode — cleared session_token cookie at path=${cookiePath}`);
       return { status: 'success', message: 'Logged out (preview)' };
     }
 

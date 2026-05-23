@@ -7,7 +7,7 @@ import { useRuntimeConfig } from "#imports";
 import crypto from "crypto";
 import { createError, defineEventHandler, readBody, setCookie } from "h3";
 import { $fetch } from "ofetch";
-import { resolveApiBaseUrl, isPreviewMode } from "../../utils/api-url";
+import { resolveApiBaseUrl } from "../../utils/api-url";
 
 interface LoginResponse {
   status: string;
@@ -103,13 +103,16 @@ export default defineEventHandler(async (event) => {
     }
 
     // Preview mode: no external API available, return mock response
-    if (isPreviewMode(config)) {
+    const isPreview = process.env.ORBIT_PREVIEW === 'true' || process.env.NUXT_IS_PREVIEW === 'true';
+    console.log(`[login] preview check: ORBIT_PREVIEW=${process.env.ORBIT_PREVIEW}, NUXT_IS_PREVIEW=${process.env.NUXT_IS_PREVIEW}, result=${isPreview}`);
+    if (isPreview) {
       const mockToken = 'preview-mock-token';
       // Use a stable token in preview to avoid race conditions with concurrent logins.
       // Scope cookie to the app base path so it does not leak to parent app routes.
       const basePath = process.env.NUXT_APP_BASE_URL || '/';
       const cookiePath = basePath.endsWith('/') ? basePath : basePath + '/';
       setCookie(event, 'session_token', mockToken, { httpOnly: true, path: cookiePath });
+      console.log(`[login] preview mode — returning mock response with cookie path=${cookiePath}`);
       return {
         status: 'success',
         data: {

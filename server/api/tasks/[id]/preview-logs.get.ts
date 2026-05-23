@@ -1,7 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
-import { getDevServerLogs, getDevServerByTask } from '~/server/utils/dev-server-orchestrator'
+import { getPreviewLogs } from '~/server/utils/preview-orchestrator'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -30,14 +30,26 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
 
-  const devServer = getDevServerByTask(task, { includeNotReady: true })
-  const logs = getDevServerLogs(devServer?.worktreeDir || '')
+  const instance = await db.query.previewInstances.findFirst({
+    where: eq(schema.previewInstances.taskId, task.id),
+    orderBy: (instances, { desc }) => [desc(instances.createdAt)],
+  })
+
+  if (!instance) {
+    return {
+      logs: [],
+      ready: false,
+      failed: false,
+      failReason: null,
+      mode: 'build',
+    }
+  }
 
   return {
-    logs,
-    ready: devServer?.ready || false,
-    failed: devServer?.failed || false,
-    failReason: devServer?.failReason || null,
-    mode: devServer?.mode || 'dev',
+    logs: instance.logs,
+    ready: instance.status === 'running',
+    failed: instance.status === 'failed',
+    failReason: instance.failReason,
+    mode: instance.mode,
   }
 })

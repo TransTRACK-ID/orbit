@@ -1592,8 +1592,8 @@ const committedPreviewPath = ref('/')
 const previewLogs = ref<string[]>([])
 const previewFailed = ref(false)
 const previewFailReason = ref('')
-const previewMode = ref<'dev' | 'build'>('dev')
-const runningPreviewMode = ref<'dev' | 'build'>('dev')
+const previewMode = ref<'build'>('build')
+const runningPreviewMode = ref<'build'>('build')
 const showLogsPanel = ref(false)
 let previewLogsPollInterval: ReturnType<typeof setInterval> | null = null
 const logsContainer = ref<HTMLDivElement | null>(null)
@@ -2106,12 +2106,10 @@ async function checkPreview() {
       failed?: boolean
       failReason?: string | null
       url?: string | null
-      mode?: 'dev' | 'build'
+      instanceId?: string
     }>(`/api/tasks/${task.value.id}/preview-status`)
     previewAvailable.value = status.available
     previewUrl.value = status.url || ''
-    // Track what mode the server is ACTUALLY running (not the user's preference)
-    if (status.mode) runningPreviewMode.value = status.mode
     // If server is starting or failed, ensure UI reflects that
     if (status.failed) {
       previewFailed.value = true
@@ -2129,12 +2127,10 @@ async function checkPreview() {
 async function fetchPreviewLogs() {
   if (!task.value) return
   try {
-    const result = await $fetch<{ logs: string[]; ready: boolean; failed: boolean; failReason: string | null; mode?: 'dev' | 'build' }>(`/api/tasks/${task.value.id}/preview-logs`)
+    const result = await $fetch<{ logs: string[]; ready: boolean; failed: boolean; failReason: string | null }>(`/api/tasks/${task.value.id}/preview-logs`)
     previewLogs.value = result.logs
     previewFailed.value = result.failed
     if (result.failReason) previewFailReason.value = result.failReason
-    // Track what mode the server is ACTUALLY running (not the user's preference)
-    if (result.mode) runningPreviewMode.value = result.mode
     // If the server reports ready, sync our local state
     if (result.ready) {
       previewAvailable.value = true
@@ -2174,17 +2170,11 @@ async function handleStartPreview() {
   previewStarting.value = true
   startLogPolling()
   try {
-    const result = await $fetch<{ available: boolean; url: string; message: string; mode?: 'dev' | 'build' }>(`/api/tasks/${task.value.id}/preview-start`, {
+    const result = await $fetch<{ available: boolean; url: string; message: string; instanceId?: string }>(`/api/tasks/${task.value.id}/preview-start`, {
       method: 'POST',
-      body: { mode: previewMode.value },
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
-    // Sync both: user preference and actual running mode since we just started
-    if (result.mode) {
-      previewMode.value = result.mode
-      runningPreviewMode.value = result.mode
-    }
     // Continue polling logs for a few more seconds after the API returns
     let attempts = 0
     const pollInterval = setInterval(async () => {
@@ -2218,17 +2208,11 @@ async function handleRestartPreview() {
   previewUrl.value = ''
   startLogPolling()
   try {
-    const result = await $fetch<{ available: boolean; url: string; message: string; mode?: 'dev' | 'build' }>(`/api/tasks/${task.value.id}/preview-restart`, {
+    const result = await $fetch<{ available: boolean; url: string; message: string; instanceId?: string }>(`/api/tasks/${task.value.id}/preview-restart`, {
       method: 'POST',
-      body: { mode: previewMode.value },
     })
     previewAvailable.value = result.available
     previewUrl.value = result.url
-    // Sync both: user preference and actual running mode since we just restarted
-    if (result.mode) {
-      previewMode.value = result.mode
-      runningPreviewMode.value = result.mode
-    }
     let attempts = 0
     const pollInterval = setInterval(async () => {
       attempts++

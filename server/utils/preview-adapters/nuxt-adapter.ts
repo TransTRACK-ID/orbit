@@ -1,0 +1,104 @@
+import { exec, spawn } from 'child_process'
+import { promisify } from 'util'
+import { existsSync } from 'fs'
+import path from 'path'
+import type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
+
+const execAsync = promisify(exec)
+
+export const NuxtAdapter: PreviewAdapter = {
+  name: 'nuxt',
+
+  async detect(worktreeDir: string): Promise<boolean> {
+    const pkgPath = path.join(worktreeDir, 'package.json')
+    if (!existsSync(pkgPath)) return false
+
+    try {
+      const pkg = JSON.parse(await require('fs').promises.readFile(pkgPath, 'utf-8'))
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+      return 'nuxt' in deps
+    } catch {
+      return false
+    }
+  },
+
+  async build(config: PreviewConfig): Promise<BuildResult> {
+    const { worktreeDir, port, envVars, baseUrl } = config
+
+    const buildEnv = {
+      ...process.env,
+      ...envVars,
+      NUXT_APP_BASE_URL: baseUrl,
+      NUXT_PUBLIC_API_BASE_URL: baseUrl.replace(/\/$/, ''),
+      API_BASE_URL: `http://127.0.0.1:${port}${baseUrl}`,
+      NODE_ENV: 'production',
+    }
+
+    try {
+      const { stdout, stderr } = await execAsync('npx nuxt build', {
+        cwd: worktreeDir,
+        env: buildEnv,
+        timeout: 300000,
+      })
+
+      if (stderr) {
+        console.warn('[nuxt-adapter] build stderr:', stderr)
+      }
+
+      const staticOutput = path.join(worktreeDir, '.output', 'public')
+      const serverOutput = path.join(worktreeDir, '.output')
+
+      if (existsSync(staticOutput)) {
+        return { success: true, outputDir: staticOutput, isStatic: true }
+      }
+
+      if (existsSync(serverOutput)) {
+        return { success: true, outputDir: serverOutput, isStatic: false }
+      }
+
+      return { success: false, outputDir: '', isStatic: true, error: 'Build completed but no output directory found' }
+    } catch (error: any) {
+      return { success: false, outputDir: '', isStatic: true, error: error.message }
+    }
+  },
+
+  async start(config: PreviewConfig, buildResult: BuildResult): Promise<ServerInfo> {
+    const { port, worktreeDir } = config
+
+    if (buildResult.isStatic) {
+      return {
+        pid: 0,
+        port,
+        command: 'static',
+        isStaticServer: true,
+      }
+    }
+
+    const proc = spawn('npx', ['nuxt', 'preview', '--port', String(port)], {
+      cwd: worktreeDir,
+      env: {
+        ...process.env,
+        PORT: String(port),
+        NUXT_PORT: String(port),
+      },
+      stdio: 'pipe',
+    })
+
+    return {
+      pid: proc.pid || 0,
+      port,
+      command: `npx nuxt preview --port ${port}`,
+      isStaticServer: false,
+    }
+  },
+
+  async stop(serverInfo: ServerInfo): Promise<void> {
+    if (serverInfo.pid > 0) {
+      try {
+        process.kill(serverInfo.pid, 'SIGTERM')
+      } catch {
+        // Process may already be dead
+      }
+    }
+  }
+}

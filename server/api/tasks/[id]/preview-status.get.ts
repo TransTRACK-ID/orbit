@@ -1,7 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
-import { getDevServerByTask } from '~/server/utils/dev-server-orchestrator'
+import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -9,7 +9,6 @@ export default defineEventHandler(async (event) => {
 
   const db = getDb()
 
-  // Fetch task with repository and project for access check
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
     with: {
@@ -22,7 +21,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  // Verify workspace membership
   const member = await db.query.workspaceMembers.findFirst({
     where: (wm, { and, eq }) =>
       and(eq(wm.workspaceId, task.project.workspaceId), eq(wm.userId, user.id)),
@@ -32,17 +30,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
 
-  const devServer = getDevServerByTask(task, { includeNotReady: true })
-  if (!devServer) {
+  const instance = await getPreviewStatus(task.id)
+
+  if (!instance) {
     return { available: false }
   }
 
   return {
-    available: devServer.ready,
-    starting: !devServer.ready && !devServer.failed,
-    failed: devServer.failed,
-    failReason: devServer.failReason || null,
-    url: devServer.ready ? `/api/preview/${task.id}` : null,
-    mode: devServer.mode,
+    available: instance.status === 'running',
+    starting: instance.status === 'building',
+    failed: instance.status === 'failed',
+    failReason: instance.failReason,
+    url: instance.status === 'running' ? `/api/preview/${instance.id}` : null,
+    instanceId: instance.id,
+    framework: instance.framework,
+    mode: instance.mode,
   }
 })

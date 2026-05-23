@@ -1,4 +1,4 @@
-import { exec, spawn } from 'child_process'
+import { exec } from 'child_process'
 import { promisify } from 'util'
 import { existsSync, readdirSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -57,7 +57,8 @@ export const NuxtAdapter: PreviewAdapter = {
     const hasNuxtBinary = existsSync(nuxtBinary)
     console.log(`[nuxt-adapter] Nuxt binary exists: ${hasNuxtBinary} at ${nuxtBinary}`)
 
-    const buildCommand = hasNuxtBinary ? 'npx nuxt build' : 'npx nuxt build'
+    // Use nuxt generate for static site generation (no SSR server needed)
+    const buildCommand = 'npx nuxt generate'
     console.log(`[nuxt-adapter] Running build command: ${buildCommand}`)
 
     try {
@@ -82,34 +83,25 @@ export const NuxtAdapter: PreviewAdapter = {
       }
 
       const staticOutput = path.join(worktreeDir, '.output', 'public')
-      const serverOutput = path.join(worktreeDir, '.output', 'server')
-      const nitroEntry = path.join(serverOutput, 'index.mjs')
+      const indexHtml = path.join(staticOutput, 'index.html')
 
       console.log(`[nuxt-adapter] staticOutput exists: ${existsSync(staticOutput)}`)
-      console.log(`[nuxt-adapter] serverOutput exists: ${existsSync(serverOutput)}`)
-      console.log(`[nuxt-adapter] nitroEntry exists: ${existsSync(nitroEntry)}`)
+      console.log(`[nuxt-adapter] index.html exists: ${existsSync(indexHtml)}`)
 
-      // SSR build: server/index.mjs exists → use Nitro server
-      if (existsSync(nitroEntry)) {
-        console.log(`[nuxt-adapter] Detected SSR build (nitro server found)`)
-        return { success: true, outputDir: serverOutput, isStatic: false }
-      }
-
-      // Static build: public/index.html exists → serve static files
-      const indexHtml = path.join(staticOutput, 'index.html')
+      // nuxt generate always produces static output in .output/public
       if (existsSync(indexHtml)) {
         const publicContents = readdirSync(staticOutput)
-        console.log(`[nuxt-adapter] Detected static build (index.html found)`)
+        console.log(`[nuxt-adapter] Static build complete (index.html found)`)
         console.log(`[nuxt-adapter] Static output contents: ${publicContents.slice(0, 20).join(', ')}`)
         return { success: true, outputDir: staticOutput, isStatic: true }
       }
 
       // Fallback: just public dir exists but no index.html (incomplete build)
       if (existsSync(staticOutput)) {
-        return { success: false, outputDir: staticOutput, isStatic: true, error: 'Build output has no index.html — app may need SSG/prerender configuration' }
+        return { success: false, outputDir: staticOutput, isStatic: true, error: 'nuxt generate completed but no index.html found' }
       }
 
-      return { success: false, outputDir: '', isStatic: true, error: 'Build completed but no output directory found' }
+      return { success: false, outputDir: '', isStatic: true, error: 'nuxt generate completed but no output directory found' }
     } catch (error: any) {
       console.error(`[nuxt-adapter] Build error: ${error.message}`)
       console.error(`[nuxt-adapter] Build error stdout: ${error.stdout || 'none'}`)
@@ -119,43 +111,14 @@ export const NuxtAdapter: PreviewAdapter = {
   },
 
   async start(config: PreviewConfig, buildResult: BuildResult): Promise<ServerInfo> {
-    const { port, worktreeDir } = config
+    const { port } = config
 
-    if (buildResult.isStatic) {
-      return {
-        pid: 0,
-        port,
-        command: 'static',
-        isStaticServer: true,
-      }
-    }
-
-    // For SSR, run Nitro server directly instead of npx nuxt preview
-    // This is more reliable in Docker/container environments
-    const nitroEntry = path.join(worktreeDir, '.output', 'server', 'index.mjs')
-    if (!existsSync(nitroEntry)) {
-      throw new Error(`Nitro server entry not found at ${nitroEntry}`)
-    }
-
-    const proc = spawn('node', [nitroEntry], {
-      cwd: worktreeDir,
-      env: {
-        ...process.env,
-        NITRO_PORT: String(port),
-        PORT: String(port),
-        NUXT_PUBLIC_API_BASE_URL: config.baseUrl.replace(/\/$/, ''),
-      },
-      stdio: 'pipe',
-    })
-
-    // Wait a moment for the server to start
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
+    // nuxt generate always produces static output
     return {
-      pid: proc.pid || 0,
+      pid: 0,
       port,
-      command: `node ${nitroEntry}`,
-      isStaticServer: false,
+      command: 'static',
+      isStaticServer: true,
     }
   },
 

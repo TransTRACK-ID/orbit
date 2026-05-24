@@ -35,7 +35,7 @@
           </div>
           <div class="flex items-center gap-2">
             <IconButton
-              v-if="prUrl || previewAvailable || previewStarting"
+              v-if="prUrl"
               @click="showPreviewModal = true"
             >
               <template #icon>
@@ -839,7 +839,7 @@
                     
                      <!-- Mode Change Pending Notice -->
                      <div
-                       v-if="previewAvailable && previewMode !== runningPreviewMode && !previewRestarting && !previewStarting"
+                       v-if="false"
                        class="text-[11px] px-3 py-2 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5"
                      >
                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0">
@@ -888,7 +888,7 @@
                         
                          <!-- Open Preview -->
                          <button
-                           v-if="previewAvailable"
+                           v-if="false"
                            class="flex h-8 items-center gap-1.5 rounded-lg bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-primary-700 active:scale-95 transition-all"
                            @click="showPreviewModal = true"
                          >
@@ -900,11 +900,11 @@
                               :title="runningPreviewMode !== previewMode ? `Currently running in ${runningPreviewMode === 'build' ? 'SSR' : 'Dev'} mode. Restart to switch.` : `Currently running in ${runningPreviewMode === 'build' ? 'SSR' : 'Dev'} mode`"
                             >{{ runningPreviewMode === 'build' ? 'SSR' : 'DEV' }}</span>
                          </button>
-                          <!-- Preview Mode Toggle -->
-                          <div
-                            v-if="previewAvailable"
-                            class="flex items-center gap-1.5"
-                          >
+                           <!-- Preview Mode Toggle -->
+                           <div
+                             v-if="false"
+                             class="flex items-center gap-1.5"
+                           >
                             <div class="flex items-center rounded-lg bg-surface-100 p-0.5">
                               <button
                                 class="h-7 px-2 rounded-md text-[10px] font-semibold transition-all"
@@ -936,10 +936,10 @@
                               Restart to apply
                             </span>
                           </div>
-                          <!-- Restart Preview -->
-                          <button
-                            v-if="previewAvailable"
-                            class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold shadow-sm active:scale-95 transition-all"
+                           <!-- Restart Preview -->
+                           <button
+                             v-if="false"
+                             class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold shadow-sm active:scale-95 transition-all"
                             :disabled="previewRestarting"
                             :class="[
                               previewRestarting ? 'opacity-50 cursor-not-allowed' : '',
@@ -1154,7 +1154,7 @@
 
   <!-- Preview Modal -->
   <div
-    v-if="showPreviewModal"
+    v-if="false"
     class="fixed inset-0 z-[70] flex overflow-hidden transition-all duration-300"
     :class="previewFullscreen ? 'bg-black' : 'bg-black/50 items-center justify-center p-4'"
     @click.self="showPreviewModal = false"

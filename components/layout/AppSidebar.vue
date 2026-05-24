@@ -121,6 +121,21 @@
             </div>
             <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/reviews') }">Reviews</span>
           </div>
+
+          <div
+            class="sidebar-item"
+            :class="[{ active: route.path.includes('/releases') || route.path.includes('/changelog') }, sidebarCollapsed ? 'justify-center px-0' : '']"
+            :title="sidebarCollapsed ? 'Releases' : undefined"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/releases`); closeOnMobile()"
+          >
+            <div
+              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+              :style="{ backgroundColor: route.path.includes('/releases') || route.path.includes('/changelog') ? '#CF513D' : '#94a3b8' }"
+            >
+              <Icon name="lucide:file-text" class="w-3 h-3" />
+            </div>
+            <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/releases') || route.path.includes('/changelog') }">Releases</span>
+          </div>
         </div>
       </template>
 

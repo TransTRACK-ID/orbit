@@ -333,6 +333,79 @@ export interface QueueItem {
   priority: string
 }
 
+// ─── Docs App ───
+export interface DocsApp {
+  id: string
+  workspaceId: string
+  name: string
+  slug: string
+  currentVersion: string | null
+  createdAt: string
+  updatedAt: string
+  versions?: DocsVersion[]
+}
+
+export interface DocsVersion {
+  id: string
+  appId: string
+  version: string
+  date: string
+  author: string
+  status: 'published' | 'archived' | 'draft'
+  createdAt: string
+  updatedAt: string
+  release?: DocsRelease | null
+}
+
+export interface ReleaseFeatureMedia {
+  type: 'image' | 'video'
+  src: string
+  alt: string
+}
+
+export interface ReleaseFeature {
+  id: string
+  heading: string
+  description: string
+  media: ReleaseFeatureMedia[]
+}
+
+export interface ReleaseCategories {
+  fixed?: string[]
+  added?: string[]
+  changed?: string[]
+  deprecated?: string[]
+  security?: string[]
+}
+
+export interface DocsRelease {
+  id: string
+  versionId: string
+  published: boolean
+  heroTitle: string | null
+  summary: string | null
+  features: ReleaseFeature[]
+  categories: ReleaseCategories
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FlattenedRelease {
+  id: string
+  versionId: string
+  app: string
+  appId: string
+  appSlug: string
+  version: string
+  date: string
+  author: string
+  status: string
+  summary: string | null
+  heroTitle: string | null
+  features: ReleaseFeature[]
+  categories: ReleaseCategories
+}
+
 // ─── API Response ───
 export interface ApiResponse<T> {
   data: T

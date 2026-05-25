@@ -35,7 +35,7 @@
           </div>
           <div class="flex items-center gap-2">
             <IconButton
-              v-if="prUrl"
+              v-if="false"
               @click="showPreviewModal = true"
             >
               <template #icon>

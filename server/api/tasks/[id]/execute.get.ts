@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto'
 import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, and, ilike } from 'drizzle-orm'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
@@ -1393,12 +1393,38 @@ This ensures your response is readable in the UI.`
           if (agentReplyContent) {
             await pushToStreams(entry, JSON.stringify({ step: 'Agent reply already posted to comments', timestamp: Date.now() }))
           }
-        } catch (err: any) {
-          await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))
-        }
+      } catch (err: any) {
+        await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))
       }
 
-      if (wasLoopKill) {
+      // Auto-advance task status to review on successful agent completion
+      try {
+        const reviewStatus = await db.query.statuses.findFirst({
+          where: and(
+            eq(schema.statuses.projectId, task.projectId),
+            ilike(schema.statuses.name, '%review%')
+          ),
+        })
+        if (reviewStatus && task.statusId !== reviewStatus.id) {
+          await db.update(schema.tasks)
+            .set({ statusId: reviewStatus.id })
+            .where(eq(schema.tasks.id, id))
+
+          await db.insert(schema.activityLogs).values({
+            taskId: id,
+            userId: user.id,
+            action: 'agent_completed',
+            newValue: { exitCode: 0, statusId: reviewStatus.id, statusName: reviewStatus.name },
+          })
+
+          await pushToStreams(entry, JSON.stringify({ step: `Task status advanced to "${reviewStatus.name}"`, timestamp: Date.now() }))
+        }
+      } catch (statusErr: any) {
+        await pushToStreams(entry, JSON.stringify({ step: `Failed to update task status: ${statusErr.message}`, timestamp: Date.now() }))
+      }
+    }
+
+    if (wasLoopKill) {
         // Signal the client to auto-restart; do NOT mark as crash/error
         const msg = 'Agent will auto-restart after loop detection'
         await pushToStreams(entry, JSON.stringify({

@@ -13,8 +13,8 @@ export interface CrashPayload {
   exitCode: number | null
   /** e.g. "SIGKILL", "SIGTERM", or null when exited normally/abnormally */
   signal: string | null
-  /** 'crash' = killed by signal / null exit code; 'error' = non-zero exit code */
-  type: 'crash' | 'error' | 'spawn_error'
+  /** 'crash' = killed by signal / null exit code; 'error' = non-zero exit code; 'orphan' = lost due to server restart */
+  type: 'crash' | 'error' | 'spawn_error' | 'orphan'
   message: string
 }
 

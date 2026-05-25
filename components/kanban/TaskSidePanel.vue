@@ -2555,15 +2555,18 @@ watch(runtimeLogsForTask, async (logs) => {
       feedbackFixed.value = true
       persistLog(props.workspaceId, { entityType: 'task', entityId: props.taskId, entityName: task.value.title, action: 'fix_feedback_completed', message: 'Agent applied PR feedback fixes' })
       isFixRun = false
-    } else {
-      await autoCreatePr()
-      isFixRun = false
     }
-    const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
-    if (reviewStatus && task.value.statusId !== reviewStatus.id) {
-      await handleUpdate('statusId', reviewStatus.id)
-      activityLogs.value = await fetchActivity(props.taskId)
-    }
+
+    // Refresh task state from the backend — the exit handler already
+    // created the PR and advanced the status, so we just sync the UI.
+    try {
+      const updated = await fetchTaskDetailComposite(props.taskId)
+      if (updated.task) {
+        task.value = updated.task
+        activityLogs.value = updated.activityLogs
+        emit('updated', updated.task)
+      }
+    } catch {}
   }
 })
 
@@ -2855,20 +2858,36 @@ onMounted(async () => {
   const doneLog = runtimeLogsForTask.value.find(log => />?\s*Done$/.test(log.message))
   lastCompletionTimestamp.value = doneLog ? doneLog.timestamp : Date.now()
 
-  // Handle runtime that already completed while the panel was closed
+  // Handle runtime that already completed while the panel was closed.
+  // The backend exit handler already created the PR and advanced status,
+  // so we just refresh the UI state to sync with the server.
   if (task.value && !runtimeActive.value && runtimeCompleted.value && !hasAdvanced.value) {
-    if (!isReviewStatus.value && !/done/i.test(task.value.status?.name || '')) {
-      await autoCreatePr()
-      const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
-      if (reviewStatus && task.value.statusId !== reviewStatus.id) {
-        await handleUpdate('statusId', reviewStatus.id)
-        activityLogs.value = await fetchActivity(props.taskId)
+    try {
+      const updated = await fetchTaskDetailComposite(props.taskId)
+      if (updated.task) {
+        task.value = updated.task
+        activityLogs.value = updated.activityLogs
+        emit('updated', updated.task)
       }
-      hasAdvanced.value = true
-    }
+    } catch {}
+    hasAdvanced.value = true
   }
 
   if (task.value && isAgentInProgress.value && !isRunning(task.value.id)) {
+    // Refresh task state first — the backend may have already completed
+    // and updated status while the panel was closed
+    try {
+      const fresh = await fetchTaskDetailComposite(props.taskId)
+      if (fresh.task) {
+        task.value = fresh.task
+        activityLogs.value = fresh.activityLogs
+        emit('updated', fresh.task)
+      }
+    } catch {}
+
+    // If after refresh the task is no longer in progress, don't reconnect
+    if (!isAgentInProgress.value) return
+
     const hasLogs = activityLogs.value.some(l => l.action === 'runtime_log')
     if (!hasLogs) {
       await startRuntime(task.value.id)

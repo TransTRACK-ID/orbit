@@ -11,6 +11,8 @@
       :show-filters="showFilters"
       :active-filter-count="activeFilterCount"
       :active-filter-chips="activeFilterChips"
+      :is-selection-mode="isSelectionMode"
+      :selected-count="selectedCount"
       @create-task="$emit('createTask')"
       @update:view-mode="$emit('update:viewMode', $event)"
       @update:search="$emit('update:search', $event)"
@@ -19,6 +21,11 @@
       @update:show-filters="$emit('update:showFilters', $event)"
       @remove-chip="onRemoveChip"
       @clear-filters="$emit('clearFilters')"
+      @enter-selection-mode="$emit('enterSelectionMode')"
+      @exit-selection-mode="$emit('exitSelectionMode')"
+      @clear-selection="$emit('clearSelection')"
+      @bulk-move="(statusId) => $emit('bulkMove', statusId)"
+      @bulk-delete="$emit('bulkDelete')"
     />
 
     <!-- Filter panel -->
@@ -72,6 +79,14 @@
       <table v-else-if="tasks.length > 0" class="w-full text-left border-collapse">
         <thead class="sticky top-0 z-10 bg-surface-50">
           <tr class="border-b border-surface-200">
+            <th v-if="props.isSelectionMode" class="py-3 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-10">
+              <input
+                type="checkbox"
+                :checked="areAllSelected"
+                class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent cursor-pointer"
+                @change="handleSelectAll"
+              >
+            </th>
             <th class="py-3 px-3 text-[11px] font-semibold text-surface-500 uppercase tracking-wider w-36">
               Status
             </th>
@@ -100,10 +115,19 @@
             v-for="task in sortedTasks"
             :key="task.id"
             class="border-b border-surface-100 hover:bg-surface-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:bg-surface-100 group"
+            :class="{ 'bg-primary-50': props.isSelectionMode && props.isTaskSelected?.(task.id) }"
             tabindex="0"
-            @click="$emit('openTask', task)"
-            @keydown.enter="$emit('openTask', task)"
+            @click="handleRowClick(task)"
+            @keydown.enter="handleRowClick(task)"
           >
+            <td v-if="props.isSelectionMode" class="py-3 px-3" @click.stop>
+              <input
+                type="checkbox"
+                :checked="props.isTaskSelected?.(task.id)"
+                class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent cursor-pointer"
+                @change="$emit('toggleSelection', task.id)"
+              >
+            </td>
             <!-- Status -->
             <td class="py-3 px-3" @click.stop>
               <div class="flex items-center gap-2">
@@ -257,6 +281,10 @@ const props = defineProps<{
   activeFilterCount: number
   activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
   totalTaskCount: number
+  // Selection state
+  isSelectionMode?: boolean
+  selectedCount?: number
+  isTaskSelected?: (taskId: string) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -275,10 +303,36 @@ const emit = defineEmits<{
   'update:agentEnabledFilter': [enabled: boolean | null]
   'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
   'clearFilters': []
+  toggleSelection: [taskId: string]
+  toggleSelectAll: [taskIds: string[]]
+  enterSelectionMode: []
+  exitSelectionMode: []
+  clearSelection: []
+  bulkMove: [statusId: string]
+  bulkDelete: []
 }>()
 
 function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
   emit('removeChip', chip)
+}
+
+const areAllSelected = computed(() => {
+  if (!props.tasks.length) return false
+  if (!props.isTaskSelected) return false
+  return props.tasks.every((t) => props.isTaskSelected!(t.id))
+})
+
+function handleSelectAll() {
+  const taskIds = props.tasks.map((t) => t.id)
+  emit('toggleSelectAll', taskIds)
+}
+
+function handleRowClick(task: Task) {
+  if (props.isSelectionMode) {
+    emit('toggleSelection', task.id)
+  } else {
+    emit('openTask', task)
+  }
 }
 
 const sortedTasks = computed(() => {

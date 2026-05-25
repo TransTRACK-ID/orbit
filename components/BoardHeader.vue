@@ -66,57 +66,107 @@
       </button>
 
       <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
-        <!-- View Toggle -->
-        <div class="flex items-center rounded-lg border border-surface-200 overflow-hidden">
+        <!-- Selection mode bulk actions -->
+        <template v-if="isSelectionMode">
+          <span class="text-xs font-semibold text-surface-700 hidden sm:inline">
+            {{ selectedCount }} selected
+          </span>
           <button
-            class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-            :class="{ 'bg-surface-100 text-surface-900': viewMode === 'kanban', 'text-surface-500': viewMode !== 'kanban' }"
-            title="Kanban view"
-            @click="$emit('update:viewMode', 'kanban')"
+            class="text-xs text-accent hover:text-accent-hover font-medium focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none rounded px-1"
+            @click="$emit('clearSelection')"
           >
-            <Icon name="lucide:layout-grid" class="w-3.5 h-3.5" />
+            Clear
           </button>
-          <button
-            class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-            :class="{ 'bg-surface-100 text-surface-900': viewMode === 'table', 'text-surface-500': viewMode !== 'table' }"
-            title="Table view"
-            @click="$emit('update:viewMode', 'table')"
-          >
-            <Icon name="lucide:table" class="w-3.5 h-3.5" />
-          </button>
-          <button
-            class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-            :class="{ 'bg-surface-100 text-surface-900': viewMode === 'list', 'text-surface-500': viewMode !== 'list' }"
-            title="List view"
-            @click="$emit('update:viewMode', 'list')"
-          >
-            <Icon name="lucide:list" class="w-3.5 h-3.5" />
-          </button>
-        </div>
 
-        <button
-          data-tooltip-target="new-task"
-          class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium flex items-center gap-1.5 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-          @click="$emit('createTask')"
-        >
-          <Icon name="lucide:plus" class="w-3.5 h-3.5" />
-          <span class="max-sm:hidden">New Task</span>
-        </button>
-        <button
-          class="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium flex items-center gap-1.5 hover:bg-accent-hover transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-          title="Assign all unassigned backlog tasks to available AI agents"
-          @click="handleAutoAssign"
-        >
-          <Icon name="lucide:zap" class="w-3.5 h-3.5" />
-          <span class="max-sm:hidden">Auto-Assign</span>
-        </button>
-        <button
-          class="px-2 py-1.5 rounded-lg border border-surface-200 text-xs hover:bg-surface-50 transition-colors flex items-center justify-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
-          title="Agents"
-          @click="toggleAgentPanel"
-        >
-          <Icon name="lucide:bot" class="w-3.5 h-3.5" />
-        </button>
+          <!-- Move to status -->
+          <select
+            class="h-7 text-xs bg-surface-50 border border-surface-200 rounded-lg px-2 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none cursor-pointer max-w-[140px]"
+            @change="handleBulkMove(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+          >
+            <option value="" disabled selected>Move to...</option>
+            <option v-for="status in statuses" :key="status.id" :value="status.id">
+              {{ status.name }}
+            </option>
+          </select>
+
+          <button
+            class="px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-medium flex items-center gap-1.5 text-red-600 hover:bg-red-50 transition-colors focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            title="Delete selected tasks"
+            @click="$emit('bulkDelete')"
+          >
+            <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+            <span class="max-sm:hidden">Delete</span>
+          </button>
+          <button
+            class="px-2.5 py-1.5 rounded-lg border border-surface-200 text-xs font-medium flex items-center gap-1.5 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            @click="$emit('exitSelectionMode')"
+          >
+            Cancel
+          </button>
+        </template>
+
+        <template v-else>
+          <!-- View Toggle -->
+          <div class="flex items-center rounded-lg border border-surface-200 overflow-hidden">
+            <button
+              class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+              :class="{ 'bg-surface-100 text-surface-900': viewMode === 'kanban', 'text-surface-500': viewMode !== 'kanban' }"
+              title="Kanban view"
+              @click="$emit('update:viewMode', 'kanban')"
+            >
+              <Icon name="lucide:layout-grid" class="w-3.5 h-3.5" />
+            </button>
+            <button
+              class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+              :class="{ 'bg-surface-100 text-surface-900': viewMode === 'table', 'text-surface-500': viewMode !== 'table' }"
+              title="Table view"
+              @click="$emit('update:viewMode', 'table')"
+            >
+              <Icon name="lucide:table" class="w-3.5 h-3.5" />
+            </button>
+            <button
+              class="px-2 py-1.5 text-xs hover:bg-surface-50 transition-colors flex items-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+              :class="{ 'bg-surface-100 text-surface-900': viewMode === 'list', 'text-surface-500': viewMode !== 'list' }"
+              title="List view"
+              @click="$emit('update:viewMode', 'list')"
+            >
+              <Icon name="lucide:list" class="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            class="px-2.5 py-1.5 rounded-lg border border-surface-200 text-xs font-medium flex items-center gap-1.5 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            title="Select multiple tasks"
+            @click="$emit('enterSelectionMode')"
+          >
+            <Icon name="lucide:check-square" class="w-3.5 h-3.5" />
+            <span class="max-sm:hidden">Select</span>
+          </button>
+
+          <button
+            data-tooltip-target="new-task"
+            class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium flex items-center gap-1.5 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            @click="$emit('createTask')"
+          >
+            <Icon name="lucide:plus" class="w-3.5 h-3.5" />
+            <span class="max-sm:hidden">New Task</span>
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium flex items-center gap-1.5 hover:bg-accent-hover transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            title="Assign all unassigned backlog tasks to available AI agents"
+            @click="handleAutoAssign"
+          >
+            <Icon name="lucide:zap" class="w-3.5 h-3.5" />
+            <span class="max-sm:hidden">Auto-Assign</span>
+          </button>
+          <button
+            class="px-2 py-1.5 rounded-lg border border-surface-200 text-xs hover:bg-surface-50 transition-colors flex items-center justify-center focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            title="Agents"
+            @click="toggleAgentPanel"
+          >
+            <Icon name="lucide:bot" class="w-3.5 h-3.5" />
+          </button>
+        </template>
       </div>
     </div>
 
@@ -160,6 +210,9 @@ const props = defineProps<{
   showFilters: boolean
   activeFilterCount: number
   activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
+  // Selection state
+  isSelectionMode?: boolean
+  selectedCount?: number
 }>()
 
 const emit = defineEmits<{
@@ -172,6 +225,12 @@ const emit = defineEmits<{
   'update:showFilters': [show: boolean]
   'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
   'clearFilters': []
+  // Selection events
+  enterSelectionMode: []
+  exitSelectionMode: []
+  clearSelection: []
+  bulkMove: [statusId: string]
+  bulkDelete: []
 }>()
 
 const { addLog } = useLog()
@@ -185,6 +244,11 @@ function toggleAgentPanel() {
 
 function removeChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
   emit('removeChip', chip)
+}
+
+function handleBulkMove(statusId: string) {
+  if (!statusId) return
+  emit('bulkMove', statusId)
 }
 
 async function handleAutoAssign() {

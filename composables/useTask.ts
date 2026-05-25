@@ -59,6 +59,27 @@ export const useTask = () => {
     tasks.value = tasks.value.filter((t) => t.id !== id)
   }
 
+  async function bulkUpdate(taskIds: string[], data: Partial<Task> & { statusId?: string; assigneeId?: string | null; assigneeType?: 'user' | 'agent' | null; priority?: string }) {
+    const updated = await $fetch<Task[]>(`/api/tasks/bulk`, {
+      method: 'PATCH',
+      body: { taskIds, ...data },
+    })
+    for (const u of updated) {
+      const idx = tasks.value.findIndex((t) => t.id === u.id)
+      if (idx !== -1) tasks.value[idx] = u
+      if (currentTask.value?.id === u.id) currentTask.value = u
+    }
+    return updated
+  }
+
+  async function bulkDelete(taskIds: string[]) {
+    await $fetch(`/api/tasks/bulk`, {
+      method: 'DELETE',
+      body: { taskIds },
+    })
+    tasks.value = tasks.value.filter((t) => !taskIds.includes(t.id))
+  }
+
   async function fetchTaskDetail(id: string) {
     const task = await $fetch<Task>(`/api/tasks/${id}`, { headers: ssrHeaders })
     currentTask.value = task
@@ -165,6 +186,8 @@ export const useTask = () => {
     createTask,
     updateTask,
     deleteTask,
+    bulkUpdate,
+    bulkDelete,
     fetchTaskDetail,
     fetchTaskDetailComposite,
     fetchComments,

@@ -315,6 +315,7 @@ export interface Brainstorm {
   createdAt: string
   updatedAt: string
   repository?: Repository | null
+  _prdCount?: number
 }
 
 export interface BrainstormMessage {
@@ -323,6 +324,56 @@ export interface BrainstormMessage {
   role: 'user' | 'assistant'
   content: string
   createdAt: string
+}
+
+// ─── PRD ───
+export type PrdStatus = 'draft' | 'review' | 'approved' | 'archived'
+
+export interface Prd {
+  id: string
+  brainstormId: string
+  workspaceId: string
+  projectId: string | null
+  title: string
+  content: string
+  status: PrdStatus
+  version: number
+  tasksGenerated: boolean
+  createdAt: string
+  updatedAt: string
+  sections?: PrdSection[]
+  brainstorm?: Brainstorm
+}
+
+export type PrdSectionType =
+  | 'overview'
+  | 'goals'
+  | 'user_stories'
+  | 'requirements'
+  | 'technical_spec'
+  | 'acceptance_criteria'
+  | 'milestones'
+  | 'risks'
+
+export interface PrdSection {
+  id: string
+  prdId: string
+  sectionType: PrdSectionType
+  title: string
+  content: string
+  position: number
+  createdAt: string
+}
+
+// ─── Generated Task (preview before commit) ───
+export interface GeneratedTask {
+  title: string
+  description: string
+  priority: TaskPriority
+  estimateHours: number | null
+  labels: string[]
+  parentIndex: number | null
+  sectionSource: PrdSectionType
 }
 
 // ─── Queue Item (unassigned tasks) ───

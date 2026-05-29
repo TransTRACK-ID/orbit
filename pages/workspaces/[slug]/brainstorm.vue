@@ -57,6 +57,9 @@
             <div class="flex items-center gap-2 mb-1">
               <Icon name="lucide:lightbulb" class="w-3.5 h-3.5 text-primary-500 flex-shrink-0" :class="bs.archived ? 'opacity-40' : ''" />
               <span class="text-xs font-semibold truncate flex-1" :class="bs.archived ? 'text-surface-400 line-through' : 'text-surface-900'">{{ bs.title }}</span>
+              <span v-if="bs._prdCount" class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                {{ bs._prdCount }} PRD{{ bs._prdCount > 1 ? 's' : '' }}
+              </span>
               <button
                 class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-100 text-surface-400 hover:text-surface-600"
                 :title="bs.archived ? 'Unarchive' : 'Archive'"
@@ -69,28 +72,123 @@
               {{ bs.repository.name }}
             </p>
           </div>
+
+          <!-- PRDs for selected brainstorm -->
+          <div v-if="prds.length > 0 && selectedBrainstormId" class="mt-2 pt-2 border-t border-surface-100">
+            <div class="flex items-center justify-between px-1 mb-1">
+              <span class="text-[10px] font-medium text-surface-500 uppercase tracking-wide">PRDs</span>
+              <span class="text-[10px] text-surface-400">{{ prds.length }}</span>
+            </div>
+            <div class="space-y-1">
+              <div
+                v-for="prd in prds"
+                :key="prd.id"
+                class="group p-2 rounded-lg border cursor-pointer transition-all duration-150"
+                :class="currentPrd?.id === prd.id
+                  ? 'border-purple-300 bg-purple-50'
+                  : 'border-surface-100 bg-white hover:border-surface-200'"
+                @click="selectPrd(prd.id); activeTab = 'prd'"
+              >
+                <div class="flex items-center gap-1.5">
+                  <Icon name="lucide:file-text" class="w-3 h-3 text-purple-500 flex-shrink-0" />
+                  <span class="text-[11px] font-medium truncate flex-1" :class="currentPrd?.id === prd.id ? 'text-purple-700' : 'text-surface-700'">
+                    {{ prd.title }}
+                  </span>
+                  <span
+                    v-if="prd.status === 'approved'"
+                    class="text-[9px] bg-green-100 text-green-600 px-1 py-0.5 rounded-full"
+                  >
+                    <Icon name="lucide:check" class="w-2.5 h-2.5" />
+                  </span>
+                </div>
+                <div class="flex items-center gap-1 mt-0.5 ml-4">
+                  <span class="text-[9px] text-surface-400 capitalize">{{ prd.status }}</span>
+                  <span v-if="prd.version > 1" class="text-[9px] text-surface-400">v{{ prd.version }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Main chat panel -->
-        <div class="flex-1 min-w-0">
-          <BrainstormPanel
-            v-if="currentBrainstorm"
-            :brainstorm="currentBrainstorm"
-            :messages="messages"
-            :is-running="chatRunningState"
-            :is-sending="sending"
-            :messages-loading="messagesLoading"
-            :chat-reply="currentChatReply"
-            :current-step="currentChatStep"
-            :projects="workspaceProjects"
-            @send="handleSend"
-            @start="handleStart"
-            @stop="handleStop"
-            @create-task="handleCreateTask"
-          />
-          <div v-else class="h-full flex flex-col items-center justify-center text-surface-400 bg-white border border-surface-200 rounded-xl">
-            <Icon name="lucide:lightbulb" class="w-12 h-12 mb-3 opacity-30" />
-            <p class="text-sm">Select or create a brainstorm session</p>
+        <!-- Main panel -->
+        <div class="flex-1 min-w-0 flex flex-col">
+          <!-- Tab switcher -->
+          <div v-if="currentBrainstorm" class="flex items-center gap-1 mb-2">
+            <button
+              class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+              :class="activeTab === 'chat'
+                ? 'bg-primary-500 text-white'
+                : 'bg-white text-surface-600 border border-surface-200 hover:bg-surface-50'"
+              @click="activeTab = 'chat'"
+            >
+              <Icon name="lucide:messages-square" class="w-3.5 h-3.5" />
+              Chat
+            </button>
+            <button
+              class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+              :class="activeTab === 'prd'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white text-surface-600 border border-surface-200 hover:bg-surface-50'"
+              @click="activeTab = 'prd'"
+            >
+              <Icon name="lucide:file-text" class="w-3.5 h-3.5" />
+              PRD
+              <span v-if="prds.length > 0" class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">
+                {{ prds.length }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Chat panel -->
+          <div v-if="activeTab === 'chat'" class="flex-1 min-h-0">
+            <BrainstormPanel
+              v-if="currentBrainstorm"
+              :brainstorm="currentBrainstorm"
+              :messages="messages"
+              :is-running="chatRunningState"
+              :is-sending="sending"
+              :messages-loading="messagesLoading"
+              :chat-reply="currentChatReply"
+              :current-step="currentChatStep"
+              :projects="workspaceProjects"
+              @send="handleSend"
+              @start="handleStart"
+              @stop="handleStop"
+              @create-task="handleCreateTask"
+              @generate-prd="handleGeneratePrd"
+            />
+            <div v-else class="h-full flex flex-col items-center justify-center text-surface-400 bg-white border border-surface-200 rounded-xl">
+              <Icon name="lucide:lightbulb" class="w-12 h-12 mb-3 opacity-30" />
+              <p class="text-sm">Select or create a brainstorm session</p>
+            </div>
+          </div>
+
+          <!-- PRD panel -->
+          <div v-else-if="activeTab === 'prd'" class="flex-1 min-h-0">
+            <PrdPanel
+              v-if="currentPrd"
+              :prd="currentPrd"
+              :prds="prds"
+              :generating="generating"
+              :generating-tasks="generatingTasks"
+              :generation-step="generationStep"
+              :generation-progress="generationProgress"
+              @regenerate="handleGeneratePrd"
+              @generate-tasks="handleGenerateTasks"
+              @update-prd="handleUpdatePrd"
+              @update-section="handleUpdateSection"
+              @delete="handleDeletePrd"
+            />
+            <div v-else-if="generating" class="h-full flex flex-col items-center justify-center text-surface-400 bg-white border border-surface-200 rounded-xl">
+              <div class="w-12 h-12 rounded-full border-2 border-surface-200 border-t-purple-500 animate-spin mb-4" />
+              <p class="text-sm font-medium">{{ generationStep }}</p>
+              <p class="text-[11px] mt-1">{{ generationProgress }}%</p>
+            </div>
+            <div v-else class="h-full flex flex-col items-center justify-center text-surface-400 bg-white border border-surface-200 rounded-xl">
+              <Icon name="lucide:file-text" class="w-12 h-12 mb-3 opacity-30" />
+              <p class="text-sm">No PRD generated yet</p>
+              <p class="text-[11px] mt-1">Click "Generate PRD" in the chat panel to create one</p>
+            </div>
           </div>
         </div>
       </div>
@@ -100,7 +198,7 @@
 
     <!-- Create modal -->
     <Teleport to="body">
-      <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/50 p-4" @click.self="showCreate = false">
+      <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showCreate = false">
         <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
           <div class="flex items-center justify-between mb-5">
             <h3 class="text-lg font-semibold text-surface-900">New Brainstorm Session</h3>
@@ -160,11 +258,22 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Task Review Modal -->
+    <TaskReviewModal
+      v-if="showTaskReviewModal"
+      :tasks="generatedTasks"
+      :prd-title="currentPrd?.title || ''"
+      :projects="workspaceProjects"
+      :committing="committing"
+      @close="showTaskReviewModal = false"
+      @commit="handleCommitTasks"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Brainstorm, Workspace } from '~/types'
+import type { Brainstorm, Workspace, Prd, PrdSection } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -199,6 +308,25 @@ const {
   convertToTask,
 } = useBrainstorm()
 
+const {
+  prds,
+  currentPrd,
+  generatedTasks,
+  generating,
+  generatingTasks,
+  committing,
+  prdGenerationSteps,
+  prdGenerationProgress,
+  fetchPrds,
+  generatePrd,
+  fetchPrd,
+  updatePrd,
+  selectPrd,
+  deletePrd,
+  generateTasks,
+  commitTasks,
+} = usePrd()
+
 const workspace = ref<Workspace | null | undefined>(null)
 const workspaceProjects = ref<Array<{ id: string; name: string }>>([])
 const selectedBrainstormId = ref<string | null>(null)
@@ -208,6 +336,8 @@ const createTitle = ref('')
 const createRepoId = ref('')
 const creating = ref(false)
 const createError = ref('')
+const activeTab = ref<'chat' | 'prd'>('chat')
+const showTaskReviewModal = ref(false)
 
 const visibleBrainstorms = computed(() => {
   if (showArchived.value) {
@@ -227,6 +357,16 @@ const currentChatReply = computed(() => {
 const currentChatStep = computed(() => {
   if (!currentBrainstorm.value) return ''
   return getChatStep(currentBrainstorm.value.id)
+})
+
+const generationStep = computed(() => {
+  if (!currentBrainstorm.value) return ''
+  return prdGenerationSteps.value[currentBrainstorm.value.id] || ''
+})
+
+const generationProgress = computed(() => {
+  if (!currentBrainstorm.value) return 0
+  return prdGenerationProgress.value[currentBrainstorm.value.id] || 0
 })
 
 onMounted(async () => {
@@ -253,6 +393,7 @@ onUnmounted(() => {
 
 function selectBrainstorm(id: string) {
   selectedBrainstormId.value = id
+  activeTab.value = 'chat'
   loadBrainstorm(id)
 }
 
@@ -264,6 +405,7 @@ async function loadBrainstorm(id: string) {
   chatRunningState.value = false
   await fetchBrainstorm(id)
   await fetchMessages(id)
+  await fetchPrds(id)
   startChatCheck()
 }
 
@@ -366,6 +508,92 @@ async function handleCreateTask(messageId: string, projectId: string) {
     toastSuccess(`Task "${task.title}" was created with the improvement label and added to the backlog.`, 'Task created')
   } catch (err: any) {
     toastError(err?.data?.message || 'Failed to create task', 'Error')
+  }
+}
+
+// ─── PRD ───
+
+async function handleGeneratePrd() {
+  if (!currentBrainstorm.value) return
+  try {
+    activeTab.value = 'prd'
+    await generatePrd(currentBrainstorm.value.id)
+    toastSuccess('PRD generated successfully', 'PRD created')
+  } catch (err: any) {
+    toastError(err?.message || 'Failed to generate PRD', 'Error')
+  }
+}
+
+async function handleUpdatePrd(data: Partial<Prd>) {
+  if (!currentPrd.value) return
+  try {
+    await updatePrd(currentPrd.value.id, data)
+    toastSuccess('PRD updated', 'Saved')
+  } catch (err: any) {
+    toastError(err?.data?.message || 'Failed to update PRD', 'Error')
+  }
+}
+
+async function handleUpdateSection(sectionId: string, content: string) {
+  if (!currentPrd.value || !currentPrd.value.sections) return
+  try {
+    const updatedSections = currentPrd.value.sections.map(s =>
+      s.id === sectionId ? { ...s, content } : s
+    )
+    await updatePrd(currentPrd.value.id, { sections: updatedSections })
+    toastSuccess('Section updated', 'Saved')
+  } catch (err: any) {
+    toastError(err?.data?.message || 'Failed to update section', 'Error')
+  }
+}
+
+async function handleDeletePrd() {
+  if (!currentPrd.value) return
+  try {
+    await deletePrd(currentPrd.value.id)
+    toastSuccess('PRD deleted', 'Deleted')
+    // If there are other PRDs, select the first one
+    if (prds.value.length > 0) {
+      currentPrd.value = prds.value[0]
+    } else {
+      currentPrd.value = null
+      activeTab.value = 'chat'
+    }
+  } catch (err: any) {
+    toastError(err?.data?.message || 'Failed to delete PRD', 'Error')
+  }
+}
+
+async function handleGenerateTasks() {
+  if (!currentPrd.value || workspaceProjects.value.length === 0) return
+  
+  // Use first project if only one, otherwise we'll need a selector
+  let projectId = currentPrd.value.projectId || ''
+  if (!projectId && workspaceProjects.value.length === 1) {
+    projectId = workspaceProjects.value[0].id
+  }
+  
+  if (!projectId) {
+    toastError('Please select a project first', 'Error')
+    return
+  }
+
+  try {
+    await generateTasks(currentPrd.value.id, projectId)
+    showTaskReviewModal.value = true
+  } catch (err: any) {
+    toastError(err?.message || 'Failed to generate tasks', 'Error')
+  }
+}
+
+async function handleCommitTasks(projectId: string, tasks: any[]) {
+  if (!currentPrd.value) return
+  try {
+    const result = await commitTasks(currentPrd.value.id, projectId, tasks)
+    showTaskReviewModal.value = false
+    toastSuccess(`${result.count} tasks created and added to backlog`, 'Tasks created')
+  } catch (err: any) {
+    toastError(err?.data?.message || 'Failed to create tasks', 'Error')
   }
 }
 </script>

@@ -4,6 +4,7 @@ import { workspaces } from './workspaces'
 import { repositories } from './repositories'
 import { brainstormMessages } from './brainstorm-messages'
 import { brainstormAttachments } from './brainstorm-attachments'
+import { prds } from './prds'
 
 export const brainstorms = pgTable('brainstorms', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -26,6 +27,7 @@ export const brainstormsRelations = relations(brainstorms, ({ one, many }) => ({
   }),
   messages: many(brainstormMessages),
   attachments: many(brainstormAttachments),
+  prds: many(prds),
 }))
 
 export type Brainstorm = typeof brainstorms.$inferSelect

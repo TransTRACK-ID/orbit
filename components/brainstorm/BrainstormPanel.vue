@@ -18,6 +18,14 @@
         </div>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
+        <button
+          v-if="messages.length >= 2 && !isRunning"
+          class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-purple-500 text-white hover:bg-purple-600 transition-colors flex items-center gap-1"
+          @click="handleGeneratePrd"
+        >
+          <Icon name="lucide:file-text" class="w-3 h-3" />
+          Generate PRD
+        </button>
         <span
           v-if="isRunning"
           class="text-[10px] font-semibold px-2 py-1 rounded-full bg-primary-100 text-primary-700 flex items-center gap-1.5"
@@ -327,6 +335,7 @@ const emit = defineEmits<{
   start: []
   stop: []
   createTask: [messageId: string, projectId: string]
+  generatePrd: []
 }>()
 
 const newMessage = ref('')
@@ -528,6 +537,10 @@ function handleStart() {
 
 function handleStop() {
   emit('stop')
+}
+
+function handleGeneratePrd() {
+  emit('generatePrd')
 }
 
 import { marked } from 'marked'

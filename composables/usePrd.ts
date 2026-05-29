@@ -7,11 +7,9 @@ const generating = ref(false)
 const generatingTasks = ref(false)
 const committing = ref(false)
 
-const prdGenerationEventSources = new Map<string, EventSource>()
 const prdGenerationProgress = ref<Record<string, number>>({})
 const prdGenerationSteps = ref<Record<string, string>>({})
 
-const taskGenerationEventSources = new Map<string, EventSource>()
 const taskGenerationProgress = ref<Record<string, number>>({})
 const taskGenerationSteps = ref<Record<string, string>>({})
 
@@ -46,76 +44,92 @@ export const usePrd = () => {
     prdGenerationProgress.value = { ...prdGenerationProgress.value, [brainstormId]: 0 }
     prdGenerationSteps.value = { ...prdGenerationSteps.value, [brainstormId]: 'Starting...' }
 
-    // Stop existing if any
-    const existingEs = prdGenerationEventSources.get(brainstormId)
-    if (existingEs) {
-      existingEs.close()
-      prdGenerationEventSources.delete(brainstormId)
-    }
-
     try {
-      // Start SSE connection
       const url = `/api/brainstorms/${brainstormId}/prd`
-      const response = await $fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
-        body: projectId ? { projectId } : {},
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projectId ? { projectId } : {}),
       })
 
-      // For SSE, we need to use EventSource
-      const es = new EventSource(url)
-      prdGenerationEventSources.set(brainstormId, es)
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
 
       return new Promise<Prd>((resolve, reject) => {
         let prdResult: Prd | null = null
+        let done = false
 
-        es.onmessage = (e) => {
-          try {
-            const data = JSON.parse(e.data)
-            if (data.step) {
-              prdGenerationSteps.value = {
-                ...prdGenerationSteps.value,
-                [brainstormId]: data.step,
+        function processBuffer() {
+          if (done) return
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.step) {
+                  prdGenerationSteps.value = {
+                    ...prdGenerationSteps.value,
+                    [brainstormId]: data.step,
+                  }
+                }
+                if (data.progress !== undefined) {
+                  prdGenerationProgress.value = {
+                    ...prdGenerationProgress.value,
+                    [brainstormId]: data.progress,
+                  }
+                }
+                if (data.done && data.prd) {
+                  prdResult = data.prd
+                  prds.value.unshift(data.prd)
+                  currentPrd.value = data.prd
+                  generating.value = false
+                  resolve(data.prd)
+                  return
+                }
+                if (data.error) {
+                  generating.value = false
+                  reject(new Error(data.error))
+                  return
+                }
+              }
+              catch {
+                // Ignore parse errors
               }
             }
-            if (data.progress !== undefined) {
-              prdGenerationProgress.value = {
-                ...prdGenerationProgress.value,
-                [brainstormId]: data.progress,
-              }
-            }
-            if (data.done && data.prd) {
-              prdResult = data.prd
-              prds.value.unshift(data.prd)
-              currentPrd.value = data.prd
-              generating.value = false
-              prdGenerationEventSources.delete(brainstormId)
-              es.close()
-              resolve(data.prd)
-            }
-            if (data.error) {
-              generating.value = false
-              prdGenerationEventSources.delete(brainstormId)
-              es.close()
-              reject(new Error(data.error))
-            }
-          }
-          catch (err) {
-            // Ignore parse errors
           }
         }
 
-        es.onerror = () => {
-          if (es.readyState === EventSource.CLOSED) {
-            prdGenerationEventSources.delete(brainstormId)
+        function read() {
+          reader.read().then(({ value, done: streamDone }) => {
+            if (streamDone) {
+              done = true
+              processBuffer()
+              generating.value = false
+              if (prdResult) {
+                resolve(prdResult)
+              }
+              else {
+                reject(new Error('Stream ended without result'))
+              }
+              return
+            }
+            buffer += decoder.decode(value, { stream: true })
+            processBuffer()
+            read()
+          }).catch((err) => {
+            done = true
             generating.value = false
-            if (prdResult) {
-              resolve(prdResult)
-            }
-            else {
-              reject(new Error('Connection closed unexpectedly'))
-            }
-          }
+            reject(err)
+          })
         }
+
+        read()
       })
     }
     catch (err) {
@@ -166,75 +180,91 @@ export const usePrd = () => {
     taskGenerationProgress.value = { ...taskGenerationProgress.value, [prdId]: 0 }
     taskGenerationSteps.value = { ...taskGenerationSteps.value, [prdId]: 'Starting...' }
 
-    const existingEs = taskGenerationEventSources.get(prdId)
-    if (existingEs) {
-      existingEs.close()
-      taskGenerationEventSources.delete(prdId)
-    }
-
     try {
       const url = `/api/prds/${prdId}/generate-tasks`
-
-      // First send the POST request to trigger generation
-      await $fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
-        body: { projectId, sections },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, sections }),
       })
 
-      // Then connect to SSE
-      const es = new EventSource(url)
-      taskGenerationEventSources.set(prdId, es)
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
 
       return new Promise<GeneratedTask[]>((resolve, reject) => {
         let tasksResult: GeneratedTask[] | null = null
+        let done = false
 
-        es.onmessage = (e) => {
-          try {
-            const data = JSON.parse(e.data)
-            if (data.step) {
-              taskGenerationSteps.value = {
-                ...taskGenerationSteps.value,
-                [prdId]: data.step,
+        function processBuffer() {
+          if (done) return
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.step) {
+                  taskGenerationSteps.value = {
+                    ...taskGenerationSteps.value,
+                    [prdId]: data.step,
+                  }
+                }
+                if (data.progress !== undefined) {
+                  taskGenerationProgress.value = {
+                    ...taskGenerationProgress.value,
+                    [prdId]: data.progress,
+                  }
+                }
+                if (data.done && data.tasks) {
+                  tasksResult = data.tasks
+                  generatedTasks.value = data.tasks
+                  generatingTasks.value = false
+                  resolve(data.tasks)
+                  return
+                }
+                if (data.error) {
+                  generatingTasks.value = false
+                  reject(new Error(data.error))
+                  return
+                }
+              }
+              catch {
+                // Ignore parse errors
               }
             }
-            if (data.progress !== undefined) {
-              taskGenerationProgress.value = {
-                ...taskGenerationProgress.value,
-                [prdId]: data.progress,
-              }
-            }
-            if (data.done && data.tasks) {
-              tasksResult = data.tasks
-              generatedTasks.value = data.tasks
-              generatingTasks.value = false
-              taskGenerationEventSources.delete(prdId)
-              es.close()
-              resolve(data.tasks)
-            }
-            if (data.error) {
-              generatingTasks.value = false
-              taskGenerationEventSources.delete(prdId)
-              es.close()
-              reject(new Error(data.error))
-            }
-          }
-          catch (err) {
-            // Ignore parse errors
           }
         }
 
-        es.onerror = () => {
-          if (es.readyState === EventSource.CLOSED) {
-            taskGenerationEventSources.delete(prdId)
+        function read() {
+          reader.read().then(({ value, done: streamDone }) => {
+            if (streamDone) {
+              done = true
+              processBuffer()
+              generatingTasks.value = false
+              if (tasksResult) {
+                resolve(tasksResult)
+              }
+              else {
+                reject(new Error('Stream ended without result'))
+              }
+              return
+            }
+            buffer += decoder.decode(value, { stream: true })
+            processBuffer()
+            read()
+          }).catch((err) => {
+            done = true
             generatingTasks.value = false
-            if (tasksResult) {
-              resolve(tasksResult)
-            }
-            else {
-              reject(new Error('Connection closed unexpectedly'))
-            }
-          }
+            reject(err)
+          })
         }
+
+        read()
       })
     }
     catch (err) {

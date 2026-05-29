@@ -307,6 +307,7 @@
                     <th class="text-left px-3 py-1.5 font-semibold text-surface-500">Task ID</th>
                     <th class="text-left px-3 py-1.5 font-semibold text-surface-500">PID</th>
                     <th class="text-right px-3 py-1.5 font-semibold text-surface-500">Active SSE Streams</th>
+                    <th class="text-right px-3 py-1.5 font-semibold text-surface-500">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,6 +315,16 @@
                     <td class="px-3 py-2 font-mono text-surface-700 truncate max-w-xs">{{ task.taskId }}</td>
                     <td class="px-3 py-2 font-mono text-surface-900">{{ task.pid || 'N/A' }}</td>
                     <td class="px-3 py-2 text-right font-medium text-surface-600">{{ task.streamCount }}</td>
+                    <td class="px-3 py-2 text-right">
+                      <button
+                        class="px-2 py-1 rounded text-[11px] font-semibold bg-semantic-red/10 text-semantic-red hover:bg-semantic-red hover:text-white transition-colors border border-semantic-red/20"
+                        :disabled="killingTaskId === task.taskId"
+                        @click="killTask(task.taskId)"
+                      >
+                        <span v-if="killingTaskId === task.taskId">Stopping...</span>
+                        <span v-else>Force Stop</span>
+                      </button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -715,6 +726,28 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopAutoRefresh()
 })
+
+// ── Kill active agent process ──
+const killingTaskId = ref<string | null>(null)
+const { success: toastSuccess, error: toastError } = useToast()
+
+async function killTask(taskId: string) {
+  if (!taskId) return
+  killingTaskId.value = taskId
+  try {
+    const res = await $fetch(`/api/tasks/${taskId}/execute/kill`, { method: 'POST' })
+    if (res.killed) {
+      toastSuccess(`Agent process for task ${taskId} stopped successfully.`)
+      await refreshDiagnostics()
+    } else {
+      toastError(`Failed to stop agent process: ${res.reason || 'Unknown error'}`)
+    }
+  } catch (err: any) {
+    toastError(`Error stopping agent process: ${err?.message || 'Unknown error'}`)
+  } finally {
+    killingTaskId.value = null
+  }
+}
 
 const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value)
 

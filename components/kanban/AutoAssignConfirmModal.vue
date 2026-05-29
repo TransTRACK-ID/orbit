@@ -143,6 +143,28 @@
                         </option>
                       </select>
                     </div>
+
+                    <!-- Repository selector -->
+                    <div v-if="repositories.length > 0" class="flex-shrink-0">
+                      <label class="sr-only" :for="`repo-select-${item.task.id}`">
+                        Repository
+                      </label>
+                      <select
+                        :id="`repo-select-${item.task.id}`"
+                        :value="taskRepositoryOverrides[item.task.id] || item.task.repositoryId || ''"
+                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
+                        @change="changeTaskRepository(item.task.id, ($event.target as HTMLSelectElement).value)"
+                      >
+                        <option value="" disabled>Repository...</option>
+                        <option
+                          v-for="repo in repositories"
+                          :key="repo.id"
+                          :value="repo.id"
+                        >
+                          {{ repo.name }}
+                        </option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -175,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Agent } from '~/types'
+import type { Task, Status, Agent, Repository } from '~/types'
 
 interface AssignmentItem {
   task: Task
@@ -194,11 +216,12 @@ const props = defineProps<{
   modelValue: boolean
   assignments: AssignmentItem[]
   allAgents: Agent[]
+  repositories: Repository[]
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  confirm: [selectedAssignments: AssignmentItem[]]
+  confirm: [selectedAssignments: AssignmentItem[], repositorySelections: Record<string, string>]
   cancel: []
 }>()
 
@@ -206,12 +229,24 @@ const emit = defineEmits<{
 const selectedIds = ref<string[]>([])
 // Track which agent each task is assigned to (can be changed by user)
 const taskAgentOverrides = ref<Record<string, Agent>>({})
+// Track which repository each task is assigned to (for tasks without one)
+const taskRepositoryOverrides = ref<Record<string, string>>({})
 
 // Reset selection when modal opens
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     selectedIds.value = props.assignments.map(a => a.task.id)
     taskAgentOverrides.value = {}
+    // Pre-fill repository selection: use existing repo or default to first available
+    const defaults: Record<string, string> = {}
+    for (const item of props.assignments) {
+      if (item.task.repositoryId) {
+        defaults[item.task.id] = item.task.repositoryId
+      } else if (props.repositories.length > 0) {
+        defaults[item.task.id] = props.repositories[0].id
+      }
+    }
+    taskRepositoryOverrides.value = defaults
   }
 })
 
@@ -281,6 +316,10 @@ function changeTaskAgent(taskId: string, agentId: string) {
   }
 }
 
+function changeTaskRepository(taskId: string, repositoryId: string) {
+  taskRepositoryOverrides.value[taskId] = repositoryId
+}
+
 function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
@@ -293,6 +332,6 @@ function handleCancel() {
 function handleConfirm() {
   const selected = resolvedAssignments.value.filter(a => selectedIds.value.includes(a.task.id))
   emit('update:modelValue', false)
-  emit('confirm', selected)
+  emit('confirm', selected, taskRepositoryOverrides.value)
 }
 </script>

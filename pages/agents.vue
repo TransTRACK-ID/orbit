@@ -178,6 +178,47 @@
       </div>
     </div>
 
+    <!-- Delete confirmation modal -->
+    <Teleport to="body">
+      <div
+        v-if="showDeleteConfirm"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+        @click.self="showDeleteConfirm = false"
+      >
+        <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-sm p-5">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <Icon name="lucide:alert-triangle" class="w-4 h-4 text-red-600" />
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-surface-900">Delete Agent</h3>
+              <p class="text-xs text-surface-500 mt-0.5">This action cannot be undone</p>
+            </div>
+          </div>
+          <p class="text-xs text-surface-600 mb-4">
+            Are you sure you want to delete <span class="font-medium">{{ agentToDelete?.name }}</span>? This will remove the agent and cannot be recovered.
+          </p>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium text-surface-600 hover:bg-surface-50 transition-colors"
+              @click="showDeleteConfirm = false"
+            >
+              Cancel
+            </button>
+            <button
+              class="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors"
+              :disabled="deletingId === agentToDelete?.id"
+              :class="{ 'opacity-60 cursor-wait': deletingId === agentToDelete?.id }"
+              @click="executeDelete"
+            >
+              <svg v-if="deletingId === agentToDelete?.id" class="animate-spin w-3 h-3 inline-block mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              {{ deletingId === agentToDelete?.id ? 'Deleting...' : 'Delete Agent' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Create/Edit Agent Modal (simple inline overlay) -->
     <Teleport to="body">
       <div
@@ -311,6 +352,8 @@ const showModal = ref(false)
 const editingAgent = ref<Agent | null>(null)
 const saving = ref(false)
 const deletingId = ref<string | null>(null)
+const showDeleteConfirm = ref(false)
+const agentToDelete = ref<Agent | null>(null)
 
 const form = reactive({
   name: '',
@@ -411,12 +454,20 @@ async function saveAgent() {
   }
 }
 
-async function handleDelete(agent: Agent) {
-  if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return
+function handleDelete(agent: Agent) {
+  agentToDelete.value = agent
+  showDeleteConfirm.value = true
+}
+
+async function executeDelete() {
+  if (!agentToDelete.value) return
+  const agent = agentToDelete.value
   deletingId.value = agent.id
   try {
     await deleteAgentApi(agent.id)
     addLog('System', `Deleted agent "${agent.name}"`)
+    showDeleteConfirm.value = false
+    agentToDelete.value = null
   } finally {
     deletingId.value = null
   }

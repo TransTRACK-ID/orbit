@@ -195,6 +195,7 @@
       v-model="showAutoAssignModal"
       :assignments="autoAssignPreview"
       :all-agents="agents"
+      :repositories="repositories"
       @confirm="handleAutoAssignConfirm"
       @cancel="showAutoAssignModal = false"
     />
@@ -604,7 +605,7 @@ function handleAutoAssign(assignments: any[]) {
   showAutoAssignModal.value = true
 }
 
-async function handleAutoAssignConfirm(selectedAssignments: any[]) {
+async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySelections: Record<string, string>) {
   if (!selectedAssignments.length) {
     showAutoAssignModal.value = false
     return
@@ -619,6 +620,11 @@ async function handleAutoAssignConfirm(selectedAssignments: any[]) {
       }
       if (item.toStatus && item.task.statusId !== item.toStatus.id) {
         updateData.statusId = item.toStatus.id
+      }
+      // Apply repository selection if the task doesn't have one
+      const selectedRepoId = repositorySelections[item.task.id]
+      if (selectedRepoId && !item.task.repositoryId) {
+        updateData.repositoryId = selectedRepoId
       }
       const updated = await updateTask(item.task.id, updateData)
       if (updated) {

@@ -199,15 +199,15 @@
     <!-- Create modal -->
     <Teleport to="body">
       <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showCreate = false">
-        <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
-          <div class="flex items-center justify-between mb-5">
+        <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md max-h-[85vh] flex flex-col animate-scale-in">
+          <div class="flex items-center justify-between p-6 pb-0">
             <h3 class="text-lg font-semibold text-surface-900">New Brainstorm Session</h3>
             <button class="text-surface-400 hover:text-surface-600 transition-colors p-1" @click="showCreate = false">
               <Close size="20" class="stroke-gray-500" />
             </button>
           </div>
 
-          <form @submit.prevent="handleCreate" class="space-y-4">
+          <div class="flex-1 overflow-y-auto p-6 pt-4 space-y-4">
             <div>
               <label class="block text-xs font-medium text-surface-600 mb-1.5">Title</label>
               <TextInput
@@ -219,7 +219,25 @@
 
             <div>
               <label class="block text-xs font-medium text-surface-600 mb-1.5">Repository</label>
-              <div class="relative">
+              <div class="flex items-center gap-2 mb-2">
+                <button
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                  :class="repoMode === 'existing' ? 'bg-surface-900 text-white border-surface-900 dark:bg-black dark:border-black' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
+                  @click="repoMode = 'existing'; createError = ''"
+                >
+                  Existing
+                </button>
+                <button
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                  :class="repoMode === 'new' ? 'bg-surface-900 text-white border-surface-900 dark:bg-black dark:border-black' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
+                  @click="repoMode = 'new'; createError = ''"
+                >
+                  Create New
+                </button>
+              </div>
+
+              <!-- Existing repository select -->
+              <div v-if="repoMode === 'existing'" class="relative">
                 <select
                   v-model="createRepoId"
                   class="w-full text-sm rounded-lg border border-surface-200 bg-white px-3 py-2 pr-8 appearance-none cursor-pointer focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
@@ -234,27 +252,70 @@
                   class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400 pointer-events-none"
                 />
               </div>
-              <p class="text-xs text-surface-400 mt-1">Select a repository to chat about its codebase</p>
-              <p v-if="repositories.length === 0" class="text-xs text-accent mt-1">
-                <NuxtLink :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`" class="underline hover:text-accent-hover transition-colors">
-                  Connect a repository
-                </NuxtLink>
-                to brainstorm about your codebase.
-              </p>
-            </div>
 
-            <div class="flex items-center justify-end gap-2 pt-2">
-              <TextButton type="button" @on-click="showCreate = false">Cancel</TextButton>
-              <Button type="submit" :loading="creating" :disabled="!createTitle.trim()">
-                Create
-              </Button>
+              <!-- New repository from template -->
+              <div v-else class="space-y-4">
+                <div v-if="!selectedTemplate">
+                  <div v-if="loadingTemplates" class="py-6 text-center">
+                    <Icon name="lucide:loader-2" class="w-5 h-5 animate-spin text-surface-400 mx-auto" />
+                    <p class="text-xs text-surface-500 mt-2">Loading templates...</p>
+                  </div>
+                  <div v-else class="grid grid-cols-1 gap-2">
+                    <div
+                      v-for="t in templates"
+                      :key="t.id"
+                      class="border border-surface-200 rounded-lg p-3 hover:border-accent cursor-pointer transition-colors"
+                      @click="selectTemplate(t)"
+                    >
+                      <div class="flex items-center justify-between mb-1">
+                        <div class="flex items-center gap-2">
+                          <h4 class="text-xs font-semibold">{{ t.name }}</h4>
+                        </div>
+                        <span class="text-[10px] bg-surface-100 text-surface-500 px-1.5 py-0.5 rounded">{{ t.category }}</span>
+                      </div>
+                      <p class="text-[10px] text-surface-500">{{ t.description }}</p>
+                    </div>
+                  </div>
+                </div>
+                <div v-else>
+                  <div class="flex items-center gap-2 mb-3">
+                    <button
+                      class="text-xs text-surface-500 hover:text-surface-700 transition-colors flex items-center gap-1"
+                      @click="selectedTemplate = null; createError = ''"
+                    >
+                      <Icon name="lucide:arrow-left" class="w-3 h-3" />
+                      Back to templates
+                    </button>
+                  </div>
+                  <ProjectTemplateConfigForm
+                    :template="selectedTemplate"
+                    :submitting="creating"
+                    @submit="handleCreateRepoFromTemplate"
+                    @back="selectedTemplate = null; createError = ''"
+                  />
+                </div>
+              </div>
+
+              <p class="text-xs text-surface-400 mt-1">{{ repoMode === 'existing' ? 'Select a repository to chat about its codebase' : 'Create a new repository from a template' }}</p>
             </div>
 
             <div v-if="createError" class="flex items-start gap-2 p-2.5 rounded-lg bg-error-50 border border-error-100">
               <Icon name="lucide:alert-circle" class="w-4 h-4 text-error-500 flex-shrink-0 mt-0.5" />
               <p class="text-xs text-error-600">{{ createError }}</p>
             </div>
-          </form>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 px-6 py-3">
+            <TextButton @on-click="showCreate = false">Cancel</TextButton>
+            <Button
+              v-if="!(repoMode === 'new' && selectedTemplate)"
+              :loading="creating"
+              :disabled="!createTitle.trim() || (repoMode === 'new' && !repoFromTemplate)"
+              @click="handleCreate"
+            >
+              Create
+            </Button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -273,7 +334,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Brainstorm, Workspace, Prd, PrdSection } from '~/types'
+import type { Brainstorm, Workspace, Prd, PrdSection, TemplateConfig, Repository } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -338,6 +399,11 @@ const creating = ref(false)
 const createError = ref('')
 const activeTab = ref<'chat' | 'prd'>('chat')
 const showTaskReviewModal = ref(false)
+const repoMode = ref<'existing' | 'new'>('existing')
+const templates = ref<TemplateConfig[]>([])
+const loadingTemplates = ref(false)
+const selectedTemplate = ref<TemplateConfig | null>(null)
+const repoFromTemplate = ref<Repository | null>(null)
 
 const visibleBrainstorms = computed(() => {
   if (showArchived.value) {
@@ -453,14 +519,24 @@ async function handleCreate() {
   creating.value = true
   createError.value = ''
   try {
-    const repoId = createRepoId.value || undefined
+    let repoId = createRepoId.value || null
+
+    // Use repo from template if in new mode
+    if (repoMode.value === 'new' && repoFromTemplate.value) {
+      repoId = repoFromTemplate.value.id
+    }
+
     const bs = await createBrainstorm(workspace.value.id, {
       title: createTitle.value.trim(),
-      repositoryId: repoId || null,
+      repositoryId: repoId,
     })
     showCreate.value = false
     createTitle.value = ''
     createRepoId.value = ''
+    repoMode.value = 'existing'
+    repoFromTemplate.value = null
+    selectedTemplate.value = null
+    templates.value = []
     selectedBrainstormId.value = bs.id
     await loadBrainstorm(bs.id)
   } catch (err: any) {
@@ -469,6 +545,66 @@ async function handleCreate() {
     creating.value = false
   }
 }
+
+async function loadTemplates() {
+  loadingTemplates.value = true
+  try {
+    const data = await $fetch<TemplateConfig[]>('/api/templates')
+    templates.value = data
+  } catch (err) {
+    console.error('Failed to load templates:', err)
+  } finally {
+    loadingTemplates.value = false
+  }
+}
+
+function selectTemplate(template: TemplateConfig) {
+  selectedTemplate.value = template
+  createError.value = ''
+}
+
+async function handleCreateRepoFromTemplate(formData: any) {
+  if (!workspace.value || !selectedTemplate.value) return
+  creating.value = true
+  createError.value = ''
+  try {
+    const result = await $fetch<{ repository: Repository }>(`/api/workspaces/${workspace.value.id}/repositories.from-template`, {
+      method: 'POST',
+      body: {
+        name: formData.name,
+        templateId: selectedTemplate.value.id,
+        repositoryName: formData.repositoryName,
+        token: formData.token,
+        isPrivate: formData.isPrivate,
+        variables: formData.variables,
+        platform: formData.platform,
+        gitlabHost: formData.gitlabHost,
+        createRemoteRepo: true,
+      },
+    })
+    repoFromTemplate.value = result.repository
+    // Refresh repositories list so the new one appears in the dropdown
+    await fetchRepositories(workspace.value.id)
+    // Auto-create the brainstorm session now that the repo is ready
+    await handleCreate()
+  } catch (err: any) {
+    const msg =
+      err?.data?.message
+      || err?.data?.statusMessage
+      || err?.statusMessage
+      || err?.message
+      || 'Failed to create repository from template'
+    createError.value = msg
+  } finally {
+    creating.value = false
+  }
+}
+
+watch(repoMode, (newMode) => {
+  if (newMode === 'new' && templates.value.length === 0) {
+    loadTemplates()
+  }
+})
 
 async function handleSend(content: string) {
   if (!currentBrainstorm.value) return

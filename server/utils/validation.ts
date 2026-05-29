@@ -166,6 +166,20 @@ export const createRepositorySchema = z.object({
   token: z.string().max(2000).optional(),
 })
 
+export const createRepositoryFromTemplateSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().max(1000).optional(),
+  templateId: z.string().min(1),
+  repositoryName: z.string().min(1).max(255),
+  repositoryUrl: z.string().url().optional(),
+  platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']).default('github'),
+  gitlabHost: z.preprocess((val) => (val === '' ? undefined : val), z.string().url().optional()),
+  token: z.string().optional(),
+  createRemoteRepo: z.boolean().default(true),
+  isPrivate: z.boolean().default(true),
+  variables: z.record(z.string(), z.string()).default({}),
+})
+
 export const updateRepositorySchema = z.object({
   name: z.string().min(1).max(255).optional(),
   url: z.string().min(1).max(1000).optional(),

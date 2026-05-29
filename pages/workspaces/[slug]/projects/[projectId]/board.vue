@@ -462,7 +462,7 @@ watch(runtimeLogs, async (logs) => {
   if (!reviewStatus) return
 
   for (const log of logs) {
-    if (!/^>?\s*Done$/.test(log.msg)) continue
+    if (!/^>\s*Done$/.test(log.msg)) continue
     const taskId = log.taskId
     if (!taskId) continue
     // Skip if the panel is currently open for this task (it handles its own advancement)
@@ -488,6 +488,57 @@ watch(runtimeLogs, async (logs) => {
     }
   }
 }, { deep: false })
+
+// ── Periodic PR conflict detection ──
+// Every 2 minutes, sync PRs and auto-trigger conflict resolution for tasks in review
+const conflictCheckInterval = ref<NodeJS.Timeout | null>(null)
+
+function startConflictDetection() {
+  if (conflictCheckInterval.value) return
+  conflictCheckInterval.value = setInterval(async () => {
+    if (!workspace.value?.id || !statuses.value.length) return
+    const reviewStatus = statuses.value.find(s => /review/i.test(s.name))
+    if (!reviewStatus) return
+
+    // Find tasks in review status that have agent-enabled PRs
+    const reviewTasks = tasks.value.filter(t =>
+      t.statusId === reviewStatus.id &&
+      t.agentEnabled &&
+      t.assigneeType === 'agent'
+    )
+
+    if (reviewTasks.length === 0) return
+
+    try {
+      // Sync all PRs to get latest mergeableState
+      const { conflictsResolved } = await $fetch<{ synced: number; failed: number; conflictsResolved: number; conflictsFailed: number }>(
+        `/api/workspaces/${workspace.value.id}/pull-requests/sync-all`,
+        { method: 'POST' }
+      )
+
+      if (conflictsResolved > 0) {
+        addLog('System', `Auto-resolved conflicts for ${conflictsResolved} PR(s) in review`)
+      }
+    } catch (err) {
+      console.error('Conflict detection sync failed:', err)
+    }
+  }, 2 * 60 * 1000) // 2 minutes
+}
+
+function stopConflictDetection() {
+  if (conflictCheckInterval.value) {
+    clearInterval(conflictCheckInterval.value)
+    conflictCheckInterval.value = null
+  }
+}
+
+onMounted(() => {
+  startConflictDetection()
+})
+
+onUnmounted(() => {
+  stopConflictDetection()
+})
 
 onMounted(async () => {
   if (!workspace.value) {

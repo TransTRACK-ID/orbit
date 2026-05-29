@@ -2,10 +2,15 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
 import { parseGithubUrl, parseGitlabUrl, fetchPullRequestDetails, fetchPullRequestReviews, fetchGitlabMergeRequestDetails, determineReviewState } from '~/server/utils/github-api'
+import { executeResolveConflicts } from '~/server/utils/resolve-conflicts'
+
+function hasConflicts(mergeableState: string | null): boolean {
+  return mergeableState === 'dirty' || mergeableState === 'conflicting' || mergeableState === 'has_conflicts'
+}
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
-  await requireAuth(event)
+  const user = await requireAuth(event)
 
   const db = getDb()
 
@@ -42,6 +47,13 @@ export default defineEventHandler(async (event) => {
       )
     }
 
+    // Determine conflict status based on mergeableState
+    const newConflictStatus = hasConflicts(details.mergeableState)
+      ? pr.conflictStatus === 'in_progress' ? 'in_progress' : 'has_conflicts'
+      : pr.conflictStatus === 'resolved' || pr.conflictStatus === 'in_progress'
+        ? 'resolved'
+        : 'none'
+
     const updated = await db.update(schema.pullRequests)
       .set({
         title: details.title,
@@ -49,6 +61,7 @@ export default defineEventHandler(async (event) => {
         draft: details.draft,
         reviewState,
         mergeableState: details.mergeableState,
+        conflictStatus: newConflictStatus,
         headBranch: details.headBranch,
         baseBranch: details.baseBranch,
         createdAt: details.createdAt,
@@ -57,6 +70,18 @@ export default defineEventHandler(async (event) => {
       })
       .where(eq(schema.pullRequests.id, id))
       .returning()
+
+    // Auto-trigger conflict resolution if conflicts detected and not already in progress
+    if (hasConflicts(details.mergeableState) && pr.conflictStatus !== 'in_progress') {
+      try {
+        await executeResolveConflicts(pr.id, user.id)
+      } catch (err: any) {
+        console.error(`[sync] Failed to auto-resolve conflicts for PR ${pr.id}:`, err.message)
+        await db.update(schema.pullRequests)
+          .set({ conflictStatus: 'failed' })
+          .where(eq(schema.pullRequests.id, pr.id))
+      }
+    }
 
     return { pullRequest: updated[0], synced: true }
   } catch (err: any) {

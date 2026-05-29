@@ -325,6 +325,7 @@ export default defineEventHandler(async (event) => {
                 draft: details.draft,
                 reviewState,
                 mergeableState: details.mergeableState,
+                conflictStatus: existingPr.conflictStatus === 'none' ? 'none' : existingPr.conflictStatus,
                 headBranch: details.headBranch || branch,
                 baseBranch: details.baseBranch || repoDefaultBranch,
                 agentFixStatus: existingPr.agentFixStatus === 'in_progress' ? 'done' : existingPr.agentFixStatus,
@@ -342,6 +343,7 @@ export default defineEventHandler(async (event) => {
               draft: details.draft,
               reviewState,
               mergeableState: details.mergeableState,
+              conflictStatus: 'none',
               headBranch: details.headBranch || branch,
               baseBranch: details.baseBranch || repoDefaultBranch,
             })
@@ -439,6 +441,7 @@ export default defineEventHandler(async (event) => {
               draft: details.draft,
               reviewState,
               mergeableState: details.mergeableState,
+              conflictStatus: existingPr.conflictStatus === 'none' ? 'none' : existingPr.conflictStatus,
               headBranch: details.headBranch || branch,
               baseBranch: details.baseBranch || repoDefaultBranch,
               agentFixStatus: existingPr.agentFixStatus === 'in_progress' ? 'done' : existingPr.agentFixStatus,
@@ -456,6 +459,7 @@ export default defineEventHandler(async (event) => {
             draft: details.draft,
             reviewState,
             mergeableState: details.mergeableState,
+            conflictStatus: 'none',
             headBranch: details.headBranch || branch,
             baseBranch: details.baseBranch || repoDefaultBranch,
           })

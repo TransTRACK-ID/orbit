@@ -9,6 +9,7 @@ import {
   fetchGitlabMergeRequestDetails,
   determineReviewState,
 } from '~/server/utils/github-api'
+import { executeResolveConflicts } from '~/server/utils/resolve-conflicts'
 
 const CONCURRENCY = 5
 
@@ -31,9 +32,13 @@ async function pMap<T, R>(
   return results
 }
 
+function hasConflicts(mergeableState: string | null): boolean {
+  return mergeableState === 'dirty' || mergeableState === 'conflicting' || mergeableState === 'has_conflicts'
+}
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
-  await requireAuth(event)
+  const user = await requireAuth(event)
 
   const db = getDb()
 
@@ -57,7 +62,7 @@ export default defineEventHandler(async (event) => {
   const taskIds = tasks.map((t) => t.id)
 
   if (repoIds.length === 0 && taskIds.length === 0) {
-    return { synced: 0, failed: 0 }
+    return { synced: 0, failed: 0, conflictsResolved: 0, conflictsFailed: 0 }
   }
 
   // Fetch all open PRs belonging to this workspace
@@ -85,6 +90,8 @@ export default defineEventHandler(async (event) => {
 
   let synced = 0
   let failed = 0
+  let conflictsResolved = 0
+  let conflictsFailed = 0
 
   await pMap(
     prs,
@@ -124,6 +131,13 @@ export default defineEventHandler(async (event) => {
           return
         }
 
+        // Determine conflict status based on mergeableState
+        const newConflictStatus = hasConflicts(details.mergeableState)
+          ? pr.conflictStatus === 'in_progress' ? 'in_progress' : 'has_conflicts'
+          : pr.conflictStatus === 'resolved' || pr.conflictStatus === 'in_progress'
+            ? 'resolved'
+            : 'none'
+
         await db
           .update(schema.pullRequests)
           .set({
@@ -132,6 +146,7 @@ export default defineEventHandler(async (event) => {
             draft: details.draft,
             reviewState,
             mergeableState: details.mergeableState,
+            conflictStatus: newConflictStatus,
             headBranch: details.headBranch,
             baseBranch: details.baseBranch,
             createdAt: details.createdAt,
@@ -141,6 +156,24 @@ export default defineEventHandler(async (event) => {
           .where(eq(schema.pullRequests.id, pr.id))
 
         synced++
+
+        // Auto-trigger conflict resolution if conflicts detected and not already in progress
+        if (hasConflicts(details.mergeableState) && pr.conflictStatus !== 'in_progress') {
+          try {
+            const result = await executeResolveConflicts(pr.id, user.id)
+            if (result.hasConflicts) {
+              conflictsResolved++
+            }
+          } catch (err: any) {
+            console.error(`[sync-all] Failed to resolve conflicts for PR ${pr.id}:`, err.message)
+            conflictsFailed++
+            // Update conflict status to failed
+            await db
+              .update(schema.pullRequests)
+              .set({ conflictStatus: 'failed' })
+              .where(eq(schema.pullRequests.id, pr.id))
+          }
+        }
       } catch (err: any) {
         console.error(`[sync-all] Failed to sync PR ${pr.id}:`, err.message)
         failed++
@@ -149,5 +182,5 @@ export default defineEventHandler(async (event) => {
     CONCURRENCY
   )
 
-  return { synced, failed }
+  return { synced, failed, conflictsResolved, conflictsFailed }
 })

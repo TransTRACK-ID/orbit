@@ -18,6 +18,7 @@ export const pullRequests = pgTable('pull_requests', {
   headBranch: varchar('head_branch', { length: 255 }),
   baseBranch: varchar('base_branch', { length: 255 }),
   agentFixStatus: varchar('agent_fix_status', { length: 30 }).notNull().default('none'),
+  conflictStatus: varchar('conflict_status', { length: 30 }).notNull().default('none'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
   lastSyncedAt: timestamp('last_synced_at').defaultNow().notNull(),

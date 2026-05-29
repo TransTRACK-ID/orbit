@@ -67,13 +67,34 @@
         <!-- PR banner -->
         <div
           v-if="prUrl"
-          class="px-6 py-2.5 bg-green-50 border-b border-green-100 flex items-center justify-between gap-2"
+          class="px-6 py-2.5 border-b flex items-center justify-between gap-2"
+          :class="hasMergeConflicts ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'"
         >
-          <span class="text-xs font-medium text-green-700">This task has an open pull request</span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium" :class="hasMergeConflicts ? 'text-red-700' : 'text-green-700'">
+              {{ hasMergeConflicts ? '⚠️ Merge conflicts detected' : 'This task has an open pull request' }}
+            </span>
+            <span
+              v-if="conflictResolutionStatus === 'in_progress'"
+              class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-semibold flex items-center gap-1"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+              Resolving...
+            </span>
+          </div>
           <div class="flex items-center gap-2 flex-shrink-0">
+            <button
+              v-if="hasMergeConflicts && conflictResolutionStatus !== 'in_progress'"
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center gap-1.5"
+              @click="handleResolveConflicts"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+              Resolve Conflicts
+            </button>
             <NuxtLink
               :to="`/workspaces/${route.params.slug}/reviews?task=${task.id}`"
-              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-green-200 text-green-700 hover:bg-green-50 transition-colors flex items-center gap-1.5 no-underline"
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border flex items-center gap-1.5 no-underline transition-colors"
+              :class="hasMergeConflicts ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               Open in Reviews
@@ -81,7 +102,8 @@
             <a
               :href="prUrl"
               target="_blank"
-              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 no-underline"
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-colors flex items-center gap-1.5 no-underline"
+              :class="hasMergeConflicts ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               Open PR
@@ -2484,6 +2506,37 @@ const feedbackFixed = ref(false)
 const isReviewStatus = computed(() =>
   task.value?.status?.name && /review/i.test(task.value.status.name)
 )
+
+const hasMergeConflicts = computed(() => {
+  const prLog = activityLogs.value.find(l => l.action === 'pr_created' || l.action === 'pr_updated')
+  const prConflictLog = activityLogs.value.find(l => l.action === 'resolve_conflicts')
+  // Check if PR has conflicts based on activity logs or explicit conflict resolution attempts
+  return prConflictLog !== undefined || (prLog?.newValue?.mergeableState === 'dirty' || prLog?.newValue?.mergeableState === 'conflicting')
+})
+
+const conflictResolutionStatus = computed(() => {
+  const prConflictLog = activityLogs.value.find(l => l.action === 'resolve_conflicts')
+  if (runtimeActive.value && prConflictLog) return 'in_progress'
+  const resolvedLog = activityLogs.value.find(l => l.action === 'resolve_conflicts' && l.newValue?.conflictCount === 0)
+  if (resolvedLog) return 'resolved'
+  return hasMergeConflicts.value ? 'has_conflicts' : 'none'
+})
+
+async function handleResolveConflicts() {
+  if (!task.value) return
+  try {
+    const res = await $fetch<{ success: true; taskId: string; conflictCount: number; hasConflicts: boolean }>(
+      `/api/tasks/${task.value.id}/resolve-conflicts`,
+      { method: 'POST' }
+    )
+    if (res.hasConflicts && res.conflictCount > 0) {
+      // Start the agent runtime to resolve conflicts
+      await startRuntime(task.value.id, undefined, true)
+    }
+  } catch (err: any) {
+    console.error('Failed to resolve conflicts:', err)
+  }
+}
 
 async function checkExistingPr() {
   if (!task.value) return

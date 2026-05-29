@@ -1,7 +1,7 @@
 <template>
   <div
     class="kanban-card"
-    :class="{ agentic: isAgentRunning, highlighted: isHighlighted }"
+    :class="{ agentic: isAgentRunning, highlighted: isHighlighted, selected: props.isSelected }"
     :style="cardAccentStyle"
     :data-id="task.id"
     tabindex="0"
@@ -9,9 +9,25 @@
     :aria-label="`Open task: ${task.title}`"
     @pointerdown="onPointerDown"
     @pointerup="onPointerUp"
-    @keydown.enter.prevent="emit('click')"
-    @keydown.space.prevent="emit('click')"
+    @keydown.enter.prevent="onKeyToggle"
+    @keydown.space.prevent="onKeyToggle"
   >
+    <!-- Selection checkbox -->
+    <div
+      v-if="props.isSelectionMode"
+      class="flex items-center gap-2 mb-2"
+      @click.stop
+      @pointerdown.stop
+      @pointerup.stop
+    >
+      <input
+        type="checkbox"
+        :checked="props.isSelected"
+        class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent cursor-pointer"
+        @change="emit('toggleSelection')"
+      >
+    </div>
+
     <!-- Top: Labels + Priority -->
     <div class="flex items-center gap-1.5 mb-2">
       <span
@@ -89,10 +105,13 @@ import { highlightedTaskId } from '~/composables/useKanban'
 
 const props = defineProps<{
   task: Task
+  isSelectionMode?: boolean
+  isSelected?: boolean
 }>()
 
 const emit = defineEmits<{
   click: []
+  toggleSelection: []
 }>()
 
 const { agents } = useAgent()
@@ -168,6 +187,18 @@ function onPointerUp(e: PointerEvent) {
   const dy = Math.abs(e.clientY - pointerStart.y)
   // If the pointer barely moved (< 8px), treat it as a click, not a drag
   if (dx < 8 && dy < 8) {
+    if (props.isSelectionMode) {
+      emit('toggleSelection')
+    } else {
+      emit('click')
+    }
+  }
+}
+
+function onKeyToggle() {
+  if (props.isSelectionMode) {
+    emit('toggleSelection')
+  } else {
     emit('click')
   }
 }
@@ -200,6 +231,12 @@ function formatShortDate(dateString: string): string {
 </script>
 
 <style scoped>
+.kanban-card.selected {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+  background-color: #eef2ff;
+}
+
 .kanban-card.highlighted {
   animation: highlight-pulse 3s ease-out;
   outline: 2px solid #22c55e;

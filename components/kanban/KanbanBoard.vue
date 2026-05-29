@@ -11,6 +11,8 @@
       :show-filters="showFilters"
       :active-filter-count="activeFilterCount"
       :active-filter-chips="activeFilterChips"
+      :is-selection-mode="isSelectionMode"
+      :selected-count="selectedCount"
       @create-task="$emit('createTask')"
       @auto-assign="$emit('autoAssign', $event)"
       @update:view-mode="$emit('update:viewMode', $event)"
@@ -20,6 +22,11 @@
       @update:show-filters="$emit('update:showFilters', $event)"
       @remove-chip="onRemoveChip"
       @clear-filters="$emit('clearFilters')"
+      @enter-selection-mode="$emit('enterSelectionMode')"
+      @exit-selection-mode="$emit('exitSelectionMode')"
+      @clear-selection="$emit('clearSelection')"
+      @bulk-move="(statusId) => $emit('bulkMove', statusId)"
+      @bulk-delete="$emit('bulkDelete')"
     />
 
     <!-- Filter panel -->
@@ -99,9 +106,13 @@
           v-for="col in columns"
           :key="col.status.id"
           :column="col"
+          :is-selection-mode="isSelectionMode"
+          :is-task-selected="isTaskSelected"
           @update-task="(data) => $emit('updateTask', data)"
           @create-task="() => $emit('createTask')"
           @open-task="(task) => $emit('openTask', task)"
+          @toggle-selection="(taskId) => $emit('toggleSelection', taskId)"
+          @toggle-select-all="(taskIds) => $emit('toggleSelectAll', taskIds)"
         />
       </div>
     </div>
@@ -131,6 +142,10 @@ const props = defineProps<{
   activeFilterCount: number
   activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
   totalTaskCount: number
+  // Selection state
+  isSelectionMode?: boolean
+  selectedCount?: number
+  isTaskSelected?: (taskId: string) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -150,6 +165,13 @@ const emit = defineEmits<{
   'update:agentEnabledFilter': [enabled: boolean | null]
   'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
   'clearFilters': []
+  toggleSelection: [taskId: string]
+  toggleSelectAll: [taskIds: string[]]
+  enterSelectionMode: []
+  exitSelectionMode: []
+  clearSelection: []
+  bulkMove: [statusId: string]
+  bulkDelete: []
 }>()
 
 function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {

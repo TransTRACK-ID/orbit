@@ -40,6 +40,9 @@
           :active-filter-count="activeFilterCount"
           :active-filter-chips="activeFilterChips"
           :total-task-count="tasks.length"
+          :is-selection-mode="isSelectionMode"
+          :selected-count="selectedCount"
+          :is-task-selected="isSelected"
           @update:view-mode="viewMode = $event"
           @create-task="handleCreateTask"
           @update-task="handleUpdateTask"
@@ -56,6 +59,13 @@
           @update:agent-enabled-filter="handleAgentEnabledUpdate"
           @remove-chip="handleRemoveChip"
           @clear-filters="clearAllFilters"
+          @toggle-selection="toggleSelection"
+          @toggle-select-all="toggleSelectAll"
+          @enter-selection-mode="enterSelectionMode"
+          @exit-selection-mode="exitSelectionMode"
+          @clear-selection="clearSelection"
+          @bulk-move="handleBulkMove"
+          @bulk-delete="handleBulkDelete"
         />
         <KanbanTaskTable
           v-else-if="viewMode === 'table'"
@@ -75,6 +85,9 @@
           :active-filter-count="activeFilterCount"
           :active-filter-chips="activeFilterChips"
           :total-task-count="tasks.length"
+          :is-selection-mode="isSelectionMode"
+          :selected-count="selectedCount"
+          :is-task-selected="isSelected"
           @update:view-mode="viewMode = $event"
           @create-task="handleCreateTask"
           @update-task="handleUpdateTask"
@@ -91,6 +104,13 @@
           @update:agent-enabled-filter="handleAgentEnabledUpdate"
           @remove-chip="handleRemoveChip"
           @clear-filters="clearAllFilters"
+          @toggle-selection="toggleSelection"
+          @toggle-select-all="toggleSelectAll"
+          @enter-selection-mode="enterSelectionMode"
+          @exit-selection-mode="exitSelectionMode"
+          @clear-selection="clearSelection"
+          @bulk-move="handleBulkMove"
+          @bulk-delete="handleBulkDelete"
         />
         <KanbanTaskList
           v-else-if="viewMode === 'list'"
@@ -110,6 +130,9 @@
           :active-filter-count="activeFilterCount"
           :active-filter-chips="activeFilterChips"
           :total-task-count="tasks.length"
+          :is-selection-mode="isSelectionMode"
+          :selected-count="selectedCount"
+          :is-task-selected="isSelected"
           @update:view-mode="viewMode = $event"
           @create-task="handleCreateTask"
           @update-task="handleUpdateTask"
@@ -126,6 +149,13 @@
           @update:agent-enabled-filter="handleAgentEnabledUpdate"
           @remove-chip="handleRemoveChip"
           @clear-filters="clearAllFilters"
+          @toggle-selection="toggleSelection"
+          @toggle-select-all="toggleSelectAll"
+          @enter-selection-mode="enterSelectionMode"
+          @exit-selection-mode="exitSelectionMode"
+          @clear-selection="clearSelection"
+          @bulk-move="handleBulkMove"
+          @bulk-delete="handleBulkDelete"
         />
       </KeepAlive>
     </template>
@@ -185,12 +215,13 @@ definePageMeta({
 const route = useRoute()
 const projectId = computed(() => route.params.projectId as string)
 
-const { tasks, loading, fetchTasks, createTask, updateTask } = useTask()
+const { tasks, loading, fetchTasks, createTask, updateTask, bulkUpdate, bulkDelete } = useTask()
 const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
 const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
 const { repositories } = useRepository()
 const { getWorkspaceBySlug } = useWorkspace()
+const { isSelectionMode, selectedTaskIds, selectedCount, toggleSelection, clearSelection, enterSelectionMode, exitSelectionMode, isSelected, toggleSelectAll } = useTaskSelection()
 
 const project = ref<any>(null)
 const workspace = ref<Workspace | null>(null)
@@ -599,5 +630,35 @@ async function handleAutoAssignConfirm(selectedAssignments: any[]) {
 
   addLog('System', `Auto-assigned ${assignedCount}/${selectedAssignments.length} tasks to runtime agents`)
   showAutoAssignModal.value = false
+}
+
+async function handleBulkMove(statusId: string) {
+  const ids = Array.from(selectedTaskIds.value)
+  if (!ids.length) return
+  try {
+    await bulkUpdate(ids, { statusId })
+    clearSelection()
+    if (project.value?.workspaceId) {
+      const status = statuses.value.find((s) => s.id === statusId)
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids.join(','), entityName: `${ids.length} tasks`, action: 'bulk_status_change', message: `Moved ${ids.length} tasks to "${status?.name || '?' }"` })
+    }
+  } catch (err) {
+    console.error('Bulk move failed:', err)
+  }
+}
+
+async function handleBulkDelete() {
+  const ids = Array.from(selectedTaskIds.value)
+  if (!ids.length) return
+  try {
+    await bulkDelete(ids)
+    clearSelection()
+    exitSelectionMode()
+    if (project.value?.workspaceId) {
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids.join(','), entityName: `${ids.length} tasks`, action: 'bulk_delete', message: `Deleted ${ids.length} tasks` })
+    }
+  } catch (err) {
+    console.error('Bulk delete failed:', err)
+  }
 }
 </script>

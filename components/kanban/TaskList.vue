@@ -11,6 +11,8 @@
       :show-filters="showFilters"
       :active-filter-count="activeFilterCount"
       :active-filter-chips="activeFilterChips"
+      :is-selection-mode="isSelectionMode"
+      :selected-count="selectedCount"
       @create-task="$emit('createTask')"
       @auto-assign="$emit('autoAssign', $event)"
       @update:view-mode="$emit('update:viewMode', $event)"
@@ -20,6 +22,11 @@
       @update:show-filters="$emit('update:showFilters', $event)"
       @remove-chip="onRemoveChip"
       @clear-filters="$emit('clearFilters')"
+      @enter-selection-mode="$emit('enterSelectionMode')"
+      @exit-selection-mode="$emit('exitSelectionMode')"
+      @clear-selection="$emit('clearSelection')"
+      @bulk-move="(statusId) => $emit('bulkMove', statusId)"
+      @bulk-delete="$emit('bulkDelete')"
     />
 
     <!-- Filter panel -->
@@ -84,10 +91,21 @@
           v-for="task in sortedTasks"
           :key="task.id"
           class="group flex items-center gap-3 py-2.5 px-2 hover:bg-surface-50 transition-colors cursor-pointer rounded-lg"
+          :class="{ 'bg-primary-50': props.isSelectionMode && props.isTaskSelected?.(task.id) }"
           tabindex="0"
-          @click="$emit('openTask', task)"
-          @keydown.enter="$emit('openTask', task)"
+          @click="handleRowClick(task)"
+          @keydown.enter="handleRowClick(task)"
         >
+          <!-- Checkbox -->
+          <div v-if="props.isSelectionMode" @click.stop>
+            <input
+              type="checkbox"
+              :checked="props.isTaskSelected?.(task.id)"
+              class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent cursor-pointer"
+              @change="$emit('toggleSelection', task.id)"
+            >
+          </div>
+
           <!-- Status dot -->
           <span
             class="w-2 h-2 rounded-full flex-shrink-0"
@@ -174,6 +192,10 @@ const props = defineProps<{
   activeFilterCount: number
   activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
   totalTaskCount: number
+  // Selection state
+  isSelectionMode?: boolean
+  selectedCount?: number
+  isTaskSelected?: (taskId: string) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -193,10 +215,25 @@ const emit = defineEmits<{
   'update:agentEnabledFilter': [enabled: boolean | null]
   'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
   'clearFilters': []
+  toggleSelection: [taskId: string]
+  toggleSelectAll: [taskIds: string[]]
+  enterSelectionMode: []
+  exitSelectionMode: []
+  clearSelection: []
+  bulkMove: [statusId: string]
+  bulkDelete: []
 }>()
 
 function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
   emit('removeChip', chip)
+}
+
+function handleRowClick(task: Task) {
+  if (props.isSelectionMode) {
+    emit('toggleSelection', task.id)
+  } else {
+    emit('openTask', task)
+  }
 }
 
 const sortedTasks = computed(() => {

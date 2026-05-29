@@ -3,6 +3,13 @@
     <!-- Column header -->
     <div class="flex items-center justify-between px-3.5 py-2.5 border-b border-surface-200 flex-shrink-0">
       <div class="flex items-center gap-2">
+        <input
+          v-if="isSelectionMode"
+          type="checkbox"
+          :checked="areAllSelected"
+          class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent cursor-pointer"
+          @change="emit('toggleSelectAll', column.tasks.map(t => t.id))"
+        >
         <span
           class="w-2 h-2 rounded-full flex-shrink-0"
           :style="{ backgroundColor: column.status.color }"
@@ -23,7 +30,10 @@
         v-for="task in column.tasks"
         :key="task.id"
         :task="task"
+        :is-selection-mode="isSelectionMode"
+        :is-selected="isTaskSelected(task.id)"
         @click="$emit('openTask', task)"
+        @toggle-selection="$emit('toggleSelection', task.id)"
       />
 
       <div
@@ -46,13 +56,23 @@ import type { KanbanColumn as KanbanColumnType, Task } from '~/types'
 
 const props = defineProps<{
   column: KanbanColumnType
+  isSelectionMode?: boolean
+  isTaskSelected?: (taskId: string) => boolean
 }>()
 
 const emit = defineEmits<{
   updateTask: [data: { id: string; statusId: string; position: number }]
   openTask: [task: Task]
   createTask: []
+  toggleSelection: [taskId: string]
+  toggleSelectAll: [taskIds: string[]]
 }>()
+
+const areAllSelected = computed(() => {
+  if (!props.column.tasks.length) return false
+  if (!props.isTaskSelected) return false
+  return props.column.tasks.every((t) => props.isTaskSelected!(t.id))
+})
 
 const sortableContainer = ref<HTMLElement | null>(null)
 
@@ -75,7 +95,12 @@ useSortable(sortableContainer, props.column.tasks, {
       const taskId = evt.item.dataset?.id
       if (!taskId) return
       const task = props.column.tasks.find(t => t.id === taskId)
-      if (task) emit('openTask', task)
+      if (!task) return
+      if (props.isSelectionMode) {
+        emit('toggleSelection', task.id)
+      } else {
+        emit('openTask', task)
+      }
       return
     }
 

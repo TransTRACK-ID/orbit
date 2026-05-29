@@ -321,7 +321,7 @@
     </Teleport>
 
     <!-- Task Review Modal -->
-    <TaskReviewModal
+    <PrdTaskReviewModal
       v-if="showTaskReviewModal"
       :tasks="generatedTasks"
       :prd-title="currentPrd?.title || ''"

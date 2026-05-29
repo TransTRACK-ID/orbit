@@ -5,7 +5,15 @@ import { parseGithubUrl, parseGitlabUrl, fetchPullRequestDetails, fetchPullReque
 import { executeResolveConflicts } from '~/server/utils/resolve-conflicts'
 
 function hasConflicts(mergeableState: string | null): boolean {
-  return mergeableState === 'dirty' || mergeableState === 'conflicting' || mergeableState === 'has_conflicts'
+  if (!mergeableState) return false
+  const conflictStates = [
+    'dirty',           // GitHub: branch is out of date
+    'conflicting',       // GitHub: merge conflict
+    'has_conflicts',     // GitLab: has conflicts
+    'cannot_be_merged',  // GitLab: cannot be merged (conflicts)
+    'unresolvable',      // GitLab: unresolvable conflicts
+  ]
+  return conflictStates.includes(mergeableState)
 }
 
 export default defineEventHandler(async (event) => {

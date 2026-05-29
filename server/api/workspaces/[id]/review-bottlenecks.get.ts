@@ -216,7 +216,16 @@ export default defineEventHandler(async (event) => {
   })
 
   const mergeBlocked = openPrs.filter(
-    (pr) => pr.mergeableState === 'dirty' || pr.mergeableState === 'conflicting'
+    (pr) => {
+      const conflictStates = [
+        'dirty',           // GitHub: branch is out of date
+        'conflicting',       // GitHub: merge conflict
+        'has_conflicts',     // GitLab: has conflicts
+        'cannot_be_merged',  // GitLab: cannot be merged (conflicts)
+        'unresolvable',      // GitLab: unresolvable conflicts
+      ]
+      return conflictStates.includes(pr.mergeableState || '')
+    }
   )
 
   const highFriction = openPrs.filter((pr) => pr.reviewState === 'changes_requested')

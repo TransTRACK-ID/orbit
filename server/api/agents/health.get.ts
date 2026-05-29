@@ -1,6 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq } from 'drizzle-orm'
+import { eq, and, or, gte } from 'drizzle-orm'
 import { activeProcesses } from '~/server/utils/runtime'
 import { getQueueStatus } from '~/server/utils/browser-queue'
 import { accessSync, constants } from 'fs'
@@ -72,5 +72,44 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return { runtimeReachable, health, browserQueue }
+  // 6. Fetch current tasks per agent from agentTaskContext (running or last 24h)
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const ctxRows = await db.query.agentTaskContext.findMany({
+    where: or(
+      eq(schema.agentTaskContext.status, 'running'),
+      gte(schema.agentTaskContext.updatedAt, since24h),
+    ),
+    with: {
+      task: { columns: { title: true } },
+    },
+    orderBy: (ctx, { desc }) => [desc(ctx.updatedAt)],
+  })
+
+  const currentTasks: Record<string, Array<{
+    taskId: string
+    taskTitle: string
+    status: string
+    branchName: string | null
+    filesChanged: string[]
+    summary: string | null
+    startedAt: string
+    completedAt: string | null
+  }>> = {}
+
+  for (const row of ctxRows) {
+    if (!currentTasks[row.agentId]) currentTasks[row.agentId] = []
+    const taskData = row.task as { title: string } | null
+    currentTasks[row.agentId]!.push({
+      taskId: row.taskId,
+      taskTitle: taskData?.title ?? '(unknown)',
+      status: row.status,
+      branchName: row.branchName,
+      filesChanged: (row.filesChanged as string[]) ?? [],
+      summary: row.summary,
+      startedAt: row.startedAt.toISOString(),
+      completedAt: row.completedAt?.toISOString() ?? null,
+    })
+  }
+
+  return { runtimeReachable, health, browserQueue, currentTasks }
 })

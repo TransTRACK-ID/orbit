@@ -230,6 +230,33 @@ export interface Agent {
   headed?: boolean
   projectName?: string
   wsName?: string
+  currentTasks?: AgentCurrentTask[]
+}
+
+export interface AgentCurrentTask {
+  taskId: string
+  taskTitle: string
+  status: 'running' | 'completed' | 'error'
+  branchName: string | null
+  filesChanged: string[]
+  summary: string | null
+  startedAt: string
+  completedAt: string | null
+}
+
+// ─── Agent Task Context ───
+export interface AgentTaskContext {
+  id: string
+  taskId: string
+  agentId: string
+  projectId: string
+  status: 'running' | 'completed' | 'error'
+  branchName: string | null
+  summary: string | null
+  filesChanged: string[]
+  startedAt: string
+  completedAt: string | null
+  updatedAt: string
 }
 
 export interface RuntimeInfo {

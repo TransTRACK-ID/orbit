@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto'
 import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, asc, and, ilike } from 'drizzle-orm'
+import { eq, asc, and, ilike, or, not, gte } from 'drizzle-orm'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
@@ -62,6 +62,62 @@ async function getLatestChangesContext(workDir: string, repoDefaultBranch: strin
     if (sections.length === 0) return ''
 
     return `\n\n[CURRENT CODEBASE STATE — latest changes]\n${sections.join('\n\n')}\n\nWhen answering the user's question, ALWAYS examine the actual diffs above. Reference specific code, file paths, and line numbers from the diffs to give an accurate, detailed answer about what was implemented.`
+  } catch {
+    return ''
+  }
+}
+
+/** Fetch sibling task contexts and build a [SIBLING TASKS CONTEXT] block for the agent */
+async function getSiblingContextBlock(
+  taskId: string,
+  projectId: string,
+  agentId: string | null,
+): Promise<string> {
+  try {
+    const db = getDb()
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+
+    const rows = await db.query.agentTaskContext.findMany({
+      where: and(
+        not(eq(schema.agentTaskContext.taskId, taskId)),
+        or(
+          agentId ? eq(schema.agentTaskContext.agentId, agentId) : undefined,
+          eq(schema.agentTaskContext.projectId, projectId),
+        ),
+        or(
+          eq(schema.agentTaskContext.status, 'running'),
+          gte(schema.agentTaskContext.updatedAt, since24h),
+        ),
+      ),
+      with: {
+        task: { columns: { title: true } },
+        agent: { columns: { name: true } },
+      },
+      orderBy: (ctx, { desc }) => [desc(ctx.updatedAt)],
+      limit: 8,
+    })
+
+    if (rows.length === 0) return ''
+
+    const lines = rows.map((row, i) => {
+      const taskData = row.task as { title: string } | null
+      const agentData = row.agent as { name: string } | null
+      const title = taskData?.title ?? '(unknown)'
+      const agent = agentData?.name ?? '(unknown)'
+      const status = row.status.toUpperCase()
+      const completedAgo = row.completedAt
+        ? `${Math.round((Date.now() - new Date(row.completedAt).getTime()) / (60 * 1000))}m ago`
+        : null
+      const statusLabel = row.status === 'completed' && completedAgo ? `COMPLETED ${completedAgo}` : status
+      const filesLine = (row.filesChanged as string[])?.length
+        ? `   - Files changed: ${(row.filesChanged as string[]).slice(0, 6).join(', ')}`
+        : ''
+      const summaryLine = row.summary ? `   - Latest: ${row.summary.slice(0, 200)}` : ''
+      const branchLine = row.branchName ? `   - Branch: ${row.branchName}` : ''
+      return `${i + 1}. **Task: "${title}"** (Agent: ${agent}, Status: ${statusLabel})\n${branchLine}\n${filesLine}\n${summaryLine}`.replace(/\n+/g, '\n').trim()
+    })
+
+    return `\n\n[SIBLING TASKS CONTEXT — Other tasks in this project]\nYou are not working in isolation. Here are other tasks being handled by agents in the same project:\n\n${lines.join('\n\n')}\n\nIMPORTANT: Be aware of these parallel tasks to avoid conflicts. Do NOT modify files that other running agents are actively editing unless absolutely necessary. If your task relates to completed work, you can reference those branches.`
   } catch {
     return ''
   }
@@ -897,6 +953,29 @@ export default defineEventHandler(async (event) => {
 
     await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)
 
+    // ── Register agent task context for sibling awareness ──
+    let agentTaskContextId: string | null = null
+    if (task.agentAssigneeId) {
+      try {
+        // Upsert: delete existing stale row for this task, then insert fresh
+        await db.delete(schema.agentTaskContext)
+          .where(eq(schema.agentTaskContext.taskId, id))
+        const [ctxRow] = await db.insert(schema.agentTaskContext).values({
+          taskId: id,
+          agentId: task.agentAssigneeId,
+          projectId: task.projectId,
+          status: 'running',
+          branchName: branchName || null,
+          summary: null,
+          filesChanged: [],
+          startedAt: new Date(),
+        }).returning({ id: schema.agentTaskContext.id })
+        agentTaskContextId = ctxRow?.id ?? null
+      } catch (ctxErr: any) {
+        console.error('[execute.get] Failed to register agent task context:', ctxErr?.message)
+      }
+    }
+
     const isGitLab = repoPlatform === 'gitlab' || repoPlatform === 'gitlab-self-hosted'
     const platformLabel = isGitLab ? 'GitLab' : 'GitHub'
     const correctCli = isGitLab ? 'glab' : 'gh'
@@ -922,7 +1001,13 @@ This ensures your response is readable in the UI.`
       ? `\n\n[TASK TYPE: ${labels.join(', ')}]`
       : '\n\n[TASK TYPE: none — no labels assigned]'
 
-    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    // Fetch sibling task context before building the message
+    const siblingContextBlock = await getSiblingContextBlock(id, task.projectId, task.agentAssigneeId ?? null)
+    if (siblingContextBlock) {
+      await pushAndPersist(`Included sibling task context (${siblingContextBlock.match(/\d+\./g)?.length ?? 0} task(s))`)
+    }
+
+    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
     let attachmentsInjected = false
 
     if (feedback) {
@@ -1477,6 +1562,31 @@ This ensures your response is readable in the UI.`
           } catch {}
         } catch (cleanupErr: any) {
           await pushAndPersist(`Worktree maintenance note: ${cleanupErr.message}`)
+        }
+      }
+
+      // ── Update agent task context with final state ──
+      if (agentTaskContextId) {
+        try {
+          const finalStatus = code === 0 ? 'completed' : 'error'
+          // Build a brief summary from the agent reply or edited files
+          const ctxSummary = agentReplyContent
+            ? agentReplyContent.slice(0, 500)
+            : editedFiles.length > 0
+              ? `Modified: ${editedFiles.slice(0, 5).join(', ')}`
+              : null
+          await db.update(schema.agentTaskContext)
+            .set({
+              status: finalStatus,
+              branchName: branchName || null,
+              filesChanged: editedFiles,
+              summary: ctxSummary,
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.agentTaskContext.id, agentTaskContextId))
+        } catch (ctxErr: any) {
+          console.error('[execute.get] Failed to update agent task context:', ctxErr?.message)
         }
       }
 

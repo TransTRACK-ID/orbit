@@ -120,6 +120,42 @@
           <strong class="text-surface-900 font-semibold">Purpose:</strong> {{ agent.purpose }}
         </div>
 
+        <!-- Current Tasks -->
+        <div v-if="getAgentCurrentTasks(agent.id).length > 0" class="mt-2.5">
+          <div class="text-[9px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Current Tasks</div>
+          <div class="space-y-1.5">
+            <div
+              v-for="task in getAgentCurrentTasks(agent.id).slice(0, 3)"
+              :key="task.taskId"
+              class="p-2 rounded-md border text-[10px] leading-snug"
+              :class="task.status === 'running'
+                ? 'bg-accent/5 border-accent/20'
+                : task.status === 'error'
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-green-50 border-green-200'"
+            >
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span
+                  class="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                  :class="task.status === 'running' ? 'bg-accent animate-pulse' : task.status === 'error' ? 'bg-red-400' : 'bg-green-500'"
+                />
+                <span class="font-semibold text-surface-900 truncate">{{ task.taskTitle }}</span>
+                <span
+                  class="ml-auto text-[8px] font-semibold uppercase flex-shrink-0"
+                  :class="task.status === 'running' ? 'text-accent' : task.status === 'error' ? 'text-red-500' : 'text-green-600'"
+                >{{ task.status }}</span>
+              </div>
+              <div v-if="task.branchName" class="text-[9px] text-surface-400 font-mono truncate">
+                <Icon name="lucide:git-branch" class="w-2 h-2" /> {{ task.branchName }}
+              </div>
+              <div v-if="task.filesChanged.length > 0" class="text-[9px] text-surface-400 mt-0.5">
+                {{ task.filesChanged.length }} file{{ task.filesChanged.length !== 1 ? 's' : '' }} changed
+              </div>
+              <div v-if="task.summary" class="text-[9px] text-surface-500 mt-0.5 line-clamp-2">{{ task.summary }}</div>
+            </div>
+          </div>
+        </div>
+
         <div class="flex gap-1.5 mt-2.5 pt-2.5 border-t border-surface-200">
           <button
             class="px-2.5 py-1 rounded text-[9px] font-semibold border border-surface-200 hover:bg-surface-50 transition-colors flex items-center gap-1"
@@ -253,7 +289,7 @@ definePageMeta({
   layout: 'default',
 })
 
-const { agents, loading, agentCounts, runtimeInfo, runtimes, getAgentStatus, runtimeReachable, fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent: deleteAgentApi } = useAgent()
+const { agents, loading, agentCounts, runtimeInfo, runtimes, getAgentStatus, runtimeReachable, fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent: deleteAgentApi, getAgentCurrentTasks } = useAgent()
 const { addLog } = useLog()
 
 let healthInterval: ReturnType<typeof setInterval> | null = null

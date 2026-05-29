@@ -361,7 +361,7 @@
                 </tr>
               </thead>
               <tbody>
-                <template v-for="event in diagnosticsData.crashEvents" :key="event.id">
+                <template v-for="event in paginatedCrashEvents" :key="event.id">
                   <tr 
                     class="border-b border-surface-100 last:border-0 hover:bg-surface-50 transition-colors cursor-pointer"
                     @click="toggleExpand(event.id)"
@@ -442,6 +442,39 @@
                 </template>
               </tbody>
             </table>
+            <div class="px-4 py-2.5 bg-surface-50 border-t border-surface-200 flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-3">
+                <span class="text-surface-400">
+                  {{ ((crashPage - 1) * crashPageSize) + 1 }}–{{ Math.min(crashPage * crashPageSize, crashTotalCount) }} of {{ crashTotalCount }}
+                </span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-surface-400">Show</span>
+                  <select
+                    v-model="crashPageSize"
+                    class="bg-white border border-surface-200 rounded px-1.5 py-0.5 text-surface-600 outline-none focus:border-primary-500 cursor-pointer text-[10px]"
+                  >
+                    <option v-for="opt in CRASH_PAGE_SIZE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  class="px-2 py-1 rounded border border-surface-200 bg-white text-surface-600 hover:bg-surface-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  :disabled="crashPage <= 1"
+                  @click="crashPage--"
+                >
+                  Prev
+                </button>
+                <span class="text-surface-400 px-1">{{ crashPage }} / {{ crashTotalPages }}</span>
+                <button
+                  class="px-2 py-1 rounded border border-surface-200 bg-white text-surface-600 hover:bg-surface-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  :disabled="crashPage >= crashTotalPages"
+                  @click="crashPage++"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
           <div v-else class="text-[11px] text-surface-400 py-12 text-center">
             No agent crash or execution failure logs found.
@@ -683,6 +716,11 @@ const diagnosticsRefreshing = ref(false)
 /** Ref to the scrollable log container so we can preserve scroll position across refreshes */
 const logsScrollContainer = ref<HTMLElement | null>(null)
 
+// ── Crash events pagination ──
+const crashPage = ref(1)
+const crashPageSize = ref(5)
+const CRASH_PAGE_SIZE_OPTIONS = [5, 10, 20, 50]
+
 async function refreshDiagnostics() {
   const scrollTop = logsScrollContainer.value?.scrollTop ?? 0
   diagnosticsRefreshing.value = true
@@ -750,6 +788,24 @@ async function killTask(taskId: string) {
 }
 
 const loading = computed(() => usersPending.value || projectsPending.value || activityPending.value || templatesPending.value)
+
+const paginatedCrashEvents = computed(() => {
+  const events = diagnosticsData.value?.crashEvents || []
+  const start = (crashPage.value - 1) * crashPageSize.value
+  const end = start + crashPageSize.value
+  return events.slice(start, end)
+})
+
+const crashTotalPages = computed(() => {
+  const events = diagnosticsData.value?.crashEvents || []
+  return Math.ceil(events.length / crashPageSize.value)
+})
+
+const crashTotalCount = computed(() => diagnosticsData.value?.crashEvents?.length || 0)
+
+watch(crashPageSize, () => {
+  crashPage.value = 1
+})
 
 const deletingTemplateId = ref<string | null>(null)
 

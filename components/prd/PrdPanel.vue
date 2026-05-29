@@ -32,6 +32,7 @@
           <!-- Status dropdown -->
           <div
             v-if="showStatusDropdown"
+            ref="dropdownRef"
             class="absolute right-0 mt-1 w-32 bg-white border border-surface-200 rounded-lg shadow-lg py-1 z-20"
           >
             <button
@@ -235,8 +236,10 @@ function handleDelete() {
 }
 
 // Close dropdown when clicking outside
+const dropdownRef = ref<HTMLElement | null>(null)
+
 function onClickOutside(e: MouseEvent) {
-  if (showStatusDropdown.value) {
+  if (showStatusDropdown.value && dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
     showStatusDropdown.value = false
   }
 }

@@ -14,14 +14,16 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="auto-assign-title"
+        aria-describedby="auto-assign-desc"
         @click.self="handleCancel"
+        @keydown.esc="handleCancel"
       >
         <!-- Modal -->
         <div
-          class="relative w-full max-w-xl bg-white rounded-xl shadow-xl overflow-hidden animate-scale-in my-auto"
+          class="relative w-full max-w-xl bg-white rounded-xl border border-surface-200 shadow-lg overflow-hidden animate-scale-in my-auto max-h-[85vh] flex flex-col"
         >
           <!-- Header -->
-          <div class="px-6 pt-6 pb-3">
+          <div class="px-6 pt-6 pb-3 flex-shrink-0">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center flex-shrink-0">
                 <Icon name="lucide:zap" class="w-5 h-5 text-accent" />
@@ -30,15 +32,15 @@
                 <h2 id="auto-assign-title" class="text-base font-semibold text-surface-900">
                   Auto-assign tasks
                 </h2>
-                <p class="text-sm text-surface-500 mt-0.5">
-                  Review and confirm the assignments before applying
+                <p id="auto-assign-desc" class="text-sm text-surface-500 mt-0.5">
+                  Review and confirm assignments before applying
                 </p>
               </div>
             </div>
           </div>
 
           <!-- Content -->
-          <div class="px-6 pb-0">
+          <div class="flex-1 overflow-y-auto px-6">
             <!-- Summary stats -->
             <div class="flex items-center gap-6 py-3 mb-1">
               <div class="flex items-baseline gap-1.5">
@@ -51,14 +53,32 @@
               </div>
             </div>
 
+            <!-- Empty state -->
+            <div v-if="assignments.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
+              <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
+                <Icon name="lucide:check-circle" class="w-6 h-6 text-surface-400" />
+              </div>
+              <p class="text-sm font-medium text-surface-700">No tasks to assign</p>
+              <p class="text-xs text-surface-500 mt-1">All tasks are already assigned</p>
+            </div>
+
+            <!-- All tasks deselected state -->
+            <div v-else-if="selectedCount === 0 && totalCount > 0" class="flex flex-col items-center justify-center py-12 text-center">
+              <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
+                <Icon name="lucide:square-dashed" class="w-6 h-6 text-surface-400" />
+              </div>
+              <p class="text-sm font-medium text-surface-700">No tasks selected</p>
+              <p class="text-xs text-surface-500 mt-1">Check at least one task to assign</p>
+            </div>
+
             <!-- Task list grouped by agent -->
-            <div class="max-h-[400px] overflow-y-auto space-y-6 pb-4">
+            <div v-else class="space-y-6 pb-4">
               <div
                 v-for="group in agentGroups"
                 :key="group.agent.id"
               >
                 <!-- Agent header -->
-                <div class="flex items-center gap-2.5 py-2 sticky top-0 bg-white z-10">
+                <div class="flex items-center gap-2.5 py-2 sticky top-0 bg-white z-10 border-b border-surface-100">
                   <label class="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -79,7 +99,7 @@
                 </div>
 
                 <!-- Tasks for this agent -->
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-0.5">
                   <div
                     v-for="item in group.tasks"
                     :key="item.task.id"
@@ -105,9 +125,13 @@
                     </div>
                     <!-- Agent selector -->
                     <div class="flex-shrink-0">
+                      <label class="sr-only" :for="`agent-select-${item.task.id}`">
+                        Assign to agent
+                      </label>
                       <select
+                        :id="`agent-select-${item.task.id}`"
                         :value="item.agent.id"
-                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
                         @change="changeTaskAgent(item.task.id, ($event.target as HTMLSelectElement).value)"
                       >
                         <option
@@ -126,7 +150,7 @@
           </div>
 
           <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-surface-200">
+          <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-surface-200 flex-shrink-0 bg-white">
             <button
               class="px-4 py-2 rounded-lg border border-surface-200 text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
               @click="handleCancel"

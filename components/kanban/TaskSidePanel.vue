@@ -769,7 +769,7 @@
                     <div class="mt-3 flex gap-2">
                       <button
                         class="flex h-8 items-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-rose-700 active:scale-95 transition-all"
-                        @click="startRuntime(task.id); prError = ''"
+                        @click="startRuntime(task.id, undefined, true); prError = ''"
                       >
                         <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
                           <polygon points="5,3 19,12 5,21" />
@@ -804,7 +804,7 @@
                     <div class="mt-3 flex gap-2">
                       <button
                         class="flex h-8 items-center gap-1.5 rounded-lg bg-amber-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-amber-700 active:scale-95 transition-all"
-                        @click="startRuntime(task.id); prError = ''"
+                        @click="startRuntime(task.id, undefined, true); prError = ''"
                       >
                         <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
                           <polygon points="5,3 19,12 5,21" />

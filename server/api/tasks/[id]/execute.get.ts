@@ -1061,7 +1061,7 @@ This ensures your response is readable in the UI.`
         message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}`
       }
     } else if (isAutoRestart) {
-      // ── Auto-restart after loop detection: preserve full context ──
+      // ── Auto-restart after crash/loop/error: preserve full context ──
       await pushAndPersist(`Auto-restart: recovering historical task context...`)
 
       // Load conversation history so the agent doesn't forget past work
@@ -1089,7 +1089,12 @@ This ensures your response is readable in the UI.`
         await pushAndPersist(`Auto-restart: included latest codebase changes in context`)
       }
 
-      message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted because it entered a command loop (repeating the same commands). This is a fresh process, but ALL previous conversation history and codebase state below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
+      // Include sibling task context for awareness
+      if (siblingContextBlock) {
+        await pushAndPersist(`Auto-restart: included sibling task context`)
+      }
+
+      message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted (either due to a crash, error, or command loop). This is a fresh process, but ALL previous conversation history, codebase state, and sibling task context below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
     }
 
     // For initial runs and PR feedback, append attachments at the end.

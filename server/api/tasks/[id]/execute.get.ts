@@ -1305,7 +1305,7 @@ This ensures your response is readable in the UI.`
       clearTimeout(runtimeTimeout)
       hasOutput = true
       const msg = `Failed to start opencode: ${err.message}`
-      await pushToStreams(entry, JSON.stringify({ step: msg, isCrash: true, timestamp: Date.now() }))
+      await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, isCrash: true, timestamp: Date.now() }))
       persistLog(msg)
       // Persist structured crash log
       try {
@@ -1345,6 +1345,8 @@ This ensures your response is readable in the UI.`
         const crashMessage = isCrash
           ? `Agent process was killed unexpectedly (signal: ${proc.signalCode ?? 'unknown'}). This may indicate OOM or a runtime crash.`
           : `Agent exited with error code ${code}`
+        // Push autoRestart flag so the client retries automatically
+        await pushToStreams(entry, JSON.stringify({ step: crashMessage, autoRestart: true, isCrash, isError: !isCrash, timestamp: Date.now() }))
         // Persist structured crash / error activity log
         try {
           await db.insert(schema.activityLogs).values({
@@ -1369,6 +1371,9 @@ This ensures your response is readable in the UI.`
           message: crashMessage,
         })
       }
+
+      // Remove from activeProcesses early so reconnects don't get attached to the old process
+      activeProcesses.delete(id)
 
       if (code === 0 && branchName && !wasLoopKill) {
         try {
@@ -1590,7 +1595,7 @@ This ensures your response is readable in the UI.`
         }
       }
 
-      activeProcesses.delete(id)
+      // Close all streams after cleanup
       for (const s of entry.streams) {
         try { s.close() } catch {}
       }

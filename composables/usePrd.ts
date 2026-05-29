@@ -36,6 +36,8 @@ export const usePrd = () => {
     const prd = prds.value.find((p) => p.id === prdId)
     if (prd) {
       currentPrd.value = prd
+      // Reset stuck generation state when switching PRDs
+      generatingTasks.value = false
     }
   }
 

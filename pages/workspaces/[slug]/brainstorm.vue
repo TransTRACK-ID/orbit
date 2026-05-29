@@ -438,6 +438,8 @@ const generationProgress = computed(() => {
 onMounted(async () => {
   // Reset any stuck loading state from previous sessions
   messagesLoading.value = false
+  generating.value = false
+  generatingTasks.value = false
   workspace.value = await getWorkspaceBySlug(slug.value)
   if (workspace.value) {
     await fetchRepositories(workspace.value.id)

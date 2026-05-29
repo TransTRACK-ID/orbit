@@ -113,12 +113,13 @@
       <div class="flex items-center gap-2">
         <button
           v-if="!prd.tasksGenerated"
-          class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-purple-500 text-white hover:bg-purple-600 transition-colors flex items-center gap-1"
+          class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-purple-500 text-white hover:bg-purple-600 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="generatingTasks"
+          :title="generatingTasks ? 'Task generation in progress...' : 'Generate tasks from this PRD'"
           @click="$emit('generateTasks')"
         >
           <Icon name="lucide:list-checks" class="w-3 h-3" />
-          Generate Tasks
+          {{ generatingTasks ? 'Generating...' : 'Generate Tasks' }}
         </button>
         <span
           v-else

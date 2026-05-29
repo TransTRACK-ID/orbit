@@ -647,6 +647,7 @@ async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySel
       const updateData: any = {
         assigneeId: item.agent.id,
         assigneeType: 'agent',
+        agentEnabled: true,
       }
       if (item.toStatus && item.task.statusId !== item.toStatus.id) {
         updateData.statusId = item.toStatus.id
@@ -700,17 +701,24 @@ async function handleBulkMove(statusId: string) {
     const status = statuses.value.find((s) => s.id === statusId)
     if (status && /progress/i.test(status.name)) {
       const movedToProgress = updatedTasks
-        .filter((t) => t.agentEnabled && t.assigneeType === 'agent' && t.assignee)
+        .filter((t) => t.assigneeType === 'agent' && t.assignee)
         .sort((a, b) => {
           const pa = priorityOrder[a.priority] ?? 0
           const pb = priorityOrder[b.priority] ?? 0
           return pb - pa
         })
       for (const task of movedToProgress) {
-        if (task.assignee) {
-          addLog('Runtime', `Agent "${task.assignee.name}" started processing "${task.title}"`, task.id)
-          await startRuntime(task.id)
+        // Ensure agent is enabled before starting
+        if (!task.agentEnabled) {
+          const updated = await updateTask(task.id, { agentEnabled: true })
+          if (updated) {
+            task.agentEnabled = true
+            const idx = tasks.value.findIndex(t => t.id === task.id)
+            if (idx !== -1) tasks.value[idx] = updated
+          }
         }
+        addLog('Runtime', `Agent "${task.assignee.name}" started processing "${task.title}"`, task.id)
+        await startRuntime(task.id)
       }
     }
   } catch (err) {

@@ -20,7 +20,7 @@ export const usePrd = () => {
 
   async function fetchPrds(brainstormId: string) {
     try {
-      prds.value = await $fetch<Prd[]>(`/api/brainstorms/${brainstormId}/prds`, {
+      prds.value = await $fetch<Prd[]>(`/api/brainstorms/${brainstormId}/prd`, {
         headers: ssrHeaders,
       })
       // Auto-select the first PRD if none is selected

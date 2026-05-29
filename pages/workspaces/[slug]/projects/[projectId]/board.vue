@@ -194,6 +194,7 @@
     <KanbanAutoAssignConfirmModal
       v-model="showAutoAssignModal"
       :assignments="autoAssignPreview"
+      :all-agents="agents"
       @confirm="handleAutoAssignConfirm"
       @cancel="showAutoAssignModal = false"
     />

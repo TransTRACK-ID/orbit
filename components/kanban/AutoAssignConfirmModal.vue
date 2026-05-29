@@ -10,20 +10,15 @@
     >
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="auto-assign-title"
+        @click.self="handleCancel"
       >
-        <!-- Overlay -->
-        <div
-          class="absolute inset-0 bg-surface-900/50"
-          @click="handleCancel"
-        />
-
         <!-- Modal -->
         <div
-          class="relative w-full max-w-lg bg-white rounded-xl shadow-xl overflow-hidden animate-scale-in"
+          class="relative w-full max-w-lg bg-white rounded-xl shadow-xl overflow-hidden animate-scale-in my-auto"
         >
           <!-- Header -->
           <div class="px-6 pt-6 pb-4">
@@ -86,10 +81,10 @@
 
                 <!-- Tasks for this agent -->
                 <div class="divide-y divide-surface-100">
-                  <label
+                  <div
                     v-for="item in group.tasks"
                     :key="item.task.id"
-                    class="flex items-start gap-3 px-3 py-2.5 hover:bg-surface-50 cursor-pointer transition-colors"
+                    class="flex items-start gap-3 px-3 py-2.5 hover:bg-surface-50 transition-colors"
                   >
                     <input
                       v-model="selectedIds"
@@ -109,7 +104,23 @@
                         </span>
                       </div>
                     </div>
-                  </label>
+                    <!-- Agent selector -->
+                    <div class="flex-shrink-0">
+                      <select
+                        :value="item.agent.id"
+                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1 appearance-none cursor-pointer hover:border-surface-300 focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                        @change="changeTaskAgent(item.task.id, ($event.target as HTMLSelectElement).value)"
+                      >
+                        <option
+                          v-for="agent in allAgents"
+                          :key="agent.id"
+                          :value="agent.id"
+                        >
+                          {{ agent.name }}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -159,6 +170,7 @@ interface AgentGroup {
 const props = defineProps<{
   modelValue: boolean
   assignments: AssignmentItem[]
+  allAgents: Agent[]
 }>()
 
 const emit = defineEmits<{
@@ -169,18 +181,31 @@ const emit = defineEmits<{
 
 // All task IDs are selected by default
 const selectedIds = ref<string[]>([])
+// Track which agent each task is assigned to (can be changed by user)
+const taskAgentOverrides = ref<Record<string, Agent>>({})
 
 // Reset selection when modal opens
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     selectedIds.value = props.assignments.map(a => a.task.id)
+    taskAgentOverrides.value = {}
   }
+})
+
+const resolvedAssignments = computed((): AssignmentItem[] => {
+  return props.assignments.map(item => {
+    const overrideAgent = taskAgentOverrides.value[item.task.id]
+    if (overrideAgent) {
+      return { ...item, agent: overrideAgent }
+    }
+    return item
+  })
 })
 
 const agentGroups = computed((): AgentGroup[] => {
   const groups = new Map<string, AgentGroup>()
 
-  for (const item of props.assignments) {
+  for (const item of resolvedAssignments.value) {
     const existing = groups.get(item.agent.id)
     if (existing) {
       existing.tasks.push(item)
@@ -226,6 +251,13 @@ function toggleGroup(group: AgentGroup, event: Event) {
   }
 }
 
+function changeTaskAgent(taskId: string, agentId: string) {
+  const agent = props.allAgents.find(a => a.id === agentId)
+  if (agent) {
+    taskAgentOverrides.value[taskId] = agent
+  }
+}
+
 function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
@@ -236,7 +268,7 @@ function handleCancel() {
 }
 
 function handleConfirm() {
-  const selected = props.assignments.filter(a => selectedIds.value.includes(a.task.id))
+  const selected = resolvedAssignments.value.filter(a => selectedIds.value.includes(a.task.id))
   emit('update:modelValue', false)
   emit('confirm', selected)
 }

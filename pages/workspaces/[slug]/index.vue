@@ -342,7 +342,9 @@ onMounted(async () => {
   }
 
   // If SSR failed or repositories aren't loaded yet, fetch them client-side.
-  if (!repositoriesReady.value && workspace.value) {
+  // Also fetch if repositories are empty but we have a workspace, to avoid
+  // showing the banner when a repo exists but the shared state is stale.
+  if (workspace.value && (!repositoriesReady.value || repositories.value.length === 0)) {
     try {
       const repos = await $fetch<Repository[]>(`/api/workspaces/${workspace.value.id}/repositories`)
       repositories.value = repos

@@ -100,12 +100,12 @@ Rules:
 - Return ONLY the JSON array, no other text`
 
     const workDir = process.cwd()
-    const minimalEnv: NodeJS.ProcessEnv = {
-      PATH: process.env.PATH,
-      HOME: process.env.HOME,
-      NODE_ENV: process.env.NODE_ENV,
-      LANG: process.env.LANG,
-      LC_ALL: process.env.LC_ALL,
+
+    // Pass the full environment so opencode can find its config and API keys.
+    // The minimal env (only PATH/HOME) was missing provider credentials in production,
+    // causing opencode to emit step_start but never produce text events.
+    const spawnEnv: NodeJS.ProcessEnv = {
+      ...process.env,
     }
 
     const spawnArgs = [
@@ -122,7 +122,7 @@ Rules:
       cwd: workDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
-      env: minimalEnv,
+      env: spawnEnv,
     })
 
     const rawOutput = { value: '' }
@@ -209,11 +209,10 @@ Rules:
       await stream.push(JSON.stringify({ step: 'Parsing task list...', progress: 80 }))
 
       // Check if we got any actual content
-      if (rawOutput.value.length === 0) {
+      if (rawOutput.value.trim().length === 0) {
         const debugInfo = {
-          error: 'AI model produced no output. The prompt may be too long or the model may have failed.',
+          error: 'AI model produced no text output. opencode emitted only control events (e.g. step_start) but no text. This usually means the model provider failed silently — check API keys and opencode config.',
           step: 'error',
-          rawOutput: rawOutput.value,
           stderrOutput: stderrOutput.value.slice(0, 1000),
           eventTypes: debugLog.eventTypes,
           rawLines: debugLog.rawLines.slice(0, 20),

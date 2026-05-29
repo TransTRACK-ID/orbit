@@ -62,6 +62,22 @@ export function extractTextFromOpencodeEvent(evt: any): string | null {
  * Process a single line of opencode output.
  * Accumulates text content from JSON events, or raw text if not JSON.
  */
+// Known opencode event types that never contain AI text content.
+// These should be skipped rather than accumulated as raw output.
+const NON_TEXT_EVENT_TYPES = new Set([
+  'step_start',
+  'step_finish',
+  'step_error',
+  'tool_use',
+  'tool_result',
+  'session_start',
+  'session_finish',
+  'message_start',
+  'message_finish',
+  'content_block_start',
+  'content_block_stop',
+])
+
 export function processOpencodeLine(
   line: string,
   accumulator: { value: string },
@@ -73,8 +89,8 @@ export function processOpencodeLine(
     const evt = JSON.parse(line)
 
     // Log event type for debugging
+    const eventType = evt.type || 'unknown'
     if (debugLog) {
-      const eventType = evt.type || 'unknown'
       if (!debugLog.eventTypes.includes(eventType)) {
         debugLog.eventTypes.push(eventType)
       }
@@ -86,9 +102,11 @@ export function processOpencodeLine(
     if (text) {
       accumulator.value += text
     }
-    else {
-      // If we can't extract text, accumulate the raw JSON for debugging
-      // This helps us identify new event formats
+    else if (!NON_TEXT_EVENT_TYPES.has(eventType)) {
+      // Only accumulate raw JSON for truly unknown event types.
+      // Known non-text events (step_start, step_finish, etc.) are
+      // silently skipped — they have no AI content and would poison
+      // the accumulated output, causing JSON extraction to fail.
       accumulator.value += line
     }
   }

@@ -1,12 +1,13 @@
 import { createEventStream } from 'h3'
 import { spawn } from 'child_process'
-import { accessSync, constants } from 'fs'
+import { accessSync, constants, existsSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
 import { processOpencodeLine } from '~/server/utils/opencode-parser'
+import { resolveCloneDir, projectsDir } from '~/server/utils/worktree-resolver'
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const MAX_RUNTIME_MS = 5 * 60 * 1000 // 5 minutes
@@ -137,13 +138,23 @@ IMPORTANT:
 - Keep content concise but comprehensive
 - Return ONLY the JSON object, no other text.`
 
-    const workDir = process.cwd()
-    const minimalEnv: NodeJS.ProcessEnv = {
-      PATH: process.env.PATH,
-      HOME: process.env.HOME,
-      NODE_ENV: process.env.NODE_ENV,
-      LANG: process.env.LANG,
-      LC_ALL: process.env.LC_ALL,
+    // Resolve workDir from the brainstorm's repository (same as chat endpoint).
+    // In production (Docker), process.cwd() is /app (Orbit itself), which causes
+    // opencode to use the wrong project config and may fail to produce output.
+    let workDir = process.cwd()
+    const repo = brainstorm.repository as (typeof schema.repositories.$inferSelect) | null
+    if (repo?.url) {
+      const cloneDir = resolveCloneDir(repo.url, repo.name, projectsDir)
+      if (existsSync(cloneDir)) {
+        workDir = cloneDir
+      }
+    }
+
+    // Pass the full environment so opencode can find its config and API keys.
+    // The minimal env (only PATH/HOME) was missing provider credentials in production,
+    // causing opencode to emit step_start but never produce text events.
+    const spawnEnv: NodeJS.ProcessEnv = {
+      ...process.env,
     }
 
     const spawnArgs = [
@@ -160,7 +171,7 @@ IMPORTANT:
       cwd: workDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
-      env: minimalEnv,
+      env: spawnEnv,
     })
 
     const rawOutput = { value: '' }
@@ -250,9 +261,24 @@ IMPORTANT:
       const outputLength = rawOutput.value.length
       const eventTypes = debugLog.eventTypes
       await stream.push(JSON.stringify({
-        step: `Debug: output length=${outputLength}, event types=[${eventTypes.join(', ')}]`,
+        step: `Debug: output length=${outputLength}, event types=[${eventTypes.join(', ')}], workDir=${workDir}`,
         progress: 85,
       }))
+
+      // Check if we got any actual content
+      if (rawOutput.value.trim().length === 0) {
+        const debugInfo = {
+          error: 'AI model produced no text output. opencode emitted only control events (e.g. step_start) but no text. This usually means the model provider failed silently — check API keys and opencode config.',
+          step: 'error',
+          stderrOutput: stderrOutput.value.slice(0, 1000),
+          eventTypes: debugLog.eventTypes,
+          rawLines: debugLog.rawLines.slice(0, 20),
+          workDir,
+        }
+        await stream.push(JSON.stringify(debugInfo))
+        stream.close()
+        return
+      }
 
       try {
         // Extract JSON from the accumulated output

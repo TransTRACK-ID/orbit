@@ -23,7 +23,7 @@
           <button
             class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md flex items-center gap-1 transition-colors"
             :class="statusBadgeClass"
-            @click="showStatusDropdown = !showStatusDropdown"
+            @click="(e: Event) => { e.stopPropagation(); showStatusDropdown = !showStatusDropdown }"
           >
             <Icon name="lucide:circle" class="w-2 h-2" />
             {{ prd.status }}

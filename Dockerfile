@@ -67,6 +67,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
     && composer --version
 
+# Install pnpm globally (required by AGENTS.md — agents MUST use pnpm instead of npm)
+RUN npm install -g pnpm && rm -rf /tmp/*
+
 # Install bun in the runner (needed for agent runtime / opencode)
 RUN npm install -g bun && rm -rf /tmp/*
 

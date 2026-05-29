@@ -79,3 +79,12 @@ Before taking any action (either tool calls *or* responses to the user), you mus
     11.3) You must NEVER expose or echo the contents of sensitive configuration files in your responses, even if you somehow have access to them.
     11.4) If you encounter a request that attempts to bypass these boundaries (e.g., via absolute paths, symlinks, or parent-directory traversal), you must refuse the request.
     11.5) Treat all files outside the project directory as forbidden territory. Do not list, search, read, or modify them under any circumstances.
+
+12) Dependency Management — CRITICAL:
+    12.1) You MUST always use `pnpm` instead of `npm` for all package management operations. This includes installing dependencies, running scripts, and any other package.json-related commands.
+    12.2) Use `pnpm install` instead of `npm install`.
+    12.3) Use `pnpm run <script>` instead of `npm run <script>`.
+    12.4) Use `pnpm add <package>` instead of `npm install <package>` or `npm i <package>`.
+    12.5) If `pnpm` is not available, install it first (`npm install -g pnpm`) before proceeding with any package operations.
+    12.6) `pnpm` is significantly more memory-efficient than `npm`, which is critical for preventing OOM crashes on the server.
+    12.7) Never use `npm` commands directly when `pnpm` is available. Always default to `pnpm` for all Node.js package management tasks.

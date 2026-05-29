@@ -96,10 +96,12 @@
                 <span v-if="newRepo.platform !== 'github'" class="text-error-500">*</span>
                 <span v-else class="text-surface-400 font-normal normal-case">(optional)</span>
               </label>
-              <TextInput v-model="newRepo.token" :placeholder="newRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
+              <TextInput v-model="newRepo.token" :placeholder="newRepo.platform === 'github' ? 'ghp_... or github_pat_...' : 'glpat-xxxxxxxx or personal access token'" type="password" />
               <p class="text-xs text-surface-500 mt-1">
                 <template v-if="newRepo.platform === 'github'">
-                  Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
+                  Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs.
+                  Supports both <strong>classic tokens</strong> (<code>ghp_</code>) and <strong>fine-grained tokens</strong> (<code>github_pat_</code>).
+                  Create one in GitHub Settings → Developer settings → Personal access tokens.
                 </template>
                 <template v-else>
                   Required for GitLab API access. Create one in your GitLab profile → Access Tokens.
@@ -273,10 +275,12 @@
                     <span v-if="editRepo.platform !== 'github'" class="text-error-500">*</span>
                     <span v-else class="text-surface-400 font-normal normal-case">(optional)</span>
                   </label>
-                  <TextInput v-model="editRepo.token" :placeholder="editRepo.platform === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxx or personal access token'" type="password" />
+                  <TextInput v-model="editRepo.token" :placeholder="editRepo.platform === 'github' ? 'ghp_... or github_pat_...' : 'glpat-xxxxxxxx or personal access token'" type="password" />
                   <p class="text-xs text-surface-500 mt-1">
                     <template v-if="editRepo.platform === 'github'">
-                      Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs. Create one in GitHub Settings → Developer settings → Personal access tokens.
+                      Used for all GitHub operations including fetching comments in detail tasks. Required for private repos, pushing, and creating PRs.
+                      Supports both <strong>classic tokens</strong> (<code>ghp_</code>) and <strong>fine-grained tokens</strong> (<code>github_pat_</code>).
+                      Create one in GitHub Settings → Developer settings → Personal access tokens.
                     </template>
                     <template v-else>
                       Required for GitLab API access. Create one in your GitLab profile → Access Tokens.

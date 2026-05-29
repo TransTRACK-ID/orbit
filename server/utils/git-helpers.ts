@@ -8,7 +8,10 @@ export function injectTokenIntoRemoteUrl(url: string, platform: string, token?: 
 
   if (platform === 'github') {
     if (!url.startsWith('https://github.com/')) return url
-    return url.replace(/^https:\/\/github\.com\//, `https://${token}@github.com/`)
+    // Fine-grained PATs (github_pat_...) require a username in the URL.
+    // Classic PATs (ghp_...) also work with oauth2 as username.
+    // Using "oauth2:<token>" works reliably for both token types.
+    return url.replace(/^https:\/\/github\.com\//, `https://oauth2:${token}@github.com/`)
   }
 
   // GitLab — self-hosted or gitlab.com

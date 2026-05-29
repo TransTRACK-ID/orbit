@@ -23,7 +23,7 @@
           class="relative w-full max-w-xl bg-white rounded-xl border border-surface-200 shadow-lg overflow-hidden animate-scale-in my-auto max-h-[85vh] flex flex-col"
         >
           <!-- Header -->
-          <div class="px-6 pt-6 pb-3 flex-shrink-0">
+          <div class="px-6 pt-5 pb-4 flex-shrink-0 border-b border-surface-100">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center flex-shrink-0">
                 <Icon name="lucide:zap" class="w-5 h-5 text-accent" />
@@ -32,7 +32,7 @@
                 <h2 id="auto-assign-title" class="text-base font-semibold text-surface-900">
                   Auto-assign tasks
                 </h2>
-                <p id="auto-assign-desc" class="text-sm text-surface-500 mt-0.5">
+                <p id="auto-assign-desc" class="text-sm text-surface-500 mt-1">
                   Review and confirm assignments before applying
                 </p>
               </div>
@@ -40,11 +40,11 @@
           </div>
 
           <!-- Content -->
-          <div class="flex-1 overflow-y-auto px-6">
+          <div class="flex-1 overflow-y-auto px-6 py-4">
             <!-- Summary stats -->
-            <div class="flex items-center gap-6 py-3 mb-1">
+            <div class="flex items-center gap-6 mb-4">
               <div class="flex items-baseline gap-1.5">
-                <span class="text-2xl font-bold text-surface-900">{{ selectedCount }}</span>
+                <span class="text-3xl font-bold text-surface-900">{{ selectedCount }}</span>
                 <span class="text-sm text-surface-500">of {{ totalCount }} selected</span>
               </div>
               <div class="flex items-center gap-1.5">
@@ -53,9 +53,9 @@
               </div>
             </div>
 
-            <!-- Bulk edit controls -->
-            <div v-if="selectedCount > 0 && assignments.length > 0" class="flex items-center gap-3 py-2 border-b border-surface-100">
-              <span class="text-xs font-medium text-surface-500 uppercase tracking-wide">Bulk edit</span>
+            <!-- Bulk edit toolbar -->
+            <div v-if="selectedCount > 0 && assignments.length > 0" class="flex items-center gap-3 mb-5 p-3 bg-surface-50 rounded-lg border border-surface-100">
+              <span class="text-xs font-semibold text-surface-600 uppercase tracking-wide">Bulk edit</span>
               <div class="flex items-center gap-2">
                 <label class="sr-only" for="bulk-agent-select">Change agent for selected</label>
                 <select
@@ -93,7 +93,7 @@
             </div>
 
             <!-- Empty state -->
-            <div v-if="assignments.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
+            <div v-if="assignments.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
               <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
                 <Icon name="lucide:check-circle" class="w-6 h-6 text-surface-400" />
               </div>
@@ -102,7 +102,7 @@
             </div>
 
             <!-- All tasks deselected state -->
-            <div v-else-if="selectedCount === 0 && totalCount > 0" class="flex flex-col items-center justify-center py-12 text-center">
+            <div v-else-if="selectedCount === 0 && totalCount > 0" class="flex flex-col items-center justify-center py-16 text-center">
               <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
                 <Icon name="lucide:square-dashed" class="w-6 h-6 text-surface-400" />
               </div>
@@ -111,13 +111,14 @@
             </div>
 
             <!-- Task list grouped by agent -->
-            <div v-else class="space-y-6 pb-4">
+            <div v-else class="space-y-5">
               <div
                 v-for="group in agentGroups"
                 :key="group.agent.id"
+                class="bg-surface-50 rounded-lg border border-surface-100 overflow-hidden"
               >
                 <!-- Agent header -->
-                <div class="flex items-center gap-2.5 py-2 sticky top-0 bg-white z-10 border-b border-surface-100">
+                <div class="flex items-center gap-2.5 px-4 py-2.5 bg-white border-b border-surface-100">
                   <label class="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -133,28 +134,28 @@
                       {{ getInitials(group.agent.name) }}
                     </span>
                     <span class="text-sm font-semibold text-surface-900">{{ group.agent.name }}</span>
-                    <span class="text-xs text-surface-400 font-medium">{{ group.selectedCount }}/{{ group.tasks.length }}</span>
+                    <span class="text-xs text-surface-400 font-medium ml-1">{{ group.selectedCount }}/{{ group.tasks.length }}</span>
                   </label>
                 </div>
 
                 <!-- Tasks for this agent -->
-                <div class="flex flex-col gap-0.5">
+                <div class="flex flex-col">
                   <div
                     v-for="item in group.tasks"
                     :key="item.task.id"
-                    class="flex items-start gap-2.5 pl-2 pr-2 py-2.5 rounded-lg hover:bg-surface-50 transition-colors"
+                    class="flex items-start gap-3 px-4 py-3 border-b border-surface-100 last:border-b-0 hover:bg-white transition-colors"
                   >
                     <input
                       v-model="selectedIds"
                       type="checkbox"
-                      class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent focus:ring-2 mt-0.5 cursor-pointer flex-shrink-0"
+                      class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent focus:ring-2 mt-1 cursor-pointer flex-shrink-0"
                       :value="item.task.id"
                     >
                     <div class="flex-1 min-w-0">
                       <p class="text-sm font-medium text-surface-900 leading-snug line-clamp-2">
                         {{ item.task.title }}
                       </p>
-                      <div class="flex items-center gap-2 mt-1">
+                      <div class="flex items-center gap-2 mt-1.5">
                         <span class="text-xs text-surface-400">{{ item.fromStatus.name }}</span>
                         <Icon name="lucide:arrow-right" class="w-3 h-3 text-surface-400" />
                         <span class="text-xs font-medium" :style="{ color: item.toStatus.color || '#2563EB' }">
@@ -162,47 +163,49 @@
                         </span>
                       </div>
                     </div>
-                    <!-- Agent selector -->
-                    <div class="flex-shrink-0">
-                      <label class="sr-only" :for="`agent-select-${item.task.id}`">
-                        Assign to agent
-                      </label>
-                      <select
-                        :id="`agent-select-${item.task.id}`"
-                        :value="item.agent.id"
-                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
-                        @change="changeTaskAgent(item.task.id, ($event.target as HTMLSelectElement).value)"
-                      >
-                        <option
-                          v-for="agent in allAgents"
-                          :key="agent.id"
-                          :value="agent.id"
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      <!-- Agent selector -->
+                      <div class="flex-shrink-0">
+                        <label class="sr-only" :for="`agent-select-${item.task.id}`">
+                          Assign to agent
+                        </label>
+                        <select
+                          :id="`agent-select-${item.task.id}`"
+                          :value="item.agent.id"
+                          class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
+                          @change="changeTaskAgent(item.task.id, ($event.target as HTMLSelectElement).value)"
                         >
-                          {{ agent.name }}
-                        </option>
-                      </select>
-                    </div>
+                          <option
+                            v-for="agent in allAgents"
+                            :key="agent.id"
+                            :value="agent.id"
+                          >
+                            {{ agent.name }}
+                          </option>
+                        </select>
+                      </div>
 
-                    <!-- Repository selector -->
-                    <div v-if="repositories.length > 0" class="flex-shrink-0">
-                      <label class="sr-only" :for="`repo-select-${item.task.id}`">
-                        Repository
-                      </label>
-                      <select
-                        :id="`repo-select-${item.task.id}`"
-                        :value="taskRepositoryOverrides[item.task.id] || item.task.repositoryId || ''"
-                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
-                        @change="changeTaskRepository(item.task.id, ($event.target as HTMLSelectElement).value)"
-                      >
-                        <option value="" disabled>Repository...</option>
-                        <option
-                          v-for="repo in repositories"
-                          :key="repo.id"
-                          :value="repo.id"
+                      <!-- Repository selector -->
+                      <div v-if="repositories.length > 0" class="flex-shrink-0">
+                        <label class="sr-only" :for="`repo-select-${item.task.id}`">
+                          Repository
+                        </label>
+                        <select
+                          :id="`repo-select-${item.task.id}`"
+                          :value="taskRepositoryOverrides[item.task.id] || item.task.repositoryId || ''"
+                          class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
+                          @change="changeTaskRepository(item.task.id, ($event.target as HTMLSelectElement).value)"
                         >
-                          {{ repo.name }}
-                        </option>
-                      </select>
+                          <option value="" disabled>Repository...</option>
+                          <option
+                            v-for="repo in repositories"
+                            :key="repo.id"
+                            :value="repo.id"
+                          >
+                            {{ repo.name }}
+                          </option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>

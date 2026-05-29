@@ -659,6 +659,13 @@ async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySel
         assignedCount++
         const idx = tasks.value.findIndex(t => t.id === item.task.id)
         if (idx !== -1) tasks.value[idx] = updated
+
+        // Start agent runtime if task moved to a progress status and is agent-assigned
+        const toProgress = item.toStatus && /progress/i.test(item.toStatus.name)
+        if (toProgress && updated.agentEnabled && updated.assigneeType === 'agent' && updated.assignee) {
+          addLog('Runtime', `Agent "${updated.assignee.name}" started processing "${updated.title}"`, item.task.id)
+          await startRuntime(item.task.id)
+        }
       }
     } catch {
       addLog('System', `Failed to assign "${item.task.title}" to "${item.agent.name}"`, item.task.id)
@@ -677,7 +684,7 @@ async function handleBulkMove(statusId: string) {
     clearSelection()
     if (project.value?.workspaceId) {
       const status = statuses.value.find((s) => s.id === statusId)
-      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids.join(','), entityName: `${ids.length} tasks`, action: 'bulk_status_change', message: `Moved ${ids.length} tasks to "${status?.name || '?' }"` })
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids[0], entityName: `${ids.length} tasks`, action: 'bulk_status_change', message: `Moved ${ids.length} tasks to "${status?.name || '?' }"` })
     }
   } catch (err) {
     console.error('Bulk move failed:', err)
@@ -692,7 +699,7 @@ async function handleBulkDelete() {
     clearSelection()
     exitSelectionMode()
     if (project.value?.workspaceId) {
-      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids.join(','), entityName: `${ids.length} tasks`, action: 'bulk_delete', message: `Deleted ${ids.length} tasks` })
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids[0], entityName: `${ids.length} tasks`, action: 'bulk_delete', message: `Deleted ${ids.length} tasks` })
     }
   } catch (err) {
     console.error('Bulk delete failed:', err)

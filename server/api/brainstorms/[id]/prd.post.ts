@@ -6,6 +6,7 @@ import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
+import { processOpencodeLine } from '~/server/utils/opencode-parser'
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const MAX_RUNTIME_MS = 5 * 60 * 1000 // 5 minutes
@@ -162,9 +163,11 @@ IMPORTANT:
       env: minimalEnv,
     })
 
-    let rawOutput = ''
+    const rawOutput = { value: '' }
+    const stderrOutput = { value: '' }
     let lineBuffer = ''
     let lastActivity = Date.now()
+    const debugLog = { eventTypes: [] as string[], rawLines: [] as string[] }
 
     const runtimeTimeout = setTimeout(() => {
       if (proc.exitCode === null) {
@@ -182,37 +185,21 @@ IMPORTANT:
       }
     }, 5000)
 
-    function processLine(line: string) {
-      if (!line.trim()) return
-      try {
-        const evt = JSON.parse(line)
-        const part = evt.part
-        if (evt.type === 'text' && part) {
-          const text = typeof part === 'string' ? part : part.text || part.content || ''
-          rawOutput += text
-        }
-      }
-      catch {
-        // Accumulate raw text as fallback
-        rawOutput += line
-      }
-    }
-
     proc.stdout?.on('data', (chunk: Buffer) => {
       lastActivity = Date.now()
       lineBuffer += chunk.toString()
       const lines = lineBuffer.split('\n')
       lineBuffer = lines.pop() || ''
       for (const line of lines) {
-        processLine(line)
+        processOpencodeLine(line, rawOutput, debugLog)
       }
     })
 
     proc.stderr?.on('data', (chunk: Buffer) => {
       lastActivity = Date.now()
-      const text = chunk.toString().trim()
+      const text = chunk.toString()
       if (text) {
-        // stderr logging is non-critical, just accumulate
+        stderrOutput.value += text
       }
     })
 
@@ -236,11 +223,19 @@ IMPORTANT:
 
       // Process any remaining line buffer content
       if (lineBuffer.trim()) {
-        processLine(lineBuffer)
+        processOpencodeLine(lineBuffer, rawOutput, debugLog)
         lineBuffer = ''
       }
 
       await stream.push(JSON.stringify({ step: 'Parsing PRD structure...', progress: 80 }))
+
+      // Log debug info for troubleshooting
+      const outputLength = rawOutput.value.length
+      const eventTypes = debugLog.eventTypes
+      await stream.push(JSON.stringify({
+        step: `Debug: output length=${outputLength}, event types=[${eventTypes.join(', ')}]`,
+        progress: 85,
+      }))
 
       try {
         // Extract JSON from the accumulated output
@@ -251,7 +246,7 @@ IMPORTANT:
             title: string
             content: string
           }>
-        }>(rawOutput)
+        }>(rawOutput.value)
 
         if (!parsed.title || !Array.isArray(parsed.sections)) {
           throw new Error('Invalid PRD structure: missing title or sections')
@@ -302,11 +297,15 @@ IMPORTANT:
         stream.close()
       }
       catch (err: any) {
-        await stream.push(JSON.stringify({
+        const debugInfo = {
           error: `Failed to parse PRD: ${err.message}`,
           step: 'error',
-          rawOutput: rawOutput.slice(0, 2000),
-        }))
+          rawOutput: rawOutput.value.slice(0, 2000),
+          stderrOutput: stderrOutput.value.slice(0, 1000),
+          eventTypes: debugLog.eventTypes,
+          rawLines: debugLog.rawLines.slice(0, 20),
+        }
+        await stream.push(JSON.stringify(debugInfo))
         stream.close()
       }
     })

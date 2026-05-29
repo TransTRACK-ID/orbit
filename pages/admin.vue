@@ -506,10 +506,10 @@
               <span class="text-[10px] text-surface-400">Admin diagnostics view</span>
             </div>
           </div>
-          <div v-if="diagnosticsData?.recentRuntimeLogs?.length" ref="logsScrollContainer" class="bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto select-text scrollbar-thin">
+          <div v-if="filteredRuntimeLogs?.length" ref="logsScrollContainer" class="bg-white dark:bg-surface-950 font-mono text-xs text-surface-700 dark:text-surface-300 max-h-[500px] overflow-y-auto select-text scrollbar-thin">
             <div class="sticky top-0 z-10 bg-white dark:bg-surface-950 border-b border-surface-200 dark:border-surface-800 p-2 flex items-center justify-between">
-              <span class="text-[10px] text-surface-400">{{ diagnosticsData.recentRuntimeLogs.length }} log entries</span>
-              <button 
+              <span class="text-[10px] text-surface-400">{{ filteredRuntimeLogs.length }} log entries</span>
+              <button
                 class="text-[10px] text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
                 @click="copyAllLogs"
               >
@@ -518,7 +518,7 @@
               </button>
             </div>
             <div class="p-4 space-y-1">
-              <div v-for="log in diagnosticsData.recentRuntimeLogs" :key="log.id" class="group hover:bg-surface-100 dark:hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
+              <div v-for="log in filteredRuntimeLogs" :key="log.id" class="group hover:bg-surface-100 dark:hover:bg-surface-800/50 py-0.5 px-1 rounded flex items-start gap-3">
                 <span class="text-surface-400 dark:text-surface-600 text-[10px] select-none flex-shrink-0">{{ formatShortTime(log.createdAt) }}</span>
                 <span class="text-primary-600 dark:text-primary-400 font-bold select-none text-[10px] flex-shrink-0 w-24 truncate" :title="log.taskTitle">{{ log.taskTitle }}</span>
                 <span class="text-surface-800 dark:text-surface-100 flex-1 whitespace-pre-wrap word-break-all">{{ log.message }}</span>
@@ -805,6 +805,21 @@ const crashTotalCount = computed(() => diagnosticsData.value?.crashEvents?.lengt
 
 watch(crashPageSize, () => {
   crashPage.value = 1
+})
+
+// ── Runtime logs filter ──
+const IGNORED_LOG_PATTERNS = [
+  'opencode runtime cli Copy All',
+  'Step started',
+  'Step completed',
+]
+
+const filteredRuntimeLogs = computed(() => {
+  const logs = diagnosticsData.value?.recentRuntimeLogs || []
+  return logs.filter((log: any) => {
+    const msg = String(log.message || '')
+    return !IGNORED_LOG_PATTERNS.some(pattern => msg.includes(pattern))
+  })
 })
 
 const deletingTemplateId = ref<string | null>(null)
@@ -1122,8 +1137,8 @@ function copyCrashDetails(event: any) {
 }
 
 function copyAllLogs() {
-  if (!diagnosticsData.value?.recentRuntimeLogs?.length) return
-  const logs = diagnosticsData.value.recentRuntimeLogs
+  if (!filteredRuntimeLogs.value?.length) return
+  const logs = filteredRuntimeLogs.value
     .map((log: any) => `[${formatShortTime(log.createdAt)}] [${log.taskTitle}] ${log.message}`)
     .join('\n')
 
@@ -1134,10 +1149,10 @@ function copyAllLogs() {
 }
 
 function getRelatedLogs(event: any) {
-  if (!diagnosticsData.value?.recentRuntimeLogs?.length) return []
+  if (!filteredRuntimeLogs.value?.length) return []
   const crashTime = new Date(event.createdAt).getTime()
   const windowMs = 5 * 60 * 1000 // 5 minutes window before crash
-  return diagnosticsData.value.recentRuntimeLogs
+  return filteredRuntimeLogs.value
     .filter((log: any) => {
       const logTime = new Date(log.createdAt).getTime()
       return log.taskId === event.taskId && logTime <= crashTime && (crashTime - logTime) <= windowMs

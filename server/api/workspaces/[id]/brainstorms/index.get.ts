@@ -1,6 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
       count: sql<number>`count(${schema.prds.id})`.as('count'),
     })
     .from(schema.prds)
-    .where(sql`${schema.prds.brainstormId} IN (${brainstorms.map(b => b.id).join(',')})`)
+    .where(inArray(schema.prds.brainstormId, brainstorms.map(b => b.id)))
     .groupBy(schema.prds.brainstormId)
 
   const countMap = new Map(prdCounts.map(c => [c.brainstormId, c.count]))

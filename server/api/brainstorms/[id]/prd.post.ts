@@ -182,25 +182,29 @@ IMPORTANT:
       }
     }, 5000)
 
+    function processLine(line: string) {
+      if (!line.trim()) return
+      try {
+        const evt = JSON.parse(line)
+        const part = evt.part
+        if (evt.type === 'text' && part) {
+          const text = typeof part === 'string' ? part : part.text || part.content || ''
+          rawOutput += text
+        }
+      }
+      catch {
+        // Accumulate raw text as fallback
+        rawOutput += line
+      }
+    }
+
     proc.stdout?.on('data', (chunk: Buffer) => {
       lastActivity = Date.now()
       lineBuffer += chunk.toString()
       const lines = lineBuffer.split('\n')
       lineBuffer = lines.pop() || ''
       for (const line of lines) {
-        if (!line.trim()) continue
-        try {
-          const evt = JSON.parse(line)
-          const part = evt.part
-          if (evt.type === 'text' && part) {
-            const text = typeof part === 'string' ? part : part.text || part.content || ''
-            rawOutput += text
-          }
-        }
-        catch {
-          // Accumulate raw text as fallback
-          rawOutput += line
-        }
+        processLine(line)
       }
     })
 
@@ -228,6 +232,12 @@ IMPORTANT:
         await stream.push(JSON.stringify({ error: msg, step: 'error' }))
         stream.close()
         return
+      }
+
+      // Process any remaining line buffer content
+      if (lineBuffer.trim()) {
+        processLine(lineBuffer)
+        lineBuffer = ''
       }
 
       await stream.push(JSON.stringify({ step: 'Parsing PRD structure...', progress: 80 }))

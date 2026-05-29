@@ -60,22 +60,8 @@ export default defineEventHandler(async (event) => {
 
     await stream.push(JSON.stringify({ step: 'Analyzing PRD sections...', progress: 10 }))
 
-    // Build concise sections text - only include task-relevant sections
-    const taskRelevantSections = ['user_stories', 'requirements', 'technical_spec', 'acceptance_criteria']
-    const relevantSections = sections.filter(s => taskRelevantSections.includes(s.sectionType))
-    
-    // If no relevant sections, use all sections
-    const sectionsToUse = relevantSections.length > 0 ? relevantSections : sections
-    
-    // Truncate each section to prevent context overflow
-    const MAX_SECTION_LENGTH = 300
-    const sectionsText = sectionsToUse.map(s => {
-      let content = s.content
-      if (content.length > MAX_SECTION_LENGTH) {
-        content = content.slice(0, MAX_SECTION_LENGTH) + '...'
-      }
-      return `## ${s.title}\n${content}`
-    }).join('\n\n')
+    // Build sections text - include all sections for full context
+    const sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
 
     // Use chat-style message format (same as brainstorm chat endpoint)
     const prompt = `[USER MESSAGE]

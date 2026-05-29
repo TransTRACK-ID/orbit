@@ -128,8 +128,20 @@ export default defineEventHandler(async (event) => {
       )
       url = stdout.trim() || null
     }
-    return { url }
+    // Also fetch the PR row from database for status
+    const prRow = await db.query.pullRequests.findFirst({
+      where: eq(schema.pullRequests.taskId, id),
+      columns: {
+        id: true,
+        mergeableState: true,
+        conflictStatus: true,
+        reviewState: true,
+        status: true,
+      },
+    })
+
+    return { url, pr: prRow }
   } catch {
-    return { url: null }
+    return { url: null, pr: null }
   }
 })

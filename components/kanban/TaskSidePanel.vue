@@ -2484,6 +2484,7 @@ watch(() => props.taskId, () => {
 })
 
 const remotePrUrl = ref('')
+const prData = ref<{ id: string; mergeableState: string | null; conflictStatus: string; reviewState: string; status: string } | null>(null)
 
 const prUrl = computed(() => {
   const prLog = activityLogs.value.find(l => l.action === 'pr_created' || l.action === 'pr_updated')
@@ -2508,13 +2509,26 @@ const isReviewStatus = computed(() =>
 )
 
 const hasMergeConflicts = computed(() => {
+  // Use actual PR data from database if available
+  if (prData.value) {
+    return prData.value.mergeableState === 'dirty' || prData.value.mergeableState === 'conflicting' || prData.value.conflictStatus === 'has_conflicts'
+  }
+  // Fallback to activity logs
   const prLog = activityLogs.value.find(l => l.action === 'pr_created' || l.action === 'pr_updated')
   const prConflictLog = activityLogs.value.find(l => l.action === 'resolve_conflicts')
-  // Check if PR has conflicts based on activity logs or explicit conflict resolution attempts
   return prConflictLog !== undefined || (prLog?.newValue?.mergeableState === 'dirty' || prLog?.newValue?.mergeableState === 'conflicting')
 })
 
 const conflictResolutionStatus = computed(() => {
+  // Use actual PR data from database if available
+  if (prData.value) {
+    if (runtimeActive.value && prData.value.conflictStatus === 'in_progress') return 'in_progress'
+    if (prData.value.conflictStatus === 'resolved') return 'resolved'
+    if (prData.value.conflictStatus === 'failed') return 'failed'
+    if (prData.value.conflictStatus === 'has_conflicts') return 'has_conflicts'
+    return 'none'
+  }
+  // Fallback to activity logs
   const prConflictLog = activityLogs.value.find(l => l.action === 'resolve_conflicts')
   if (runtimeActive.value && prConflictLog) return 'in_progress'
   const resolvedLog = activityLogs.value.find(l => l.action === 'resolve_conflicts' && l.newValue?.conflictCount === 0)
@@ -2541,8 +2555,9 @@ async function handleResolveConflicts() {
 async function checkExistingPr() {
   if (!task.value) return
   try {
-    const { url } = await $fetch<{ url: string | null }>(`/api/tasks/${task.value.id}/pr`, { method: 'GET' })
+    const { url, pr } = await $fetch<{ url: string | null; pr: any | null }>(`/api/tasks/${task.value.id}/pr`, { method: 'GET' })
     if (url) remotePrUrl.value = url
+    if (pr) prData.value = pr
   } catch {}
 }
 
@@ -2981,6 +2996,39 @@ onMounted(async () => {
       feedbackFixed.value = true
     }
   }
+
+  // Start periodic PR data refresh when panel is open
+  startPrDataRefresh()
+})
+
+// ── Periodic PR data refresh ──
+let prRefreshInterval: NodeJS.Timeout | null = null
+
+function startPrDataRefresh() {
+  if (prRefreshInterval) return
+  prRefreshInterval = setInterval(async () => {
+    if (!task.value || !prUrl.value) return
+    try {
+      const { pr } = await $fetch<{ url: string | null; pr: any | null }>(`/api/tasks/${task.value.id}/pr`, { method: 'GET' })
+      if (pr) {
+        prData.value = pr
+      }
+    } catch {
+      // Silently fail — PR might not exist yet
+    }
+  }, 30000) // Refresh every 30 seconds
+}
+
+function stopPrDataRefresh() {
+  if (prRefreshInterval) {
+    clearInterval(prRefreshInterval)
+    prRefreshInterval = null
+  }
+}
+
+// Stop refresh when panel is destroyed
+onUnmounted(() => {
+  stopPrDataRefresh()
 })
 
 async function handleUpdate(field: string, value: any) {

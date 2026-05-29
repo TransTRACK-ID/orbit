@@ -18,10 +18,10 @@
       >
         <!-- Modal -->
         <div
-          class="relative w-full max-w-lg bg-white rounded-xl shadow-xl overflow-hidden animate-scale-in my-auto"
+          class="relative w-full max-w-xl bg-white rounded-xl shadow-xl overflow-hidden animate-scale-in my-auto"
         >
           <!-- Header -->
-          <div class="px-6 pt-6 pb-4">
+          <div class="px-6 pt-6 pb-3">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center flex-shrink-0">
                 <Icon name="lucide:zap" class="w-5 h-5 text-accent" />
@@ -38,29 +38,28 @@
           </div>
 
           <!-- Content -->
-          <div class="px-6 pb-2">
+          <div class="px-6 pb-0">
             <!-- Summary stats -->
-            <div class="flex items-center gap-4 mb-4 p-3 bg-surface-50 rounded-lg">
-              <div class="flex items-center gap-2">
-                <span class="text-lg font-semibold text-surface-900">{{ selectedCount }}</span>
-                <span class="text-sm text-surface-500">of {{ totalCount }} tasks selected</span>
+            <div class="flex items-center gap-6 py-3 mb-1">
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-2xl font-bold text-surface-900">{{ selectedCount }}</span>
+                <span class="text-sm text-surface-500">of {{ totalCount }} selected</span>
               </div>
-              <div class="ml-auto flex items-center gap-2">
+              <div class="flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-semantic-green" />
                 <span class="text-sm text-surface-500">{{ agentGroups.length }} agents</span>
               </div>
             </div>
 
             <!-- Task list grouped by agent -->
-            <div class="max-h-[360px] overflow-y-auto pr-1 space-y-4">
+            <div class="max-h-[400px] overflow-y-auto space-y-6 pb-4">
               <div
                 v-for="group in agentGroups"
                 :key="group.agent.id"
-                class="border border-surface-200 rounded-lg overflow-hidden"
               >
                 <!-- Agent header -->
-                <div class="flex items-center gap-3 px-3 py-2.5 bg-surface-50 border-b border-surface-200">
-                  <label class="flex items-center gap-2 cursor-pointer select-none">
+                <div class="flex items-center gap-2.5 py-2 sticky top-0 bg-white z-10">
+                  <label class="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent focus:ring-2 cursor-pointer"
@@ -75,21 +74,21 @@
                       {{ getInitials(group.agent.name) }}
                     </span>
                     <span class="text-sm font-semibold text-surface-900">{{ group.agent.name }}</span>
-                    <span class="text-xs text-surface-500 ml-auto">{{ group.selectedCount }}/{{ group.tasks.length }}</span>
+                    <span class="text-xs text-surface-400 font-medium">{{ group.selectedCount }}/{{ group.tasks.length }}</span>
                   </label>
                 </div>
 
                 <!-- Tasks for this agent -->
-                <div class="divide-y divide-surface-100">
+                <div class="flex flex-col gap-1">
                   <div
                     v-for="item in group.tasks"
                     :key="item.task.id"
-                    class="flex items-start gap-3 px-3 py-2.5 hover:bg-surface-50 transition-colors"
+                    class="flex items-start gap-2.5 pl-2 pr-2 py-2.5 rounded-lg hover:bg-surface-50 transition-colors"
                   >
                     <input
                       v-model="selectedIds"
                       type="checkbox"
-                      class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent focus:ring-2 mt-0.5 cursor-pointer"
+                      class="w-4 h-4 rounded border-surface-300 text-accent focus:ring-accent focus:ring-2 mt-0.5 cursor-pointer flex-shrink-0"
                       :value="item.task.id"
                     >
                     <div class="flex-1 min-w-0">
@@ -108,7 +107,7 @@
                     <div class="flex-shrink-0">
                       <select
                         :value="item.agent.id"
-                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1 appearance-none cursor-pointer hover:border-surface-300 focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                        class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 focus:border-accent focus:ring-1 focus:ring-accent outline-none"
                         @change="changeTaskAgent(item.task.id, ($event.target as HTMLSelectElement).value)"
                       >
                         <option
@@ -127,7 +126,7 @@
           </div>
 
           <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-surface-200 mt-4">
+          <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-surface-200">
             <button
               class="px-4 py-2 rounded-lg border border-surface-200 text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
               @click="handleCancel"

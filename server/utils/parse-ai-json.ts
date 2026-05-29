@@ -11,38 +11,59 @@ export function extractJsonFromAiResponse<T>(rawText: string): T {
   }
   catch {}
 
-  // Try extracting from markdown code fence
-  const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
-  if (fenceMatch) {
+  // Try extracting from markdown code fence (global regex to find all fences)
+  const fenceRegex = /```(?:json)?\s*\n?([\s\S]+?)\n?```/g
+  let match
+  while ((match = fenceRegex.exec(trimmed)) !== null) {
     try {
-      return JSON.parse(fenceMatch[1].trim())
+      return JSON.parse(match[1].trim())
     }
     catch {}
   }
 
-  // Try finding the largest JSON array or object in the text
-  // This handles cases where the JSON is embedded in other text
-  const arrayMatch = trimmed.match(/\[[\s\S]*\]\s*$/)
-  if (arrayMatch) {
-    try {
-      return JSON.parse(arrayMatch[0])
+  // Try to find the JSON array by looking for balanced brackets from the end
+  // This is more robust than regex for large JSON with nested content
+  const lastBracket = trimmed.lastIndexOf(']')
+  if (lastBracket !== -1 && lastBracket > 0) {
+    // Try to find the matching opening bracket by counting brackets
+    let bracketCount = 1
+    for (let i = lastBracket - 1; i >= 0; i--) {
+      if (trimmed[i] === ']') bracketCount++
+      else if (trimmed[i] === '[') bracketCount--
+      if (bracketCount === 0) {
+        const candidate = trimmed.slice(i, lastBracket + 1)
+        try {
+          return JSON.parse(candidate)
+        }
+        catch {}
+        break
+      }
     }
-    catch {}
   }
 
-  const objectMatch = trimmed.match(/\{[\s\S]*\}\s*$/)
-  if (objectMatch) {
-    try {
-      return JSON.parse(objectMatch[0])
+  // Try to find the JSON object by looking for balanced braces from the end
+  const lastBrace = trimmed.lastIndexOf('}')
+  if (lastBrace !== -1 && lastBrace > 0) {
+    let braceCount = 1
+    for (let i = lastBrace - 1; i >= 0; i--) {
+      if (trimmed[i] === '}') braceCount++
+      else if (trimmed[i] === '{') braceCount--
+      if (braceCount === 0) {
+        const candidate = trimmed.slice(i, lastBrace + 1)
+        try {
+          return JSON.parse(candidate)
+        }
+        catch {}
+        break
+      }
     }
-    catch {}
   }
 
-  // Try finding any JSON array or object boundaries (more aggressive)
-  const jsonMatch = trimmed.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)
+  // Fallback: try greedy regex for JSON array or object anywhere in text
+  const jsonMatch = trimmed.match(/\[[\s\S]*\]|\{[\s\S]*\}/)
   if (jsonMatch) {
     try {
-      return JSON.parse(jsonMatch[1])
+      return JSON.parse(jsonMatch[0])
     }
     catch {}
   }

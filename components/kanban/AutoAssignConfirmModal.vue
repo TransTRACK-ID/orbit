@@ -53,6 +53,45 @@
               </div>
             </div>
 
+            <!-- Bulk edit controls -->
+            <div v-if="selectedCount > 0 && assignments.length > 0" class="flex items-center gap-3 py-2 border-b border-surface-100">
+              <span class="text-xs font-medium text-surface-500 uppercase tracking-wide">Bulk edit</span>
+              <div class="flex items-center gap-2">
+                <label class="sr-only" for="bulk-agent-select">Change agent for selected</label>
+                <select
+                  id="bulk-agent-select"
+                  class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
+                  @change="applyBulkAgent(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+                >
+                  <option value="" disabled selected>Agent…</option>
+                  <option
+                    v-for="agent in allAgents"
+                    :key="agent.id"
+                    :value="agent.id"
+                  >
+                    {{ agent.name }}
+                  </option>
+                </select>
+              </div>
+              <div v-if="repositories.length > 0" class="flex items-center gap-2">
+                <label class="sr-only" for="bulk-repo-select">Change repository for selected</label>
+                <select
+                  id="bulk-repo-select"
+                  class="text-xs font-medium bg-white border border-surface-200 rounded-lg pl-2 pr-6 py-1.5 appearance-none cursor-pointer hover:border-surface-300 hover:bg-surface-50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors"
+                  @change="applyBulkRepository(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+                >
+                  <option value="" disabled selected>Repository…</option>
+                  <option
+                    v-for="repo in repositories"
+                    :key="repo.id"
+                    :value="repo.id"
+                  >
+                    {{ repo.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
             <!-- Empty state -->
             <div v-if="assignments.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
               <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
@@ -318,6 +357,22 @@ function changeTaskAgent(taskId: string, agentId: string) {
 
 function changeTaskRepository(taskId: string, repositoryId: string) {
   taskRepositoryOverrides.value[taskId] = repositoryId
+}
+
+function applyBulkAgent(agentId: string) {
+  if (!agentId) return
+  const agent = props.allAgents.find(a => a.id === agentId)
+  if (!agent) return
+  for (const taskId of selectedIds.value) {
+    taskAgentOverrides.value[taskId] = agent
+  }
+}
+
+function applyBulkRepository(repoId: string) {
+  if (!repoId) return
+  for (const taskId of selectedIds.value) {
+    taskRepositoryOverrides.value[taskId] = repoId
+  }
 }
 
 function getInitials(name: string): string {

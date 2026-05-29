@@ -642,9 +642,9 @@ async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySel
       if (item.toStatus && item.task.statusId !== item.toStatus.id) {
         updateData.statusId = item.toStatus.id
       }
-      // Apply repository selection if the task doesn't have one
+      // Apply repository selection
       const selectedRepoId = repositorySelections[item.task.id]
-      if (selectedRepoId && !item.task.repositoryId) {
+      if (selectedRepoId) {
         updateData.repositoryId = selectedRepoId
       }
       // Generate branch name for agent-assigned tasks that don't have one

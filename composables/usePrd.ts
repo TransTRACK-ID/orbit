@@ -174,7 +174,7 @@ export const usePrd = () => {
     }
   }
 
-  async function generateTasks(prdId: string, projectId: string, sections?: string[]) {
+  async function generateTasks(prdId: string, projectId?: string, sections?: string[]) {
     generatingTasks.value = true
     generatedTasks.value = []
     taskGenerationProgress.value = { ...taskGenerationProgress.value, [prdId]: 0 }
@@ -182,10 +182,12 @@ export const usePrd = () => {
 
     try {
       const url = `/api/prds/${prdId}/generate-tasks`
+      const body: Record<string, any> = { sections }
+      if (projectId) body.projectId = projectId
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, sections }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok || !response.body) {

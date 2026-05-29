@@ -701,21 +701,16 @@ async function handleDeletePrd() {
 }
 
 async function handleGenerateTasks() {
-  if (!currentPrd.value || workspaceProjects.value.length === 0) return
+  if (!currentPrd.value) return
   
-  // Use first project if only one, otherwise we'll need a selector
-  let projectId = currentPrd.value.projectId || ''
-  if (!projectId && workspaceProjects.value.length === 1) {
-    projectId = workspaceProjects.value[0].id
-  }
-  
-  if (!projectId) {
-    toastError('Please select a project first', 'Error')
+  if (workspaceProjects.value.length === 0) {
+    toastError('No projects available. Create a project first.', 'Error')
     return
   }
 
   try {
-    await generateTasks(currentPrd.value.id, projectId)
+    // Generate tasks without projectId - project is selected in the review modal
+    await generateTasks(currentPrd.value.id, '')
     showTaskReviewModal.value = true
   } catch (err: any) {
     toastError(err?.message || 'Failed to generate tasks', 'Error')

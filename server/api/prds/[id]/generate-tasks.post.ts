@@ -11,7 +11,7 @@ const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/b
 const MAX_RUNTIME_MS = 5 * 60 * 1000 // 5 minutes
 
 const generateTasksSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid().optional(),
   sections: z.array(z.string()).optional(),
 })
 

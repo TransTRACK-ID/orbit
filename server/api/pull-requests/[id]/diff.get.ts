@@ -4,7 +4,7 @@ import { existsSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
-import { resolveCloneDir } from '~/server/utils/github-api'
+import { resolveCloneDir } from '~/server/utils/worktree-resolver'
 
 const execAsync = promisify(exec)
 

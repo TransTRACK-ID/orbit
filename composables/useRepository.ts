@@ -1,24 +1,26 @@
 import type { Repository } from '~/types'
 
+// Shared state across all useRepository() calls
+const _repositories = ref<Repository[]>([])
+const _loading = ref(false)
+
 export const useRepository = () => {
-  const repositories = ref<Repository[]>([])
-  const loading = ref(false)
   const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   async function fetchRepositories(workspaceId: string) {
-    loading.value = true
+    _loading.value = true
     try {
       const data = await $fetch<Repository[]>(`/api/workspaces/${workspaceId}/repositories`, {
         headers: ssrHeaders,
       })
-      repositories.value = data
+      _repositories.value = data
       return data
     } catch (err) {
       console.error('Failed to fetch repositories:', err)
-      repositories.value = []
+      _repositories.value = []
       return []
     } finally {
-      loading.value = false
+      _loading.value = false
     }
   }
 
@@ -27,7 +29,7 @@ export const useRepository = () => {
       method: 'POST',
       body: data,
     })
-    repositories.value.push(repo)
+    _repositories.value.push(repo)
     return repo
   }
 
@@ -36,14 +38,14 @@ export const useRepository = () => {
       method: 'PATCH',
       body: data,
     })
-    const idx = repositories.value.findIndex((r) => r.id === repoId)
-    if (idx !== -1) repositories.value[idx] = updated
+    const idx = _repositories.value.findIndex((r) => r.id === repoId)
+    if (idx !== -1) _repositories.value[idx] = updated
     return updated
   }
 
   async function deleteRepository(workspaceId: string, repoId: string) {
     await $fetch(`/api/workspaces/${workspaceId}/repositories/${repoId}`, { method: 'DELETE' })
-    repositories.value = repositories.value.filter((r) => r.id !== repoId)
+    _repositories.value = _repositories.value.filter((r) => r.id !== repoId)
   }
 
   async function checkRepositoryConnection(workspaceId: string, data: { url: string; platform: 'github' | 'gitlab' | 'gitlab-self-hosted'; token?: string }) {
@@ -54,8 +56,8 @@ export const useRepository = () => {
   }
 
   return {
-    repositories,
-    loading,
+    repositories: _repositories,
+    loading: _loading,
     fetchRepositories,
     createRepository,
     updateRepository,

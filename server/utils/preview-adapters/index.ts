@@ -22,5 +22,4 @@ export async function detectFramework(worktreeDir: string): Promise<PreviewAdapt
   return null
 }
 
-export { NuxtAdapter, NextJsAdapter, LaravelAdapter }
-export type { PreviewAdapter, PreviewConfig, BuildResult, ServerInfo } from './types'
+

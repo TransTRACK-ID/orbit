@@ -117,51 +117,71 @@ export const useBrainstorm = () => {
       }
     }
 
-    const url = `/api/brainstorms/${brainstormId}/chat`
-    const es = new EventSource(url)
+    // Use polling instead of EventSource to avoid browser tab throttling issues
+    let fromIndex = 0
     let receivedDone = false
     let replyBuffer = ''
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+    
+    activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: true }
+    chatReplies.value = { ...chatReplies.value, [brainstormId]: '' }
 
-    es.onopen = () => {
-      activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: true }
-      chatReplies.value = { ...chatReplies.value, [brainstormId]: '' }
-    }
-
-    es.onmessage = (e) => {
+    const poll = async () => {
       try {
-        const data = JSON.parse(e.data)
-        if (data.step) {
-          chatSteps.value = { ...chatSteps.value, [brainstormId]: data.step }
-          if (/>?\s*Done$/.test(data.step) || />?\s*Brainstorm session completed/.test(data.step) || />?\s*Exited with code/.test(data.step)) {
-            receivedDone = true
-            // Immediately mark as not running so UI updates and auto-save can persist the reply
-            activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: false }
-            chatEventSources.delete(brainstormId)
-            es.close()
-            // Intentionally no return here — if this event also carries a final agentReply,
-            // we want to process it below before the connection closes.
-          }
-        }
-        if (data.agentReply) {
-          replyBuffer += data.agentReply
-          chatReplies.value = { ...chatReplies.value, [brainstormId]: replyBuffer }
-        }
-      } catch {}
-    }
+        const data = await $fetch<{
+          status: string
+          output: string[]
+          nextIndex: number
+          completed: boolean
+          exitMessage?: string
+        }>(`/api/brainstorms/${brainstormId}/chat/status?fromIndex=${fromIndex}`)
 
-    es.onerror = () => {
-      // Only clean up when the session is actually done or the connection is permanently
-      // closed. This preserves EventSource auto-reconnect for transient network errors
-      // while the agent is still actively running on the server.
-      if (receivedDone || es.readyState === EventSource.CLOSED) {
-        chatEventSources.delete(brainstormId)
+        fromIndex = data.nextIndex
+
+        for (const line of data.output) {
+          try {
+            const event = JSON.parse(line)
+            if (event.step) {
+              chatSteps.value = { ...chatSteps.value, [brainstormId]: event.step }
+              if (/>?\s*Done$/.test(event.step) || />?\s*Brainstorm session completed/.test(event.step) || />?\s*Exited with code/.test(event.step)) {
+                receivedDone = true
+              }
+            }
+            if (event.agentReply) {
+              replyBuffer += event.agentReply
+              chatReplies.value = { ...chatReplies.value, [brainstormId]: replyBuffer }
+            }
+          } catch {}
+        }
+
+        if (data.completed || receivedDone) {
+          if (pollInterval) {
+            clearInterval(pollInterval)
+            pollInterval = null
+          }
+          activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: false }
+        }
+      } catch (err) {
+        console.error('Chat poll error:', err)
+        if (pollInterval) {
+          clearInterval(pollInterval)
+          pollInterval = null
+        }
         activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: false }
-        es.close()
       }
     }
 
-    chatEventSources.set(brainstormId, es)
-    activeChatRuntimes.value = { ...activeChatRuntimes.value, [brainstormId]: true }
+    // Poll immediately and then every 2 seconds
+    poll()
+    pollInterval = setInterval(poll, 2000)
+
+    // Store the interval so we can clear it on stop
+    chatEventSources.set(brainstormId, { close: () => {
+      if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = null
+      }
+    } } as any)
   }
 
   function stopChat(brainstormId: string) {

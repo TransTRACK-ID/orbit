@@ -341,7 +341,7 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       env: minimalEnv,
     })
 
-    const entry: BrainstormProcState = { proc, streams: [], heartbeat: null }
+    const entry: BrainstormProcState = { proc, streams: [], heartbeat: null, outputBuffer: [], lastOutputIndex: 0 }
     activeBrainstormProcesses.set(id, entry)
     addStreamToBrainstormProc(id, stream, entry)
 

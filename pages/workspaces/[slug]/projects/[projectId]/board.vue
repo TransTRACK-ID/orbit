@@ -209,6 +209,7 @@ import { flashHighlight } from '~/composables/useKanban'
 import { useLocalStorage } from '@vueuse/core'
 import AgentReadyTooltip from '~/components/onboarding/AgentReadyTooltip.vue'
 import { useBoardFilterSort, type FilterState, type SortState } from '~/composables/useBoardFilterSort'
+import { validateBranchName } from '~/utils/branch-validation'
 
 definePageMeta({
   layout: 'default',
@@ -605,6 +606,26 @@ function handleAutoAssign(assignments: any[]) {
   showAutoAssignModal.value = true
 }
 
+function slugifyBranchSegment(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+}
+
+function generateAgentBranchName(task: any, agent: any): string {
+  const label = task.labels?.length ? slugifyBranchSegment(task.labels[0].name) : 'task'
+  const identity = task.id.slice(0, 8)
+  const assignee = task.observer
+    ? slugifyBranchSegment(task.observer.name)
+    : agent
+      ? slugifyBranchSegment(agent.name)
+      : 'unassigned'
+  const feature = slugifyBranchSegment(task.title)
+  return `${label}/${identity}/${assignee}/${feature}`
+}
+
 async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySelections: Record<string, string>) {
   if (!selectedAssignments.length) {
     showAutoAssignModal.value = false
@@ -625,6 +646,13 @@ async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySel
       const selectedRepoId = repositorySelections[item.task.id]
       if (selectedRepoId && !item.task.repositoryId) {
         updateData.repositoryId = selectedRepoId
+      }
+      // Generate branch name for agent-assigned tasks that don't have one
+      if (!item.task.branchName) {
+        const generatedBranch = generateAgentBranchName(item.task, item.agent)
+        if (validateBranchName(generatedBranch) === '') {
+          updateData.branchName = generatedBranch
+        }
       }
       const updated = await updateTask(item.task.id, updateData)
       if (updated) {

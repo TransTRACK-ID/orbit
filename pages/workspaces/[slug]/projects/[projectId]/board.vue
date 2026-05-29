@@ -626,14 +626,23 @@ function generateAgentBranchName(task: any, agent: any): string {
   return `${label}/${identity}/${assignee}/${feature}`
 }
 
+const priorityOrder: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1, none: 0 }
+
 async function handleAutoAssignConfirm(selectedAssignments: any[], repositorySelections: Record<string, string>) {
   if (!selectedAssignments.length) {
     showAutoAssignModal.value = false
     return
   }
 
+  // Sort by priority so highest priority tasks are processed first
+  const sortedAssignments = [...selectedAssignments].sort((a, b) => {
+    const pa = priorityOrder[a.task.priority] ?? 0
+    const pb = priorityOrder[b.task.priority] ?? 0
+    return pb - pa
+  })
+
   let assignedCount = 0
-  for (const item of selectedAssignments) {
+  for (const item of sortedAssignments) {
     try {
       const updateData: any = {
         assigneeId: item.agent.id,
@@ -680,11 +689,29 @@ async function handleBulkMove(statusId: string) {
   const ids = Array.from(selectedTaskIds.value)
   if (!ids.length) return
   try {
-    await bulkUpdate(ids, { statusId })
+    const updatedTasks = await bulkUpdate(ids, { statusId })
     clearSelection()
     if (project.value?.workspaceId) {
       const status = statuses.value.find((s) => s.id === statusId)
       persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids[0], entityName: `${ids.length} tasks`, action: 'bulk_status_change', message: `Moved ${ids.length} tasks to "${status?.name || '?' }"` })
+    }
+
+    // If moved to a progress status, start agent runtimes in priority order
+    const status = statuses.value.find((s) => s.id === statusId)
+    if (status && /progress/i.test(status.name)) {
+      const movedToProgress = updatedTasks
+        .filter((t) => t.agentEnabled && t.assigneeType === 'agent' && t.assignee)
+        .sort((a, b) => {
+          const pa = priorityOrder[a.priority] ?? 0
+          const pb = priorityOrder[b.priority] ?? 0
+          return pb - pa
+        })
+      for (const task of movedToProgress) {
+        if (task.assignee) {
+          addLog('Runtime', `Agent "${task.assignee.name}" started processing "${task.title}"`, task.id)
+          await startRuntime(task.id)
+        }
+      }
     }
   } catch (err) {
     console.error('Bulk move failed:', err)

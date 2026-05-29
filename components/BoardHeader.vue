@@ -290,9 +290,17 @@ async function handleAutoAssign() {
     return
   }
 
+  // Priority order for sorting (highest first)
+  const priorityOrder: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1, none: 0 }
+  const sortedUnassigned = [...unassigned].sort((a, b) => {
+    const pa = priorityOrder[a.priority] ?? 0
+    const pb = priorityOrder[b.priority] ?? 0
+    return pb - pa
+  })
+
   // Build the preview assignments
   const assignments: AutoAssignPreview[] = []
-  for (const [i, task] of unassigned.entries()) {
+  for (const [i, task] of sortedUnassigned.entries()) {
     const agent = agentCandidates[i % agentCandidates.length]!
     assignments.push({
       task,

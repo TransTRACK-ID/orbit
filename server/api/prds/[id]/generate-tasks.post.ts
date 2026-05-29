@@ -9,7 +9,7 @@ import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
 import { processOpencodeLine } from '~/server/utils/opencode-parser'
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
-const MAX_RUNTIME_MS = 5 * 60 * 1000 // 5 minutes
+const MAX_RUNTIME_MS = 8 * 60 * 1000 // 8 minutes
 
 const generateTasksSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -60,7 +60,12 @@ export default defineEventHandler(async (event) => {
 
     await stream.push(JSON.stringify({ step: 'Analyzing PRD sections...', progress: 10 }))
 
-    const sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
+    // Truncate section content to prevent context window overflow
+    const MAX_CONTENT_LENGTH = 6000
+    let sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
+    if (sectionsText.length > MAX_CONTENT_LENGTH) {
+      sectionsText = sectionsText.slice(0, MAX_CONTENT_LENGTH) + '\n\n[Content truncated for length...]'
+    }
 
     const prompt = `You are a project management expert. Analyze the following PRD and extract actionable development tasks.
 
@@ -78,33 +83,21 @@ ${sectionsText}
 - Include clear acceptance criteria in the description
 
 [OUTPUT FORMAT]
-Return a JSON array:
+Return ONLY a JSON array, no other text:
 [
   {
-    "title": "Task title (imperative mood, max 100 chars)",
-    "description": "Detailed description in markdown with acceptance criteria",
+    "title": "Task title",
+    "description": "Description with acceptance criteria",
     "priority": "medium",
     "estimateHours": 8,
     "labels": ["feature"],
     "parentIndex": null,
     "sectionSource": "requirements"
-  },
-  {
-    "title": "Subtask title",
-    "description": "...",
-    "priority": "medium",
-    "estimateHours": 4,
-    "labels": ["feature"],
-    "parentIndex": 0,
-    "sectionSource": "requirements"
   }
 ]
 
-IMPORTANT:
-- Return ONLY the JSON array, no other text
-- parentIndex is the 0-based index of the parent task (null for top-level tasks)
-- sectionSource should be one of: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks
-- Every task description must end with "### Acceptance Criteria" section listing 2-4 bullet points`
+parentIndex is the 0-based index of the parent task (null for top-level).
+sectionSource should be one of: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks.`
 
     const workDir = process.cwd()
     const minimalEnv: NodeJS.ProcessEnv = {
@@ -205,6 +198,21 @@ IMPORTANT:
         step: `Debug: output length=${outputLength}, event types=[${eventTypes.join(', ')}]`,
         progress: 85,
       }))
+
+      // Check if we got any actual content
+      if (outputLength === 0) {
+        const debugInfo = {
+          error: 'AI model produced no output. The PRD may be too long or the model may have failed.',
+          step: 'error',
+          rawOutput: rawOutput.value,
+          stderrOutput: stderrOutput.value.slice(0, 1000),
+          eventTypes: debugLog.eventTypes,
+          rawLines: debugLog.rawLines.slice(0, 20),
+        }
+        await stream.push(JSON.stringify(debugInfo))
+        stream.close()
+        return
+      }
 
       try {
         const parsed = extractJsonFromAiResponse<Array<{

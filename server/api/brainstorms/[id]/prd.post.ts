@@ -167,7 +167,15 @@ IMPORTANT:
     const stderrOutput = { value: '' }
     let lineBuffer = ''
     let lastActivity = Date.now()
+    let stdoutEnded = false
     const debugLog = { eventTypes: [] as string[], rawLines: [] as string[] }
+
+    function flushLineBuffer() {
+      if (lineBuffer.trim()) {
+        processOpencodeLine(lineBuffer, rawOutput, debugLog)
+        lineBuffer = ''
+      }
+    }
 
     const runtimeTimeout = setTimeout(() => {
       if (proc.exitCode === null) {
@@ -193,6 +201,11 @@ IMPORTANT:
       for (const line of lines) {
         processOpencodeLine(line, rawOutput, debugLog)
       }
+    })
+
+    proc.stdout?.on('end', () => {
+      stdoutEnded = true
+      flushLineBuffer()
     })
 
     proc.stderr?.on('data', (chunk: Buffer) => {
@@ -221,11 +234,15 @@ IMPORTANT:
         return
       }
 
-      // Process any remaining line buffer content
-      if (lineBuffer.trim()) {
-        processOpencodeLine(lineBuffer, rawOutput, debugLog)
-        lineBuffer = ''
+      // Wait for stdout to end (with timeout)
+      let waitCount = 0
+      while (!stdoutEnded && waitCount < 20) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        waitCount++
       }
+
+      // Flush any remaining line buffer content
+      flushLineBuffer()
 
       await stream.push(JSON.stringify({ step: 'Parsing PRD structure...', progress: 80 }))
 

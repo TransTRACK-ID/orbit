@@ -62,16 +62,6 @@ export default defineEventHandler(async (event) => {
 
   const labelMap = new Map(existingLabels.map(l => [l.name.toLowerCase(), l]))
 
-  // Create missing labels with default colors
-  const defaultColors: Record<string, string> = {
-    feature: '#22c55e',
-    bugfix: '#ef4444',
-    improvement: '#3b82f6',
-    refactor: '#8b5cf6',
-    documentation: '#f59e0b',
-    testing: '#06b6d4',
-  }
-
   const createdTaskIds: string[] = []
   const parentTaskIdMap = new Map<number, string>() // Maps task index -> created task ID
 
@@ -115,24 +105,11 @@ export default defineEventHandler(async (event) => {
     parentTaskIdMap.set(i, task.id)
     position += 1000
 
-    // Handle labels
+    // Handle labels — only attach existing labels, never create new ones
     if (taskData.labels && taskData.labels.length > 0) {
       for (const labelName of taskData.labels) {
         const lowerName = labelName.toLowerCase()
-        let label = labelMap.get(lowerName)
-
-        if (!label) {
-          // Create new label
-          const [createdLabel] = await db.insert(schema.labels)
-            .values({
-              projectId: body.projectId,
-              name: labelName,
-              color: defaultColors[lowerName] || '#94a3b8',
-            })
-            .returning()
-          label = createdLabel
-          labelMap.set(lowerName, label)
-        }
+        const label = labelMap.get(lowerName)
 
         if (label) {
           await db.insert(schema.taskLabels).values({

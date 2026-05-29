@@ -63,6 +63,20 @@ export default defineEventHandler(async (event) => {
     // Build sections text - include all sections for full context
     const sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
 
+    // Fetch existing labels for the project if available
+    const projectId = body.projectId || prd.projectId
+    let existingLabelsHint = ''
+    if (projectId) {
+      const existingLabels = await db.query.labels.findMany({
+        where: eq(schema.labels.projectId, projectId),
+        orderBy: (l, { asc }) => [asc(l.name)],
+      })
+      if (existingLabels.length > 0) {
+        const labelNames = existingLabels.map(l => l.name).join(', ')
+        existingLabelsHint = `\n\nExisting project labels (ONLY use these — do not invent new ones): ${labelNames}`
+      }
+    }
+
     // Use chat-style message format (same as brainstorm chat endpoint)
     const prompt = `[USER MESSAGE]
 
@@ -70,7 +84,7 @@ Please analyze this PRD and extract development tasks as a JSON array.
 
 PRD Title: ${prd.title}
 
-${sectionsText}
+${sectionsText}${existingLabelsHint}
 
 Return ONLY a JSON array with this structure:
 [
@@ -82,6 +96,7 @@ Rules:
 - Group related tasks with parentIndex
 - Priority: urgent, high, medium, low, or none
 - sectionSource: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks
+- Only use existing project labels if provided; do not invent new label names
 - Return ONLY the JSON array, no other text`
 
     const workDir = process.cwd()

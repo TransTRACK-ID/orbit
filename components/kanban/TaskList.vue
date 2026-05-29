@@ -12,6 +12,7 @@
       :active-filter-count="activeFilterCount"
       :active-filter-chips="activeFilterChips"
       @create-task="$emit('createTask')"
+      @auto-assign="$emit('autoAssign', $event)"
       @update:view-mode="$emit('update:viewMode', $event)"
       @update:search="$emit('update:search', $event)"
       @update:sort-field="$emit('update:sortField', $event)"
@@ -177,6 +178,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   createTask: []
+  autoAssign: [assignments: any[]]
   updateTask: [data: { id: string; statusId: string; position: number }]
   openTask: [task: Task]
   'update:viewMode': [mode: 'kanban' | 'table' | 'list']

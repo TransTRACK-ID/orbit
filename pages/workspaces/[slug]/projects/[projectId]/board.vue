@@ -44,6 +44,7 @@
           @create-task="handleCreateTask"
           @update-task="handleUpdateTask"
           @open-task="handleOpenTask"
+          @auto-assign="handleAutoAssign"
           @update:search="handleSearchUpdate"
           @update:sort-field="handleSortFieldUpdate"
           @update:sort-direction="handleSortDirectionUpdate"
@@ -78,6 +79,7 @@
           @create-task="handleCreateTask"
           @update-task="handleUpdateTask"
           @open-task="handleOpenTask"
+          @auto-assign="handleAutoAssign"
           @update:search="handleSearchUpdate"
           @update:sort-field="handleSortFieldUpdate"
           @update:sort-direction="handleSortDirectionUpdate"
@@ -112,6 +114,7 @@
           @create-task="handleCreateTask"
           @update-task="handleUpdateTask"
           @open-task="handleOpenTask"
+          @auto-assign="handleAutoAssign"
           @update:search="handleSearchUpdate"
           @update:sort-field="handleSortFieldUpdate"
           @update:sort-direction="handleSortDirectionUpdate"
@@ -156,6 +159,14 @@
       @close="showCreateModal = false"
       @created="handleTaskCreated"
     />
+
+    <!-- Auto-assign confirmation modal -->
+    <KanbanAutoAssignConfirmModal
+      v-model="showAutoAssignModal"
+      :assignments="autoAssignPreview"
+      @confirm="handleAutoAssignConfirm"
+      @cancel="showAutoAssignModal = false"
+    />
   </div>
 </template>
 
@@ -185,9 +196,11 @@ const project = ref<any>(null)
 const workspace = ref<Workspace | null>(null)
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
-const members = ref<ProjectMember[]>([])
-const showCreateModal = ref(false)
-const showFilters = ref(false)
+  const members = ref<ProjectMember[]>([])
+  const showCreateModal = ref(false)
+  const showFilters = ref(false)
+  const showAutoAssignModal = ref(false)
+  const autoAssignPreview = ref<any[]>([])
 
 const viewMode = useLocalStorage<'kanban' | 'table' | 'list'>(`orbit-board-view-${projectId.value}`, 'kanban')
 
@@ -550,5 +563,41 @@ function handleTaskDuplicated(task: Task) {
 function handleTaskDeleted(taskId: string) {
   tasks.value = tasks.value.filter((t) => t.id !== taskId)
   closeTaskDetail()
+}
+
+function handleAutoAssign(assignments: any[]) {
+  autoAssignPreview.value = assignments
+  showAutoAssignModal.value = true
+}
+
+async function handleAutoAssignConfirm(selectedAssignments: any[]) {
+  if (!selectedAssignments.length) {
+    showAutoAssignModal.value = false
+    return
+  }
+
+  let assignedCount = 0
+  for (const item of selectedAssignments) {
+    try {
+      const updateData: any = {
+        assigneeId: item.agent.id,
+        assigneeType: 'agent',
+      }
+      if (item.toStatus && item.task.statusId !== item.toStatus.id) {
+        updateData.statusId = item.toStatus.id
+      }
+      const updated = await updateTask(item.task.id, updateData)
+      if (updated) {
+        assignedCount++
+        const idx = tasks.value.findIndex(t => t.id === item.task.id)
+        if (idx !== -1) tasks.value[idx] = updated
+      }
+    } catch {
+      addLog('System', `Failed to assign "${item.task.title}" to "${item.agent.name}"`, item.task.id)
+    }
+  }
+
+  addLog('System', `Auto-assigned ${assignedCount}/${selectedAssignments.length} tasks to runtime agents`)
+  showAutoAssignModal.value = false
 }
 </script>

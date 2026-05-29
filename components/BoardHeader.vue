@@ -162,9 +162,16 @@ const props = defineProps<{
   activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
 }>()
 
+interface AutoAssignPreview {
+  task: Task
+  agent: { id: string; name: string; color: string }
+  fromStatus: Status
+  toStatus: Status
+}
+
 const emit = defineEmits<{
   createTask: []
-  autoAssign: []
+  autoAssign: [assignments: AutoAssignPreview[]]
   'update:viewMode': [mode: 'kanban' | 'table' | 'list']
   'update:search': [value: string]
   'update:sortField': [field: SortState['field']]
@@ -219,24 +226,19 @@ async function handleAutoAssign() {
     return
   }
 
-  let assignedCount = 0
-  for (const task of unassigned) {
-    const agent = agentCandidates[assignedCount % agentCandidates.length]
-    try {
-      const updateData: any = {
-        assigneeId: agent.id,
-        assigneeType: 'agent',
-      }
-      if (progressStatus && task.statusId !== progressStatus.id) {
-        updateData.statusId = progressStatus.id
-      }
-      await updateTask(task.id, updateData)
-      assignedCount++
-    } catch {
-      addLog('System', `Failed to assign "${task.title}" to "${agent.name}"`, task.id)
-    }
+  // Build the preview assignments
+  const assignments: AutoAssignPreview[] = []
+  for (const [i, task] of unassigned.entries()) {
+    const agent = agentCandidates[i % agentCandidates.length]!
+    assignments.push({
+      task,
+      agent,
+      fromStatus: todoStatus || task.status!,
+      toStatus: progressStatus || task.status!,
+    })
   }
 
-  addLog('System', `Auto-assigned ${assignedCount}/${unassigned.length} backlog tasks to runtime agents`)
+  // Emit the preview for the parent to show the confirmation modal
+  emit('autoAssign', assignments)
 }
 </script>

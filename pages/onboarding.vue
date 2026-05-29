@@ -260,6 +260,7 @@ definePageMeta({
   layout: 'auth',
 })
 
+const { data: authData, status: authStatus } = useAuth()
 const { createWorkspace } = useWorkspace()
 const { createProject, fetchProjectDetail, projectStatuses } = useProject()
 const { completeOnboarding } = useOnboarding()
@@ -449,12 +450,44 @@ function goToBoard() {
   }
 }
 
-// Focus workspace input on mount
-onMounted(() => {
-  nextTick(() => {
-    workspaceInput.value?.$el?.querySelector('input')?.focus()
-  })
+// Auto-create workspace on mount and skip to project creation
+onMounted(async () => {
+  // Wait for auth session to be ready
+  if (authStatus.value === 'loading') {
+    const unwatch = watch(authStatus, async (newStatus) => {
+      if (newStatus !== 'loading') {
+        unwatch()
+        await autoCreateWorkspace()
+      }
+    })
+  } else if (authStatus.value === 'authenticated') {
+    await autoCreateWorkspace()
+  }
 })
+
+async function autoCreateWorkspace() {
+  step1Loading.value = true
+  try {
+    const workspace = await $fetch('/api/workspaces/auto-create', {
+      method: 'POST',
+    })
+    createdWorkspace.value = workspace
+    step.value = 2
+    // Focus project input on next tick
+    nextTick(() => {
+      projectInput.value?.$el?.querySelector('input')?.focus()
+    })
+  } catch (err: any) {
+    console.error('Failed to auto-create workspace:', err)
+    // If auto-create fails, let user manually create it
+    workspaceName.value = authData.value?.user?.name || ''
+    nextTick(() => {
+      workspaceInput.value?.$el?.querySelector('input')?.focus()
+    })
+  } finally {
+    step1Loading.value = false
+  }
+}
 </script>
 
 <style scoped>

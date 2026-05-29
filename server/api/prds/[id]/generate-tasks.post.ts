@@ -60,44 +60,43 @@ export default defineEventHandler(async (event) => {
 
     await stream.push(JSON.stringify({ step: 'Analyzing PRD sections...', progress: 10 }))
 
-    // Truncate section content to prevent context window overflow
-    const MAX_CONTENT_LENGTH = 6000
-    let sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
-    if (sectionsText.length > MAX_CONTENT_LENGTH) {
-      sectionsText = sectionsText.slice(0, MAX_CONTENT_LENGTH) + '\n\n[Content truncated for length...]'
-    }
+    // Build concise sections text - only include task-relevant sections
+    const taskRelevantSections = ['user_stories', 'requirements', 'technical_spec', 'acceptance_criteria']
+    const relevantSections = sections.filter(s => taskRelevantSections.includes(s.sectionType))
+    
+    // If no relevant sections, use all sections
+    const sectionsToUse = relevantSections.length > 0 ? relevantSections : sections
+    
+    // Truncate each section to prevent context overflow
+    const MAX_SECTION_LENGTH = 300
+    const sectionsText = sectionsToUse.map(s => {
+      let content = s.content
+      if (content.length > MAX_SECTION_LENGTH) {
+        content = content.slice(0, MAX_SECTION_LENGTH) + '...'
+      }
+      return `## ${s.title}\n${content}`
+    }).join('\n\n')
 
-    const prompt = `You are a project management expert. Analyze the following PRD and extract actionable development tasks.
+    // Use chat-style message format (same as brainstorm chat endpoint)
+    const prompt = `[USER MESSAGE]
 
-[PRD TITLE]: ${prd.title}
+Please analyze this PRD and extract development tasks as a JSON array.
 
-[PRD CONTENT]:
+PRD Title: ${prd.title}
+
 ${sectionsText}
 
-[RULES]
-- Each task must be small enough for one developer to complete in 1-3 days
-- Group related tasks under parent tasks (epics)
-- Assign priority: urgent, high, medium, low, or none
-- Estimate hours for each task
-- Suggest labels: feature, bugfix, improvement, refactor, documentation, testing
-- Include clear acceptance criteria in the description
-
-[OUTPUT FORMAT]
-Return ONLY a JSON array, no other text:
+Return ONLY a JSON array with this structure:
 [
-  {
-    "title": "Task title",
-    "description": "Description with acceptance criteria",
-    "priority": "medium",
-    "estimateHours": 8,
-    "labels": ["feature"],
-    "parentIndex": null,
-    "sectionSource": "requirements"
-  }
+  {"title": "...", "description": "...", "priority": "medium", "estimateHours": 8, "labels": ["feature"], "parentIndex": null, "sectionSource": "requirements"}
 ]
 
-parentIndex is the 0-based index of the parent task (null for top-level).
-sectionSource should be one of: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks.`
+Rules:
+- Tasks should be completable in 1-3 days
+- Group related tasks with parentIndex
+- Priority: urgent, high, medium, low, or none
+- sectionSource: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks
+- Return ONLY the JSON array, no other text`
 
     const workDir = process.cwd()
     const minimalEnv: NodeJS.ProcessEnv = {
@@ -191,18 +190,10 @@ sectionSource should be one of: overview, goals, user_stories, requirements, tec
 
       await stream.push(JSON.stringify({ step: 'Parsing task list...', progress: 80 }))
 
-      // Log debug info for troubleshooting
-      const outputLength = rawOutput.value.length
-      const eventTypes = debugLog.eventTypes
-      await stream.push(JSON.stringify({
-        step: `Debug: output length=${outputLength}, event types=[${eventTypes.join(', ')}]`,
-        progress: 85,
-      }))
-
       // Check if we got any actual content
-      if (outputLength === 0) {
+      if (rawOutput.value.length === 0) {
         const debugInfo = {
-          error: 'AI model produced no output. The PRD may be too long or the model may have failed.',
+          error: 'AI model produced no output. The prompt may be too long or the model may have failed.',
           step: 'error',
           rawOutput: rawOutput.value,
           stderrOutput: stderrOutput.value.slice(0, 1000),

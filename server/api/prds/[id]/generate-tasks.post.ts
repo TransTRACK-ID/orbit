@@ -1,3 +1,4 @@
+import { createEventStream } from 'h3'
 import { spawn } from 'child_process'
 import { accessSync, constants } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
@@ -9,27 +10,6 @@ import { processOpencodeLine } from '~/server/utils/opencode-parser'
 
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const MAX_RUNTIME_MS = 8 * 60 * 1000 // 8 minutes
-
-// In-memory job store for polling
-const jobStore = new Map<string, {
-  status: 'running' | 'completed' | 'error'
-  progress: number
-  step: string
-  tasks?: any[]
-  error?: string
-  rawOutput?: string
-  createdAt: number
-}>()
-
-// Clean up old jobs every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [id, job] of jobStore.entries()) {
-    if (now - job.createdAt > 30 * 60 * 1000) { // 30 minutes
-      jobStore.delete(id)
-    }
-  }
-}, 5 * 60 * 1000)
 
 const generateTasksSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -69,36 +49,22 @@ export default defineEventHandler(async (event) => {
   }
   catch {}
 
-  if (!opencodeOk) {
-    throw createError({ statusCode: 500, statusMessage: 'opencode not found' })
-  }
+  const stream = createEventStream(event)
 
-  // Create a job ID
-  const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-  
-  jobStore.set(jobId, {
-    status: 'running',
-    progress: 10,
-    step: 'Analyzing PRD sections...',
-    createdAt: Date.now(),
-  })
+  setTimeout(async () => {
+    if (!opencodeOk) {
+      await stream.push(JSON.stringify({ error: `opencode not found at ${opencodePath}`, step: 'error' }))
+      stream.close()
+      return
+    }
 
-  // Start the generation in the background
-  generateTasksAsync(prdId, prd, sections, jobId)
+    await stream.push(JSON.stringify({ step: 'Analyzing PRD sections...', progress: 10 }))
 
-  // Return immediately with the job ID
-  return { jobId, status: 'running' }
-})
+    // Build sections text - include all sections for full context
+    const sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
 
-async function generateTasksAsync(
-  prdId: string,
-  prd: any,
-  sections: any[],
-  jobId: string,
-) {
-  const sectionsText = sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')
-
-  const prompt = `[USER MESSAGE]
+    // Use chat-style message format (same as brainstorm chat endpoint)
+    const prompt = `[USER MESSAGE]
 
 Please analyze this PRD and extract development tasks as a JSON array.
 
@@ -118,157 +84,167 @@ Rules:
 - sectionSource: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks
 - Return ONLY the JSON array, no other text`
 
-  const workDir = process.cwd()
-  const minimalEnv: NodeJS.ProcessEnv = {
-    PATH: process.env.PATH,
-    HOME: process.env.HOME,
-    NODE_ENV: process.env.NODE_ENV,
-    LANG: process.env.LANG,
-    LC_ALL: process.env.LC_ALL,
-  }
-
-  const spawnArgs = [
-    'run',
-    '--format', 'json',
-    '--dangerously-skip-permissions',
-    '--dir', workDir,
-    '--', prompt,
-  ]
-
-  const proc = spawn(opencodePath, spawnArgs, {
-    cwd: workDir,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    shell: false,
-    env: minimalEnv,
-  })
-
-  const rawOutput = { value: '' }
-  const stderrOutput = { value: '' }
-  let lineBuffer = ''
-  let lastActivity = Date.now()
-  let stdoutEnded = false
-  const debugLog = { eventTypes: [] as string[], rawLines: [] as string[] }
-
-  function updateJob(status: 'running' | 'completed' | 'error', data: Partial<any>) {
-    const job = jobStore.get(jobId)
-    if (job) {
-      Object.assign(job, { status, ...data })
+    const workDir = process.cwd()
+    const minimalEnv: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      NODE_ENV: process.env.NODE_ENV,
+      LANG: process.env.LANG,
+      LC_ALL: process.env.LC_ALL,
     }
-  }
 
-  function flushLineBuffer() {
-    if (lineBuffer.trim()) {
-      processOpencodeLine(lineBuffer, rawOutput, debugLog)
-      lineBuffer = ''
-    }
-  }
+    const spawnArgs = [
+      'run',
+      '--format', 'json',
+      '--dangerously-skip-permissions',
+      '--dir', workDir,
+      '--', prompt,
+    ]
 
-  const runtimeTimeout = setTimeout(() => {
-    if (proc.exitCode === null) {
-      proc.kill('SIGTERM')
-      setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
-    }
-  }, MAX_RUNTIME_MS)
+    await stream.push(JSON.stringify({ step: 'Generating tasks with AI...', progress: 30 }))
 
-  const heartbeat = setInterval(() => {
-    const idle = Math.round((Date.now() - lastActivity) / 1000)
-    if (idle > 10) {
-      const alive = proc.exitCode === null
-      const msg = alive ? `Generating tasks (${idle}s)...` : `Process exited (code ${proc.exitCode})`
-      updateJob('running', { step: msg, progress: 50 })
-    }
-  }, 5000)
-
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    lastActivity = Date.now()
-    lineBuffer += chunk.toString()
-    const lines = lineBuffer.split('\n')
-    lineBuffer = lines.pop() || ''
-    for (const line of lines) {
-      processOpencodeLine(line, rawOutput, debugLog)
-    }
-  })
-
-  proc.stdout?.on('end', () => {
-    stdoutEnded = true
-    flushLineBuffer()
-  })
-
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    lastActivity = Date.now()
-    const text = chunk.toString()
-    if (text) {
-      stderrOutput.value += text
-    }
-  })
-
-  proc.on('error', (err) => {
-    clearTimeout(runtimeTimeout)
-    clearInterval(heartbeat)
-    updateJob('error', {
-      error: `Failed to start opencode: ${err.message}`,
-      progress: 0,
+    const proc = spawn(opencodePath, spawnArgs, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      env: minimalEnv,
     })
-  })
 
-  proc.on('close', async (code, signal) => {
-    clearTimeout(runtimeTimeout)
-    clearInterval(heartbeat)
+    const rawOutput = { value: '' }
+    const stderrOutput = { value: '' }
+    let lineBuffer = ''
+    let lastActivity = Date.now()
+    let stdoutEnded = false
+    const debugLog = { eventTypes: [] as string[], rawLines: [] as string[] }
 
-    if (signal || code !== 0) {
-      const msg = signal ? `Terminated by ${signal}` : `Exited with code ${code}`
-      updateJob('error', { error: msg, progress: 0 })
-      return
+    function flushLineBuffer() {
+      if (lineBuffer.trim()) {
+        processOpencodeLine(lineBuffer, rawOutput, debugLog)
+        lineBuffer = ''
+      }
     }
 
-    // Wait for stdout to end
-    let waitCount = 0
-    while (!stdoutEnded && waitCount < 20) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      waitCount++
-    }
+    const runtimeTimeout = setTimeout(() => {
+      if (proc.exitCode === null) {
+        proc.kill('SIGTERM')
+        setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
+      }
+    }, MAX_RUNTIME_MS)
 
-    flushLineBuffer()
+    const heartbeat = setInterval(async () => {
+      const idle = Math.round((Date.now() - lastActivity) / 1000)
+      if (idle > 10) {
+        const alive = proc.exitCode === null
+        const msg = alive ? `Generating tasks (${idle}s)...` : `Process exited (code ${proc.exitCode})`
+        await stream.push(JSON.stringify({ step: msg, progress: 50 }))
+      }
+    }, 5000)
 
-    if (rawOutput.value.length === 0) {
-      updateJob('error', {
-        error: 'AI model produced no output',
-        rawOutput: rawOutput.value,
-        stderrOutput: stderrOutput.value.slice(0, 1000),
-      })
-      return
-    }
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      lastActivity = Date.now()
+      lineBuffer += chunk.toString()
+      const lines = lineBuffer.split('\n')
+      lineBuffer = lines.pop() || ''
+      for (const line of lines) {
+        processOpencodeLine(line, rawOutput, debugLog)
+      }
+    })
 
-    try {
-      const parsed = extractJsonFromAiResponse<Array<{
-        title: string
-        description: string
-        priority: string
-        estimateHours: number | null
-        labels: string[]
-        parentIndex: number | null
-        sectionSource: string
-      }>>(rawOutput.value)
+    proc.stdout?.on('end', () => {
+      stdoutEnded = true
+      flushLineBuffer()
+    })
 
-      if (!Array.isArray(parsed)) {
-        throw new Error('Invalid task list: expected array')
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      lastActivity = Date.now()
+      const text = chunk.toString()
+      if (text) {
+        stderrOutput.value += text
+      }
+    })
+
+    proc.on('error', async (err) => {
+      clearTimeout(runtimeTimeout)
+      clearInterval(heartbeat)
+      await stream.push(JSON.stringify({ error: `Failed to start opencode: ${err.message}`, step: 'error' }))
+      stream.close()
+    })
+
+    proc.on('close', async (code, signal) => {
+      clearTimeout(runtimeTimeout)
+      clearInterval(heartbeat)
+
+      if (signal || code !== 0) {
+        const msg = signal ? `Terminated by ${signal}` : `Exited with code ${code}`
+        await stream.push(JSON.stringify({ error: msg, step: 'error' }))
+        stream.close()
+        return
       }
 
-      updateJob('completed', {
-        tasks: parsed,
-        step: 'Tasks generated successfully',
-        progress: 100,
-      })
-    }
-    catch (err: any) {
-      updateJob('error', {
-        error: `Failed to parse tasks: ${err.message}`,
-        rawOutput: rawOutput.value.slice(0, 2000),
-        stderrOutput: stderrOutput.value.slice(0, 1000),
-      })
-    }
-  })
-}
+      // Wait for stdout to end (with timeout)
+      let waitCount = 0
+      while (!stdoutEnded && waitCount < 20) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        waitCount++
+      }
 
-// Export job store for the status endpoint
-export { jobStore }
+      // Flush any remaining line buffer content
+      flushLineBuffer()
+
+      await stream.push(JSON.stringify({ step: 'Parsing task list...', progress: 80 }))
+
+      // Check if we got any actual content
+      if (rawOutput.value.length === 0) {
+        const debugInfo = {
+          error: 'AI model produced no output. The prompt may be too long or the model may have failed.',
+          step: 'error',
+          rawOutput: rawOutput.value,
+          stderrOutput: stderrOutput.value.slice(0, 1000),
+          eventTypes: debugLog.eventTypes,
+          rawLines: debugLog.rawLines.slice(0, 20),
+        }
+        await stream.push(JSON.stringify(debugInfo))
+        stream.close()
+        return
+      }
+
+      try {
+        const parsed = extractJsonFromAiResponse<Array<{
+          title: string
+          description: string
+          priority: string
+          estimateHours: number | null
+          labels: string[]
+          parentIndex: number | null
+          sectionSource: string
+        }>>(rawOutput.value)
+
+        if (!Array.isArray(parsed)) {
+          throw new Error('Invalid task list: expected array')
+        }
+
+        await stream.push(JSON.stringify({
+          step: 'Tasks generated successfully',
+          progress: 100,
+          done: true,
+          tasks: parsed,
+        }))
+        stream.close()
+      }
+      catch (err: any) {
+        const debugInfo = {
+          error: `Failed to parse tasks: ${err.message}`,
+          step: 'error',
+          rawOutput: rawOutput.value.slice(0, 2000),
+          stderrOutput: stderrOutput.value.slice(0, 1000),
+          eventTypes: debugLog.eventTypes,
+          rawLines: debugLog.rawLines.slice(0, 20),
+        }
+        await stream.push(JSON.stringify(debugInfo))
+        stream.close()
+      }
+    })
+  }, 0)
+
+  return stream.send()
+})

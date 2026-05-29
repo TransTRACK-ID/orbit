@@ -183,73 +183,92 @@ export const usePrd = () => {
     taskGenerationSteps.value = { ...taskGenerationSteps.value, [prdId]: 'Starting...' }
 
     try {
-      // Start the job
-      const startResponse = await fetch(`/api/prds/${prdId}/generate-tasks`, {
+      const url = `/api/prds/${prdId}/generate-tasks`
+      const body: Record<string, any> = { sections }
+      if (projectId) body.projectId = projectId
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, sections }),
+        body: JSON.stringify(body),
       })
 
-      if (!startResponse.ok) {
-        throw new Error(`HTTP ${startResponse.status}: ${startResponse.statusText}`)
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const { jobId } = await startResponse.json()
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
 
-      // Poll for status
       return new Promise<GeneratedTask[]>((resolve, reject) => {
-        const pollInterval = setInterval(async () => {
-          try {
-            const statusResponse = await fetch(`/api/prds/${prdId}/generate-tasks-status?jobId=${jobId}`)
-            if (!statusResponse.ok) {
-              clearInterval(pollInterval)
+        let tasksResult: GeneratedTask[] | null = null
+        let done = false
+
+        function processBuffer() {
+          if (done) return
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.step) {
+                  taskGenerationSteps.value = {
+                    ...taskGenerationSteps.value,
+                    [prdId]: data.step,
+                  }
+                }
+                if (data.progress !== undefined) {
+                  taskGenerationProgress.value = {
+                    ...taskGenerationProgress.value,
+                    [prdId]: data.progress,
+                  }
+                }
+                if (data.done && data.tasks) {
+                  tasksResult = data.tasks
+                  generatedTasks.value = data.tasks
+                  generatingTasks.value = false
+                  resolve(data.tasks)
+                  return
+                }
+                if (data.error) {
+                  generatingTasks.value = false
+                  reject(new Error(data.error))
+                  return
+                }
+              }
+              catch {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+
+        function read() {
+          reader.read().then(({ value, done: streamDone }) => {
+            if (streamDone) {
+              done = true
+              processBuffer()
               generatingTasks.value = false
-              reject(new Error(`Status check failed: ${statusResponse.status}`))
+              if (tasksResult) {
+                resolve(tasksResult)
+              }
+              else {
+                reject(new Error('Stream ended without result'))
+              }
               return
             }
-
-            const status = await statusResponse.json()
-            
-            // Update progress
-            if (status.step) {
-              taskGenerationSteps.value = {
-                ...taskGenerationSteps.value,
-                [prdId]: status.step,
-              }
-            }
-            if (status.progress !== undefined) {
-              taskGenerationProgress.value = {
-                ...taskGenerationProgress.value,
-                [prdId]: status.progress,
-              }
-            }
-
-            if (status.status === 'completed') {
-              clearInterval(pollInterval)
-              generatedTasks.value = status.tasks
-              generatingTasks.value = false
-              resolve(status.tasks)
-            }
-            else if (status.status === 'error') {
-              clearInterval(pollInterval)
-              generatingTasks.value = false
-              reject(new Error(status.error || 'Task generation failed'))
-            }
-            // If still running, continue polling
-          }
-          catch (err) {
-            clearInterval(pollInterval)
+            buffer += decoder.decode(value, { stream: true })
+            processBuffer()
+            read()
+          }).catch((err) => {
+            done = true
             generatingTasks.value = false
             reject(err)
-          }
-        }, 2000) // Poll every 2 seconds
+          })
+        }
 
-        // Timeout after 10 minutes
-        setTimeout(() => {
-          clearInterval(pollInterval)
-          generatingTasks.value = false
-          reject(new Error('Task generation timed out'))
-        }, 10 * 60 * 1000)
+        read()
       })
     }
     catch (err) {

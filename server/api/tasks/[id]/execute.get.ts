@@ -374,8 +374,38 @@ export default defineEventHandler(async (event) => {
 
     const existing = activeProcesses.get(id)
     if (existing) {
-      if (existing.exited) {
-        // Process has already exited — replay logs then close the stream
+      if (feedback) {
+        // New user feedback requires a fresh process so the agent sees the
+        // latest instruction. Kill the existing one (if still running) and
+        // fall through to spawn a new process with the feedback.
+        if (!existing.exited) {
+          if (existing.heartbeat) clearInterval(existing.heartbeat)
+          try { existing.proc.kill('SIGTERM') } catch {}
+          setTimeout(() => { try { existing.proc.kill('SIGKILL') } catch {} }, 5000)
+          for (const s of existing.streams) {
+            try { s.close() } catch {}
+          }
+        }
+        activeProcesses.delete(id)
+      } else {
+        if (existing.exited) {
+          // Process has already exited — replay logs then close the stream
+          const prevLogs = await db.query.activityLogs.findMany({
+            where: eq(schema.activityLogs.taskId, id),
+            columns: { newValue: true },
+            orderBy: [asc(schema.activityLogs.createdAt)],
+            limit: 20,
+          })
+          for (const l of prevLogs) {
+            if (l.newValue?.message) {
+              await stream.push(JSON.stringify({ step: l.newValue.message, timestamp: Date.now() }))
+            }
+          }
+          stream.close()
+          return
+        }
+        addStreamToProc(id, stream, existing)
+
         const prevLogs = await db.query.activityLogs.findMany({
           where: eq(schema.activityLogs.taskId, id),
           columns: { newValue: true },
@@ -387,24 +417,9 @@ export default defineEventHandler(async (event) => {
             await stream.push(JSON.stringify({ step: l.newValue.message, timestamp: Date.now() }))
           }
         }
-        stream.close()
+
         return
       }
-      addStreamToProc(id, stream, existing)
-
-      const prevLogs = await db.query.activityLogs.findMany({
-        where: eq(schema.activityLogs.taskId, id),
-        columns: { newValue: true },
-        orderBy: [asc(schema.activityLogs.createdAt)],
-        limit: 20,
-      })
-      for (const l of prevLogs) {
-        if (l.newValue?.message) {
-          await stream.push(JSON.stringify({ step: l.newValue.message, timestamp: Date.now() }))
-        }
-      }
-
-      return
     }
 
     // ── Helpers for streaming + persistence ──

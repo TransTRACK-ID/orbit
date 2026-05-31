@@ -374,6 +374,22 @@ export default defineEventHandler(async (event) => {
 
     const existing = activeProcesses.get(id)
     if (existing) {
+      if (existing.exited) {
+        // Process has already exited — replay logs then close the stream
+        const prevLogs = await db.query.activityLogs.findMany({
+          where: eq(schema.activityLogs.taskId, id),
+          columns: { newValue: true },
+          orderBy: [asc(schema.activityLogs.createdAt)],
+          limit: 20,
+        })
+        for (const l of prevLogs) {
+          if (l.newValue?.message) {
+            await stream.push(JSON.stringify({ step: l.newValue.message, timestamp: Date.now() }))
+          }
+        }
+        stream.close()
+        return
+      }
       addStreamToProc(id, stream, existing)
 
       const prevLogs = await db.query.activityLogs.findMany({
@@ -1340,6 +1356,7 @@ This ensures your response is readable in the UI.`
     proc.on('exit', async (code) => {
       clearInterval(heartbeat)
       clearTimeout(runtimeTimeout)
+      entry.exited = true
 
       const isCrash = code === null
       const isError = code !== null && code !== 0
@@ -1377,7 +1394,7 @@ This ensures your response is readable in the UI.`
         })
       }
 
-      // Remove from activeProcesses early so reconnects don't get attached to the old process
+      // Remove from activeProcesses so reconnects don't get attached to the old process
       activeProcesses.delete(id)
 
       if (code === 0 && branchName && !wasLoopKill) {

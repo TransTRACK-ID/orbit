@@ -2956,7 +2956,9 @@ onMounted(async () => {
     // If after refresh the task is no longer in progress, don't reconnect
     if (!isAgentInProgress.value) return
 
-    const hasLogs = activityLogs.value.some(l => l.action === 'runtime_log')
+    // activityLogs from the detail endpoint excludes runtime_log entries,
+    // so we use agentReplies as a proxy to detect a previous agent run.
+    const hasLogs = activityLogs.value.some(l => l.action === 'runtime_log') || agentReplies.value.length > 0
     if (!hasLogs) {
       await startRuntime(task.value.id)
     } else {
@@ -2972,7 +2974,9 @@ onMounted(async () => {
     await loadPersistedComments()
 
     // Reattach to a running fix process if one exists (survives page refresh)
-    const hasRuntimeLogs = activityLogs.value.some(l => l.action === 'runtime_log')
+    // activityLogs from the detail endpoint excludes runtime_log entries,
+    // so we use agentReplies as a proxy to detect a previous agent run.
+    const hasRuntimeLogs = activityLogs.value.some(l => l.action === 'runtime_log') || agentReplies.value.length > 0
     if (hasRuntimeLogs && !isRunning(task.value.id)) {
       try {
         const { active } = await $fetch<{ active: boolean }>(`/api/tasks/${task.value.id}/execute/status`)

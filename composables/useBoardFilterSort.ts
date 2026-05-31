@@ -7,6 +7,7 @@ export interface FilterState {
   labels: string[]
   assigneeType: 'user' | 'agent' | 'unassigned' | null
   agentEnabled: boolean | null
+  showArchived: boolean
 }
 
 export interface SortState {
@@ -63,6 +64,13 @@ export function filterTasks(tasks: Task[], filters: FilterState): Task[] {
       if (task.agentEnabled !== filters.agentEnabled) return false
     }
 
+    // Archived filter
+    if (filters.showArchived) {
+      if (!task.archived) return false
+    } else {
+      if (task.archived) return false
+    }
+
     return true
   })
 }
@@ -114,6 +122,7 @@ export function useBoardFilterSort(projectId: string) {
     labels: [],
     assigneeType: null,
     agentEnabled: null,
+    showArchived: false,
   }
 
   const defaultSort: SortState = {
@@ -156,6 +165,7 @@ export function useBoardFilterSort(projectId: string) {
       labels: filters.labels,
       assigneeType: filters.assigneeType,
       agentEnabled: filters.agentEnabled,
+      showArchived: filters.showArchived,
     }))
     localStorage.setItem(sortStorageKey, JSON.stringify({
       field: sort.field,

@@ -52,6 +52,10 @@ export default defineEventHandler(async (event) => {
     dataToUpdate.agentEnabled = dataToUpdate.agentEnabled
   }
 
+  if (dataToUpdate.archived !== undefined) {
+    dataToUpdate.archived = dataToUpdate.archived
+  }
+
   if (assigneeId !== undefined || assigneeType !== undefined) {
     const resolvedType = assigneeType !== undefined ? assigneeType : existing.assigneeType
     dataToUpdate.assigneeType = resolvedType || null

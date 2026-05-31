@@ -114,6 +114,7 @@ export const createTaskSchema = z.object({
   labelIds: z.array(z.string().uuid()).optional(),
   branchName: validBranchName,
   agentEnabled: z.boolean().optional(),
+  archived: z.boolean().optional(),
 })
 
 export const updateTaskSchema = z.object({
@@ -132,9 +133,9 @@ export const updateTaskSchema = z.object({
   branchName: validBranchName,
   agentEnabled: z.boolean().optional(),
   observerId: z.string().uuid().nullable().optional(),
+  archived: z.boolean().optional(),
 })
 
-// ─── Agent ───
 export const createAgentSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   role: z.string().min(1, 'Role is required').max(255),

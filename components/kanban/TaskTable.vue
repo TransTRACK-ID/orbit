@@ -11,6 +11,7 @@
       :show-filters="showFilters"
       :active-filter-count="activeFilterCount"
       :active-filter-chips="activeFilterChips"
+      :show-archived="showArchived"
       :is-selection-mode="isSelectionMode"
       :selected-count="selectedCount"
       @create-task="$emit('createTask')"
@@ -20,6 +21,7 @@
       @update:sort-field="$emit('update:sortField', $event)"
       @update:sort-direction="$emit('update:sortDirection', $event)"
       @update:show-filters="$emit('update:showFilters', $event)"
+      @update:show-archived="$emit('update:showArchived', $event)"
       @remove-chip="onRemoveChip"
       @clear-filters="$emit('clearFilters')"
       @enter-selection-mode="$emit('enterSelectionMode')"
@@ -166,7 +168,7 @@
             <!-- Title -->
             <td class="py-3 px-3">
               <div class="text-xs font-semibold text-surface-900 leading-snug flex items-start gap-1.5">
-                <span class="line-clamp-2 flex-1">
+                <span class="line-clamp-2 flex-1" :class="{ 'line-through text-surface-500': task.archived }">
                   <template v-for="(segment, idx) in parseTitle(task.title)" :key="idx">
                     <code
                       v-if="segment.type === 'code'"
@@ -176,6 +178,12 @@
                     </code>
                     <template v-else>{{ segment.text }}</template>
                   </template>
+                </span>
+                <span
+                  v-if="task.archived"
+                  class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-200 text-surface-600 flex-shrink-0"
+                >
+                  Archived
                 </span>
                 <span
                   v-if="task._count?.comments"
@@ -280,8 +288,9 @@ const props = defineProps<{
   selectedAssigneeType: 'user' | 'agent' | 'unassigned' | null
   agentEnabledFilter: boolean | null
   activeFilterCount: number
-  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
+  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }[]
   totalTaskCount: number
+  showArchived: boolean
   // Selection state
   isSelectionMode?: boolean
   selectedCount?: number
@@ -298,12 +307,13 @@ const emit = defineEmits<{
   'update:sortField': [field: SortState['field']]
   'update:sortDirection': [direction: SortState['direction']]
   'update:showFilters': [show: boolean]
+  'update:showArchived': [show: boolean]
   'update:selectedStatuses': [statuses: string[]]
   'update:selectedPriorities': [priorities: TaskPriority[]]
   'update:selectedLabels': [labels: string[]]
   'update:selectedAssigneeType': [type: 'user' | 'agent' | 'unassigned' | null]
   'update:agentEnabledFilter': [enabled: boolean | null]
-  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
+  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }]
   'clearFilters': []
   toggleSelection: [taskId: string]
   toggleSelectAll: [taskIds: string[]]
@@ -314,7 +324,7 @@ const emit = defineEmits<{
   bulkDelete: []
 }>()
 
-function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
+function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }) {
   emit('removeChip', chip)
 }
 

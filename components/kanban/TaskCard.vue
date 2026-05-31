@@ -1,7 +1,7 @@
 <template>
   <div
     class="kanban-card"
-    :class="{ agentic: isAgentRunning, highlighted: isHighlighted, selected: props.isSelected }"
+    :class="{ agentic: isAgentRunning, highlighted: isHighlighted, selected: props.isSelected, archived: task.archived }"
     :style="cardAccentStyle"
     :data-id="task.id"
     tabindex="0"
@@ -46,9 +46,17 @@
     </div>
 
     <!-- Title -->
-    <h4 class="text-sm font-semibold text-surface-900 leading-snug mb-1 line-clamp-2">
-      {{ task.title }}
-    </h4>
+    <div class="flex items-center gap-2 mb-1">
+      <h4 class="text-sm font-semibold text-surface-900 leading-snug line-clamp-2">
+        {{ task.title }}
+      </h4>
+      <span
+        v-if="task.archived"
+        class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-200 text-surface-600 flex-shrink-0"
+      >
+        Archived
+      </span>
+    </div>
 
     <!-- Description (optional, 1 line max) -->
     <p
@@ -241,6 +249,11 @@ function formatShortDate(dateString: string): string {
   animation: highlight-pulse 3s ease-out;
   outline: 2px solid #22c55e;
   outline-offset: 1px;
+}
+
+.kanban-card.archived {
+  opacity: 0.75;
+  background-color: #f8fafc;
 }
 
 @keyframes highlight-pulse {

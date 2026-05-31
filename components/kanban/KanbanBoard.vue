@@ -11,21 +11,34 @@
       :show-filters="showFilters"
       :active-filter-count="activeFilterCount"
       :active-filter-chips="activeFilterChips"
+      :total-task-count="tasks.length"
+      :show-archived="showArchived"
       :is-selection-mode="isSelectionMode"
       :selected-count="selectedCount"
-      @create-task="$emit('createTask')"
-      @auto-assign="$emit('autoAssign', $event)"
+      :is-task-selected="isTaskSelected"
       @update:view-mode="$emit('update:viewMode', $event)"
+      @create-task="$emit('createTask')"
+      @update-task="$emit('updateTask', $event)"
+      @open-task="$emit('openTask', $event)"
+      @auto-assign="$emit('autoAssign', $event)"
       @update:search="$emit('update:search', $event)"
       @update:sort-field="$emit('update:sortField', $event)"
       @update:sort-direction="$emit('update:sortDirection', $event)"
       @update:show-filters="$emit('update:showFilters', $event)"
+      @update:show-archived="$emit('update:showArchived', $event)"
+      @update:selected-statuses="$emit('update:selectedStatuses', $event)"
+      @update:selected-priorities="$emit('update:selectedPriorities', $event)"
+      @update:selected-labels="$emit('update:selectedLabels', $event)"
+      @update:selected-assignee-type="$emit('update:selectedAssigneeType', $event)"
+      @update:agent-enabled-filter="$emit('update:agentEnabledFilter', $event)"
       @remove-chip="onRemoveChip"
       @clear-filters="$emit('clearFilters')"
+      @toggle-selection="$emit('toggleSelection', $event)"
+      @toggle-select-all="$emit('toggleSelectAll', $event)"
       @enter-selection-mode="$emit('enterSelectionMode')"
       @exit-selection-mode="$emit('exitSelectionMode')"
       @clear-selection="$emit('clearSelection')"
-      @bulk-move="(statusId) => $emit('bulkMove', statusId)"
+      @bulk-move="$emit('bulkMove', $event)"
       @bulk-delete="$emit('bulkDelete')"
     />
 
@@ -140,8 +153,9 @@ const props = defineProps<{
   selectedAssigneeType: 'user' | 'agent' | 'unassigned' | null
   agentEnabledFilter: boolean | null
   activeFilterCount: number
-  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
+  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }[]
   totalTaskCount: number
+  showArchived: boolean
   // Selection state
   isSelectionMode?: boolean
   selectedCount?: number
@@ -158,12 +172,13 @@ const emit = defineEmits<{
   'update:sortField': [field: SortState['field']]
   'update:sortDirection': [direction: SortState['direction']]
   'update:showFilters': [show: boolean]
+  'update:showArchived': [show: boolean]
   'update:selectedStatuses': [statuses: string[]]
   'update:selectedPriorities': [priorities: TaskPriority[]]
   'update:selectedLabels': [labels: string[]]
   'update:selectedAssigneeType': [type: 'user' | 'agent' | 'unassigned' | null]
   'update:agentEnabledFilter': [enabled: boolean | null]
-  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
+  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }]
   'clearFilters': []
   toggleSelection: [taskId: string]
   toggleSelectAll: [taskIds: string[]]
@@ -174,7 +189,7 @@ const emit = defineEmits<{
   bulkDelete: []
 }>()
 
-function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }) {
+function onRemoveChip(chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }) {
   emit('removeChip', chip)
 }
 

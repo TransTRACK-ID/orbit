@@ -65,6 +65,16 @@
         </span>
       </button>
 
+      <!-- Archive toggle -->
+      <button
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-surface-200 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none"
+        :class="showArchived ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-surface-50 hover:bg-surface-100 text-surface-600'"
+        @click="$emit('update:showArchived', !showArchived)"
+      >
+        <Icon name="lucide:archive" class="w-3.5 h-3.5" />
+        <span class="max-sm:hidden">Archived</span>
+      </button>
+
       <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
         <!-- Selection mode bulk actions -->
         <template v-if="isSelectionMode">
@@ -209,7 +219,8 @@ const props = defineProps<{
   sortDirection?: SortState['direction']
   showFilters: boolean
   activeFilterCount: number
-  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }[]
+  activeFilterChips: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }[]
+  showArchived: boolean
   // Selection state
   isSelectionMode?: boolean
   selectedCount?: number
@@ -230,7 +241,8 @@ const emit = defineEmits<{
   'update:sortField': [field: SortState['field']]
   'update:sortDirection': [direction: SortState['direction']]
   'update:showFilters': [show: boolean]
-  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' }]
+  'update:showArchived': [show: boolean]
+  'removeChip': [chip: { key: string; label: string; type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived' }]
   'clearFilters': []
   // Selection events
   enterSelectionMode: []

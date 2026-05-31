@@ -1,6 +1,6 @@
-import { requireProjectAccess } from '~/server/utils/auth'
+import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, asc, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 function unifyAssignee(task: any) {
   if (!task) return task
@@ -13,38 +13,46 @@ function unifyAssignee(task: any) {
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
-  await requireProjectAccess(event, id)
+  const user = await requireAuth(event)
   const db = getDb()
 
-  const query = getQuery(event)
-  const includeArchived = query.includeArchived === 'true'
+  const existing = await db.query.tasks.findFirst({
+    where: eq(schema.tasks.id, id),
+    with: { project: true },
+  })
 
-  const allTasks = await db.query.tasks.findMany({
-    where: includeArchived
-      ? eq(schema.tasks.projectId, id)
-      : and(eq(schema.tasks.projectId, id), eq(schema.tasks.archived, false)),
+  if (!existing) {
+    throw createError({ statusCode: 404, statusMessage: 'Task not found' })
+  }
+
+  await db
+    .update(schema.tasks)
+    .set({ archived: true, updatedAt: new Date() })
+    .where(eq(schema.tasks.id, id))
+
+  const updated = await db.query.tasks.findFirst({
+    where: eq(schema.tasks.id, id),
     with: {
       assignee: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
       agentAssignee: true,
+      observer: {
+        columns: { id: true, email: true, name: true, avatarUrl: true },
+      },
       reporter: {
         columns: { id: true, email: true, name: true, avatarUrl: true },
       },
       status: true,
       taskLabels: {
-        with: {
-          label: true,
-        },
+        with: { label: true },
       },
-      subtasks: true,
     },
-    orderBy: [asc(schema.tasks.position)],
   })
 
-  return allTasks.map((task) => ({
-    ...unifyAssignee(task),
-    labels: task.taskLabels?.map((tl) => tl.label) || [],
+  return {
+    ...unifyAssignee(updated),
+    labels: updated?.taskLabels?.map((tl) => tl.label) || [],
     taskLabels: undefined,
-  }))
+  }
 })

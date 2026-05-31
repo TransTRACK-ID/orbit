@@ -30,6 +30,7 @@ export const tasks = pgTable('tasks', {
   estimate: integer('estimate'),
   branchName: varchar('branch_name', { length: 100 }),
   agentEnabled: boolean('agent_enabled').notNull().default(false),
+  archived: boolean('archived').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

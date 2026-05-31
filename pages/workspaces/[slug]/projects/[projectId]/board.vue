@@ -40,6 +40,7 @@
           :active-filter-count="activeFilterCount"
           :active-filter-chips="activeFilterChips"
           :total-task-count="tasks.length"
+          :show-archived="filters.showArchived"
           :is-selection-mode="isSelectionMode"
           :selected-count="selectedCount"
           :is-task-selected="isSelected"
@@ -52,6 +53,7 @@
           @update:sort-field="handleSortFieldUpdate"
           @update:sort-direction="handleSortDirectionUpdate"
           @update:show-filters="showFilters = $event"
+          @update:show-archived="handleShowArchivedUpdate"
           @update:selected-statuses="handleStatusesUpdate"
           @update:selected-priorities="handlePrioritiesUpdate"
           @update:selected-labels="handleLabelsUpdate"
@@ -85,6 +87,7 @@
           :active-filter-count="activeFilterCount"
           :active-filter-chips="activeFilterChips"
           :total-task-count="tasks.length"
+          :show-archived="filters.showArchived"
           :is-selection-mode="isSelectionMode"
           :selected-count="selectedCount"
           :is-task-selected="isSelected"
@@ -97,6 +100,7 @@
           @update:sort-field="handleSortFieldUpdate"
           @update:sort-direction="handleSortDirectionUpdate"
           @update:show-filters="showFilters = $event"
+          @update:show-archived="handleShowArchivedUpdate"
           @update:selected-statuses="handleStatusesUpdate"
           @update:selected-priorities="handlePrioritiesUpdate"
           @update:selected-labels="handleLabelsUpdate"
@@ -130,6 +134,7 @@
           :active-filter-count="activeFilterCount"
           :active-filter-chips="activeFilterChips"
           :total-task-count="tasks.length"
+          :show-archived="filters.showArchived"
           :is-selection-mode="isSelectionMode"
           :selected-count="selectedCount"
           :is-task-selected="isSelected"
@@ -142,6 +147,7 @@
           @update:sort-field="handleSortFieldUpdate"
           @update:sort-direction="handleSortDirectionUpdate"
           @update:show-filters="showFilters = $event"
+          @update:show-archived="handleShowArchivedUpdate"
           @update:selected-statuses="handleStatusesUpdate"
           @update:selected-priorities="handlePrioritiesUpdate"
           @update:selected-labels="handleLabelsUpdate"
@@ -272,13 +278,14 @@ const activeFilterCount = computed(() => {
   count += filters.labels.length
   if (filters.assigneeType !== null) count++
   if (filters.agentEnabled !== null) count++
+  if (filters.showArchived) count++
   return count
 })
 
 interface FilterChip {
   key: string
   label: string
-  type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled'
+  type: 'search' | 'status' | 'priority' | 'label' | 'assigneeType' | 'agentEnabled' | 'archived'
 }
 
 const activeFilterChips = computed((): FilterChip[] => {
@@ -338,6 +345,14 @@ const activeFilterChips = computed((): FilterChip[] => {
     })
   }
 
+  if (filters.showArchived) {
+    chips.push({
+      key: 'archived',
+      label: 'Archived',
+      type: 'archived',
+    })
+  }
+
   return chips
 })
 
@@ -382,6 +397,13 @@ function handleAgentEnabledUpdate(enabled: boolean | null) {
   saveToStorage()
 }
 
+function handleShowArchivedUpdate(show: boolean) {
+  filters.showArchived = show
+  saveToStorage()
+  // Re-fetch tasks when toggling archived view
+  fetchTasks(projectId.value, show)
+}
+
 function handleRemoveChip(chip: FilterChip) {
   switch (chip.type) {
     case 'search':
@@ -402,6 +424,10 @@ function handleRemoveChip(chip: FilterChip) {
     case 'agentEnabled':
       filters.agentEnabled = null
       break
+    case 'archived':
+      filters.showArchived = false
+      fetchTasks(projectId.value, false)
+      break
   }
   saveToStorage()
 }
@@ -413,6 +439,10 @@ function clearAllFilters() {
   filters.labels = []
   filters.assigneeType = null
   filters.agentEnabled = null
+  if (filters.showArchived) {
+    filters.showArchived = false
+    fetchTasks(projectId.value, false)
+  }
   saveToStorage()
 }
 
@@ -565,7 +595,7 @@ onMounted(async () => {
   statuses.value = data.statuses || []
   labels.value = data.labels || []
   if (statuses.value.length > 0) {
-    await fetchTasks(projectId.value)
+    await fetchTasks(projectId.value, filters.showArchived)
   }
   members.value = await fetchMembers(projectId.value)
   await fetchAgents()

@@ -51,6 +51,26 @@
                 <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </template>
             </IconButton>
+            <IconButton
+              v-if="task && !task.archived && isDoneStatus"
+              :disabled="archiving"
+              @click="confirmArchive = true"
+            >
+              <template #icon>
+                <svg v-if="archiving" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/><path d="M3 16.2V21m0 0h4.8M3 21l6-6"/><path d="M21 7.8V3m0 0h-4.8M21 3l-6 6"/><path d="M3 7.8V3m0 0h4.8M3 3l6 6"/></svg>
+              </template>
+            </IconButton>
+            <IconButton
+              v-else-if="task && task.archived"
+              :disabled="archiving"
+              @click="handleRestore"
+            >
+              <template #icon>
+                <svg v-if="archiving" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="M3 7v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7"/><path d="M3 7l5.5 5.5a2 2 0 0 0 2.83 0L18 7"/><path d="M3 7h18"/></svg>
+              </template>
+            </IconButton>
             <IconButton @click="confirmDelete = true">
               <template #icon>
                 <Trash class="stroke-surface-500 w-4 h-4" />
@@ -1529,6 +1549,16 @@
   </div>
 
   <ModalConfirmation
+      v-if="confirmArchive"
+      title="Archive Task"
+      message="Archive this task? It will be hidden from the board but can be restored later."
+      confirm-text="Archive"
+      variant="warning"
+      :is-loading="archiving"
+      @confirm="handleArchive"
+      @cancel="confirmArchive = false"
+    />
+    <ModalConfirmation
       v-if="confirmDelete"
       title="Delete Task"
       message="Are you sure you want to delete this task? This action cannot be undone."
@@ -1579,6 +1609,8 @@ const {
   createTask: createTaskApi,
   updateTask: updateTaskApi,
   deleteTask: deleteTaskApi,
+  archiveTask: archiveTaskApi,
+  restoreTask: restoreTaskApi,
   uploadAttachment,
   deleteAttachment,
 } = useTask()
@@ -1607,6 +1639,8 @@ const newComment = ref('')
 const showAttachmentPicker = ref(false)
 const confirmDelete = ref(false)
 const deleting = ref(false)
+const confirmArchive = ref(false)
+const archiving = ref(false)
 const duplicating = ref(false)
 
 // ─── Comment area attachments ───
@@ -3290,6 +3324,34 @@ async function handleAddComment() {
     } finally {
       isSendingToAgent.value = false
     }
+  }
+}
+
+const isDoneStatus = computed(() => {
+  if (!task.value?.status?.name) return false
+  return /done/i.test(task.value.status.name)
+})
+
+async function handleArchive() {
+  if (!task.value || archiving.value) return
+  archiving.value = true
+  try {
+    const updated = await archiveTaskApi(task.value.id)
+    emit('updated', updated)
+  } finally {
+    archiving.value = false
+    confirmArchive.value = false
+  }
+}
+
+async function handleRestore() {
+  if (!task.value || archiving.value) return
+  archiving.value = true
+  try {
+    const updated = await restoreTaskApi(task.value.id)
+    emit('updated', updated)
+  } finally {
+    archiving.value = false
   }
 }
 

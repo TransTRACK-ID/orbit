@@ -9,11 +9,12 @@ const loading = ref(false)
 export const useTask = () => {
   const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
-  async function fetchTasks(projectId: string) {
+  async function fetchTasks(projectId: string, includeArchived?: boolean) {
     loading.value = true
     try {
       tasks.value = await $fetch<Task[]>(`/api/projects/${projectId}/tasks`, {
         headers: ssrHeaders,
+        query: includeArchived ? { includeArchived: 'true' } : undefined,
       })
     } catch (err) {
       console.error('Failed to fetch tasks:', err)
@@ -57,6 +58,22 @@ export const useTask = () => {
   async function deleteTask(id: string) {
     await $fetch(`/api/tasks/${id}`, { method: 'DELETE' })
     tasks.value = tasks.value.filter((t) => t.id !== id)
+  }
+
+  async function archiveTask(id: string) {
+    const updated = await $fetch<Task>(`/api/tasks/${id}/archive`, { method: 'POST' })
+    const idx = tasks.value.findIndex((t) => t.id === id)
+    if (idx !== -1) tasks.value[idx] = updated
+    if (currentTask.value?.id === id) currentTask.value = updated
+    return updated
+  }
+
+  async function restoreTask(id: string) {
+    const updated = await $fetch<Task>(`/api/tasks/${id}/restore`, { method: 'POST' })
+    const idx = tasks.value.findIndex((t) => t.id === id)
+    if (idx !== -1) tasks.value[idx] = updated
+    if (currentTask.value?.id === id) currentTask.value = updated
+    return updated
   }
 
   async function bulkUpdate(taskIds: string[], data: Partial<Task> & { statusId?: string; assigneeId?: string | null; assigneeType?: 'user' | 'agent' | null; priority?: string }) {
@@ -186,6 +203,8 @@ export const useTask = () => {
     createTask,
     updateTask,
     deleteTask,
+    archiveTask,
+    restoreTask,
     bulkUpdate,
     bulkDelete,
     fetchTaskDetail,

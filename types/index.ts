@@ -144,6 +144,7 @@ export interface Task {
   estimate: number | null
   branchName: string | null
   agentEnabled: boolean
+  archived: boolean
   createdAt: string
   updatedAt: string
   assignee?: TaskAssignee | null

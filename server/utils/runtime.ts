@@ -7,6 +7,8 @@ export type ProcState = {
   heartbeat: NodeJS.Timeout | null
   /** Set to true when the process is killed because of a detected command loop */
   isLoopKill?: boolean
+  /** Set to true when the process has exited (normal, crash, or error) */
+  exited?: boolean
 }
 
 export const activeProcesses = new Map<string, ProcState>()
@@ -22,7 +24,6 @@ export function addStreamToProc(taskId: string, stream: EventStream, entry: Proc
       if (entry.heartbeat) clearInterval(entry.heartbeat)
       try { entry.proc.kill('SIGTERM') } catch {}
       setTimeout(() => { try { entry.proc.kill('SIGKILL') } catch {} }, 5000)
-      activeProcesses.delete(taskId)
     }
   }
 }

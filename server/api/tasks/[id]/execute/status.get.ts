@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   await requireAuth(event)
 
   const entry = activeProcesses.get(id)
-  const active = !!entry && entry.proc.exitCode === null
+  const active = !!entry && !entry.exited
 
   return { active }
 })

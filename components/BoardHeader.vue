@@ -100,6 +100,15 @@
           </select>
 
           <button
+            class="px-2.5 py-1.5 rounded-lg border border-amber-200 text-xs font-medium flex items-center gap-1.5 text-amber-700 hover:bg-amber-50 transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            title="Archive selected tasks"
+            @click="$emit('bulkArchive')"
+          >
+            <Icon name="lucide:archive" class="w-3.5 h-3.5" />
+            <span class="max-sm:hidden">Archive</span>
+          </button>
+
+          <button
             class="px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-medium flex items-center gap-1.5 text-red-600 hover:bg-red-50 transition-colors focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 focus-visible:outline-none"
             title="Delete selected tasks"
             @click="$emit('bulkDelete')"
@@ -249,6 +258,7 @@ const emit = defineEmits<{
   exitSelectionMode: []
   clearSelection: []
   bulkMove: [statusId: string]
+  bulkArchive: []
   bulkDelete: []
 }>()
 

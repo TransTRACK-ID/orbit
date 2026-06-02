@@ -39,6 +39,7 @@
       @exit-selection-mode="$emit('exitSelectionMode')"
       @clear-selection="$emit('clearSelection')"
       @bulk-move="$emit('bulkMove', $event)"
+      @bulk-archive="$emit('bulkArchive')"
       @bulk-delete="$emit('bulkDelete')"
     />
 
@@ -186,6 +187,7 @@ const emit = defineEmits<{
   exitSelectionMode: []
   clearSelection: []
   bulkMove: [statusId: string]
+  bulkArchive: []
   bulkDelete: []
 }>()
 

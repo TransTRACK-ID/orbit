@@ -67,6 +67,7 @@
           @exit-selection-mode="exitSelectionMode"
           @clear-selection="clearSelection"
           @bulk-move="handleBulkMove"
+          @bulk-archive="handleBulkArchive"
           @bulk-delete="handleBulkDelete"
         />
         <KanbanTaskTable
@@ -114,6 +115,7 @@
           @exit-selection-mode="exitSelectionMode"
           @clear-selection="clearSelection"
           @bulk-move="handleBulkMove"
+          @bulk-archive="handleBulkArchive"
           @bulk-delete="handleBulkDelete"
         />
         <KanbanTaskList
@@ -161,6 +163,7 @@
           @exit-selection-mode="exitSelectionMode"
           @clear-selection="clearSelection"
           @bulk-move="handleBulkMove"
+          @bulk-archive="handleBulkArchive"
           @bulk-delete="handleBulkDelete"
         />
       </KeepAlive>
@@ -224,7 +227,7 @@ definePageMeta({
 const route = useRoute()
 const projectId = computed(() => route.params.projectId as string)
 
-const { tasks, loading, fetchTasks, createTask, updateTask, bulkUpdate, bulkDelete } = useTask()
+const { tasks, loading, fetchTasks, createTask, updateTask, bulkUpdate, bulkDelete, bulkArchive } = useTask()
 const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
 const { agents, fetchAgents } = useAgent()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
@@ -804,6 +807,21 @@ async function handleBulkMove(statusId: string) {
     }
   } catch (err) {
     console.error('Bulk move failed:', err)
+  }
+}
+
+async function handleBulkArchive() {
+  const ids = Array.from(selectedTaskIds.value)
+  if (!ids.length) return
+  try {
+    await bulkArchive(ids, true)
+    clearSelection()
+    exitSelectionMode()
+    if (project.value?.workspaceId) {
+      persistLog(project.value.workspaceId, { entityType: 'task', entityId: ids[0], entityName: `${ids.length} tasks`, action: 'bulk_archive', message: `Archived ${ids.length} tasks` })
+    }
+  } catch (err) {
+    console.error('Bulk archive failed:', err)
   }
 }
 

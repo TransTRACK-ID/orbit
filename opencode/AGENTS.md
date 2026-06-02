@@ -88,3 +88,13 @@ Before taking any action (either tool calls *or* responses to the user), you mus
     12.5) If `pnpm` is not available, install it first (`npm install -g pnpm`) before proceeding with any package operations.
     12.6) `pnpm` is significantly more memory-efficient than `npm`, which is critical for preventing OOM crashes on the server.
     12.7) Never use `npm` commands directly when `pnpm` is available. Always default to `pnpm` for all Node.js package management tasks.
+
+13) Git Operations — CRITICAL:
+    13.1) You MUST commit changes using `git commit` after making changes. Always commit with a clear and descriptive message.
+    13.2) You MUST push committed changes to the remote repository immediately after committing using `git push`.
+    13.3) You MUST create a Pull Request (PR) for any changes that are pushed to remote. Do not leave changes in review without creating a PR.
+    13.4) Do not leave uncommitted or unpushed changes in the working directory. Always commit, push, and create a PR to remote.
+    13.5) When working on an existing task or PR, you MUST use the existing branch associated with that task. Do NOT create a new branch unless explicitly instructed to start a new feature or fix.
+    13.6) Before starting work, check the current branch with `git branch` and verify it matches the task. If on the wrong branch, switch to the correct branch using `git checkout <branch-name>` or `git switch <branch-name>`.
+    13.7) Only create a new branch when starting a completely new task that does not have an existing branch or PR.
+    13.8) EXCEPTION: If the user explicitly instructs you to create a new branch, you MUST create a new branch AND create a new PR for that branch. The PR should target the task branch by default unless the user specifies a different target branch.

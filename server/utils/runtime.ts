@@ -7,6 +7,8 @@ export type ProcState = {
   heartbeat: NodeJS.Timeout | null
   /** Set to true when the process is killed because of a detected command loop */
   isLoopKill?: boolean
+  /** Set to true when the process is killed because it exceeded the runtime timeout */
+  isTimeoutKill?: boolean
   /** Set to true when the process has exited (normal, crash, or error) */
   exited?: boolean
 }

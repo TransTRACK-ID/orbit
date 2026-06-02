@@ -451,7 +451,26 @@ export default defineEventHandler(async (event) => {
     // ── Loop detection: track recent bash commands ──
     const LOOP_WINDOW_MS = 60_000
     const LOOP_THRESHOLD = 4
+    const CATEGORY_LOOP_THRESHOLD = 8 // higher threshold for category-based detection (e.g. many cd's)
     const commandHistory: Array<{ command: string; timestamp: number }> = []
+
+    /** Normalize a command for loop detection: trim, collapse whitespace, extract first command from compound chains */
+    function normalizeForLoop(cmd: string): string {
+      let n = cmd.trim().replace(/\s+/g, ' ')
+      // For compound commands (cd /path && ls, cd /path; cat file), extract just the first part
+      for (const sep of [' && ', ' || ', ' ; ', ' | ']) {
+        const idx = n.indexOf(sep)
+        if (idx !== -1) n = n.substring(0, idx)
+      }
+      return n.trim()
+    }
+
+    /** Extract the base command verb (cd, ls, cat, etc.) for category-based loop detection */
+    function commandCategory(cmd: string): string | null {
+      const normalized = normalizeForLoop(cmd)
+      const match = normalized.match(/^(cd|ls|cat|pwd|echo|find|head|tail)\b/)
+      return match ? match[1] : null
+    }
 
     let workDir = defaultProjectDir
     let branchName = ''
@@ -1192,8 +1211,9 @@ This ensures your response is readable in the UI.`
     // Global runtime timeout to prevent infinite hangs
     const runtimeTimeout = setTimeout(() => {
       if (proc.exitCode === null) {
+        entry.isTimeoutKill = true
         const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
-        pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() })).catch(() => {})
+        pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() })).catch(() => {})
         persistLog(msg)
         try { proc.kill('SIGTERM') } catch {}
         setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
@@ -1216,6 +1236,29 @@ This ensures your response is readable in the UI.`
         for (const [cmd, count] of counts) {
           if (count >= LOOP_THRESHOLD) {
             const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
+            await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
+            await persistLog(msg)
+            entry.isLoopKill = true
+            clearTimeout(runtimeTimeout)
+            clearInterval(heartbeat)
+            try { proc.kill('SIGKILL') } catch {}
+            return
+          }
+        }
+
+        // Category-based loop detection: catch patterns like many `cd /different/path` commands
+        const categoryCounts = new Map<string, number>()
+        for (const c of commandHistory) {
+          if (now - c.timestamp < LOOP_WINDOW_MS) {
+            const cat = commandCategory(c.command)
+            if (cat) {
+              categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1)
+            }
+          }
+        }
+        for (const [cat, count] of categoryCounts) {
+          if (count >= CATEGORY_LOOP_THRESHOLD) {
+            const msg = `Category loop detected: "${cat}" commands executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
             await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
             await persistLog(msg)
             entry.isLoopKill = true
@@ -1270,11 +1313,12 @@ This ensures your response is readable in the UI.`
                 const filePath = input.filePath || input.path || 'unknown'
                 editedFiles.push(filePath)
               }
-              // Track bash commands for loop detection
+              // Track bash commands for loop detection (normalized for better matching)
               if (tool === 'bash') {
-                const cmd = (input.command || '').trim()
-                if (cmd) {
-                  commandHistory.push({ command: cmd, timestamp: Date.now() })
+                const rawCmd = (input.command || '').trim()
+                if (rawCmd) {
+                  const normalizedCmd = normalizeForLoop(rawCmd)
+                  commandHistory.push({ command: normalizedCmd, timestamp: Date.now() })
                   // Prune old entries
                   const cutoff = Date.now() - LOOP_WINDOW_MS
                   while (commandHistory.length > 0 && commandHistory[0]!.timestamp < cutoff) {
@@ -1377,19 +1421,23 @@ This ensures your response is readable in the UI.`
       const isError = code !== null && code !== 0
       const wasLoopKill = entry.isLoopKill
 
+      const wasTimeoutKill = entry.isTimeoutKill
+
       if (!wasLoopKill && (isCrash || isError)) {
-        const crashType = isCrash ? 'crash' : 'error'
-        const crashMessage = isCrash
-          ? `Agent process was killed unexpectedly (signal: ${proc.signalCode ?? 'unknown'}). This may indicate OOM or a runtime crash.`
-          : `Agent exited with error code ${code}`
+        const crashType = wasTimeoutKill ? 'timeout' : (isCrash ? 'crash' : 'error')
+        const crashMessage = wasTimeoutKill
+          ? `Agent timed out after ${MAX_RUNTIME_MS / 60000} minutes. The task exceeded the maximum runtime limit.`
+          : isCrash
+            ? `Agent process was killed unexpectedly (signal: ${proc.signalCode ?? 'unknown'}). This may indicate OOM or a runtime crash.`
+            : `Agent exited with error code ${code}`
         // Push autoRestart flag so the client retries automatically
-        await pushToStreams(entry, JSON.stringify({ step: crashMessage, autoRestart: true, isCrash, isError: !isCrash, timestamp: Date.now() }))
+        await pushToStreams(entry, JSON.stringify({ step: crashMessage, autoRestart: true, isCrash, isError: !isCrash, isTimeout: !!wasTimeoutKill, timestamp: Date.now() }))
         // Persist structured crash / error activity log
         try {
           await db.insert(schema.activityLogs).values({
             taskId: id,
             userId: user.id,
-            action: isCrash ? 'agent_crash' : 'agent_error',
+            action: wasTimeoutKill ? 'agent_timeout' : (isCrash ? 'agent_crash' : 'agent_error'),
             newValue: {
               exitCode: code,
               signal: proc.signalCode ?? null,

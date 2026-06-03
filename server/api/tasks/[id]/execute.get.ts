@@ -1046,6 +1046,11 @@ When summarizing changes or showing code in your responses, use proper markdown 
 - Use bullet points and clear headings to organize your summary.
 This ensures your response is readable in the UI.`
 
+    const statusRule = `[STATUS CONTROL]
+You have the ability to change the task status at any time during your work. When you have completed a meaningful phase of work or when the task state changes (e.g., moving from implementation to review, or when blocked), emit exactly:
+[ORBIT_STATUS: <status_name>]
+The status_name should match one of the existing statuses in the project (e.g., "in_progress", "review", "done", "blocked"). Only use this when the task state has genuinely changed. Do not use this for trivial updates.`
+
     const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
     const labelsContext = labels.length > 0
       ? `\n\n[TASK TYPE: ${labels.join(', ')}]`
@@ -1057,7 +1062,7 @@ This ensures your response is readable in the UI.`
       await pushAndPersist(`Included sibling task context (${siblingContextBlock.match(/\d+\./g)?.length ?? 0} task(s))`)
     }
 
-    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
     let attachmentsInjected = false
 
     if (feedback) {
@@ -1098,7 +1103,7 @@ This ensures your response is readable in the UI.`
           attachmentsInjected = true
         }
 
-        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
+        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
@@ -1108,7 +1113,7 @@ This ensures your response is readable in the UI.`
           await pushAndPersist(`Included latest codebase changes in context`)
         }
 
-        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}`
+        message = `CRITICAL MISSION: Fix PR Review Feedback\n\nYou are working on an EXISTING codebase that has received code review feedback. Your ONLY job is to fix the issues described in the feedback below. The code already exists — do NOT create new files unless explicitly required by the feedback.\n\nINSTRUCTIONS:\n1. Read every feedback item carefully\n2. Examine the relevant existing files mentioned in the feedback (file paths and line numbers are provided)\n3. Make precise, targeted code changes to fix EACH issue using edit/write tools\n4. Do NOT skip any feedback item — fix ALL of them\n5. Do NOT assume issues are already resolved — verify by making actual code changes\n6. After fixing all issues, confirm the changes by checking the modified files\n\n[CURRENT CODEBASE STATE]\n${changesContext || '(No local changes detected)'}\n\n[PR FEEDBACK TO ADDRESS]\n${feedback}\n\n[ORIGINAL TASK CONTEXT - for reference only]\n${message}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}`
       }
     } else if (isAutoRestart) {
       // ── Auto-restart after crash/loop/error: preserve full context ──
@@ -1144,7 +1149,7 @@ This ensures your response is readable in the UI.`
         await pushAndPersist(`Auto-restart: included sibling task context`)
       }
 
-      message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted (either due to a crash, error, or command loop). This is a fresh process, but ALL previous conversation history, codebase state, and sibling task context below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
+      message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted (either due to a crash, error, or command loop). This is a fresh process, but ALL previous conversation history, codebase state, and sibling task context below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
     }
 
     // For initial runs and PR feedback, append attachments at the end.
@@ -1296,6 +1301,67 @@ This ensures your response is readable in the UI.`
             // The [AGENT_REPLY] marker is added by the frontend, not by opencode,
             // so we track the latest text as the agent's reply.
             if (fullText) {
+              // Detect status change markers from the agent
+              const statusMatch = fullText.match(/\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i)
+              if (statusMatch) {
+                const desiredStatus = statusMatch[1].trim().toLowerCase()
+                try {
+                  // Try exact match first
+                  let targetStatus = await db.query.statuses.findFirst({
+                    where: and(
+                      eq(schema.statuses.projectId, task.projectId),
+                      ilike(schema.statuses.name, desiredStatus),
+                    ),
+                  })
+                  // Fallback to partial match
+                  if (!targetStatus) {
+                    targetStatus = await db.query.statuses.findFirst({
+                      where: and(
+                        eq(schema.statuses.projectId, task.projectId),
+                        ilike(schema.statuses.name, `%${desiredStatus}%`),
+                      ),
+                    })
+                  }
+                  if (targetStatus && task.statusId !== targetStatus.id) {
+                    const oldStatus = await db.query.statuses.findFirst({
+                      where: eq(schema.statuses.id, task.statusId),
+                    })
+                    await db.update(schema.tasks)
+                      .set({ statusId: targetStatus.id })
+                      .where(eq(schema.tasks.id, id))
+                    await db.insert(schema.activityLogs).values({
+                      taskId: id,
+                      userId: user.id,
+                      action: 'status_change',
+                      oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
+                      newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
+                    })
+                    await pushToStreams(entry, JSON.stringify({
+                      step: `Agent changed status to "${targetStatus.name}"`,
+                      timestamp: Date.now(),
+                    }))
+                    await persistLog(`Agent changed status to "${targetStatus.name}"`)
+                    task.statusId = targetStatus.id
+                  } else if (targetStatus) {
+                    await pushToStreams(entry, JSON.stringify({
+                      step: `Status already "${targetStatus.name}" — no change needed`,
+                      timestamp: Date.now(),
+                    }))
+                  } else {
+                    await pushToStreams(entry, JSON.stringify({
+                      step: `Status "${desiredStatus}" not found in project`,
+                      timestamp: Date.now(),
+                    }))
+                  }
+                } catch (statusErr: any) {
+                  await pushToStreams(entry, JSON.stringify({
+                    step: `Failed to change status: ${statusErr.message}`,
+                    timestamp: Date.now(),
+                  }))
+                }
+                // Remove the marker from the displayed text
+                fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
+              }
               agentReplyContent = fullText.trim()
             }
             logMsg = formatTextEvent(part)
@@ -1572,31 +1638,8 @@ This ensures your response is readable in the UI.`
         await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))
       }
 
-      // Auto-advance task status to review on successful agent completion
-      try {
-        const reviewStatus = await db.query.statuses.findFirst({
-          where: and(
-            eq(schema.statuses.projectId, task.projectId),
-            ilike(schema.statuses.name, '%review%')
-          ),
-        })
-        if (reviewStatus && task.statusId !== reviewStatus.id) {
-          await db.update(schema.tasks)
-            .set({ statusId: reviewStatus.id })
-            .where(eq(schema.tasks.id, id))
-
-          await db.insert(schema.activityLogs).values({
-            taskId: id,
-            userId: user.id,
-            action: 'agent_completed',
-            newValue: { exitCode: 0, statusId: reviewStatus.id, statusName: reviewStatus.name },
-          })
-
-          await pushToStreams(entry, JSON.stringify({ step: `Task status advanced to "${reviewStatus.name}"`, timestamp: Date.now() }))
-        }
-      } catch (statusErr: any) {
-        await pushToStreams(entry, JSON.stringify({ step: `Failed to update task status: ${statusErr.message}`, timestamp: Date.now() }))
-      }
+      // Agent-driven status changes: status is updated via [ORBIT_STATUS: ...] markers
+      // during the agent's run. No auto-advance on exit — the agent decides when to move.
     }
 
     if (wasLoopKill) {

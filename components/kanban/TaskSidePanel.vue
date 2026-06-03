@@ -37,7 +37,7 @@
             <!-- Neutral actions -->
             <div class="flex items-center gap-1">
               <IconButton
-                v-if="task?.assigneeType === 'agent'"
+                v-if="task?.assigneeType === 'agent' && worktreeExists"
                 @click="showPreviewModal = true"
               >
                 <template #icon>
@@ -1518,19 +1518,43 @@
             <p class="text-[10px] text-surface-400 -mt-1 mb-1">
               {{ previewMode === 'build' ? 'SSR: ~30-60s build time, true server-side rendering' : 'Dev: ~5-10s startup, fast reloads, no SSR' }}
             </p>
-            <Button
-             :disabled="previewStarting || !task"
-             :loading="previewStarting"
-             @click="handleStartPreview"
-           >
-             <template v-if="previewStarting">
-               Starting preview server...
-             </template>
-             <template v-else>
-               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
-               Start Preview
-             </template>
-           </Button>
+            <template v-if="worktreeExists">
+              <Tooltip
+                v-if="!canStartPreview"
+                id="preview-start-disabled"
+                label="Agent must be running to start preview"
+              >
+                <div class="opacity-50 cursor-not-allowed">
+                  <Button
+                    :disabled="true"
+                    :loading="false"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
+                    Start Preview
+                  </Button>
+                </div>
+              </Tooltip>
+              <Button
+                v-else
+                :disabled="previewStarting || !task"
+                :loading="previewStarting"
+                @click="handleStartPreview"
+              >
+                <template v-if="previewStarting">
+                  Starting preview server...
+                </template>
+                <template v-else>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><polygon points="5,3 19,12 5,21"/></svg>
+                  Start Preview
+                </template>
+              </Button>
+              <p v-if="!canStartPreview" class="text-[10px] text-amber-600 mt-1 text-center max-w-[280px]">
+                Agent must be running to start preview. Start the agent first.
+              </p>
+            </template>
+            <p v-else class="text-[10px] text-surface-400 mt-1 text-center max-w-[280px]">
+              Preview is unavailable until the agent creates a worktree.
+            </p>
         </div>
       </div>
     </div>
@@ -1668,6 +1692,7 @@ const showPreviewModal = ref(false)
 const previewStarting = ref(false)
 const previewRestarting = ref(false)
 const previewFullscreen = ref(false)
+const worktreeExists = ref(false)
 const previewPath = ref('/')
 const committedPreviewPath = ref('/')
 const previewLogs = ref<string[]>([])
@@ -1782,6 +1807,10 @@ const isAgentInProgress = computed(() => {
     task.value?.status?.name &&
     /progress/i.test(task.value.status.name)
   )
+})
+
+const canStartPreview = computed(() => {
+  return worktreeExists.value || isAgentInProgress.value || runtimeActive.value
 })
 
 const isBacklog = computed(() =>
@@ -2203,6 +2232,16 @@ async function checkPreview() {
     previewAvailable.value = false
     previewUrl.value = ''
     previewInstanceId.value = ''
+  }
+}
+
+async function checkWorktree() {
+  if (!task.value) return
+  try {
+    const result = await $fetch<{ exists: boolean }>(`/api/tasks/${task.value.id}/worktree-check`)
+    worktreeExists.value = result.exists
+  } catch {
+    worktreeExists.value = false
   }
 }
 
@@ -2965,6 +3004,7 @@ onMounted(async () => {
     fetchBrowserSession(),
     checkExistingPr(),
     checkPreview(),
+    checkWorktree(),
   ]).catch(() => {})
 
   // Initialize lastCompletionTimestamp from the most recent "Done" log

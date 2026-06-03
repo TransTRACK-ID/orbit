@@ -40,6 +40,14 @@ export default defineEventHandler(async (event) => {
   const worktreeDir = resolveWorktreeDir(cloneDir, task.id)
 
   if (!existsSync(worktreeDir)) {
+    const agentContext = await db.query.agentTaskContext.findFirst({
+      where: eq(schema.agentTaskContext.taskId, task.id),
+    })
+
+    if (agentContext && agentContext.status === 'running') {
+      throw createError({ statusCode: 400, statusMessage: 'Agent is still initializing. Please wait for the worktree to be created.' })
+    }
+
     throw createError({ statusCode: 400, statusMessage: 'Task worktree not found. Run the agent first.' })
   }
 

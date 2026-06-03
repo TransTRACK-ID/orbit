@@ -143,6 +143,7 @@ export async function startPreview(
     envVars: {
       ORBIT_PREVIEW: 'true',
       NUXT_IS_PREVIEW: 'true',
+      DATABASE_URL: process.env.DATABASE_URL || '',
       ...repositoryEnvVars,
     },
   }

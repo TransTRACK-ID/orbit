@@ -23,6 +23,16 @@ export default defineEventHandler(async (event) => {
 
   const position = (Number(tasksInStatus[0]?.count || 0)) * 1000
 
+  // Inherit project's repository if not explicitly provided
+  let repositoryId = body.repositoryId || null
+  if (!repositoryId) {
+    const project = await db.query.projects.findFirst({
+      where: eq(schema.projects.id, projectId),
+      columns: { repositoryId: true },
+    })
+    repositoryId = project?.repositoryId || null
+  }
+
   // Create task
   const [task] = await db
     .insert(schema.tasks)
@@ -38,7 +48,7 @@ export default defineEventHandler(async (event) => {
       description: body.description || null,
       position,
       priority: body.priority || 'none',
-      repositoryId: body.repositoryId || null,
+      repositoryId,
       parentTaskId: body.parentTaskId || null,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       estimate: body.estimate || null,

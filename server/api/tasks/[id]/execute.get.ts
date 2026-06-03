@@ -490,6 +490,8 @@ export default defineEventHandler(async (event) => {
     if (project) {
       let createBranch = false
 
+      await pushAndPersist(`Task ${id} repositoryId=${task.repositoryId || 'null'}, projectId=${task.projectId}`)
+
       if (task.repositoryId) {
         const repo = await db.query.repositories.findFirst({
           where: eq(schema.repositories.id, task.repositoryId),
@@ -501,21 +503,48 @@ export default defineEventHandler(async (event) => {
           repoName = repo.name
           repoToken = repo.token
           repoPlatform = (repo.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
+          await pushAndPersist(`Resolved task repository: name=${repoName}, url=${repoUrl || 'empty'}, branch=${repoDefaultBranch}`)
+        } else {
+          await pushAndPersist(`WARNING: Task repositoryId ${task.repositoryId} not found in database`)
         }
       }
 
       if (!repoUrl && project) {
-        const workspaceRepos = await db.query.repositories.findMany({
-          where: eq(schema.repositories.workspaceId, project.workspaceId),
-          limit: 1,
+        // First, try the project's repository (tasks created before the inheritance fix may not have repositoryId)
+        const projectWithRepo = await db.query.projects.findFirst({
+          where: eq(schema.projects.id, task.projectId),
+          columns: { repositoryId: true },
         })
-        if (workspaceRepos[0]) {
-          repoUrl = workspaceRepos[0].url
-          repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
-          createBranch = workspaceRepos[0].createBranch
-          repoName = workspaceRepos[0].name
-          repoToken = workspaceRepos[0].token
-          repoPlatform = (workspaceRepos[0].platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
+        if (projectWithRepo?.repositoryId) {
+          const repo = await db.query.repositories.findFirst({
+            where: eq(schema.repositories.id, projectWithRepo.repositoryId),
+          })
+          if (repo) {
+            repoUrl = repo.url
+            repoDefaultBranch = repo.defaultBranch || 'main'
+            createBranch = repo.createBranch
+            repoName = repo.name
+            repoToken = repo.token
+            repoPlatform = (repo.platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
+            await pushAndPersist(`Using project repository: ${repo.name} (${repo.url || 'local-only'})`)
+          }
+        }
+
+        // If still no repo found (repoName is empty), fall back to the first workspace repository
+        if (!repoName) {
+          const workspaceRepos = await db.query.repositories.findMany({
+            where: eq(schema.repositories.workspaceId, project.workspaceId),
+            limit: 1,
+          })
+          if (workspaceRepos[0]) {
+            repoUrl = workspaceRepos[0].url
+            repoDefaultBranch = workspaceRepos[0].defaultBranch || 'main'
+            createBranch = workspaceRepos[0].createBranch
+            repoName = workspaceRepos[0].name
+            repoToken = workspaceRepos[0].token
+            repoPlatform = (workspaceRepos[0].platform as 'github' | 'gitlab' | 'gitlab-self-hosted') || 'github'
+            await pushAndPersist(`WARNING: Falling back to workspace repository: ${repoName}`)
+          }
         }
       }
 
@@ -855,8 +884,114 @@ export default defineEventHandler(async (event) => {
             await pushAndPersist(`Branch setup failed: ${err.message}`)
           }
         }
+      } else if (repoName) {
+        // Local-only repository: use the local project directory directly
+        workDir = `${projectsDir}/${repoName}`
+
+        if (!existsSync(workDir)) {
+          await pushAndPersist(`Local project directory does not exist: ${workDir}. Cannot start agent.`)
+          stream.close()
+          return
+        }
+
+        await pushAndPersist(`Using local project directory: ${workDir}`)
+
+        // Ensure git identity is configured
+        if (existsSync(`${workDir}/.git`)) {
+          try {
+            await execAsync('git config user.email "agent@orbit.dev"', { cwd: workDir })
+            await execAsync('git config user.name "Orbit Agent"', { cwd: workDir })
+          } catch {}
+        }
+
+        // Create branch name for the task
+        branchName = task.branchName
+          || `task-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)}`
+
+        // Set up branch in local repo
+        if (existsSync(`${workDir}/.git`)) {
+          try {
+            const { stdout: branchList } = await execAsync('git branch --list', { cwd: workDir })
+            const hasBranch = branchList.split('\n').some(b => b.trim().replace(/^[+*\s]+/, '') === branchName)
+
+            if (!hasBranch) {
+              await execAsync(`git checkout -b ${branchName}`, { cwd: workDir })
+              await pushAndPersist(`Created branch "${branchName}"`)
+            } else {
+              await execAsync(`git checkout ${branchName}`, { cwd: workDir })
+              await pushAndPersist(`Switched to branch "${branchName}"`)
+            }
+          } catch (err: any) {
+            await pushAndPersist(`Branch setup failed: ${err.message}`)
+          }
+        }
+
+        // Copy task attachments into workDir
+        attachments = await db.query.taskAttachments.findMany({
+          where: eq(schema.taskAttachments.taskId, id),
+        })
+        if (attachments.length > 0) {
+          const attachmentsDir = `${workDir}/.orbit-attachments`
+          mkdirSync(attachmentsDir, { recursive: true })
+          const gitignorePath = `${attachmentsDir}/.gitignore`
+          if (!existsSync(gitignorePath)) {
+            writeFileSync(gitignorePath, '*\n', 'utf-8')
+          }
+          for (const att of attachments) {
+            const source = att.path
+            const dest = `${attachmentsDir}/${att.filename}`
+            if (existsSync(source) && !existsSync(dest)) {
+              try {
+                copyFileSync(source, dest)
+              } catch (copyErr: any) {
+                await pushAndPersist(`Attachment copy failed: ${att.originalName} — ${copyErr.message}`)
+              }
+            }
+          }
+        }
+
+        // Persist branch name to database
+        try {
+          await db.update(schema.tasks)
+            .set({ branchName })
+            .where(eq(schema.tasks.id, id))
+        } catch (dbErr: any) {
+          await pushAndPersist(`Warning: failed to save branch name to database: ${dbErr.message}`)
+        }
+
+        // Verify we're on the right branch
+        if (existsSync(`${workDir}/.git`)) {
+          try {
+            const { stdout: verifyBranch } = await execAsync('git branch --show-current', { cwd: workDir })
+            const actual = verifyBranch.trim()
+            if (actual !== branchName) {
+              await pushAndPersist(`WARNING: Expected branch ${branchName} but on ${actual}. Switching...`)
+              await execAsync(`git checkout ${branchName}`, { cwd: workDir })
+            }
+          } catch {}
+        }
+
+        // Auto-commit any leftover uncommitted changes
+        if (existsSync(`${workDir}/.git`)) {
+          try {
+            const { stdout: leftoverStatus } = await execAsync('git status --porcelain', { cwd: workDir }).catch(() => ({ stdout: '' }))
+            if (leftoverStatus.trim()) {
+              await pushAndPersist(`Uncommitted changes detected — auto-committing WIP before continuing...`)
+              await execAsync('git add -A', { cwd: workDir })
+              await execAsync('git commit -m "wip: autosave before next agent run"', { cwd: workDir })
+              await pushAndPersist(`Auto-committed WIP.`)
+            }
+          } catch {}
+        }
+
+        if (!createBranch) {
+          branchName = repoDefaultBranch
+          await pushAndPersist(`Using default branch "${repoDefaultBranch}"`)
+        }
       }
     }
+
+    await pushAndPersist(`Final workDir: ${workDir}, repoName: ${repoName || 'none'}, repoUrl: ${repoUrl || 'empty'}`)
 
     if (!existsSync(workDir)) {
       await pushAndPersist(`Work directory does not exist: ${workDir}. Cannot start agent.`)

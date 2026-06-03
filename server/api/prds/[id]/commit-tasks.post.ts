@@ -31,6 +31,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'PRD not found' })
   }
 
+  // Fetch the project's repository (if any) to attach to tasks
+  const project = await db.query.projects.findFirst({
+    where: eq(schema.projects.id, body.projectId),
+    columns: { repositoryId: true },
+  })
+  const projectRepositoryId = project?.repositoryId || null
+
   // Find backlog status for the project
   const projectStatuses = await db.query.statuses.findMany({
     where: eq(schema.statuses.projectId, body.projectId),
@@ -90,7 +97,7 @@ export default defineEventHandler(async (event) => {
         priority: taskData.priority,
         estimate: taskData.estimateHours || null,
         parentTaskId,
-        repositoryId: null,
+        repositoryId: projectRepositoryId,
         assigneeId: null,
         agentAssigneeId: null,
         assigneeType: null,

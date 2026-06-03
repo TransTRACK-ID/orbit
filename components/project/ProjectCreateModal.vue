@@ -1,12 +1,12 @@
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="$emit('close')">
-      <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-lg p-6 animate-scale-in">
+      <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 animate-scale-in" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="flex items-center justify-between mb-5">
-          <h3 class="text-lg font-semibold text-surface-900">
+          <h3 id="modal-title" class="text-lg font-semibold text-surface-900">
             {{ step === 'template' ? 'Create Project' : step === 'config' ? 'Configure Template' : 'Create Project' }}
           </h3>
-          <button class="text-surface-400 hover:text-surface-600 transition-colors p-1" @click="$emit('close')">
+          <button class="text-surface-400 hover:text-surface-600 transition-colors p-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" @click="$emit('close')" aria-label="Close">
             <Close class="w-5 h-5" />
           </button>
         </div>
@@ -15,14 +15,14 @@
         <div v-if="step === 'template'" class="space-y-4">
           <div v-if="!isFirstProject" class="flex items-center gap-2 mb-4">
             <button
-              class="px-3 py-1.5 text-sm rounded-md transition-colors"
+              class="px-3 py-1.5 text-sm rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="mode === 'blank' ? 'bg-surface-900 text-white dark:bg-black' : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-200'"
               @click="mode = 'blank'; error = ''"
             >
               Blank Project
             </button>
             <button
-              class="px-3 py-1.5 text-sm rounded-md transition-colors"
+              class="px-3 py-1.5 text-sm rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="mode === 'template' ? 'bg-surface-900 text-white dark:bg-black' : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-200'"
               @click="mode = 'template'; error = ''"
             >
@@ -42,17 +42,17 @@
             <div v-if="!isFirstProject">
               <label class="block text-sm font-medium text-surface-700 mb-1.5">Color</label>
               <div class="flex items-center gap-2">
-                <input v-model="blankForm.color" type="color" class="w-9 h-9 rounded-lg cursor-pointer border border-surface-200" />
+                <input v-model="blankForm.color" type="color" class="w-9 h-9 rounded-lg cursor-pointer border border-surface-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
                 <span class="text-sm text-surface-500 font-mono">{{ blankForm.color }}</span>
               </div>
             </div>
+            <p v-if="error" class="text-error-500 text-sm">{{ error }}</p>
             <div class="flex items-center justify-end gap-2 pt-2">
               <TextButton @click="$emit('close')">Cancel</TextButton>
               <Button type="submit" :loading="creating">
                 {{ isFirstProject ? 'Create Your First Project' : 'Create Project' }}
               </Button>
             </div>
-            <p v-if="error" class="text-error-500 text-sm">{{ error }}</p>
           </form>
 
           <div v-else>
@@ -69,14 +69,21 @@
         </div>
 
         <!-- Step 2: Template Configuration -->
-        <div v-else-if="step === 'config' && selectedTemplate">
+        <div v-else-if="step === 'config' && selectedTemplate" class="space-y-4">
+          <div class="pb-2 border-b border-surface-100">
+            <p class="text-xs text-surface-400">
+              <span class="font-medium text-surface-500">{{ selectedTemplate.name }}</span>
+              <span class="mx-1">·</span>
+              <span>{{ selectedTemplate.stack }}</span>
+            </p>
+          </div>
           <ProjectTemplateConfigForm
             :template="selectedTemplate"
             :submitting="creating"
             @submit="handleCreateFromTemplate"
             @back="step = 'template'; mode = 'template'; error = ''"
           />
-          <p v-if="error" class="text-error-500 text-sm mt-3">{{ error }}</p>
+          <p v-if="error" class="text-error-500 text-sm">{{ error }}</p>
         </div>
       </div>
     </div>
@@ -208,7 +215,7 @@ async function handleCreateFromTemplate(formData: any) {
         variables: formData.variables,
         platform: formData.platform,
         gitlabHost: formData.gitlabHost,
-        createRemoteRepo: true,
+        createRemoteRepo: formData.createRemoteRepo,
       },
     })
     emit('created', result.project)

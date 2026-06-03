@@ -10,13 +10,24 @@
       <TextInput v-model="form.repositoryName" placeholder="my-awesome-project" required />
     </div>
 
-    <!-- Platform -->
-    <div>
-      <label class="block text-sm font-medium text-surface-700 mb-1.5">Platform</label>
-      <div class="flex flex-wrap items-center gap-2">
+    <!-- Remote repository toggle -->
+    <div class="space-y-1">
+      <div class="flex items-center gap-2">
+        <input v-model="form.createRemoteRepo" type="checkbox" id="createRemoteRepo" class="rounded border-surface-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
+        <label for="createRemoteRepo" class="text-sm font-medium text-surface-700">Create and push to remote repository</label>
+      </div>
+      <p v-if="!form.createRemoteRepo" class="text-xs text-surface-400">The project will be created locally only. You can push to remote later.</p>
+    </div>
+
+    <!-- Remote settings section -->
+    <div v-if="form.createRemoteRepo" class="space-y-4 pt-4 border-t border-surface-200">
+      <!-- Platform -->
+      <div>
+        <label class="block text-sm font-medium text-surface-700 mb-1.5">Platform</label>
+        <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           :class="form.platform === 'github' ? 'bg-surface-900 text-white border-surface-900 dark:bg-black dark:border-black' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
           @click="form.platform = 'github'"
         >
@@ -25,7 +36,7 @@
         </button>
         <button
           type="button"
-          class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           :class="form.platform === 'gitlab' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
           @click="form.platform = 'gitlab'"
         >
@@ -34,7 +45,7 @@
         </button>
         <button
           type="button"
-          class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           :class="form.platform === 'gitlab-self-hosted' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
           @click="form.platform = 'gitlab-self-hosted'"
         >
@@ -44,10 +55,26 @@
       </div>
     </div>
 
-    <!-- GitLab Self-Hosted URL -->
-    <div v-if="form.platform === 'gitlab-self-hosted'">
-      <label class="block text-sm font-medium text-surface-700 mb-1.5">GitLab Host URL *</label>
-      <TextInput v-model="form.gitlabHost" placeholder="https://gitlab.mycompany.com" required />
+      <!-- GitLab Self-Hosted URL -->
+      <div v-if="form.platform === 'gitlab-self-hosted'">
+        <label class="block text-sm font-medium text-surface-700 mb-1.5">GitLab Host URL *</label>
+        <TextInput v-model="form.gitlabHost" placeholder="https://gitlab.mycompany.com" required />
+      </div>
+
+      <!-- Git config -->
+      <div>
+        <label class="block text-sm font-medium text-surface-700 mb-1.5">
+          {{ tokenLabel }}
+          <span v-if="form.platform !== 'github'" class="text-red-400">*</span>
+          <span v-else class="text-surface-300 font-normal normal-case">(optional)</span>
+        </label>
+        <TextInput v-model="form.token" type="password" :placeholder="tokenPlaceholder" />
+        <p class="text-xs text-surface-400 mt-1">{{ tokenHint }}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <input v-model="form.isPrivate" type="checkbox" id="private" class="rounded border-surface-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
+        <label for="private" class="text-sm text-surface-700">Private repository</label>
+      </div>
     </div>
 
     <!-- Dynamic template variables (skip projectName since it's handled above) -->
@@ -68,24 +95,9 @@
       </div>
     </div>
 
-    <!-- Git config -->
-    <div>
-      <label class="block text-sm font-medium text-surface-700 mb-1.5">
-        {{ tokenLabel }}
-        <span v-if="form.platform !== 'github'" class="text-red-400">*</span>
-        <span v-else class="text-surface-300 font-normal normal-case">(optional)</span>
-      </label>
-      <TextInput v-model="form.token" type="password" :placeholder="tokenPlaceholder" />
-      <p class="text-[10px] text-surface-400 mt-1">{{ tokenHint }}</p>
-    </div>
-    <div class="flex items-center gap-2">
-      <input v-model="form.isPrivate" type="checkbox" id="private" class="rounded border-surface-300" />
-      <label for="private" class="text-sm text-surface-700">Private repository</label>
-    </div>
-
     <div class="flex justify-end gap-2 pt-2">
       <TextButton @click="$emit('back')">Back</TextButton>
-      <Button type="submit" :loading="submitting">Create & Push</Button>
+      <Button type="submit" :loading="submitting">{{ form.createRemoteRepo ? 'Create & Push' : 'Create Project' }}</Button>
     </div>
 
     <p v-if="error" class="text-error-500 text-sm">{{ error }}</p>
@@ -112,6 +124,7 @@ const form = reactive({
   isPrivate: true,
   platform: 'github' as 'github' | 'gitlab' | 'gitlab-self-hosted',
   gitlabHost: '',
+  createRemoteRepo: false,
   variables: {} as Record<string, string>,
 })
 
@@ -183,7 +196,7 @@ async function submit() {
     error.value = 'Repository name is required'
     return
   }
-  if (form.platform === 'gitlab-self-hosted' && !form.gitlabHost.trim()) {
+  if (form.createRemoteRepo && form.platform === 'gitlab-self-hosted' && !form.gitlabHost.trim()) {
     error.value = 'GitLab host URL is required for self-hosted'
     return
   }
@@ -194,6 +207,7 @@ async function submit() {
     isPrivate: form.isPrivate,
     platform: form.platform,
     gitlabHost: form.gitlabHost,
+    createRemoteRepo: form.createRemoteRepo,
     variables: { ...form.variables },
   })
 }

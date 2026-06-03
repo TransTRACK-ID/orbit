@@ -70,28 +70,22 @@ export default defineEventHandler(async (event) => {
     DEFAULT_STATUSES.map(s => ({ projectId: project.id, ...s }))
   )
 
-  // ─── 4. Create repository record ───
-  let repositoryId: string | null = null
-  if (remoteUrl) {
-    const [repository] = await db.insert(schema.repositories).values({
-      workspaceId,
-      name: body.repositoryName,
-      url: remoteUrl,
-      defaultBranch: template.branch || 'main',
-      createBranch: true,
-      platform: body.platform,
-      token: body.token || null,
-    }).returning()
-    repositoryId = repository.id
-  }
+  // ─── 4. Create repository record (always, even for local-only) ───
+  const [repository] = await db.insert(schema.repositories).values({
+    workspaceId,
+    name: body.repositoryName,
+    url: remoteUrl || '',
+    defaultBranch: template.branch || 'main',
+    createBranch: true,
+    platform: body.platform,
+    token: body.token || null,
+  }).returning()
 
   // ─── 5. Link repository to project ───
-  if (repositoryId) {
-    await db.update(schema.projects)
-      .set({ repositoryId })
-      .where(eq(schema.projects.id, project.id))
-    project.repositoryId = repositoryId
-  }
+  await db.update(schema.projects)
+    .set({ repositoryId: repository.id })
+    .where(eq(schema.projects.id, project.id))
+  project.repositoryId = repository.id
 
   return { project, repositoryUrl: remoteUrl, targetDir }
 })

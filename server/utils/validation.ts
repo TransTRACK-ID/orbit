@@ -48,7 +48,7 @@ export const createProjectFromTemplateSchema = z.object({
   platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']).default('github'),
   gitlabHost: z.preprocess((val) => (val === '' ? undefined : val), z.string().url().optional()),
   token: z.string().optional(),
-  createRemoteRepo: z.boolean().default(true),
+  createRemoteRepo: z.boolean().default(false),
   isPrivate: z.boolean().default(true),
   variables: z.record(z.string(), z.string()).default({}),
 })
@@ -176,7 +176,7 @@ export const createRepositoryFromTemplateSchema = z.object({
   platform: z.enum(['github', 'gitlab', 'gitlab-self-hosted']).default('github'),
   gitlabHost: z.preprocess((val) => (val === '' ? undefined : val), z.string().url().optional()),
   token: z.string().optional(),
-  createRemoteRepo: z.boolean().default(true),
+  createRemoteRepo: z.boolean().default(false),
   isPrivate: z.boolean().default(true),
   variables: z.record(z.string(), z.string()).default({}),
 })

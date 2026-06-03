@@ -581,7 +581,7 @@ async function handleCreateRepoFromTemplate(formData: any) {
         variables: formData.variables,
         platform: formData.platform,
         gitlabHost: formData.gitlabHost,
-        createRemoteRepo: true,
+        createRemoteRepo: formData.createRemoteRepo,
       },
     })
     repoFromTemplate.value = result.repository

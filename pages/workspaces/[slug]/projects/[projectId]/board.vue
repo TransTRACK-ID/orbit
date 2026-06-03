@@ -668,6 +668,9 @@ function handleOpenTask(task: Task) {
 function handleTaskUpdated(task: Task) {
   const idx = tasks.value.findIndex((t) => t.id === task.id)
   if (idx !== -1) tasks.value[idx] = task
+  if (selectedTask.value && selectedTask.value.id === task.id) {
+    selectedTask.value = task
+  }
 }
 
 function handleTaskDuplicated(task: Task) {

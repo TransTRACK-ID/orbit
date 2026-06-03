@@ -245,6 +245,10 @@ function formatShortDate(dateString: string): string {
   background-color: #eef2ff;
 }
 
+.dark .kanban-card.selected {
+  background-color: var(--surface-100);
+}
+
 .kanban-card.highlighted {
   animation: highlight-pulse 3s ease-out;
   outline: 2px solid #22c55e;
@@ -254,6 +258,10 @@ function formatShortDate(dateString: string): string {
 .kanban-card.archived {
   opacity: 0.75;
   background-color: #f8fafc;
+}
+
+.dark .kanban-card.archived {
+  background-color: var(--surface-100);
 }
 
 @keyframes highlight-pulse {

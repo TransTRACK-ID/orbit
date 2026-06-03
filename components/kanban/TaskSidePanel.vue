@@ -33,52 +33,66 @@
               {{ task.id?.slice(0, 8) }}
             </span>
           </div>
-          <div class="flex items-center gap-2">
-            <IconButton
-              v-if="false"
-              @click="showPreviewModal = true"
-            >
-              <template #icon>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </template>
-            </IconButton>
-            <IconButton
-              :disabled="duplicating"
-              @click="handleDuplicate"
-            >
-              <template #icon>
-                <svg v-if="duplicating" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              </template>
-            </IconButton>
-            <IconButton
-              v-if="task && !task.archived && isDoneStatus"
-              :disabled="archiving"
-              @click="confirmArchive = true"
-            >
-              <template #icon>
-                <svg v-if="archiving" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/><path d="M3 16.2V21m0 0h4.8M3 21l6-6"/><path d="M21 7.8V3m0 0h-4.8M21 3l-6 6"/><path d="M3 7.8V3m0 0h4.8M3 3l6 6"/></svg>
-              </template>
-            </IconButton>
-            <IconButton
-              v-else-if="task && task.archived"
-              :disabled="archiving"
-              @click="handleRestore"
-            >
-              <template #icon>
-                <svg v-if="archiving" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stroke-surface-500 w-4 h-4"><path d="M3 7v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7"/><path d="M3 7l5.5 5.5a2 2 0 0 0 2.83 0L18 7"/><path d="M3 7h18"/></svg>
-              </template>
-            </IconButton>
-            <IconButton @click="confirmDelete = true">
-              <template #icon>
-                <Trash class="stroke-surface-500 w-4 h-4" />
-              </template>
-            </IconButton>
+          <div class="flex items-center gap-1">
+            <!-- Neutral actions -->
+            <div class="flex items-center gap-1">
+              <IconButton
+                v-if="task?.assigneeType === 'agent'"
+                @click="showPreviewModal = true"
+              >
+                <template #icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </template>
+              </IconButton>
+              <IconButton
+                :disabled="duplicating"
+                @click="handleDuplicate"
+              >
+                <template #icon>
+                  <svg v-if="duplicating" class="animate-spin w-4 h-4 text-surface-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </template>
+              </IconButton>
+            </div>
+
+            <div class="w-px h-4 bg-surface-300 dark:bg-surface-600" />
+
+            <!-- Destructive actions -->
+            <div class="flex items-center gap-1">
+              <IconButton
+                v-if="task && !task.archived && isDoneStatus"
+                :loading="archiving"
+                @click="confirmArchive = true"
+              >
+                <template #icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                </template>
+              </IconButton>
+              <IconButton
+                v-else-if="task && task.archived"
+                :loading="archiving"
+                @click="handleRestore"
+              >
+                <template #icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M12 18v-6"/><path d="M8 12l4-4 4 4"/></svg>
+                </template>
+              </IconButton>
+              <IconButton
+                color="error"
+                @click="confirmDelete = true"
+              >
+                <template #icon>
+                  <Trash class="w-4 h-4" />
+                </template>
+              </IconButton>
+            </div>
+
+            <div class="w-px h-4 bg-surface-300 dark:bg-surface-600" />
+
+            <!-- Navigation -->
             <IconButton @click="$emit('close')">
               <template #icon>
-                <Close class="stroke-surface-500 w-4 h-4" />
+                <Close class="w-4 h-4" />
               </template>
             </IconButton>
           </div>
@@ -102,7 +116,7 @@
               Resolving...
             </span>
           </div>
-          <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="flex items-center gap-3 flex-shrink-0">
             <button
               v-if="hasMergeConflicts && conflictResolutionStatus !== 'in_progress'"
               class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center gap-1.5"
@@ -930,7 +944,7 @@
                         
                          <!-- Open Preview -->
                          <button
-                           v-if="false"
+                           v-if="previewAvailable"
                            class="flex h-8 items-center gap-1.5 rounded-lg bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-primary-700 active:scale-95 transition-all"
                            @click="showPreviewModal = true"
                          >
@@ -944,7 +958,6 @@
                          </button>
                            <!-- Preview Mode Toggle -->
                            <div
-                             v-if="false"
                              class="flex items-center gap-1.5"
                            >
                             <div class="flex items-center rounded-lg bg-surface-100 p-0.5">
@@ -980,7 +993,6 @@
                           </div>
                            <!-- Restart Preview -->
                            <button
-                             v-if="false"
                              class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold shadow-sm active:scale-95 transition-all"
                             :disabled="previewRestarting"
                             :class="[
@@ -1196,7 +1208,7 @@
 
   <!-- Preview Modal -->
   <div
-    v-if="false"
+    v-if="showPreviewModal"
     class="fixed inset-0 z-[70] flex overflow-hidden transition-all duration-300"
     :class="previewFullscreen ? 'bg-black' : 'bg-black/50 items-center justify-center p-4'"
     @click.self="showPreviewModal = false"
@@ -3337,6 +3349,7 @@ async function handleArchive() {
   archiving.value = true
   try {
     const updated = await archiveTaskApi(task.value.id)
+    task.value = updated
     emit('updated', updated)
   } finally {
     archiving.value = false
@@ -3349,6 +3362,7 @@ async function handleRestore() {
   archiving.value = true
   try {
     const updated = await restoreTaskApi(task.value.id)
+    task.value = updated
     emit('updated', updated)
   } finally {
     archiving.value = false

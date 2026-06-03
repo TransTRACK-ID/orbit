@@ -1,12 +1,18 @@
 import { NuxtAdapter } from './nuxt-adapter'
 import { NextJsAdapter } from './nextjs-adapter'
+import { FlutterAdapter } from './flutter-adapter'
 import { LaravelAdapter } from './laravel-adapter'
+import { VueAdapter } from './vue-adapter'
+import { ReactAdapter } from './react-adapter'
 import type { PreviewAdapter } from './types'
 
 const adapters: PreviewAdapter[] = [
   NuxtAdapter,
   NextJsAdapter,
+  FlutterAdapter,
   LaravelAdapter,
+  VueAdapter,
+  ReactAdapter,
 ]
 
 export async function detectFramework(worktreeDir: string): Promise<PreviewAdapter | null> {

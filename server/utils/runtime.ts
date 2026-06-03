@@ -22,11 +22,9 @@ export function addStreamToProc(taskId: string, stream: EventStream, entry: Proc
   entry.streams.push(stream)
   stream.onClosed = () => {
     entry.streams = entry.streams.filter(s => s !== stream)
-    if (entry.streams.length === 0) {
-      if (entry.heartbeat) clearInterval(entry.heartbeat)
-      try { entry.proc.kill('SIGTERM') } catch {}
-      setTimeout(() => { try { entry.proc.kill('SIGKILL') } catch {} }, 5000)
-    }
+    // Do NOT kill the process when all streams close.
+    // The agent continues running in the background even when the browser disconnects.
+    // The process can only be explicitly stopped via the kill endpoint.
   }
 }
 

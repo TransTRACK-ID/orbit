@@ -171,6 +171,8 @@ export const NuxtAdapter: PreviewAdapter = {
         PORT: String(port),
         NUXT_APP_BASE_URL: config.baseUrl,
         NUXT_PUBLIC_API_BASE_URL: config.baseUrl.replace(/\/$/, ''),
+        NUXT_AUTH_SECRET: process.env.NUXT_AUTH_SECRET,
+        NUXT_AUTH_ORIGIN: process.env.NUXT_AUTH_ORIGIN,
       },
       stdio: 'pipe',
     })

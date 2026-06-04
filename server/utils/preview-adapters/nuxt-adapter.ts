@@ -66,6 +66,31 @@ export const NuxtAdapter: PreviewAdapter = {
         console.log(`[nuxt-adapter] Injected ssr: false into ${configPath}`)
       }
       
+      // Ensure app.baseURL is set so Vue Router respects the preview path
+      // This prevents navigateTo('/') from redirecting to the domain root
+      if (!/app\s*:\s*\{[^}]*baseURL/.test(modifiedConfig)) {
+        if (/app\s*:\s*\{/.test(modifiedConfig)) {
+          modifiedConfig = modifiedConfig.replace(
+            /app\s*:\s*\{/,
+            `app: {\n    baseURL: process.env.NUXT_APP_BASE_URL || '/',`
+          )
+          console.log(`[nuxt-adapter] Added baseURL to app config in ${configPath}`)
+        } else if (/ssr\s*:\s*false/.test(modifiedConfig)) {
+          // ssr was injected, add app after it
+          modifiedConfig = modifiedConfig.replace(
+            /(ssr\s*:\s*false,)/,
+            '$1\n  app: { baseURL: process.env.NUXT_APP_BASE_URL || \'/\' },'
+          )
+          console.log(`[nuxt-adapter] Added app.baseURL after ssr in ${configPath}`)
+        } else {
+          modifiedConfig = modifiedConfig.replace(
+            /export\s+default\s+defineNuxtConfig\s*\(\s*\{/,
+            'export default defineNuxtConfig({\n  app: { baseURL: process.env.NUXT_APP_BASE_URL || \'/\' },'
+          )
+          console.log(`[nuxt-adapter] Injected app.baseURL into ${configPath}`)
+        }
+      }
+      
       if (modifiedConfig !== originalConfig) {
         writeFileSync(configPath, modifiedConfig)
       }

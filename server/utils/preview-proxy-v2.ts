@@ -95,29 +95,33 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
         delete proxyRes.headers['Content-Security-Policy']
 
         // Rewrite Location header to preserve preview path
+        // Always rewrite for both static and SSR — Nitro doesn't always prepend
+        // baseURL to custom redirects (e.g., setHeader('location', '/'))
         const location = proxyRes.headers['location']
         if (location && typeof location === 'string') {
-          // For static previews, Nitro doesn't prepend base URL to redirects
-          // so we need to add the /api/preview/{id} prefix
-          if (isStatic && location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
+          if (location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
             proxyRes.headers['location'] = `/api/preview/${instanceId}${location}`
             console.log(`[preview-proxy] Rewrote Location: ${location} → ${proxyRes.headers['location']}`)
           }
-          // For SSR, Nitro already prepends base URL to redirects
-          // so Location headers are already correct
         }
 
-        // Rewrite Set-Cookie paths for static previews only
-        // SSR Nitro handles cookie paths correctly with baseURL
-        if (isStatic) {
-          const setCookie = proxyRes.headers['set-cookie']
-          if (setCookie) {
-            proxyRes.headers['set-cookie'] = setCookie.map((cookie: string) => {
-              return cookie
-                .replace(/Path=\//g, `Path=/api/preview/${instanceId}/`)
-                .replace(/Path=\/api\//g, `Path=/api/preview/${instanceId}/api/`)
+        // Rewrite Set-Cookie paths to scope cookies to the preview app
+        // Always rewrite for both static and SSR — apps may set cookies with Path=/
+        // which would leak to the parent Orbit app on the same domain
+        const setCookie = proxyRes.headers['set-cookie']
+        if (setCookie) {
+          proxyRes.headers['set-cookie'] = setCookie.map((cookie: string) => {
+            return cookie.replace(/Path=([^;]+)/, (match, path) => {
+              const trimmedPath = path.trim()
+              if (trimmedPath.startsWith(`/api/preview/${instanceId}`)) {
+                return match
+              }
+              if (trimmedPath === '/') {
+                return `Path=/api/preview/${instanceId}/`
+              }
+              return `Path=/api/preview/${instanceId}${trimmedPath}`
             })
-          }
+          })
         }
 
         res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)

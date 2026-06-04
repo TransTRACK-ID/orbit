@@ -98,6 +98,10 @@ Optional catch-all `[[...path]]` doesn't work reliably in Nitro for empty paths.
 **Cause**: `Location: /login` header forwarded verbatim  
 **Fix**: Rewrite `Location` headers to include `/api/preview/{taskId}/` prefix
 
+### Issue: Client-side navigation escapes the iframe after login
+**Cause**: Child apps (especially Nuxt) use `navigateTo('/admin', { external: true })` which does `window.location.href = '/admin'` — this navigates to the parent origin's `/admin` instead of the preview's `/admin`  
+**Fix**: The preview proxy injects a navigation interception script into all HTML responses that patches `window.location.href`, `window.location.replace`, and `window.location.assign` to prepend the preview base URL (`/api/preview/{instanceId}/`) for absolute paths. This ensures client-side navigation stays within the preview boundary.
+
 ## Debugging Checklist
 
 1. Check compiled routes exist:

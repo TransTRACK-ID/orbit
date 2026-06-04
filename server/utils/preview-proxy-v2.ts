@@ -4,6 +4,52 @@ import { eq } from 'drizzle-orm'
 import { requireAuth } from './auth'
 import { isPreviewStatic } from './preview-orchestrator'
 
+function getNavigationInterceptionScript(instanceId: string): string {
+  const baseUrl = `/api/preview/${instanceId}/`
+  return `
+<script>
+(function() {
+  const baseUrl = '${baseUrl}';
+  
+  function patchUrl(url) {
+    if (typeof url !== 'string') return url;
+    if (url.startsWith('/') && !url.startsWith(baseUrl) && !url.startsWith('//')) {
+      return baseUrl + url.replace(/^\/+/g, '');
+    }
+    return url;
+  }
+  
+  // Intercept location.href
+  try {
+    const origHref = Object.getOwnPropertyDescriptor(window.location, 'href');
+    if (origHref && origHref.set) {
+      Object.defineProperty(window.location, 'href', {
+        set: function(url) { return origHref.set.call(this, patchUrl(url)); },
+        get: function() { return origHref.get.call(this); }
+      });
+    }
+  } catch (e) {}
+  
+  // Intercept location.replace
+  try {
+    const origReplace = window.location.replace;
+    window.location.replace = function(url) {
+      return origReplace.call(this, patchUrl(url));
+    };
+  } catch (e) {}
+  
+  // Intercept location.assign
+  try {
+    const origAssign = window.location.assign;
+    window.location.assign = function(url) {
+      return origAssign.call(this, patchUrl(url));
+    };
+  } catch (e) {}
+})();
+</script>
+`
+}
+
 export async function proxyPreviewRequest(event: any, instanceId: string): Promise<void> {
   const user = await requireAuth(event)
 
@@ -84,6 +130,8 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
         headers: {
           ...req.headers,
           host: `localhost:${port}`,
+          // Disable compression so we can inject scripts into HTML responses
+          'accept-encoding': 'identity',
         },
         timeout: 30000,
       },
@@ -120,10 +168,44 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
           }
         }
 
-        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
-        proxyRes.pipe(res)
-        proxyRes.on('end', resolve)
-        proxyRes.on('error', reject)
+        // Check if response is HTML and inject navigation interception script
+        const contentType = proxyRes.headers['content-type'] || ''
+        const isHtml = typeof contentType === 'string' && contentType.includes('text/html')
+
+        if (isHtml && proxyRes.statusCode && proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
+          let body = ''
+          proxyRes.setEncoding('utf8')
+          proxyRes.on('data', (chunk: string) => { body += chunk })
+          proxyRes.on('end', () => {
+            const script = getNavigationInterceptionScript(instanceId)
+            
+            // Inject script before </head> or after <head> or at the beginning
+            if (body.includes('</head>')) {
+              body = body.replace('</head>', script + '</head>')
+            } else if (body.includes('<head>')) {
+              body = body.replace('<head>', '<head>' + script)
+            } else if (body.includes('<html')) {
+              body = body.replace(/<html[^>]*>/i, '$&' + script)
+            } else {
+              body = script + body
+            }
+            
+            // Update content-length
+            const responseHeaders = { ...proxyRes.headers }
+            responseHeaders['content-length'] = Buffer.byteLength(body)
+            delete responseHeaders['transfer-encoding']
+            
+            res.writeHead(proxyRes.statusCode || 200, responseHeaders)
+            res.end(body)
+            resolve()
+          })
+          proxyRes.on('error', reject)
+        } else {
+          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
+          proxyRes.pipe(res)
+          proxyRes.on('end', resolve)
+          proxyRes.on('error', reject)
+        }
       }
     )
 

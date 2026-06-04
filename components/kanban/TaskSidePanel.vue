@@ -1447,7 +1447,7 @@
             :src="previewIframeUrl"
             class="w-full border-0"
             :class="showLogsPanel ? 'flex-1 min-h-0' : 'flex-1'"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-storage-access-by-user-activation allow-top-navigation-by-user-activation"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-storage-access-by-user-activation"
           />
 
           <!-- Collapsible log panel -->
@@ -2220,6 +2220,7 @@ async function checkPreview() {
     }>(`/api/tasks/${task.value.id}/preview-status`)
     previewAvailable.value = status.available
     previewUrl.value = status.url || ''
+    if (status.instanceId) previewInstanceId.value = status.instanceId
     // If server is starting or failed, ensure UI reflects that
     if (status.failed) {
       previewFailed.value = true

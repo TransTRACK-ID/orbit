@@ -55,15 +55,44 @@ export const NuxtAdapter: PreviewAdapter = {
       // Force ssr: false for previews to prevent auth redirect loops
       if (/ssr\s*:/.test(originalConfig)) {
         // Replace existing ssr: ... with ssr: false
-        modifiedConfig = originalConfig.replace(/ssr\s*:\s*[^,\n]+/, 'ssr: false')
+        modifiedConfig = modifiedConfig.replace(/ssr\s*:\s*[^,\n]+/, 'ssr: false')
         console.log(`[nuxt-adapter] Replaced existing ssr with ssr: false in ${configPath}`)
       } else {
         // Inject ssr: false if not present
-        modifiedConfig = originalConfig.replace(
+        modifiedConfig = modifiedConfig.replace(
           /export\s+default\s+defineNuxtConfig\s*\(\s*\{/,
           'export default defineNuxtConfig({\n  ssr: false,'
         )
         console.log(`[nuxt-adapter] Injected ssr: false into ${configPath}`)
+      }
+      
+      // Force app.baseURL to the preview base URL so the compiled client
+      // bundle generates correct URLs for navigateTo({ external: true }),
+      // asset paths, and router links.  Without this, the client bundle
+      // uses '/' as the base URL and navigateTo('/admin', { external: true })
+      // navigates to the parent Orbit domain instead of staying inside the
+      // preview boundary.
+      if (/baseURL\s*:/.test(modifiedConfig)) {
+        // baseURL exists somewhere — replace its value
+        modifiedConfig = modifiedConfig.replace(
+          /(baseURL\s*:\s*)['"][^'"]*['"]/,
+          `$1'${baseUrl}'`
+        )
+        console.log(`[nuxt-adapter] Replaced existing baseURL with ${baseUrl}`)
+      } else if (/app\s*:\s*\{/.test(modifiedConfig)) {
+        // app block exists but no baseURL — inject baseURL into it
+        modifiedConfig = modifiedConfig.replace(
+          /(app\s*:\s*\{)/,
+          `$1\n    baseURL: '${baseUrl}',`
+        )
+        console.log(`[nuxt-adapter] Injected app.baseURL = ${baseUrl}`)
+      } else {
+        // No app block — inject it
+        modifiedConfig = modifiedConfig.replace(
+          /export\s+default\s+defineNuxtConfig\s*\(\s*\{/,
+          `export default defineNuxtConfig({\n  app: { baseURL: '${baseUrl}' },`
+        )
+        console.log(`[nuxt-adapter] Injected app: { baseURL: ${baseUrl} }`)
       }
       
       if (modifiedConfig !== originalConfig) {
@@ -81,6 +110,13 @@ export const NuxtAdapter: PreviewAdapter = {
     if (existsSync(nuxtCacheDir)) {
       rmSync(nuxtCacheDir, { recursive: true, force: true })
       console.log(`[nuxt-adapter] Cleared .nuxt cache`)
+    }
+
+    // Clear .output to prevent stale compiled assets with wrong base URL
+    const outputDir = path.join(worktreeDir, '.output')
+    if (existsSync(outputDir)) {
+      rmSync(outputDir, { recursive: true, force: true })
+      console.log(`[nuxt-adapter] Cleared .output directory`)
     }
 
     const buildCommand = 'npx nuxt build'

@@ -22,19 +22,7 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
     return { cmd: 'bun', args: ['install'] }
   }
-  if (existsSync(path.join(worktreeDir, 'pnpm-lock.yaml'))) {
-    return { cmd: 'pnpm', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
-    return { cmd: 'yarn', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'package-lock.json'))) {
-    return { cmd: 'npm', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'package.json'))) {
-    return { cmd: 'npm', args: ['install'] }
-  }
-  return null
+  return { cmd: 'pnpm', args: ['install'] }
 }
 
 async function installDependencies(worktreeDir: string, instanceId: string): Promise<boolean> {

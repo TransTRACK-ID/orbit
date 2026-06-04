@@ -8,7 +8,7 @@ import { resolveCloneDir, resolveWorktreeDir } from './worktree-resolver'
 const execAsync = promisify(exec)
 
 // Version marker — MUST see this in logs or server is still running old code
-const CODE_VERSION = 'v3-USE-NPM-20250514'
+const CODE_VERSION = 'v3-USE-PNPM-20250604'
 
 export type PreviewMode = 'dev' | 'build'
 
@@ -125,20 +125,7 @@ function detectPackageManager(worktreeDir: string): { cmd: string; args: string[
   if (existsSync(path.join(worktreeDir, 'bun.lockb'))) {
     return { cmd: 'bun', args: ['install'] }
   }
-  if (existsSync(path.join(worktreeDir, 'pnpm-lock.yaml'))) {
-    return { cmd: 'pnpm', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'yarn.lock'))) {
-    return { cmd: 'yarn', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'package-lock.json'))) {
-    return { cmd: 'npm', args: ['install'] }
-  }
-  if (existsSync(path.join(worktreeDir, 'package.json'))) {
-    // Default to npm as the safest universal fallback in containerized environments
-    return { cmd: 'npm', args: ['install'] }
-  }
-  return null
+  return { cmd: 'pnpm', args: ['install'] }
 }
 
 function verifyCriticalModules(worktreeDir: string): boolean {
@@ -280,66 +267,48 @@ async function installDependencies(worktreeDir: string): Promise<boolean> {
     return true
   }
 
-  // Fallback 1: npm with --legacy-peer-deps (fixes common peer dep conflicts in Nuxt 4 migrations)
+  // Fallback 1: pnpm with --force (fixes common peer dep conflicts in Nuxt 4 migrations)
   const hasPeerConflict = primary.stderr.includes('ERESOLVE') || primary.stderr.includes('peer dependency')
-  if (pm.cmd === 'npm' && hasPeerConflict) {
-    appendLog(worktreeDir, 'Detected peer dependency conflict, retrying with --legacy-peer-deps...')
-    const legacy = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
+  if (hasPeerConflict) {
+    appendLog(worktreeDir, 'Detected peer dependency conflict, retrying with pnpm install --force...')
+    const legacy = await runInstall(worktreeDir, 'pnpm', ['install', '--force'], { CI: 'true' })
     if (legacy.ok) {
-      appendLog(worktreeDir, 'npm install --legacy-peer-deps completed')
+      appendLog(worktreeDir, 'pnpm install --force completed')
     } else {
-      appendLog(worktreeDir, 'npm install --legacy-peer-deps failed')
+      appendLog(worktreeDir, 'pnpm install --force failed')
     }
 
     if (verifyCriticalModules(worktreeDir)) {
-      appendLog(worktreeDir, 'Critical modules verified after --legacy-peer-deps')
+      appendLog(worktreeDir, 'Critical modules verified after pnpm --force')
       return true
     }
   }
 
-  // Fallback 2: try npm install (most reliable universal fallback)
-  if (pm.cmd !== 'npm') {
-    appendLog(worktreeDir, 'Falling back to npm install...')
-    const fallback = await runInstall(worktreeDir, 'npm', ['install'], { CI: 'true' })
-    if (fallback.ok) {
-      appendLog(worktreeDir, 'npm install completed')
-    } else {
-      appendLog(worktreeDir, 'npm fallback failed')
-    }
-
-    if (verifyCriticalModules(worktreeDir)) {
-      appendLog(worktreeDir, 'Critical modules verified after npm fallback')
-      return true
-    }
-  }
-
-  // Fallback 3: npm with --legacy-peer-deps (universal last resort for non-npm PMs)
-  if (pm.cmd !== 'npm') {
-    appendLog(worktreeDir, 'Last resort: npm install --legacy-peer-deps...')
-    const lastResort = await runInstall(worktreeDir, 'npm', ['install', '--legacy-peer-deps'], { CI: 'true' })
-    if (lastResort.ok) {
-      appendLog(worktreeDir, 'npm install --legacy-peer-deps completed')
-    } else {
-      appendLog(worktreeDir, 'npm install --legacy-peer-deps failed')
-    }
-
-    if (verifyCriticalModules(worktreeDir)) {
-      appendLog(worktreeDir, 'Critical modules verified after last resort')
-      return true
-    }
-  }
-
-  // Fallback 4: npm with --force (nuclear option for stubborn peer deps)
-  appendLog(worktreeDir, 'Nuclear option: npm install --force...')
-  const nuclear = await runInstall(worktreeDir, 'npm', ['install', '--force'], { CI: 'true' })
-  if (nuclear.ok) {
-    appendLog(worktreeDir, 'npm install --force completed')
+  // Fallback 2: pnpm install (most reliable fallback)
+  appendLog(worktreeDir, 'Falling back to pnpm install...')
+  const fallback = await runInstall(worktreeDir, 'pnpm', ['install'], { CI: 'true' })
+  if (fallback.ok) {
+    appendLog(worktreeDir, 'pnpm install completed')
   } else {
-    appendLog(worktreeDir, 'npm install --force failed')
+    appendLog(worktreeDir, 'pnpm fallback failed')
   }
 
   if (verifyCriticalModules(worktreeDir)) {
-    appendLog(worktreeDir, 'Critical modules verified after --force')
+    appendLog(worktreeDir, 'Critical modules verified after pnpm fallback')
+    return true
+  }
+
+  // Fallback 3: pnpm with --force (universal last resort)
+  appendLog(worktreeDir, 'Last resort: pnpm install --force...')
+  const lastResort = await runInstall(worktreeDir, 'pnpm', ['install', '--force'], { CI: 'true' })
+  if (lastResort.ok) {
+    appendLog(worktreeDir, 'pnpm install --force completed')
+  } else {
+    appendLog(worktreeDir, 'pnpm install --force failed')
+  }
+
+  if (verifyCriticalModules(worktreeDir)) {
+    appendLog(worktreeDir, 'Critical modules verified after pnpm last resort')
     return true
   }
 
@@ -521,7 +490,7 @@ function unpatchNuxtForPreview(worktreeDir: string): void {
 function detectDevCommand(worktreeDir: string, port: number, mode: PreviewMode = 'dev'): { command: string; args: string[]; env: Record<string, string> } | null {
   // Use the same package manager for running as for installing
   const pm = detectPackageManager(worktreeDir)
-  const runCmd = pm?.cmd || 'npm'
+  const runCmd = pm?.cmd || 'pnpm'
 
   const packageJsonPath = path.join(worktreeDir, 'package.json')
   if (existsSync(packageJsonPath)) {

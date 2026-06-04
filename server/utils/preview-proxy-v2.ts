@@ -45,41 +45,6 @@ function getNavigationInterceptionScript(instanceId: string): string {
       return origAssign.call(this, patchUrl(url));
     };
   } catch (e) {}
-
-  // Intercept window.open to prevent top-level navigation escape
-  try {
-    const origOpen = window.open;
-    window.open = function(url, target, features) {
-      if (url && typeof url === 'string') {
-        url = patchUrl(url);
-      }
-      // Force target to _self to prevent escaping the iframe
-      if (target && (target === '_top' || target === '_parent')) {
-        target = '_self';
-      }
-      return origOpen.call(this, url, target, features);
-    };
-  } catch (e) {}
-
-  // Block any attempt to navigate window.top or window.parent from within the iframe
-  try {
-    if (window !== window.top) {
-      // Override top.location.assign/replace to patch URLs
-      try {
-        const origTopAssign = window.top.location.assign;
-        window.top.location.assign = function(url) {
-          return origTopAssign.call(this, patchUrl(url));
-        };
-      } catch (e) {}
-      
-      try {
-        const origTopReplace = window.top.location.replace;
-        window.top.location.replace = function(url) {
-          return origTopReplace.call(this, patchUrl(url));
-        };
-      } catch (e) {}
-    }
-  } catch (e) {}
 })();
 </script>
 `
@@ -177,20 +142,17 @@ export async function proxyPreviewRequest(event: any, instanceId: string): Promi
         delete proxyRes.headers['content-security-policy']
         delete proxyRes.headers['Content-Security-Policy']
 
-        // Rewrite Location header to keep redirects inside the preview boundary
+        // Rewrite Location header to preserve preview path
         const location = proxyRes.headers['location']
         if (location && typeof location === 'string') {
-          // Rewrite any absolute path (e.g. /admin, /dashboard) that does not
-          // already start with the preview prefix so the browser stays inside
-          // /api/preview/{instanceId}/ after server-side redirects (302/303).
-          // This covers both static previews (where Nitro doesn't know the
-          // base URL) and SSR previews where third-party auth libraries or
-          // raw server middleware may return Location headers without the
-          // base URL prefix.
-          if (location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
+          // For static previews, Nitro doesn't prepend base URL to redirects
+          // so we need to add the /api/preview/{id} prefix
+          if (isStatic && location.startsWith('/') && !location.startsWith(`/api/preview/${instanceId}`)) {
             proxyRes.headers['location'] = `/api/preview/${instanceId}${location}`
             console.log(`[preview-proxy] Rewrote Location: ${location} → ${proxyRes.headers['location']}`)
           }
+          // For SSR, Nitro already prepends base URL to redirects
+          // so Location headers are already correct
         }
 
         // Rewrite Set-Cookie paths for static previews only

@@ -9,75 +9,76 @@ function getNavigationInterceptionScript(instanceId: string): string {
   return `
 <script>
 (function() {
-  var baseUrl = '${baseUrl}';
+  const baseUrl = '${baseUrl}';
   
   function patchUrl(url) {
     if (typeof url !== 'string') return url;
     if (url.startsWith('/') && !url.startsWith(baseUrl) && !url.startsWith('//')) {
-      return baseUrl + url.replace(/^\\/+/g, '');
+      return baseUrl + url.replace(/^\/+/g, '');
     }
     return url;
   }
-
-  // --- Intercept location.href via Window.prototype ---
-  // In Chromium, window.location is a non-configurable own property on each
-  // Window instance, but the href accessor lives on Window.prototype.
-  // Redefining on the prototype reliably intercepts all assignments.
+  
+  // Intercept location.href
   try {
-    var protoHref = Object.getOwnPropertyDescriptor(Window.prototype, 'href');
-    if (protoHref && protoHref.set) {
-      Object.defineProperty(Window.prototype, 'href', {
-        configurable: true,
-        get: function() { return protoHref.get.call(this); },
-        set: function(url) { return protoHref.set.call(this, patchUrl(url)); }
+    const origHref = Object.getOwnPropertyDescriptor(window.location, 'href');
+    if (origHref && origHref.set) {
+      Object.defineProperty(window.location, 'href', {
+        set: function(url) { return origHref.set.call(this, patchUrl(url)); },
+        get: function() { return origHref.get.call(this); }
       });
     }
-  } catch (e) {
-    // Fallback: try on instance (works in some browsers)
-    try {
-      var instHref = Object.getOwnPropertyDescriptor(window.location, 'href');
-      if (instHref && instHref.set) {
-        Object.defineProperty(window.location, 'href', {
-          set: function(url) { return instHref.set.call(this, patchUrl(url)); },
-          get: function() { return instHref.get.call(this); }
-        });
-      }
-    } catch (e2) {}
-  }
-
-  // --- Intercept location.replace ---
+  } catch (e) {}
+  
+  // Intercept location.replace
   try {
-    var origReplace = Location.prototype.replace;
-    Location.prototype.replace = function(url) {
+    const origReplace = window.location.replace;
+    window.location.replace = function(url) {
       return origReplace.call(this, patchUrl(url));
     };
   } catch (e) {}
-
-  // --- Intercept location.assign ---
+  
+  // Intercept location.assign
   try {
-    var origAssign = Location.prototype.assign;
-    Location.prototype.assign = function(url) {
+    const origAssign = window.location.assign;
+    window.location.assign = function(url) {
       return origAssign.call(this, patchUrl(url));
     };
   } catch (e) {}
 
-  // --- Intercept window.open ---
+  // Intercept window.open to prevent top-level navigation escape
   try {
-    var origOpen = window.open;
+    const origOpen = window.open;
     window.open = function(url, target, features) {
-      if (url && typeof url === 'string') url = patchUrl(url);
-      if (target && (target === '_top' || target === '_parent')) target = '_self';
+      if (url && typeof url === 'string') {
+        url = patchUrl(url);
+      }
+      // Force target to _self to prevent escaping the iframe
+      if (target && (target === '_top' || target === '_parent')) {
+        target = '_self';
+      }
       return origOpen.call(this, url, target, features);
     };
   } catch (e) {}
 
-  // --- Intercept form submissions targeting _top ---
+  // Block any attempt to navigate window.top or window.parent from within the iframe
   try {
-    document.addEventListener('submit', function(e) {
-      if (e.target && e.target.target && (e.target.target === '_top' || e.target.target === '_parent')) {
-        e.target.target = '_self';
-      }
-    }, true);
+    if (window !== window.top) {
+      // Override top.location.assign/replace to patch URLs
+      try {
+        const origTopAssign = window.top.location.assign;
+        window.top.location.assign = function(url) {
+          return origTopAssign.call(this, patchUrl(url));
+        };
+      } catch (e) {}
+      
+      try {
+        const origTopReplace = window.top.location.replace;
+        window.top.location.replace = function(url) {
+          return origTopReplace.call(this, patchUrl(url));
+        };
+      } catch (e) {}
+    }
   } catch (e) {}
 })();
 </script>

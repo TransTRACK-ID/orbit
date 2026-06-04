@@ -12,9 +12,14 @@ export default defineEventHandler(async (event) => {
     if (isPreview) {
       const basePath = process.env.NUXT_APP_BASE_URL || '/';
       const cookiePath = basePath.endsWith('/') ? basePath : basePath + '/';
-      // Clear cookie by setting maxAge to 0
+      // Clear session_token cookie (server-side auth)
       setCookie(event, 'session_token', '', { httpOnly: true, path: cookiePath, maxAge: 0 });
-      console.log(`[logout] preview mode — cleared session_token cookie at path=${cookiePath}`);
+      // Clear auth.token cookie (client-side @sidebase/nuxt-auth library)
+      // The login endpoint sets this with the scoped path, so we must clear it here too
+      setCookie(event, 'auth.token', '', { httpOnly: false, path: cookiePath, maxAge: 0 });
+      // Also clear the unscoped auth.token cookie set by the client-side auth module
+      setCookie(event, 'auth.token', '', { httpOnly: false, path: '/', maxAge: 0 });
+      console.log(`[logout] preview mode — cleared session_token and auth.token cookies at path=${cookiePath} and /`);
       return { status: 'success', message: 'Logged out (preview)' };
     }
 

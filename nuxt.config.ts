@@ -54,8 +54,9 @@ export default defineNuxtConfig({
     // The @sidebase/nuxt-auth module's getServerOrigin() also checks
     // process.env.AUTH_ORIGIN at runtime as a final override.
     // Prefix auth endpoints with app baseURL when running under a subpath.
+    // NUXT_APP_BASE_URL must include trailing slash (e.g. /tasks/)
     baseURL: process.env.NUXT_APP_BASE_URL
-      ? `${process.env.NUXT_APP_BASE_URL}api/auth`
+      ? `${process.env.NUXT_APP_BASE_URL.replace(/\/$/, '')}/api/auth`
       : '/api/auth',
     provider: {
       type: 'authjs',

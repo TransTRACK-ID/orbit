@@ -20,9 +20,6 @@ export default defineNuxtConfig({
   workspaceDir: '.',
 
   app: {
-    // Support running under a subpath (e.g. /tasks) via env var.
-    // When behind the shared nginx proxy, set NUXT_APP_BASE_URL=/tasks
-    baseURL: process.env.NUXT_APP_BASE_URL || '/',
     head: {
       viewport: 'width=device-width, initial-scale=1',
       script: [
@@ -53,11 +50,7 @@ export default defineNuxtConfig({
     //
     // The @sidebase/nuxt-auth module's getServerOrigin() also checks
     // process.env.AUTH_ORIGIN at runtime as a final override.
-    // Prefix auth endpoints with app baseURL when running under a subpath.
-    // NUXT_APP_BASE_URL must include trailing slash (e.g. /tasks/)
-    baseURL: process.env.NUXT_APP_BASE_URL
-      ? `${process.env.NUXT_APP_BASE_URL.replace(/\/$/, '')}/api/auth`
-      : '/api/auth',
+    baseURL: '/api/auth',
     provider: {
       type: 'authjs',
       trustHost: true,

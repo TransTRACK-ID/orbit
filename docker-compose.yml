@@ -5,13 +5,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Build-time: bake /tasks subpath into Nuxt asset paths and auth routes
+        NUXT_APP_BASE_URL: ${NUXT_APP_BASE_URL:-/tasks}
     container_name: orbit-app
     # Port 3000 is NOT exposed to host — only nginx (in orbit-docs compose) proxies here
     environment:
       - POSTGRES_URL=${POSTGRES_URL}
       - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}
-      # Behind shared nginx reverse proxy; force origin for auth module
-      - AUTH_ORIGIN=${AUTH_ORIGIN:-https://orbit.transtrack.ai}
+      # Use localhost:3000 for SSR auth requests (internal self-reference).
+      # The public URL (https://orbit.transtrack.ai) is handled by nginx/Cloudflare.
+      - AUTH_ORIGIN=http://localhost:3000
       - NUXT_APP_BASE_URL=${NUXT_APP_BASE_URL:-/tasks}
       - PROJECT_DIR=/app
       - HOME=/root

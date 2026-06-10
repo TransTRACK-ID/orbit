@@ -30,6 +30,10 @@ COPY . .
 # during the build. Restored after build for runtime template copying.
 RUN mv server/templates /tmp/templates-stash
 
+# Pass baseURL at build time so Nuxt generates correct asset paths and auth routes
+ARG NUXT_APP_BASE_URL
+ENV NUXT_APP_BASE_URL=${NUXT_APP_BASE_URL:-/}
+
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npx nuxt build
 

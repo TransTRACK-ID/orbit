@@ -1,7 +1,14 @@
-import { readFile, writeFile } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { eq } from 'drizzle-orm'
+import { getDb } from '~/server/database'
+import {
+  platformSettings,
+  AGENT_RUNTIMES_SETTINGS_KEY,
+  type AgentRuntimeSettingsValue,
+} from '~/server/database/schema/platform-settings'
 
 export type AgentRuntimeId = 'opencode' | 'cursor' | 'browser-qa'
 
@@ -17,10 +24,6 @@ export interface AgentRuntimeSetting extends AgentRuntimeDefinition {
   canDisable: boolean
 }
 
-interface RuntimeSettingsFile {
-  disabled: AgentRuntimeId[]
-}
-
 const RUNTIME_DEFINITIONS: AgentRuntimeDefinition[] = [
   { id: 'opencode', name: 'OpenCode', desc: 'Open-source coding agent with multi-file editing' },
   { id: 'cursor', name: 'Cursor', desc: 'Cursor CLI agent with stream-json output' },
@@ -29,10 +32,16 @@ const RUNTIME_DEFINITIONS: AgentRuntimeDefinition[] = [
 
 const KNOWN_RUNTIME_IDS = new Set<string>(RUNTIME_DEFINITIONS.map(r => r.id))
 
-function resolveProjectRoot(): string {
+const DEFAULT_SETTINGS: AgentRuntimeSettingsValue = { disabled: [] }
+
+let cachedSettings: AgentRuntimeSettingsValue | null = null
+let cacheTimestamp = 0
+const CACHE_TTL_MS = 2000
+
+function resolveLegacySettingsFilePath(): string {
   const cwd = process.cwd()
   if (existsSync(join(cwd, 'server/data/agent-runtimes.json'))) {
-    return cwd
+    return join(cwd, 'server/data/agent-runtimes.json')
   }
 
   try {
@@ -40,25 +49,63 @@ function resolveProjectRoot(): string {
     const candidates = [
       join(currentFileDir, '../..'),
       join(currentFileDir, '..'),
-      join(currentFileDir, '../..'),
     ]
     for (const root of candidates) {
-      if (existsSync(join(root, 'server/data/agent-runtimes.json'))) {
-        return root
+      const path = join(root, 'server/data/agent-runtimes.json')
+      if (existsSync(path)) {
+        return path
       }
     }
   } catch {
     // import.meta.url may not be available in some environments
   }
 
-  return cwd
+  return join(cwd, 'server/data/agent-runtimes.json')
 }
 
-const settingsFilePath = join(resolveProjectRoot(), 'server/data/agent-runtimes.json')
+function normalizeSettings(value: AgentRuntimeSettingsValue): AgentRuntimeSettingsValue {
+  return {
+    disabled: Array.isArray(value.disabled)
+      ? value.disabled.filter((id): id is AgentRuntimeId => isKnownRuntime(id))
+      : [],
+  }
+}
 
-let cachedSettings: RuntimeSettingsFile | null = null
-let cacheTimestamp = 0
-const CACHE_TTL_MS = 2000
+async function tryLoadLegacyJsonFile(): Promise<AgentRuntimeSettingsValue> {
+  try {
+    const data = await readFile(resolveLegacySettingsFilePath(), 'utf-8')
+    const parsed = JSON.parse(data) as AgentRuntimeSettingsValue
+    return normalizeSettings(parsed)
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+async function saveSettingsToDb(value: AgentRuntimeSettingsValue): Promise<void> {
+  const db = getDb()
+  await db
+    .insert(platformSettings)
+    .values({ key: AGENT_RUNTIMES_SETTINGS_KEY, value })
+    .onConflictDoUpdate({
+      target: platformSettings.key,
+      set: { value, updatedAt: new Date() },
+    })
+}
+
+async function loadSettingsFromDb(): Promise<AgentRuntimeSettingsValue> {
+  const db = getDb()
+  const row = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, AGENT_RUNTIMES_SETTINGS_KEY),
+  })
+
+  if (row) {
+    return normalizeSettings(row.value)
+  }
+
+  const fromFile = await tryLoadLegacyJsonFile()
+  await saveSettingsToDb(fromFile)
+  return fromFile
+}
 
 function resolveRuntimeFromEnv(): string | undefined {
   // Match nuxt.config.ts: NUXT_* overrides take precedence over bare AGENT_RUNTIME.
@@ -88,24 +135,10 @@ export function isKnownRuntime(runtime: string): runtime is AgentRuntimeId {
   return KNOWN_RUNTIME_IDS.has(runtime)
 }
 
-async function loadSettingsFile(): Promise<RuntimeSettingsFile> {
-  try {
-    const data = await readFile(settingsFilePath, 'utf-8')
-    const parsed = JSON.parse(data) as RuntimeSettingsFile
-    return {
-      disabled: Array.isArray(parsed.disabled)
-        ? parsed.disabled.filter((id): id is AgentRuntimeId => isKnownRuntime(id))
-        : [],
-    }
-  } catch {
-    return { disabled: [] }
-  }
-}
-
-async function getSettingsFile(): Promise<RuntimeSettingsFile> {
+async function getSettings(): Promise<AgentRuntimeSettingsValue> {
   const now = Date.now()
   if (!cachedSettings || now - cacheTimestamp > CACHE_TTL_MS) {
-    cachedSettings = await loadSettingsFile()
+    cachedSettings = await loadSettingsFromDb()
     cacheTimestamp = now
   }
   return cachedSettings
@@ -114,7 +147,7 @@ async function getSettingsFile(): Promise<RuntimeSettingsFile> {
 export async function isRuntimeEnabled(runtime: string): Promise<boolean> {
   if (!isKnownRuntime(runtime)) return false
   if (runtime === getDefaultAgentRuntime()) return true
-  const settings = await getSettingsFile()
+  const settings = await getSettings()
   return !settings.disabled.includes(runtime)
 }
 
@@ -137,7 +170,7 @@ export async function resolveEffectiveRuntime(requestedRuntime: string | null | 
 }
 
 export async function getRuntimeSettings(): Promise<AgentRuntimeSetting[]> {
-  const settings = await getSettingsFile()
+  const settings = await getSettings()
   const defaultRuntime = getDefaultAgentRuntime()
 
   return RUNTIME_DEFINITIONS.map((runtime) => {
@@ -159,7 +192,7 @@ export async function getEnabledRuntimes(): Promise<AgentRuntimeSetting[]> {
 
 export async function updateRuntimeSettings(updates: { id: AgentRuntimeId; enabled: boolean }[]): Promise<AgentRuntimeSetting[]> {
   const defaultRuntime = getDefaultAgentRuntime()
-  const settings = await getSettingsFile()
+  const settings = await getSettings()
   const disabled = new Set(settings.disabled)
 
   for (const update of updates) {
@@ -179,8 +212,8 @@ export async function updateRuntimeSettings(updates: { id: AgentRuntimeId; enabl
     }
   }
 
-  const nextSettings: RuntimeSettingsFile = { disabled: [...disabled] }
-  await writeFile(settingsFilePath, JSON.stringify(nextSettings, null, 2) + '\n', 'utf-8')
+  const nextSettings: AgentRuntimeSettingsValue = { disabled: [...disabled] }
+  await saveSettingsToDb(nextSettings)
   cachedSettings = nextSettings
   cacheTimestamp = Date.now()
 

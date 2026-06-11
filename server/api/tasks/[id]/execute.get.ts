@@ -1681,12 +1681,16 @@ The status_name should match one of the existing statuses in the project (e.g., 
               if (!trimmed) continue
               hasOutput = true
               const level = trimmed.startsWith('ERROR') || trimmed.includes('error:') ? 'ERROR' : 'WARN'
-              pushToStreams(entry, JSON.stringify({ step: `[${level}] ${trimmed.slice(0, 200)}`, timestamp: Date.now() })).catch(() => {})
+              const step = `[${level}] ${trimmed.slice(0, 200)}`
+              pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() })).catch(() => {})
+              if (level === 'ERROR') {
+                persistLog(`cursor stderr: ${trimmed.slice(0, 400)}`)
+              }
             }
           },
         })
         const proc = cursorRun.proc
-        const entry: ProcState = { proc, streams: [], heartbeat: null }
+        const entry: ProcState = { proc, streams: [], heartbeat: null, runtime: agentRuntime }
         activeProcesses.set(id, entry)
         addStreamToProc(id, stream, entry)
 
@@ -1825,7 +1829,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
         env: minimalEnv,
       })
 
-      const entry: ProcState = { proc, streams: [], heartbeat: null }
+      const entry: ProcState = { proc, streams: [], heartbeat: null, runtime: agentRuntime }
       activeProcesses.set(id, entry)
       addStreamToProc(id, stream, entry)
 

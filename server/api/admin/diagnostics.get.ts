@@ -27,9 +27,10 @@ export default defineEventHandler(async (event) => {
     limit: 50,
   })
 
-  // 2. Current active opencode processes
+  // 2. Current active agent processes
   const runningTasks = Array.from(activeProcesses.entries()).map(([taskId, entry]) => ({
     taskId,
+    runtime: entry.runtime ?? 'unknown',
     pid: entry.proc.pid ?? null,
     exitCode: entry.proc.exitCode,
     signalCode: entry.proc.signalCode,

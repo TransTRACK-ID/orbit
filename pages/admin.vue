@@ -305,6 +305,7 @@
                 <thead class="bg-surface-50 border-b border-surface-200">
                   <tr>
                     <th class="text-left px-3 py-1.5 font-semibold text-surface-500">Task ID</th>
+                    <th class="text-left px-3 py-1.5 font-semibold text-surface-500">Runtime</th>
                     <th class="text-left px-3 py-1.5 font-semibold text-surface-500">PID</th>
                     <th class="text-right px-3 py-1.5 font-semibold text-surface-500">Active SSE Streams</th>
                     <th class="text-right px-3 py-1.5 font-semibold text-surface-500">Action</th>
@@ -313,6 +314,11 @@
                 <tbody>
                   <tr v-for="task in diagnosticsData.runningTasks" :key="task.taskId" class="border-b border-surface-100 last:border-0 hover:bg-surface-50">
                     <td class="px-3 py-2 font-mono text-surface-700 truncate max-w-xs">{{ task.taskId }}</td>
+                    <td class="px-3 py-2">
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium" :class="task.runtime === 'cursor' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'">
+                        {{ task.runtime }}
+                      </span>
+                    </td>
                     <td class="px-3 py-2 font-mono text-surface-900">{{ task.pid || 'N/A' }}</td>
                     <td class="px-3 py-2 text-right font-medium text-surface-600">{{ task.streamCount }}</td>
                     <td class="px-3 py-2 text-right">

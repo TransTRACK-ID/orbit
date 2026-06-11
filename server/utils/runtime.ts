@@ -5,6 +5,8 @@ export type ProcState = {
   proc: ChildProcess
   streams: EventStream[]
   heartbeat: NodeJS.Timeout | null
+  /** Agent runtime that spawned this process (e.g. 'opencode', 'cursor') */
+  runtime?: string
   /** Set to true when the process is killed because of a detected command loop */
   isLoopKill?: boolean
   /** Set to true when the process is killed because it exceeded the runtime timeout */

@@ -358,7 +358,7 @@ const agentToDelete = ref<Agent | null>(null)
 const form = reactive({
   name: '',
   role: 'Custom Agent',
-  runtime: 'opencode',
+  runtime: defaultRuntime.value!,
   purpose: '',
   status: 'idle' as AgentStatus,
   color: '#7C3AED',

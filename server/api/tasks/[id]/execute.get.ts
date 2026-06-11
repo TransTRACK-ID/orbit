@@ -157,7 +157,7 @@ function formatTextEvent(part: any): string {
 
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
-import { resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
+import { getDefaultAgentRuntime, resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
 import { enqueueBrowserJob } from '~/server/utils/browser-queue'
 import type { BrowserRunConfig } from '~/server/utils/browser-runtime'
 import { getDiffSummary } from '~/server/utils/git-summary'
@@ -348,7 +348,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  const requestedRuntime = (task.agentAssignee?.runtime as string) || process.env.AGENT_RUNTIME || 'opencode'
+  const requestedRuntime = (task.agentAssignee?.runtime as string) || getDefaultAgentRuntime()
   const agentRuntime = await resolveEffectiveRuntime(requestedRuntime)
   const runtimeFallbackMessage = requestedRuntime !== agentRuntime
     ? `Runtime "${requestedRuntime}" is disabled — falling back to "${agentRuntime}"`

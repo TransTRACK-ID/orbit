@@ -184,7 +184,7 @@
             <p class="text-xs text-surface-500">Enable or disable agent runtime CLIs available to users.</p>
             <p class="text-[10px] text-surface-400 mt-1">
               Default runtime from <code class="font-mono">AGENT_RUNTIME</code>:
-              <span class="font-semibold text-surface-600">{{ runtimesData?.defaultRuntime || 'opencode' }}</span>
+              <span class="font-semibold text-surface-600">{{ runtimesData?.defaultRuntime || agentRuntime }}</span>
               (cannot be disabled)
             </p>
           </div>
@@ -778,6 +778,7 @@ const { data: activityData, pending: activityPending } = await useFetch<Activity
 const { data: templatesData, pending: templatesPending, refresh: refreshTemplates } = await useFetch<{ templates: AdminTemplate[] }>('/api/admin/templates', { key: 'admin-templates' })
 const { data: diagnosticsData, pending: diagnosticsPending, refresh: _refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
 const { success: toastSuccess, error: toastError } = useToast()
+const { public: { agentRuntime } } = useRuntimeConfig()
 
 interface AdminRuntimeSetting {
   id: string

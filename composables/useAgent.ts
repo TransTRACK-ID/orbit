@@ -9,9 +9,14 @@ const runtimeReachable = ref(false)
 const cursorRuntimeReachable = ref(false)
 const agentCurrentTasks = ref<Record<string, AgentCurrentTask[]>>({})
 const enabledRuntimeOptions = ref<AgentRuntimeOption[]>([])
-const defaultRuntime = ref('opencode')
+const defaultRuntime = ref<string | null>(null)
 
 export const useAgent = () => {
+  const config = useRuntimeConfig()
+  if (!defaultRuntime.value) {
+    defaultRuntime.value = config.public.agentRuntime || 'opencode'
+  }
+
   const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
@@ -61,10 +66,11 @@ export const useAgent = () => {
   }
 
   function resolveTemplateRuntime(preferredRuntime: string): string {
+    const fallback = defaultRuntime.value || config.public.agentRuntime || 'opencode'
     const enabledIds = new Set(runtimes.value.map(r => r.id))
     if (enabledIds.has(preferredRuntime)) return preferredRuntime
-    if (enabledIds.has(defaultRuntime.value)) return defaultRuntime.value
-    return runtimes.value[0]?.id || defaultRuntime.value
+    if (enabledIds.has(fallback)) return fallback
+    return runtimes.value[0]?.id || fallback
   }
 
   async function fetchHealth() {

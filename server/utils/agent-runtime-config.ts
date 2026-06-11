@@ -61,6 +61,13 @@ let cacheTimestamp = 0
 const CACHE_TTL_MS = 2000
 
 export function getDefaultAgentRuntime(): string {
+  try {
+    const config = useRuntimeConfig()
+    const fromConfig = config.agentRuntime || config.public?.agentRuntime
+    if (fromConfig) return fromConfig
+  } catch {
+    // Outside Nuxt request context (e.g. scripts)
+  }
   return process.env.AGENT_RUNTIME || 'opencode'
 }
 

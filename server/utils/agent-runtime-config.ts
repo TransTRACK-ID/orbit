@@ -61,26 +61,27 @@ let cacheTimestamp = 0
 const CACHE_TTL_MS = 2000
 
 function resolveRuntimeFromEnv(): string | undefined {
+  // Match nuxt.config.ts: NUXT_* overrides take precedence over bare AGENT_RUNTIME.
   const value =
-    process.env.AGENT_RUNTIME ||
     process.env.NUXT_AGENT_RUNTIME ||
-    process.env.NUXT_PUBLIC_AGENT_RUNTIME
+    process.env.NUXT_PUBLIC_AGENT_RUNTIME ||
+    process.env.AGENT_RUNTIME
   return value?.trim() || undefined
 }
 
 export function getDefaultAgentRuntime(): string {
-  // Live env vars win over baked nuxt.config runtimeConfig (important for Docker/production).
-  const fromEnv = resolveRuntimeFromEnv()
-  if (fromEnv) return fromEnv
-
   try {
+    // Nitro applies NUXT_AGENT_RUNTIME / NUXT_PUBLIC_AGENT_RUNTIME at runtime via applyEnv,
+    // so this correctly reflects Docker/production overrides even when the build baked opencode.
     const config = useRuntimeConfig()
     const fromConfig = config.agentRuntime || config.public?.agentRuntime
     if (fromConfig) return fromConfig
   } catch {
     // Outside Nuxt request context (e.g. scripts)
   }
-  return 'opencode'
+
+  const fromEnv = resolveRuntimeFromEnv()
+  return fromEnv || 'opencode'
 }
 
 export function isKnownRuntime(runtime: string): runtime is AgentRuntimeId {

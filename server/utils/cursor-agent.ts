@@ -244,12 +244,6 @@ export async function spawnCursorAgent(
     }
   })
 
-  proc.stdout.on('end', () => {
-    stdoutEnded = true
-    flushBuffer()
-    checkDone()
-  })
-
   proc.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8')
       stderrBuf.push(text)
@@ -258,15 +252,6 @@ export async function spawnCursorAgent(
     })
 
   const promise = new Promise<string>((resolve, reject) => {
-    proc.on('error', (err) => {
-      reject(new Error(`Cursor agent failed to start: ${err.message}`))
-    })
-
-    proc.on('exit', (code) => {
-      exitCode = code ?? null
-      checkDone()
-    })
-
     function checkDone() {
       if (exitCode === null || !stdoutEnded) return
 
@@ -284,6 +269,21 @@ export async function spawnCursorAgent(
         resolve(accumulated)
       }
     }
+
+    proc.stdout.on('end', () => {
+      stdoutEnded = true
+      flushBuffer()
+      checkDone()
+    })
+
+    proc.on('error', (err) => {
+      reject(new Error(`Cursor agent failed to start: ${err.message}`))
+    })
+
+    proc.on('exit', (code) => {
+      exitCode = code ?? null
+      checkDone()
+    })
 
     if (signal) {
       const onAbort = () => {

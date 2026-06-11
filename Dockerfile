@@ -114,9 +114,16 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitLab CLI (glab)
+# The GitLab releases API can rate-limit or return non-JSON. Try it first,
+# then fall back to a known stable version so the build stays reproducible.
 RUN export ARCH=$(dpkg --print-architecture) \
-    && export LATEST_TAG=$(curl -s "https://gitlab.com/api/v4/projects/34675721/releases" | grep -oP '"tag_name":"v\K[^"]+' | head -n 1) \
-    && curl -sL "https://gitlab.com/gitlab-org/cli/-/releases/v${LATEST_TAG}/downloads/glab_${LATEST_TAG}_linux_${ARCH}.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 bin/glab
+    && LATEST_TAG=$(curl -s "https://gitlab.com/api/v4/projects/34675721/releases" | grep -oP '"tag_name":"v\K[^"]+' | head -n 1) \
+    && if [ -z "$LATEST_TAG" ]; then LATEST_TAG="v1.102.0"; fi \
+    && echo "Installing glab ${LATEST_TAG} for ${ARCH}" \
+    && curl -fsSL "https://gitlab.com/gitlab-org/cli/-/releases/v${LATEST_TAG}/downloads/glab_${LATEST_TAG}_linux_${ARCH}.tar.gz" -o /tmp/glab.tar.gz \
+    && tar -xzf /tmp/glab.tar.gz -C /usr/local/bin --strip-components=1 bin/glab \
+    && rm /tmp/glab.tar.gz \
+    && glab --version
 
 # Install RTK (Rust Token Killer) — CLI proxy that reduces LLM token consumption by 60-90%
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh \

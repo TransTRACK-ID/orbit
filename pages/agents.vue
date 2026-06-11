@@ -414,7 +414,7 @@ function openEditModal(agent: Agent) {
   editingAgent.value = agent
   form.name = agent.name
   form.role = agent.role
-  form.runtime = agent.runtime
+  form.runtime = resolveTemplateRuntime(agent.runtime)
   form.purpose = agent.purpose
   form.status = agent.status
   form.color = agent.color

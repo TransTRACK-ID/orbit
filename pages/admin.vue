@@ -777,6 +777,57 @@ const { data: activityData, pending: activityPending } = await useFetch<Activity
 
 const { data: templatesData, pending: templatesPending, refresh: refreshTemplates } = await useFetch<{ templates: AdminTemplate[] }>('/api/admin/templates', { key: 'admin-templates' })
 const { data: diagnosticsData, pending: diagnosticsPending, refresh: _refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
+const { success: toastSuccess, error: toastError } = useToast()
+
+interface AdminRuntimeSetting {
+  id: string
+  name: string
+  desc: string
+  enabled: boolean
+  isDefault: boolean
+  canDisable: boolean
+}
+
+const { data: runtimesData, pending: runtimesPending, refresh: refreshRuntimes } = await useFetch<{
+  runtimes: AdminRuntimeSetting[]
+  defaultRuntime: string
+}>('/api/admin/runtimes', { key: 'admin-runtimes' })
+
+const runtimeSettings = ref<AdminRuntimeSetting[]>([])
+const savingRuntimes = ref(false)
+const copiedLogs = ref(false)
+
+watch(runtimesData, (data) => {
+  if (data?.runtimes) {
+    runtimeSettings.value = data.runtimes.map(r => ({ ...r }))
+  }
+}, { immediate: true })
+
+function toggleRuntime(id: string, enabled: boolean) {
+  const runtime = runtimeSettings.value.find(r => r.id === id)
+  if (!runtime || !runtime.canDisable) return
+  runtime.enabled = enabled
+}
+
+async function saveRuntimeSettings() {
+  savingRuntimes.value = true
+  try {
+    const res = await $fetch<{ runtimes: AdminRuntimeSetting[]; defaultRuntime: string }>('/api/admin/runtimes', {
+      method: 'PATCH',
+      body: {
+        runtimes: runtimeSettings.value.map(r => ({ id: r.id, enabled: r.enabled })),
+      },
+    })
+    runtimesData.value = res
+    runtimeSettings.value = res.runtimes.map(r => ({ ...r }))
+    toastSuccess('Runtime settings saved successfully.')
+  } catch (err: any) {
+    toastError(err?.data?.statusMessage || 'Failed to save runtime settings')
+    await refreshRuntimes()
+  } finally {
+    savingRuntimes.value = false
+  }
+}
 
 // ── Auto-refresh for diagnostics ──
 const AUTO_REFRESH_OPTIONS = [
@@ -844,7 +895,6 @@ onBeforeUnmount(() => {
 
 // ── Kill active agent process ──
 const killingTaskId = ref<string | null>(null)
-const { success: toastSuccess, error: toastError } = useToast()
 
 async function killTask(taskId: string) {
   if (!taskId) return

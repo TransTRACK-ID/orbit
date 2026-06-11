@@ -1,15 +1,17 @@
 import { createEventStream } from 'h3'
-import { spawn } from 'child_process'
-import { accessSync, constants, existsSync } from 'fs'
+import { existsSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
-import { processOpencodeLine } from '~/server/utils/opencode-parser'
 import { resolveCloneDir, projectsDir } from '~/server/utils/worktree-resolver'
+import {
+  checkAgentRuntimeAvailability,
+  resolveAppAgentRuntime,
+  spawnAgentPromptProcess,
+} from '~/server/utils/agent-runner'
 
-const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const MAX_RUNTIME_MS = 5 * 60 * 1000 // 5 minutes
 
 const generatePrdSchema = z.object({
@@ -48,20 +50,23 @@ export default defineEventHandler(async (event) => {
     orderBy: [asc(schema.brainstormAttachments.createdAt)],
   })
 
-  let opencodeOk = false
-  try {
-    accessSync(opencodePath, constants.X_OK)
-    opencodeOk = true
-  }
-  catch {}
+  const agentRuntime = await resolveAppAgentRuntime()
+  const runtimeCheck = await checkAgentRuntimeAvailability(agentRuntime)
 
   const stream = createEventStream(event)
 
   setTimeout(async () => {
-    if (!opencodeOk) {
-      await stream.push(JSON.stringify({ error: `opencode not found at ${opencodePath}`, step: 'error' }))
+    if (!runtimeCheck.ok) {
+      await stream.push(JSON.stringify({ error: runtimeCheck.error, step: 'error' }))
       stream.close()
       return
+    }
+
+    if (runtimeCheck.version) {
+      await stream.push(JSON.stringify({
+        step: `${agentRuntime === 'cursor' ? 'cursor-agent' : 'opencode'} version: ${runtimeCheck.version}`,
+        progress: 5,
+      }))
     }
 
     await stream.push(JSON.stringify({ step: 'Analyzing brainstorm conversation...', progress: 10 }))
@@ -150,43 +155,26 @@ IMPORTANT:
       }
     }
 
-    // Pass the full environment so opencode can find its config and API keys.
-    // The minimal env (only PATH/HOME) was missing provider credentials in production,
-    // causing opencode to emit step_start but never produce text events.
-    const spawnEnv: NodeJS.ProcessEnv = {
-      ...process.env,
-    }
+    await stream.push(JSON.stringify({
+      step: `Generating PRD with ${agentRuntime === 'cursor' ? 'cursor-agent' : 'opencode'}...`,
+      progress: 30,
+    }))
 
-    const spawnArgs = [
-      'run',
-      '--format', 'json',
-      '--dangerously-skip-permissions',
-      '--dir', workDir,
-      '--', prompt,
-    ]
-
-    await stream.push(JSON.stringify({ step: 'Generating PRD with AI...', progress: 30 }))
-
-    const proc = spawn(opencodePath, spawnArgs, {
-      cwd: workDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
-      env: spawnEnv,
+    const {
+      proc,
+      runtimeLabel,
+      accumulator,
+      stdoutEnded,
+      lastActivity,
+      flushLineBuffer,
+    } = await spawnAgentPromptProcess({
+      runtime: agentRuntime,
+      prompt,
+      workDir,
+      env: { ...process.env },
     })
 
-    const rawOutput = { value: '' }
-    const stderrOutput = { value: '' }
-    let lineBuffer = ''
-    let lastActivity = Date.now()
-    let stdoutEnded = false
-    const debugLog = { eventTypes: [] as string[], rawLines: [] as string[] }
-
-    function flushLineBuffer() {
-      if (lineBuffer.trim()) {
-        processOpencodeLine(lineBuffer, rawOutput, debugLog)
-        lineBuffer = ''
-      }
-    }
+    const { rawOutput, stderrOutput, debugLog } = accumulator
 
     const runtimeTimeout = setTimeout(() => {
       if (proc.exitCode === null) {
@@ -196,7 +184,7 @@ IMPORTANT:
     }, MAX_RUNTIME_MS)
 
     const heartbeat = setInterval(async () => {
-      const idle = Math.round((Date.now() - lastActivity) / 1000)
+      const idle = Math.round((Date.now() - lastActivity.value) / 1000)
       if (idle > 10) {
         const alive = proc.exitCode === null
         const msg = alive ? `Generating PRD (${idle}s)...` : `Process exited (code ${proc.exitCode})`
@@ -204,33 +192,10 @@ IMPORTANT:
       }
     }, 5000)
 
-    proc.stdout?.on('data', (chunk: Buffer) => {
-      lastActivity = Date.now()
-      lineBuffer += chunk.toString()
-      const lines = lineBuffer.split('\n')
-      lineBuffer = lines.pop() || ''
-      for (const line of lines) {
-        processOpencodeLine(line, rawOutput, debugLog)
-      }
-    })
-
-    proc.stdout?.on('end', () => {
-      stdoutEnded = true
-      flushLineBuffer()
-    })
-
-    proc.stderr?.on('data', (chunk: Buffer) => {
-      lastActivity = Date.now()
-      const text = chunk.toString()
-      if (text) {
-        stderrOutput.value += text
-      }
-    })
-
     proc.on('error', async (err) => {
       clearTimeout(runtimeTimeout)
       clearInterval(heartbeat)
-      await stream.push(JSON.stringify({ error: `Failed to start opencode: ${err.message}`, step: 'error' }))
+      await stream.push(JSON.stringify({ error: `Failed to start ${runtimeLabel}: ${err.message}`, step: 'error' }))
       stream.close()
     })
 
@@ -247,7 +212,7 @@ IMPORTANT:
 
       // Wait for stdout to end (with timeout)
       let waitCount = 0
-      while (!stdoutEnded && waitCount < 20) {
+      while (!stdoutEnded.value && waitCount < 20) {
         await new Promise(resolve => setTimeout(resolve, 100))
         waitCount++
       }
@@ -268,7 +233,7 @@ IMPORTANT:
       // Check if we got any actual content
       if (rawOutput.value.trim().length === 0) {
         const debugInfo = {
-          error: 'AI model produced no text output. opencode emitted only control events (e.g. step_start) but no text. This usually means the model provider failed silently — check API keys and opencode config.',
+          error: `AI model produced no text output. ${runtimeLabel} emitted only control events (e.g. step_start) but no text. This usually means the model provider failed silently — check API keys and ${runtimeLabel} config.`,
           step: 'error',
           stderrOutput: stderrOutput.value.slice(0, 1000),
           eventTypes: debugLog.eventTypes,

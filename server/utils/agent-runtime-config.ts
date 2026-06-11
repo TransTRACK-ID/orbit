@@ -60,7 +60,19 @@ let cachedSettings: RuntimeSettingsFile | null = null
 let cacheTimestamp = 0
 const CACHE_TTL_MS = 2000
 
+function resolveRuntimeFromEnv(): string | undefined {
+  const value =
+    process.env.AGENT_RUNTIME ||
+    process.env.NUXT_AGENT_RUNTIME ||
+    process.env.NUXT_PUBLIC_AGENT_RUNTIME
+  return value?.trim() || undefined
+}
+
 export function getDefaultAgentRuntime(): string {
+  // Live env vars win over baked nuxt.config runtimeConfig (important for Docker/production).
+  const fromEnv = resolveRuntimeFromEnv()
+  if (fromEnv) return fromEnv
+
   try {
     const config = useRuntimeConfig()
     const fromConfig = config.agentRuntime || config.public?.agentRuntime
@@ -68,7 +80,7 @@ export function getDefaultAgentRuntime(): string {
   } catch {
     // Outside Nuxt request context (e.g. scripts)
   }
-  return process.env.AGENT_RUNTIME || 'opencode'
+  return 'opencode'
 }
 
 export function isKnownRuntime(runtime: string): runtime is AgentRuntimeId {

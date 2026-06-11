@@ -177,6 +177,76 @@
         </div>
       </div>
 
+      <!-- Runtimes Tab -->
+      <div v-if="activeTab === 'runtimes'">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-xs text-surface-500">Enable or disable agent runtime CLIs available to users.</p>
+            <p class="text-[10px] text-surface-400 mt-1">
+              Default runtime from <code class="font-mono">AGENT_RUNTIME</code>:
+              <span class="font-semibold text-surface-600">{{ runtimesData?.defaultRuntime || agentRuntime }}</span>
+              (cannot be disabled)
+            </p>
+          </div>
+          <Button
+            :loading="savingRuntimes"
+            @on-click="saveRuntimeSettings"
+          >
+            Save Changes
+          </Button>
+        </div>
+
+        <div v-if="runtimesPending" class="flex items-center justify-center py-12">
+          <Icon name="lucide:loader-circle" class="w-5 h-5 text-surface-400 animate-spin" />
+        </div>
+
+        <div v-else class="bg-white border border-surface-200 rounded-xl overflow-hidden">
+          <table class="w-full text-[11px]">
+            <thead class="bg-surface-50 border-b border-surface-200">
+              <tr>
+                <th class="text-left px-4 py-2 font-semibold text-surface-500">Runtime</th>
+                <th class="text-left px-4 py-2 font-semibold text-surface-500">Description</th>
+                <th class="text-left px-4 py-2 font-semibold text-surface-500">Status</th>
+                <th class="text-right px-4 py-2 font-semibold text-surface-500">Enabled</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="runtime in runtimeSettings"
+                :key="runtime.id"
+                class="border-b border-surface-100 last:border-0"
+              >
+                <td class="px-4 py-3 font-medium text-surface-900">
+                  {{ runtime.name }}
+                  <span
+                    v-if="runtime.isDefault"
+                    class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-accent/10 text-accent"
+                  >
+                    Default
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-surface-500">{{ runtime.desc }}</td>
+                <td class="px-4 py-3">
+                  <span
+                    class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    :class="runtime.enabled ? 'bg-green-100 text-green-700' : 'bg-surface-100 text-surface-500'"
+                  >
+                    {{ runtime.enabled ? 'Enabled' : 'Disabled' }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <Toggle
+                    :model-value="runtime.enabled"
+                    :disabled="!runtime.canDisable || savingRuntimes"
+                    @update:model-value="toggleRuntime(runtime.id, $event)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Activity Tab -->
       <div v-if="activeTab === 'activity'">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -696,6 +766,7 @@ const tabs = [
   { id: 'projects', label: 'Projects' },
   { id: 'activity', label: 'Activity' },
   { id: 'templates', label: 'Templates' },
+  { id: 'runtimes', label: 'Runtimes' },
   { id: 'diagnostics', label: 'Diagnostics' },
 ]
 const activeTab = ref('users')
@@ -706,6 +777,58 @@ const { data: activityData, pending: activityPending } = await useFetch<Activity
 
 const { data: templatesData, pending: templatesPending, refresh: refreshTemplates } = await useFetch<{ templates: AdminTemplate[] }>('/api/admin/templates', { key: 'admin-templates' })
 const { data: diagnosticsData, pending: diagnosticsPending, refresh: _refreshDiagnostics } = await useFetch<any>('/api/admin/diagnostics', { key: 'admin-diagnostics' })
+const { success: toastSuccess, error: toastError } = useToast()
+const { public: { agentRuntime } } = useRuntimeConfig()
+
+interface AdminRuntimeSetting {
+  id: string
+  name: string
+  desc: string
+  enabled: boolean
+  isDefault: boolean
+  canDisable: boolean
+}
+
+const { data: runtimesData, pending: runtimesPending, refresh: refreshRuntimes } = await useFetch<{
+  runtimes: AdminRuntimeSetting[]
+  defaultRuntime: string
+}>('/api/admin/runtimes', { key: 'admin-runtimes' })
+
+const runtimeSettings = ref<AdminRuntimeSetting[]>([])
+const savingRuntimes = ref(false)
+const copiedLogs = ref(false)
+
+watch(runtimesData, (data) => {
+  if (data?.runtimes) {
+    runtimeSettings.value = data.runtimes.map(r => ({ ...r }))
+  }
+}, { immediate: true })
+
+function toggleRuntime(id: string, enabled: boolean) {
+  const runtime = runtimeSettings.value.find(r => r.id === id)
+  if (!runtime || !runtime.canDisable) return
+  runtime.enabled = enabled
+}
+
+async function saveRuntimeSettings() {
+  savingRuntimes.value = true
+  try {
+    const res = await $fetch<{ runtimes: AdminRuntimeSetting[]; defaultRuntime: string }>('/api/admin/runtimes', {
+      method: 'PATCH',
+      body: {
+        runtimes: runtimeSettings.value.map(r => ({ id: r.id, enabled: r.enabled })),
+      },
+    })
+    runtimesData.value = res
+    runtimeSettings.value = res.runtimes.map(r => ({ ...r }))
+    toastSuccess('Runtime settings saved successfully.')
+  } catch (err: any) {
+    toastError(err?.data?.statusMessage || 'Failed to save runtime settings')
+    await refreshRuntimes()
+  } finally {
+    savingRuntimes.value = false
+  }
+}
 
 // ── Auto-refresh for diagnostics ──
 const AUTO_REFRESH_OPTIONS = [
@@ -773,7 +896,6 @@ onBeforeUnmount(() => {
 
 // ── Kill active agent process ──
 const killingTaskId = ref<string | null>(null)
-const { success: toastSuccess, error: toastError } = useToast()
 
 async function killTask(taskId: string) {
   if (!taskId) return

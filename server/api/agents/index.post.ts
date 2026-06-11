@@ -1,10 +1,12 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { createAgentSchema } from '~/server/utils/validation'
+import { assertRuntimeAllowed } from '~/server/utils/agent-runtime-config'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const body = await readValidatedBody(event, createAgentSchema.parse)
+  await assertRuntimeAllowed(body.runtime)
   const db = getDb()
 
   const initials = body.name

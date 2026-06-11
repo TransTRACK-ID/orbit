@@ -82,6 +82,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     authSecret: process.env.NUXT_AUTH_SECRET || 'super-secret-key-change-in-production',
     postgresUrl: process.env.POSTGRES_URL || 'postgres://postgres:postgres@localhost:5432/orbit',
+    agentRuntime: process.env.AGENT_RUNTIME || 'opencode',
+    public: {
+      agentRuntime: process.env.AGENT_RUNTIME || 'opencode',
+    },
   },
 
   compatibilityDate: '2024-09-01',

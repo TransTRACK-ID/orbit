@@ -1,12 +1,16 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { updateAgentSchema } from '~/server/utils/validation'
+import { assertRuntimeAllowed } from '~/server/utils/agent-runtime-config'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
   const body = await readValidatedBody(event, updateAgentSchema.parse)
+  if (body.runtime) {
+    await assertRuntimeAllowed(body.runtime)
+  }
   const db = getDb()
 
   const existing = await db.query.agents.findFirst({

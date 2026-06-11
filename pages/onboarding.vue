@@ -264,7 +264,7 @@ const { data: authData, status: authStatus } = useAuth()
 const { createWorkspace } = useWorkspace()
 const { createProject, fetchProjectDetail, projectStatuses } = useProject()
 const { completeOnboarding } = useOnboarding()
-const { createAgent } = useAgent()
+const { createAgent, resolveTemplateRuntime, defaultRuntime, fetchEnabledRuntimes } = useAgent()
 
 const step = ref<1 | 2 | 3>(1)
 const workspaceName = ref('')
@@ -417,10 +417,11 @@ async function createAgentFromTemplate(template: typeof agentTemplates[0]) {
   agentError.value = null
 
   try {
+    await fetchEnabledRuntimes()
     await createAgent({
       name: template.name,
       role: template.role,
-      runtime: template.runtime,
+      runtime: resolveTemplateRuntime(template.runtime),
       purpose: template.purpose,
       status: template.status as any,
       color: template.color,

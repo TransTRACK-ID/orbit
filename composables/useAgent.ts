@@ -1,4 +1,4 @@
-import type { Agent, AgentStatus, AgentCurrentTask, RuntimeInfo } from '~/types'
+import type { Agent, AgentStatus, AgentCurrentTask, RuntimeInfo, AgentRuntimeOption } from '~/types'
 
 const agents = ref<Agent[]>([])
 const loading = ref(false)
@@ -8,8 +8,15 @@ const healthStatus = ref<Record<string, 'idle' | 'busy' | 'offline'>>({})
 const runtimeReachable = ref(false)
 const cursorRuntimeReachable = ref(false)
 const agentCurrentTasks = ref<Record<string, AgentCurrentTask[]>>({})
+const enabledRuntimeOptions = ref<AgentRuntimeOption[]>([])
+const defaultRuntime = ref<string | null>(null)
 
 export const useAgent = () => {
+  const config = useRuntimeConfig()
+  if (!defaultRuntime.value) {
+    defaultRuntime.value = config.public.agentRuntime || 'opencode'
+  }
+
   const ssrHeaders = import.meta.server ? useRequestHeaders(['cookie']) : undefined
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
@@ -18,7 +25,15 @@ export const useAgent = () => {
     'browser-qa':  { name:'Browser QA',  icon:'lucide:globe',    color:'#059669', desc:'Automated browser testing with AI agent' },
   }
 
-  const runtimes = Object.entries(runtimeInfo).map(([id, r]) => ({ id, ...r }))
+  const runtimes = computed(() => {
+    if (enabledRuntimeOptions.value.length > 0) {
+      return enabledRuntimeOptions.value.map((runtime) => ({
+        ...runtime,
+        ...runtimeInfo[runtime.id],
+      }))
+    }
+    return Object.entries(runtimeInfo).map(([id, r]) => ({ id, ...r }))
+  })
 
   const computedStatuses = computed<Record<string, AgentStatus>>(() => {
     const map: Record<string, AgentStatus> = {}
@@ -34,6 +49,29 @@ export const useAgent = () => {
     busy: agents.value.filter(a => computedStatuses.value[a.id] === 'busy').length,
     offline: agents.value.filter(a => computedStatuses.value[a.id] === 'offline').length,
   }))
+
+  async function fetchEnabledRuntimes() {
+    try {
+      const res = await $fetch<{ runtimes: AgentRuntimeOption[]; defaultRuntime: string }>('/api/agents/runtimes', {
+        headers: ssrHeaders,
+      })
+      enabledRuntimeOptions.value = res.runtimes.map((runtime) => ({
+        ...runtime,
+        ...runtimeInfo[runtime.id],
+      }))
+      defaultRuntime.value = res.defaultRuntime
+    } catch (err) {
+      console.error('Failed to fetch enabled runtimes:', err)
+    }
+  }
+
+  function resolveTemplateRuntime(preferredRuntime: string): string {
+    const fallback = defaultRuntime.value || config.public.agentRuntime || 'opencode'
+    const enabledIds = new Set(runtimes.value.map(r => r.id))
+    if (enabledIds.has(preferredRuntime)) return preferredRuntime
+    if (enabledIds.has(fallback)) return fallback
+    return runtimes.value[0]?.id || fallback
+  }
 
   async function fetchHealth() {
     try {
@@ -54,6 +92,7 @@ export const useAgent = () => {
   async function fetchAgents() {
     loading.value = true
     try {
+      await fetchEnabledRuntimes()
       agents.value = await $fetch<Agent[]>('/api/agents', {
         headers: ssrHeaders,
       })
@@ -116,8 +155,8 @@ export const useAgent = () => {
   return {
     agents, loading, filterAgentId, agentPanelOpen, runtimeInfo, runtimes, agentCounts,
     runtimeReachable, cursorRuntimeReachable, healthStatus, computedStatuses, getAgentStatus,
-    agentCurrentTasks, getAgentCurrentTasks,
-    fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent,
-    getAgentById, toggleAgentPanel, toggleFilter, computeInitials,
+    agentCurrentTasks, getAgentCurrentTasks, defaultRuntime, enabledRuntimeOptions,
+    fetchAgents, fetchHealth, fetchEnabledRuntimes, createAgent, updateAgent, deleteAgent,
+    getAgentById, toggleAgentPanel, toggleFilter, computeInitials, resolveTemplateRuntime,
   }
 }

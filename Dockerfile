@@ -81,6 +81,20 @@ RUN bun install -g opencode-ai \
     && ln -sf /root/.bun/bin/opencode /root/.opencode/bin/opencode \
     && /root/.opencode/bin/opencode --version
 
+# Install Cursor CLI (cursor-agent) via the official installer.
+# cursor-agent is used when AGENT_RUNTIME=cursor. For Docker, CURSOR_API_KEY is
+# recommended because cursor-agent login stores auth under $HOME and does not
+# persist across container restarts.
+# The installer puts binaries under /root/.local/bin and data under
+# /root/.local/share/cursor-agent. We relocate them system-wide.
+RUN curl -fsSL https://cursor.com/install | bash \
+    && mkdir -p /usr/local/share \
+    && mv /root/.local/share/cursor-agent /usr/local/share/cursor-agent \
+    && CURSOR_BIN=$(ls /usr/local/share/cursor-agent/versions/*/cursor-agent | head -n 1) \
+    && ln -sf "$CURSOR_BIN" /usr/local/bin/cursor-agent \
+    && ln -sf "$CURSOR_BIN" /usr/local/bin/agent \
+    && cursor-agent --version
+
 # Install GitHub CLI (gh)
 RUN mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -135,6 +149,7 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
+ENV CURSOR_AGENT_PATH=/usr/local/bin/cursor-agent
 
 # IMPORTANT: Use node (not bun) for production server runtime.
 # Bun has module resolution issues with jose/openid-client used by @sidebase/nuxt-auth.

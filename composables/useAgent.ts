@@ -6,6 +6,7 @@ const filterAgentId = ref<string | null>(null)
 const agentPanelOpen = ref(false)
 const healthStatus = ref<Record<string, 'idle' | 'busy' | 'offline'>>({})
 const runtimeReachable = ref(false)
+const cursorRuntimeReachable = ref(false)
 const agentCurrentTasks = ref<Record<string, AgentCurrentTask[]>>({})
 
 export const useAgent = () => {
@@ -13,6 +14,7 @@ export const useAgent = () => {
 
   const runtimeInfo: Record<string, RuntimeInfo> = {
     'opencode':    { name:'OpenCode',    icon:'lucide:code',     color:'#2563EB', desc:'Open-source coding agent with multi-file editing' },
+    'cursor':      { name:'Cursor',      icon:'lucide:sparkles', color:'#F59E0B', desc:'Cursor CLI agent with stream-json output' },
     'browser-qa':  { name:'Browser QA',  icon:'lucide:globe',    color:'#059669', desc:'Automated browser testing with AI agent' },
   }
 
@@ -35,15 +37,17 @@ export const useAgent = () => {
 
   async function fetchHealth() {
     try {
-      const res = await $fetch<{ runtimeReachable: boolean; health: Record<string, 'idle' | 'busy' | 'offline'>; currentTasks?: Record<string, AgentCurrentTask[]> }>('/api/agents/health', {
+      const res = await $fetch<{ runtimeReachable: boolean; cursorRuntimeReachable?: boolean; health: Record<string, 'idle' | 'busy' | 'offline'>; currentTasks?: Record<string, AgentCurrentTask[]> }>('/api/agents/health', {
         headers: ssrHeaders,
       })
       runtimeReachable.value = res.runtimeReachable
+      cursorRuntimeReachable.value = res.cursorRuntimeReachable ?? false
       healthStatus.value = res.health
       agentCurrentTasks.value = res.currentTasks ?? {}
     } catch (err) {
       console.error('Failed to fetch agent health:', err)
       runtimeReachable.value = false
+      cursorRuntimeReachable.value = false
     }
   }
 
@@ -111,7 +115,7 @@ export const useAgent = () => {
 
   return {
     agents, loading, filterAgentId, agentPanelOpen, runtimeInfo, runtimes, agentCounts,
-    runtimeReachable, healthStatus, computedStatuses, getAgentStatus,
+    runtimeReachable, cursorRuntimeReachable, healthStatus, computedStatuses, getAgentStatus,
     agentCurrentTasks, getAgentCurrentTasks,
     fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent,
     getAgentById, toggleAgentPanel, toggleFilter, computeInitials,

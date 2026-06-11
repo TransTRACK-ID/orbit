@@ -1,5 +1,5 @@
 import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getRequestHeaders } from 'h3'
-import { spawn, exec } from 'child_process'
+import { spawn, exec, type ChildProcess } from 'child_process'
 import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'fs'
 import { randomUUID } from 'crypto'
@@ -10,6 +10,7 @@ import { eq, asc, and, ilike, or, not, gte } from 'drizzle-orm'
 import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
+import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent'
 
 const execAsync = promisify(exec)
 
@@ -346,31 +347,52 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
+  const agentRuntime = (task.agentAssignee?.runtime as string) || process.env.AGENT_RUNTIME || 'opencode'
+
   let opencodeOk = false
-  try {
-    accessSync(opencodePath, constants.X_OK)
-    opencodeOk = true
-  } catch {}
+  let cursorOk = false
+  if (agentRuntime === 'cursor') {
+    cursorOk = await isCursorInstalled()
+  } else {
+    try {
+      accessSync(opencodePath, constants.X_OK)
+      opencodeOk = true
+    } catch {}
+  }
 
   const stream = createEventStream(event)
 
   setTimeout(async () => {
-    let opencodeVersion = ''
-    if (opencodeOk) {
-      try {
-        const { stdout } = await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
-        opencodeVersion = stdout.trim()
-      } catch (versionErr: any) {
-        opencodeVersion = `version check failed: ${versionErr.message}`
+    if (agentRuntime === 'cursor') {
+      if (!cursorOk) {
+        await stream.push(JSON.stringify({ step: 'cursor-agent is not installed or not on PATH', timestamp: Date.now() }))
+        stream.close()
+        return
       }
-    }
+      try {
+        const { stdout } = await execAsync('cursor-agent --version', { timeout: 5000 })
+        await stream.push(JSON.stringify({ step: `cursor-agent version: ${stdout.trim()}`, timestamp: Date.now() }))
+      } catch (versionErr: any) {
+        await stream.push(JSON.stringify({ step: `cursor-agent version check failed: ${versionErr.message}`, timestamp: Date.now() }))
+      }
+    } else {
+      let opencodeVersion = ''
+      if (opencodeOk) {
+        try {
+          const { stdout } = await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
+          opencodeVersion = stdout.trim()
+        } catch (versionErr: any) {
+          opencodeVersion = `version check failed: ${versionErr.message}`
+        }
+      }
 
-    if (!opencodeOk) {
-      await stream.push(JSON.stringify({ step: `opencode not found at ${opencodePath}`, timestamp: Date.now() }))
-      stream.close()
-      return
+      if (!opencodeOk) {
+        await stream.push(JSON.stringify({ step: `opencode not found at ${opencodePath}`, timestamp: Date.now() }))
+        stream.close()
+        return
+      }
+      await stream.push(JSON.stringify({ step: `opencode version: ${opencodeVersion || 'unknown'}`, timestamp: Date.now() }))
     }
-    await stream.push(JSON.stringify({ step: `opencode version: ${opencodeVersion || 'unknown'}`, timestamp: Date.now() }))
 
     const existing = activeProcesses.get(id)
     if (existing) {
@@ -1136,7 +1158,235 @@ export default defineEventHandler(async (event) => {
       return
     }
 
-    await pushAndPersist(`Spawning opencode for "${task.title}" in ${workDir}...`)
+    async function finalizeAgentExit(
+      code: number | null,
+      signal: NodeJS.Signals | null,
+      proc: ChildProcess,
+      entry: ProcState,
+      runtimeTimeout: NodeJS.Timeout,
+      heartbeat: NodeJS.Timeout,
+    ) {
+      clearInterval(heartbeat)
+      clearTimeout(runtimeTimeout)
+      entry.exited = true
+
+      const isCrash = code === null
+      const isError = code !== null && code !== 0
+      const wasLoopKill = entry.isLoopKill
+      const wasTimeoutKill = entry.isTimeoutKill
+
+      if (!wasLoopKill && (isCrash || isError)) {
+        const crashType = wasTimeoutKill ? 'timeout' : (isCrash ? 'crash' : 'error')
+        const crashMessage = wasTimeoutKill
+          ? `Agent timed out after ${MAX_RUNTIME_MS / 60000} minutes. The task exceeded the maximum runtime limit.`
+          : isCrash
+            ? `Agent process was killed unexpectedly (signal: ${signal ?? 'unknown'}). This may indicate OOM or a runtime crash.`
+            : `Agent exited with error code ${code}`
+        await pushToStreams(entry, JSON.stringify({ step: crashMessage, autoRestart: true, isCrash, isError: !isCrash, isTimeout: !!wasTimeoutKill, timestamp: Date.now() }))
+        try {
+          await db.insert(schema.activityLogs).values({
+            taskId: id,
+            userId: user.id,
+            action: wasTimeoutKill ? 'agent_timeout' : (isCrash ? 'agent_crash' : 'agent_error'),
+            newValue: {
+              exitCode: code,
+              signal: signal ?? null,
+              type: crashType,
+              message: crashMessage,
+            },
+          })
+        } catch {}
+        await fireCrashWebhook({
+          taskId: id,
+          taskTitle: task.title,
+          exitCode: code,
+          signal: signal ?? null,
+          type: crashType,
+          message: crashMessage,
+        })
+      }
+
+      activeProcesses.delete(id)
+
+      if (code === 0 && branchName && !wasLoopKill) {
+        try {
+          try {
+            const { stdout: branchLog } = await execAsync('git log --oneline -5', { cwd: workDir })
+            await pushToStreams(entry, JSON.stringify({ step: `Branch commits before: ${branchLog.replace(/\n/g, ' | ')}`, timestamp: Date.now() }))
+          } catch {}
+
+          const { stdout: status } = await execAsync('git status --porcelain --untracked-files=all', { cwd: workDir })
+          const { stdout: diffOutput } = await execAsync('git diff', { cwd: workDir }).catch(() => ({ stdout: '' }))
+          const { stdout: headCommit } = await execAsync('git rev-parse --short HEAD', { cwd: workDir }).catch(() => ({ stdout: 'unknown' }))
+
+          let changedFiles: string[] = []
+          let diffContent = ''
+          let commitMsg = ''
+
+          if (status.trim()) {
+            await pushToStreams(entry, JSON.stringify({ step: `Git status:\n${status}`, timestamp: Date.now() }))
+            await execAsync('git add -A', { cwd: workDir })
+
+            try {
+              const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: workDir })
+              changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
+              const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: workDir })
+              diffContent = diffOutput
+            } catch {}
+
+            const generatedMsg = generateCommitMessageFromDiff(diffContent, changedFiles)
+            commitMsg = generatedMsg
+
+            await execAsync(`git commit -m "${commitMsg}"`, { cwd: workDir })
+            await pushToStreams(entry, JSON.stringify({ step: `Committed: ${commitMsg}`, timestamp: Date.now() }))
+
+            await configureGitAuth(workDir, repoUrl, repoPlatform, repoToken)
+
+            try {
+              await execAsync(`git push -u origin ${branchName}`, { cwd: workDir })
+            } catch (pushErr: any) {
+              await pushToStreams(entry, JSON.stringify({ step: `Push rejected: ${pushErr.message}. Force pushing...`, timestamp: Date.now() }))
+              await execAsync(`git push --force -u origin ${branchName}`, { cwd: workDir })
+            }
+            await pushToStreams(entry, JSON.stringify({ step: 'Pushed changes to branch', timestamp: Date.now() }))
+
+            try {
+              const { stdout: branchLogAfter } = await execAsync('git log --oneline -5', { cwd: workDir })
+              await pushToStreams(entry, JSON.stringify({ step: `Branch commits after: ${branchLogAfter.replace(/\n/g, ' | ')}`, timestamp: Date.now() }))
+            } catch {}
+          } else {
+            const editInfo = editCount > 0 ? `Agent claimed ${editCount} edit(s) on: ${editedFiles.join(', ')}` : 'Agent made no tracked edits'
+            await pushToStreams(entry, JSON.stringify({ step: `No changes to push. ${editInfo}. HEAD: ${headCommit || 'unknown'}. Diff:\n${diffOutput || '(empty)'}`, timestamp: Date.now() }))
+
+            if (editCount > 0) {
+              for (const file of editedFiles.slice(0, 3)) {
+                try {
+                  const fullPath = path.join(workDir, file)
+                  const content = readFileSync(fullPath, 'utf-8').slice(0, 200)
+                  await pushToStreams(entry, JSON.stringify({ step: `File state ${file}: ${content.replace(/\n/g, ' ')}`, timestamp: Date.now() }))
+                } catch (err: any) {
+                  await pushToStreams(entry, JSON.stringify({ step: `Could not read ${file}: ${err.message}`, timestamp: Date.now() }))
+                }
+              }
+            }
+
+            try {
+              const { stdout: trackedFiles } = await execAsync('git ls-files -m', { cwd: workDir })
+              if (trackedFiles.trim()) {
+                await pushToStreams(entry, JSON.stringify({ step: `WARNING: Modified tracked files found but not in status: ${trackedFiles.trim()}`, timestamp: Date.now() }))
+              }
+            } catch {}
+          }
+
+          try {
+            const baseUrl = `${getRequestProtocol(event)}://${getRequestHost(event)}`
+            const res = await fetch(`${baseUrl}/api/tasks/${id}/pr`, {
+              method: 'POST',
+              headers: { cookie: getRequestHeaders(event).cookie || '' },
+            })
+            if (res.ok) {
+              const prResult = await res.json() as { url: string | null; noChanges?: boolean }
+              if (prResult?.url) {
+                await pushToStreams(entry, JSON.stringify({ step: `Created PR: ${prResult.url}`, timestamp: Date.now() }))
+              } else if (prResult?.noChanges) {
+                await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
+              }
+            } else {
+              const errorBody = await res.text().catch(() => '')
+              const errorMsg = errorBody.slice(0, 400) || `HTTP ${res.status}`
+              await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${errorMsg}`, timestamp: Date.now() }))
+            }
+          } catch (err: any) {
+            const msg = err?.message || String(err)
+            await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${msg}`, timestamp: Date.now() }))
+          }
+
+          if (agentReplyContent) {
+            await pushToStreams(entry, JSON.stringify({ step: 'Agent reply already posted to comments', timestamp: Date.now() }))
+          }
+        } catch (err: any) {
+          await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))
+        }
+      }
+
+      if (wasLoopKill) {
+        const msg = 'Agent will auto-restart after loop detection'
+        await pushToStreams(entry, JSON.stringify({
+          step: msg,
+          autoRestart: true,
+          timestamp: Date.now(),
+        }))
+        persistLog(msg)
+      } else {
+        const isCrashFinal = code === null
+        const isErrorFinal = code !== null && code !== 0
+        const msg = code === 0
+          ? 'Done'
+          : isCrashFinal
+            ? `Agent crashed (signal: ${signal ?? 'killed'})`
+            : `Agent exited with error (code ${code})`
+        await pushToStreams(entry, JSON.stringify({
+          step: msg,
+          isCrash: isCrashFinal,
+          isError: isErrorFinal,
+          timestamp: Date.now(),
+        }))
+        persistLog(msg)
+
+        if (agentReplyContent) {
+          try {
+            await db.insert(schema.activityLogs).values({
+              taskId: id,
+              userId: user.id,
+              action: 'agent_reply',
+              newValue: { message: agentReplyContent },
+            })
+          } catch (err: any) {
+            console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+          }
+        }
+      }
+
+      if (workDir && mainCloneDir && workDir !== mainCloneDir) {
+        try {
+          await pushAndPersist(`Keeping worktree alive for future edits`)
+          try {
+            await execAsync('git worktree prune', { cwd: mainCloneDir })
+          } catch {}
+        } catch (cleanupErr: any) {
+          await pushAndPersist(`Worktree maintenance note: ${cleanupErr.message}`)
+        }
+      }
+
+      if (agentTaskContextId) {
+        try {
+          const finalStatus = code === 0 ? 'completed' : 'error'
+          const ctxSummary = agentReplyContent
+            ? agentReplyContent.slice(0, 500)
+            : editedFiles.length > 0
+              ? `Modified: ${editedFiles.slice(0, 5).join(', ')}`
+              : null
+          await db.update(schema.agentTaskContext)
+            .set({
+              status: finalStatus,
+              branchName: branchName || null,
+              filesChanged: editedFiles,
+              summary: ctxSummary,
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.agentTaskContext.id, agentTaskContextId))
+        } catch (ctxErr: any) {
+          console.error('[execute.get] Failed to update agent task context:', ctxErr?.message)
+        }
+      }
+
+      for (const s of entry.streams) {
+        try { s.close() } catch {}
+      }
+    }
+
+    await pushAndPersist(`Spawning ${agentRuntime === 'cursor' ? 'cursor-agent' : 'opencode'} for "${task.title}" in ${workDir}...`)
 
     // ── Register agent task context for sibling awareness ──
     let agentTaskContextId: string | null = null
@@ -1309,341 +1559,527 @@ The status_name should match one of the existing statuses in the project (e.g., 
       LC_ALL: process.env.LC_ALL,
       GITLAB_TOKEN: process.env.GITLAB_TOKEN,
       GITLAB_HOST: process.env.GITLAB_HOST,
+      CURSOR_API_KEY: process.env.CURSOR_API_KEY,
+      CURSOR_MODEL: process.env.CURSOR_MODEL,
+      CURSOR_AGENT_PATH: process.env.CURSOR_AGENT_PATH,
       ...(repoToken ? { GITHUB_TOKEN: repoToken } : {}),
     }
 
-    // Build args: include --file for each attachment so opencode passes them
-    // to the underlying model (Kimi k2.6) as message attachments.
-    // IMPORTANT: use `--` before the message to prevent opencode from treating
-    // the message text as additional file paths when --file flags are present.
-    const spawnArgs = [
-      'run',
-      '--format', 'json',
-      '--dangerously-skip-permissions',
-      '--dir', workDir,
-    ]
-    const attachmentFilePaths: string[] = []
-    if (attachments.length > 0) {
-      const attachmentDir = `${workDir}/.orbit-attachments`
-      for (const att of attachments) {
-        const filePath = `${attachmentDir}/${att.filename}`
-        if (existsSync(filePath)) {
-          spawnArgs.push('--file', filePath)
-          attachmentFilePaths.push(filePath)
-        }
-      }
-    }
-    spawnArgs.push('--', message)
-
-    await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}${attachmentFilePaths.length > 0 ? ' --file ' + attachmentFilePaths.join(' --file ') : ''} -- "<message>"`)
-
-    const proc = spawn(opencodePath, spawnArgs, {
-      cwd: workDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
-      env: minimalEnv,
-    })
-
-    const entry: ProcState = { proc, streams: [], heartbeat: null }
-    activeProcesses.set(id, entry)
-    addStreamToProc(id, stream, entry)
-
-    // Global runtime timeout to prevent infinite hangs
-    const runtimeTimeout = setTimeout(() => {
-      if (proc.exitCode === null) {
-        entry.isTimeoutKill = true
-        const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
-        pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() })).catch(() => {})
-        persistLog(msg)
-        try { proc.kill('SIGTERM') } catch {}
-        setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
-      }
-    }, MAX_RUNTIME_MS)
-
-    const heartbeat = setInterval(async () => {
-      const idle = Math.round((Date.now() - lastActivity) / 1000)
-      const alive = proc.exitCode === null
-
-      // ── Loop detection ──
-      if (alive && commandHistory.length > 0) {
-        const now = Date.now()
-        const counts = new Map<string, number>()
-        for (const c of commandHistory) {
-          if (now - c.timestamp < LOOP_WINDOW_MS) {
-            counts.set(c.command, (counts.get(c.command) || 0) + 1)
-          }
-        }
-        for (const [cmd, count] of counts) {
-          if (count >= LOOP_THRESHOLD) {
-            const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
-            await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
-            await persistLog(msg)
-            entry.isLoopKill = true
-            clearTimeout(runtimeTimeout)
-            clearInterval(heartbeat)
-            try { proc.kill('SIGKILL') } catch {}
-            return
-          }
-        }
-
-        // Category-based loop detection: catch patterns like many `cd /different/path` commands
-        const categoryCounts = new Map<string, number>()
-        for (const c of commandHistory) {
-          if (now - c.timestamp < LOOP_WINDOW_MS) {
-            const cat = commandCategory(c.command)
-            if (cat) {
-              categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1)
-            }
-          }
-        }
-        for (const [cat, count] of categoryCounts) {
-          if (count >= CATEGORY_LOOP_THRESHOLD) {
-            const msg = `Category loop detected: "${cat}" commands executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
-            await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
-            await persistLog(msg)
-            entry.isLoopKill = true
-            clearTimeout(runtimeTimeout)
-            clearInterval(heartbeat)
-            try { proc.kill('SIGKILL') } catch {}
-            return
-          }
+    if (agentRuntime === 'cursor') {
+      // Cursor-agent does not support --file attachments; include paths in the prompt.
+      if (attachments.length > 0) {
+        const attachmentPaths = attachments
+          .map((att) => `${workDir}/.orbit-attachments/${att.filename}`)
+          .filter((p) => existsSync(p))
+        if (attachmentPaths.length > 0) {
+          message += `\n\n[ATTACHED FILES]\nThe following files are attached and available for analysis:\n${attachmentPaths.map((p) => `- ${p}`).join('\n')}`
         }
       }
 
-      // Always report long idle times so users can see if it's stuck
-      if (!hasOutput || idle > 30) {
-        const msg = alive ? `Waiting for opencode (${idle}s)` : `Process exited (code ${proc.exitCode})`
-        await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
-      }
-    }, 5000)
-    entry.heartbeat = heartbeat
+      await pushAndPersist(`Exec: cursor-agent --workspace ${workDir} "<message>"`)
 
-    const parseAndPush = async (line: string) => {
-      if (!line.trim()) return
       try {
-        const evt = JSON.parse(line)
-        const part = evt.part
-        let logMsg = ''
-        let fullText = ''
-
-        switch (evt.type) {
-          case 'step_start':
-            logMsg = 'Step started'
-            break
-          case 'text':
-            fullText = typeof part === 'string' ? part : part.text || part.content || ''
-            // Capture agent text responses for persistence.
-            // The [AGENT_REPLY] marker is added by the frontend, not by opencode,
-            // so we track the latest text as the agent's reply.
-            if (fullText) {
-              // Detect status change markers from the agent
-              const statusMatch = fullText.match(/\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i)
-              if (statusMatch) {
-                const desiredStatus = statusMatch[1].trim().toLowerCase()
-                try {
-                  // Try exact match first
-                  let targetStatus = await db.query.statuses.findFirst({
+        const cursorRun = await spawnCursorAgent(message, {
+          workdir: workDir,
+          onText: async (_delta, accumulated) => {
+            lastActivity = Date.now()
+            hasOutput = true
+            let fullText = accumulated
+            const statusMatch = fullText.match(/\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i)
+            if (statusMatch) {
+              const desiredStatus = statusMatch[1].trim().toLowerCase()
+              try {
+                let targetStatus = await db.query.statuses.findFirst({
+                  where: and(
+                    eq(schema.statuses.projectId, task.projectId),
+                    ilike(schema.statuses.name, desiredStatus),
+                  ),
+                })
+                if (!targetStatus) {
+                  targetStatus = await db.query.statuses.findFirst({
                     where: and(
                       eq(schema.statuses.projectId, task.projectId),
-                      ilike(schema.statuses.name, desiredStatus),
+                      ilike(schema.statuses.name, `%${desiredStatus}%`),
                     ),
                   })
-                  // Fallback to partial match
-                  if (!targetStatus) {
-                    targetStatus = await db.query.statuses.findFirst({
-                      where: and(
-                        eq(schema.statuses.projectId, task.projectId),
-                        ilike(schema.statuses.name, `%${desiredStatus}%`),
-                      ),
-                    })
-                  }
-                  if (targetStatus && task.statusId !== targetStatus.id) {
-                    const oldStatus = await db.query.statuses.findFirst({
-                      where: eq(schema.statuses.id, task.statusId),
-                    })
-                    await db.update(schema.tasks)
-                      .set({ statusId: targetStatus.id })
-                      .where(eq(schema.tasks.id, id))
-                    await db.insert(schema.activityLogs).values({
-                      taskId: id,
-                      userId: user.id,
-                      action: 'status_change',
-                      oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
-                      newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
-                    })
-                    await pushToStreams(entry, JSON.stringify({
-                      step: `Agent changed status to "${targetStatus.name}"`,
-                      timestamp: Date.now(),
-                    }))
-                    await persistLog(`Agent changed status to "${targetStatus.name}"`)
-                    task.statusId = targetStatus.id
-                  } else if (targetStatus) {
-                    await pushToStreams(entry, JSON.stringify({
-                      step: `Status already "${targetStatus.name}" — no change needed`,
-                      timestamp: Date.now(),
-                    }))
-                  } else {
-                    await pushToStreams(entry, JSON.stringify({
-                      step: `Status "${desiredStatus}" not found in project`,
-                      timestamp: Date.now(),
-                    }))
-                  }
-                } catch (statusErr: any) {
+                }
+                if (targetStatus && task.statusId !== targetStatus.id) {
+                  const oldStatus = await db.query.statuses.findFirst({
+                    where: eq(schema.statuses.id, task.statusId),
+                  })
+                  await db.update(schema.tasks)
+                    .set({ statusId: targetStatus.id })
+                    .where(eq(schema.tasks.id, id))
+                  await db.insert(schema.activityLogs).values({
+                    taskId: id,
+                    userId: user.id,
+                    action: 'status_change',
+                    oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
+                    newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
+                  })
                   await pushToStreams(entry, JSON.stringify({
-                    step: `Failed to change status: ${statusErr.message}`,
+                    step: `Agent changed status to "${targetStatus.name}"`,
+                    timestamp: Date.now(),
+                  }))
+                  await persistLog(`Agent changed status to "${targetStatus.name}"`)
+                  task.statusId = targetStatus.id
+                } else if (targetStatus) {
+                  await pushToStreams(entry, JSON.stringify({
+                    step: `Status already "${targetStatus.name}" — no change needed`,
+                    timestamp: Date.now(),
+                  }))
+                } else {
+                  await pushToStreams(entry, JSON.stringify({
+                    step: `Status "${desiredStatus}" not found in project`,
                     timestamp: Date.now(),
                   }))
                 }
-                // Remove the marker from the displayed text
-                fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
+              } catch (statusErr: any) {
+                await pushToStreams(entry, JSON.stringify({
+                  step: `Failed to change status: ${statusErr.message}`,
+                  timestamp: Date.now(),
+                }))
               }
-              agentReplyContent = fullText.trim()
+              fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
             }
-            logMsg = formatTextEvent(part)
-            break
-          case 'step_finish':
-            logMsg = 'Step completed'
-            break
-          case 'tool_use':
-            if (part?.state?.status === 'completed') {
-              logMsg = formatToolEvent(part)
-              const tool = part?.tool
-              const input = part?.state?.input || {}
-              if (tool === 'edit' || tool === 'write') {
-                editCount++
-                const filePath = input.filePath || input.path || 'unknown'
-                editedFiles.push(filePath)
-              }
-              // Track bash commands for loop detection (normalized for better matching)
-              if (tool === 'bash') {
-                const rawCmd = (input.command || '').trim()
-                if (rawCmd) {
-                  const normalizedCmd = normalizeForLoop(rawCmd)
-                  commandHistory.push({ command: normalizedCmd, timestamp: Date.now() })
-                  // Prune old entries
-                  const cutoff = Date.now() - LOOP_WINDOW_MS
-                  while (commandHistory.length > 0 && commandHistory[0]!.timestamp < cutoff) {
-                    commandHistory.shift()
-                  }
+            agentReplyContent = fullText.trim()
+            const payload: any = { step: 'cursor content', timestamp: Date.now() }
+            if (fullText) payload.agentReply = fullText
+            await pushToStreams(entry, JSON.stringify(payload))
+          },
+          onActivity: async (activity) => {
+            lastActivity = Date.now()
+            hasOutput = true
+            await pushToStreams(entry, JSON.stringify({ step: activity, timestamp: Date.now() }))
+            persistLog(activity)
+          },
+          onToolUse: (tool, args) => {
+            lastActivity = Date.now()
+            hasOutput = true
+            if (tool === 'edit' || tool === 'write') {
+              editCount++
+              const filePath = String(args.path || args.filePath || 'unknown')
+              editedFiles.push(filePath)
+            }
+            if (tool === 'bash') {
+              const rawCmd = String(args.command || '').trim()
+              if (rawCmd) {
+                const normalizedCmd = normalizeForLoop(rawCmd)
+                commandHistory.push({ command: normalizedCmd, timestamp: Date.now() })
+                const cutoff = Date.now() - LOOP_WINDOW_MS
+                while (commandHistory.length > 0 && commandHistory[0]!.timestamp < cutoff) {
+                  commandHistory.shift()
                 }
               }
             }
-            break
-          case 'step_error':
-            logMsg = `Error: ${part?.error || 'unknown error'}`
-            break
-          default:
-            if (typeof part === 'string') {
-              logMsg = part.slice(0, 120)
+          },
+          onStderr: (text) => {
+            lastActivity = Date.now()
+            if (!text) return
+            for (const line of text.split('\n')) {
+              const trimmed = line.trim()
+              if (!trimmed) continue
+              hasOutput = true
+              const level = trimmed.startsWith('ERROR') || trimmed.includes('error:') ? 'ERROR' : 'WARN'
+              pushToStreams(entry, JSON.stringify({ step: `[${level}] ${trimmed.slice(0, 200)}`, timestamp: Date.now() })).catch(() => {})
             }
-        }
+          },
+        })
+        const proc = cursorRun.proc
+        const entry: ProcState = { proc, streams: [], heartbeat: null }
+        activeProcesses.set(id, entry)
+        addStreamToProc(id, stream, entry)
 
-        if (logMsg || fullText) {
+        const runtimeTimeout = setTimeout(() => {
+          if (proc.exitCode === null) {
+            entry.isTimeoutKill = true
+            const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
+            pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() })).catch(() => {})
+            persistLog(msg)
+            try { proc.kill('SIGTERM') } catch {}
+            setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
+          }
+        }, MAX_RUNTIME_MS)
+
+        const heartbeat = setInterval(async () => {
+          const idle = Math.round((Date.now() - lastActivity) / 1000)
+          const alive = proc.exitCode === null
+
+          if (alive && commandHistory.length > 0) {
+            const now = Date.now()
+            const counts = new Map<string, number>()
+            for (const c of commandHistory) {
+              if (now - c.timestamp < LOOP_WINDOW_MS) {
+                counts.set(c.command, (counts.get(c.command) || 0) + 1)
+              }
+            }
+            for (const [cmd, count] of counts) {
+              if (count >= LOOP_THRESHOLD) {
+                const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
+                await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
+                await persistLog(msg)
+                entry.isLoopKill = true
+                clearTimeout(runtimeTimeout)
+                clearInterval(heartbeat)
+                try { proc.kill('SIGKILL') } catch {}
+                return
+              }
+            }
+
+            const categoryCounts = new Map<string, number>()
+            for (const c of commandHistory) {
+              if (now - c.timestamp < LOOP_WINDOW_MS) {
+                const cat = commandCategory(c.command)
+                if (cat) {
+                  categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1)
+                }
+              }
+            }
+            for (const [cat, count] of categoryCounts) {
+              if (count >= CATEGORY_LOOP_THRESHOLD) {
+                const msg = `Category loop detected: "${cat}" commands executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
+                await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
+                await persistLog(msg)
+                entry.isLoopKill = true
+                clearTimeout(runtimeTimeout)
+                clearInterval(heartbeat)
+                try { proc.kill('SIGKILL') } catch {}
+                return
+              }
+            }
+          }
+
+          if (!hasOutput || idle > 30) {
+            const msg = alive ? `Waiting for cursor-agent (${idle}s)` : `Process exited (code ${proc.exitCode})`
+            await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+          }
+        }, 5000)
+        entry.heartbeat = heartbeat
+
+        cursorRun.promise.catch(async (err) => {
+          if (entry.exited) return
+          clearInterval(heartbeat)
+          clearTimeout(runtimeTimeout)
           hasOutput = true
-          lastActivity = Date.now()
-          const payload: any = { step: logMsg, timestamp: Date.now() }
-          if (fullText) payload.agentReply = fullText.trim()
-          await pushToStreams(entry, JSON.stringify(payload))
-          if (logMsg) persistLog(logMsg)
-        }
-      } catch (parseErr: any) {
-        // Not valid JSON — could be startup logs, errors, or partial output
-        lastActivity = Date.now()
-        const raw = line.trim().slice(0, 200)
-        if (raw) {
-          hasOutput = true
-          const msg = `opencode output: ${raw}`
-          await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+          const msg = `Cursor agent error: ${err.message}`
+          await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, isCrash: true, timestamp: Date.now() }))
           persistLog(msg)
-        }
-      }
-    }
-
-    proc.stdout?.on('data', (chunk: Buffer) => {
-      lineBuffer += chunk.toString()
-      const lines = lineBuffer.split('\n')
-      lineBuffer = lines.pop() || ''
-      for (const line of lines) {
-        if (line.trim()) parseAndPush(line.trim())
-      }
-    })
-
-    proc.stderr?.on('data', (chunk: Buffer) => {
-      lastActivity = Date.now()
-      const text = chunk.toString().trim()
-      if (!text) return
-      for (const line of text.split('\n')) {
-        const trimmed = line.trim()
-        if (!trimmed) continue
-        hasOutput = true
-        const level = trimmed.startsWith('ERROR') || trimmed.includes('error:') ? 'ERROR' : 'WARN'
-        pushToStreams(entry, JSON.stringify({ step: `[${level}] ${trimmed.slice(0, 200)}`, timestamp: Date.now() })).catch(() => {})
-      }
-    })
-
-    proc.on('error', async (err) => {
-      clearInterval(heartbeat)
-      clearTimeout(runtimeTimeout)
-      hasOutput = true
-      const msg = `Failed to start opencode: ${err.message}`
-      await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, isCrash: true, timestamp: Date.now() }))
-      persistLog(msg)
-      // Persist structured crash log
-      try {
-        await db.insert(schema.activityLogs).values({
-          taskId: id,
-          userId: user.id,
-          action: 'agent_crash',
-          newValue: {
+          try {
+            await db.insert(schema.activityLogs).values({
+              taskId: id,
+              userId: user.id,
+              action: 'agent_crash',
+              newValue: {
+                exitCode: null,
+                signal: null,
+                type: 'spawn_error',
+                message: msg,
+              },
+            })
+          } catch {}
+          await fireCrashWebhook({
+            taskId: id,
+            taskTitle: task.title,
             exitCode: null,
             signal: null,
             type: 'spawn_error',
             message: msg,
-          },
+          })
         })
-      } catch {}
-      // Fire webhook notification
-      await fireCrashWebhook({
-        taskId: id,
-        taskTitle: task.title,
-        exitCode: null,
-        signal: null,
-        type: 'spawn_error',
-        message: msg,
+
+        proc.on('exit', (code) => finalizeAgentExit(code, proc.signalCode ?? null, proc, entry, runtimeTimeout, heartbeat))
+      } catch (err: any) {
+        await stream.push(JSON.stringify({ step: `Failed to start cursor-agent: ${err.message}`, timestamp: Date.now() }))
+        stream.close()
+      }
+    } else {
+      // Build args: include --file for each attachment so opencode passes them
+      // to the underlying model (Kimi k2.6) as message attachments.
+      // IMPORTANT: use `--` before the message to prevent opencode from treating
+      // the message text as additional file paths when --file flags are present.
+      const spawnArgs = [
+        'run',
+        '--format', 'json',
+        '--dangerously-skip-permissions',
+        '--dir', workDir,
+      ]
+      const attachmentFilePaths: string[] = []
+      if (attachments.length > 0) {
+        const attachmentDir = `${workDir}/.orbit-attachments`
+        for (const att of attachments) {
+          const filePath = `${attachmentDir}/${att.filename}`
+          if (existsSync(filePath)) {
+            spawnArgs.push('--file', filePath)
+            attachmentFilePaths.push(filePath)
+          }
+        }
+      }
+      spawnArgs.push('--', message)
+
+      await pushAndPersist(`Exec: ${opencodePath} run --format json --dir ${workDir}${attachmentFilePaths.length > 0 ? ' --file ' + attachmentFilePaths.join(' --file ') : ''} -- "<message>"`)
+
+      const proc = spawn(opencodePath, spawnArgs, {
+        cwd: workDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        env: minimalEnv,
       })
-    })
 
-    proc.on('exit', async (code) => {
-      clearInterval(heartbeat)
-      clearTimeout(runtimeTimeout)
-      entry.exited = true
+      const entry: ProcState = { proc, streams: [], heartbeat: null }
+      activeProcesses.set(id, entry)
+      addStreamToProc(id, stream, entry)
 
-      const isCrash = code === null
-      const isError = code !== null && code !== 0
-      const wasLoopKill = entry.isLoopKill
+      // Global runtime timeout to prevent infinite hangs
+      const runtimeTimeout = setTimeout(() => {
+        if (proc.exitCode === null) {
+          entry.isTimeoutKill = true
+          const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
+          pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() })).catch(() => {})
+          persistLog(msg)
+          try { proc.kill('SIGTERM') } catch {}
+          setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
+        }
+      }, MAX_RUNTIME_MS)
 
-      const wasTimeoutKill = entry.isTimeoutKill
+      const heartbeat = setInterval(async () => {
+        const idle = Math.round((Date.now() - lastActivity) / 1000)
+        const alive = proc.exitCode === null
 
-      if (!wasLoopKill && (isCrash || isError)) {
-        const crashType = wasTimeoutKill ? 'timeout' : (isCrash ? 'crash' : 'error')
-        const crashMessage = wasTimeoutKill
-          ? `Agent timed out after ${MAX_RUNTIME_MS / 60000} minutes. The task exceeded the maximum runtime limit.`
-          : isCrash
-            ? `Agent process was killed unexpectedly (signal: ${proc.signalCode ?? 'unknown'}). This may indicate OOM or a runtime crash.`
-            : `Agent exited with error code ${code}`
-        // Push autoRestart flag so the client retries automatically
-        await pushToStreams(entry, JSON.stringify({ step: crashMessage, autoRestart: true, isCrash, isError: !isCrash, isTimeout: !!wasTimeoutKill, timestamp: Date.now() }))
-        // Persist structured crash / error activity log
+        // ── Loop detection ──
+        if (alive && commandHistory.length > 0) {
+          const now = Date.now()
+          const counts = new Map<string, number>()
+          for (const c of commandHistory) {
+            if (now - c.timestamp < LOOP_WINDOW_MS) {
+              counts.set(c.command, (counts.get(c.command) || 0) + 1)
+            }
+          }
+          for (const [cmd, count] of counts) {
+            if (count >= LOOP_THRESHOLD) {
+              const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
+              await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
+              await persistLog(msg)
+              entry.isLoopKill = true
+              clearTimeout(runtimeTimeout)
+              clearInterval(heartbeat)
+              try { proc.kill('SIGKILL') } catch {}
+              return
+            }
+          }
+
+          // Category-based loop detection: catch patterns like many `cd /different/path` commands
+          const categoryCounts = new Map<string, number>()
+          for (const c of commandHistory) {
+            if (now - c.timestamp < LOOP_WINDOW_MS) {
+              const cat = commandCategory(c.command)
+              if (cat) {
+                categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1)
+              }
+            }
+          }
+          for (const [cat, count] of categoryCounts) {
+            if (count >= CATEGORY_LOOP_THRESHOLD) {
+              const msg = `Category loop detected: "${cat}" commands executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
+              await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
+              await persistLog(msg)
+              entry.isLoopKill = true
+              clearTimeout(runtimeTimeout)
+              clearInterval(heartbeat)
+              try { proc.kill('SIGKILL') } catch {}
+              return
+            }
+          }
+        }
+
+        // Always report long idle times so users can see if it's stuck
+        if (!hasOutput || idle > 30) {
+          const msg = alive ? `Waiting for opencode (${idle}s)` : `Process exited (code ${proc.exitCode})`
+          await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+        }
+      }, 5000)
+      entry.heartbeat = heartbeat
+
+      const parseAndPush = async (line: string) => {
+        if (!line.trim()) return
+        try {
+          const evt = JSON.parse(line)
+          const part = evt.part
+          let logMsg = ''
+          let fullText = ''
+
+          switch (evt.type) {
+            case 'step_start':
+              logMsg = 'Step started'
+              break
+            case 'text':
+              fullText = typeof part === 'string' ? part : part.text || part.content || ''
+              // Capture agent text responses for persistence.
+              // The [AGENT_REPLY] marker is added by the frontend, not by opencode,
+              // so we track the latest text as the agent's reply.
+              if (fullText) {
+                // Detect status change markers from the agent
+                const statusMatch = fullText.match(/\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i)
+                if (statusMatch) {
+                  const desiredStatus = statusMatch[1].trim().toLowerCase()
+                  try {
+                    // Try exact match first
+                    let targetStatus = await db.query.statuses.findFirst({
+                      where: and(
+                        eq(schema.statuses.projectId, task.projectId),
+                        ilike(schema.statuses.name, desiredStatus),
+                      ),
+                    })
+                    // Fallback to partial match
+                    if (!targetStatus) {
+                      targetStatus = await db.query.statuses.findFirst({
+                        where: and(
+                          eq(schema.statuses.projectId, task.projectId),
+                          ilike(schema.statuses.name, `%${desiredStatus}%`),
+                        ),
+                      })
+                    }
+                    if (targetStatus && task.statusId !== targetStatus.id) {
+                      const oldStatus = await db.query.statuses.findFirst({
+                        where: eq(schema.statuses.id, task.statusId),
+                      })
+                      await db.update(schema.tasks)
+                        .set({ statusId: targetStatus.id })
+                        .where(eq(schema.tasks.id, id))
+                      await db.insert(schema.activityLogs).values({
+                        taskId: id,
+                        userId: user.id,
+                        action: 'status_change',
+                        oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
+                        newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
+                      })
+                      await pushToStreams(entry, JSON.stringify({
+                        step: `Agent changed status to "${targetStatus.name}"`,
+                        timestamp: Date.now(),
+                      }))
+                      await persistLog(`Agent changed status to "${targetStatus.name}"`)
+                      task.statusId = targetStatus.id
+                    } else if (targetStatus) {
+                      await pushToStreams(entry, JSON.stringify({
+                        step: `Status already "${targetStatus.name}" — no change needed`,
+                        timestamp: Date.now(),
+                      }))
+                    } else {
+                      await pushToStreams(entry, JSON.stringify({
+                        step: `Status "${desiredStatus}" not found in project`,
+                        timestamp: Date.now(),
+                      }))
+                    }
+                  } catch (statusErr: any) {
+                    await pushToStreams(entry, JSON.stringify({
+                      step: `Failed to change status: ${statusErr.message}`,
+                      timestamp: Date.now(),
+                    }))
+                  }
+                  // Remove the marker from the displayed text
+                  fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
+                }
+                agentReplyContent = fullText.trim()
+              }
+              logMsg = formatTextEvent(part)
+              break
+            case 'step_finish':
+              logMsg = 'Step completed'
+              break
+            case 'tool_use':
+              if (part?.state?.status === 'completed') {
+                logMsg = formatToolEvent(part)
+                const tool = part?.tool
+                const input = part?.state?.input || {}
+                if (tool === 'edit' || tool === 'write') {
+                  editCount++
+                  const filePath = input.filePath || input.path || 'unknown'
+                  editedFiles.push(filePath)
+                }
+                // Track bash commands for loop detection (normalized for better matching)
+                if (tool === 'bash') {
+                  const rawCmd = (input.command || '').trim()
+                  if (rawCmd) {
+                    const normalizedCmd = normalizeForLoop(rawCmd)
+                    commandHistory.push({ command: normalizedCmd, timestamp: Date.now() })
+                    // Prune old entries
+                    const cutoff = Date.now() - LOOP_WINDOW_MS
+                    while (commandHistory.length > 0 && commandHistory[0]!.timestamp < cutoff) {
+                      commandHistory.shift()
+                    }
+                  }
+                }
+              }
+              break
+            case 'step_error':
+              logMsg = `Error: ${part?.error || 'unknown error'}`
+              break
+            default:
+              if (typeof part === 'string') {
+                logMsg = part.slice(0, 120)
+              }
+          }
+
+          if (logMsg || fullText) {
+            hasOutput = true
+            lastActivity = Date.now()
+            const payload: any = { step: logMsg, timestamp: Date.now() }
+            if (fullText) payload.agentReply = fullText.trim()
+            await pushToStreams(entry, JSON.stringify(payload))
+            if (logMsg) persistLog(logMsg)
+          }
+        } catch (parseErr: any) {
+          // Not valid JSON — could be startup logs, errors, or partial output
+          lastActivity = Date.now()
+          const raw = line.trim().slice(0, 200)
+          if (raw) {
+            hasOutput = true
+            const msg = `opencode output: ${raw}`
+            await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+            persistLog(msg)
+          }
+        }
+      }
+
+      proc.stdout?.on('data', (chunk: Buffer) => {
+        lineBuffer += chunk.toString()
+        const lines = lineBuffer.split('\n')
+        lineBuffer = lines.pop() || ''
+        for (const line of lines) {
+          if (line.trim()) parseAndPush(line.trim())
+        }
+      })
+
+      proc.stderr?.on('data', (chunk: Buffer) => {
+        lastActivity = Date.now()
+        const text = chunk.toString().trim()
+        if (!text) return
+        for (const line of text.split('\n')) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+          hasOutput = true
+          const level = trimmed.startsWith('ERROR') || trimmed.includes('error:') ? 'ERROR' : 'WARN'
+          pushToStreams(entry, JSON.stringify({ step: `[${level}] ${trimmed.slice(0, 200)}`, timestamp: Date.now() })).catch(() => {})
+        }
+      })
+
+      proc.on('error', async (err) => {
+        clearInterval(heartbeat)
+        clearTimeout(runtimeTimeout)
+        hasOutput = true
+        const msg = `Failed to start opencode: ${err.message}`
+        await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, isCrash: true, timestamp: Date.now() }))
+        persistLog(msg)
+        // Persist structured crash log
         try {
           await db.insert(schema.activityLogs).values({
             taskId: id,
             userId: user.id,
-            action: wasTimeoutKill ? 'agent_timeout' : (isCrash ? 'agent_crash' : 'agent_error'),
+            action: 'agent_crash',
             newValue: {
-              exitCode: code,
-              signal: proc.signalCode ?? null,
-              type: crashType,
-              message: crashMessage,
+              exitCode: null,
+              signal: null,
+              type: 'spawn_error',
+              message: msg,
             },
           })
         } catch {}
@@ -1651,218 +2087,15 @@ The status_name should match one of the existing statuses in the project (e.g., 
         await fireCrashWebhook({
           taskId: id,
           taskTitle: task.title,
-          exitCode: code,
-          signal: proc.signalCode ?? null,
-          type: crashType,
-          message: crashMessage,
+          exitCode: null,
+          signal: null,
+          type: 'spawn_error',
+          message: msg,
         })
-      }
+      })
 
-      // Remove from activeProcesses so reconnects don't get attached to the old process
-      activeProcesses.delete(id)
-
-      if (code === 0 && branchName && !wasLoopKill) {
-        try {
-          // Log branch state before committing for debugging
-          try {
-            const { stdout: branchLog } = await execAsync('git log --oneline -5', { cwd: workDir })
-            await pushToStreams(entry, JSON.stringify({ step: `Branch commits before: ${branchLog.replace(/\n/g, ' | ')}`, timestamp: Date.now() }))
-          } catch {}
-
-          const { stdout: status } = await execAsync('git status --porcelain --untracked-files=all', { cwd: workDir })
-          const { stdout: diffOutput } = await execAsync('git diff', { cwd: workDir }).catch(() => ({ stdout: '' }))
-          const { stdout: headCommit } = await execAsync('git rev-parse --short HEAD', { cwd: workDir }).catch(() => ({ stdout: 'unknown' }))
-          
-          // Shared variables for both commit and summary
-          let changedFiles: string[] = []
-          let diffContent = ''
-          let commitMsg = ''
-
-          if (status.trim()) {
-            await pushToStreams(entry, JSON.stringify({ step: `Git status:\n${status}`, timestamp: Date.now() }))
-            await execAsync('git add -A', { cwd: workDir })
-
-            // Gather actual diff content for a descriptive commit message
-            try {
-              const { stdout: nameOutput } = await execAsync('git diff --cached --name-only', { cwd: workDir })
-              changedFiles = nameOutput.split('\n').map(f => f.trim()).filter(Boolean)
-              const { stdout: diffOutput } = await execAsync('git diff --cached --no-ext-diff', { cwd: workDir })
-              diffContent = diffOutput
-            } catch {}
-
-            const generatedMsg = generateCommitMessageFromDiff(diffContent, changedFiles)
-            commitMsg = generatedMsg
-
-            await execAsync(`git commit -m "${commitMsg}"`, { cwd: workDir })
-            await pushToStreams(entry, JSON.stringify({ step: `Committed: ${commitMsg}`, timestamp: Date.now() }))
-
-            // Ensure remote URL has auth token before pushing
-            await configureGitAuth(workDir, repoUrl, repoPlatform, repoToken)
-
-            // Try normal push first — only force-push on explicit failure with logging
-            try {
-              await execAsync(`git push -u origin ${branchName}`, { cwd: workDir })
-            } catch (pushErr: any) {
-              await pushToStreams(entry, JSON.stringify({ step: `Push rejected: ${pushErr.message}. Force pushing...`, timestamp: Date.now() }))
-              await execAsync(`git push --force -u origin ${branchName}`, { cwd: workDir })
-            }
-            await pushToStreams(entry, JSON.stringify({ step: 'Pushed changes to branch', timestamp: Date.now() }))
-
-            // Log branch state after push for verification
-            try {
-              const { stdout: branchLogAfter } = await execAsync('git log --oneline -5', { cwd: workDir })
-              await pushToStreams(entry, JSON.stringify({ step: `Branch commits after: ${branchLogAfter.replace(/\n/g, ' | ')}`, timestamp: Date.now() }))
-            } catch {}
-          } else {
-            // Detailed debugging when no changes detected
-            const editInfo = editCount > 0 ? `Agent claimed ${editCount} edit(s) on: ${editedFiles.join(', ')}` : 'Agent made no tracked edits'
-            await pushToStreams(entry, JSON.stringify({ step: `No changes to push. ${editInfo}. HEAD: ${headCommit || 'unknown'}. Diff:\n${diffOutput || '(empty)'}`, timestamp: Date.now() }))
-            
-            // If agent claimed edits but git shows nothing, log detailed file state
-            if (editCount > 0) {
-              for (const file of editedFiles.slice(0, 3)) {
-                try {
-                  const fullPath = path.join(workDir, file)
-                  const content = readFileSync(fullPath, 'utf-8').slice(0, 200)
-                  await pushToStreams(entry, JSON.stringify({ step: `File state ${file}: ${content.replace(/\n/g, ' ')}`, timestamp: Date.now() }))
-                } catch (err: any) {
-                  await pushToStreams(entry, JSON.stringify({ step: `Could not read ${file}: ${err.message}`, timestamp: Date.now() }))
-                }
-              }
-            }
-            
-            // Check if any tracked files were modified but then reverted
-            try {
-              const { stdout: trackedFiles } = await execAsync('git ls-files -m', { cwd: workDir })
-              if (trackedFiles.trim()) {
-                await pushToStreams(entry, JSON.stringify({ step: `WARNING: Modified tracked files found but not in status: ${trackedFiles.trim()}`, timestamp: Date.now() }))
-              }
-            } catch {}
-          }
-
-          // Auto-create PR/MR
-          try {
-            const baseUrl = `${getRequestProtocol(event)}://${getRequestHost(event)}`
-            const res = await fetch(`${baseUrl}/api/tasks/${id}/pr`, {
-              method: 'POST',
-              headers: { cookie: getRequestHeaders(event).cookie || '' },
-            })
-            if (res.ok) {
-              const prResult = await res.json() as { url: string | null; noChanges?: boolean }
-              if (prResult?.url) {
-                await pushToStreams(entry, JSON.stringify({ step: `Created PR: ${prResult.url}`, timestamp: Date.now() }))
-              } else if (prResult?.noChanges) {
-                await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
-              }
-            } else {
-              const errorBody = await res.text().catch(() => '')
-              const errorMsg = errorBody.slice(0, 400) || `HTTP ${res.status}`
-              await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${errorMsg}`, timestamp: Date.now() }))
-            }
-          } catch (err: any) {
-            const msg = err?.message || String(err)
-            await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${msg}`, timestamp: Date.now() }))
-          }
-
-          // Agent reply was already persisted in real-time if [AGENT_REPLY] was detected.
-          // We no longer post auto-generated diff summaries to avoid replacing actual agent comments.
-          if (agentReplyContent) {
-            await pushToStreams(entry, JSON.stringify({ step: 'Agent reply already posted to comments', timestamp: Date.now() }))
-          }
-      } catch (err: any) {
-        await pushToStreams(entry, JSON.stringify({ step: `Push failed: ${err.message}`, timestamp: Date.now() }))
-      }
-
-      // Agent-driven status changes: status is updated via [ORBIT_STATUS: ...] markers
-      // during the agent's run. No auto-advance on exit — the agent decides when to move.
+      proc.on('exit', (code) => finalizeAgentExit(code, proc.signalCode ?? null, proc, entry, runtimeTimeout, heartbeat))
     }
-
-    if (wasLoopKill) {
-        // Signal the client to auto-restart; do NOT mark as crash/error
-        const msg = 'Agent will auto-restart after loop detection'
-        await pushToStreams(entry, JSON.stringify({
-          step: msg,
-          autoRestart: true,
-          timestamp: Date.now(),
-        }))
-        persistLog(msg)
-      } else {
-        const isCrashFinal = code === null
-        const isErrorFinal = code !== null && code !== 0
-        const msg = code === 0
-          ? 'Done'
-          : isCrashFinal
-            ? `Agent crashed (signal: ${proc.signalCode ?? 'killed'})`
-            : `Agent exited with error (code ${code})`
-        await pushToStreams(entry, JSON.stringify({
-          step: msg,
-          isCrash: isCrashFinal,
-          isError: isErrorFinal,
-          timestamp: Date.now(),
-        }))
-        persistLog(msg)
-
-        // Persist the agent's final text response so it survives page refresh.
-        if (agentReplyContent) {
-          try {
-            await db.insert(schema.activityLogs).values({
-              taskId: id,
-              userId: user.id,
-              action: 'agent_reply',
-              newValue: { message: agentReplyContent },
-            })
-          } catch (err: any) {
-            console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
-          }
-        }
-      }
-
-      // ── Preserve worktree for follow-up comments ──
-      // We intentionally do NOT remove the worktree or delete the local branch
-      // so that subsequent user questions/comments can reuse the same worktree
-      // and continue pushing to the same remote branch.
-      if (workDir && mainCloneDir && workDir !== mainCloneDir) {
-        try {
-          await pushAndPersist(`Keeping worktree alive for future edits`)
-          // Only prune stale references, but keep the actual worktree & branch
-          try {
-            await execAsync('git worktree prune', { cwd: mainCloneDir })
-          } catch {}
-        } catch (cleanupErr: any) {
-          await pushAndPersist(`Worktree maintenance note: ${cleanupErr.message}`)
-        }
-      }
-
-      // ── Update agent task context with final state ──
-      if (agentTaskContextId) {
-        try {
-          const finalStatus = code === 0 ? 'completed' : 'error'
-          // Build a brief summary from the agent reply or edited files
-          const ctxSummary = agentReplyContent
-            ? agentReplyContent.slice(0, 500)
-            : editedFiles.length > 0
-              ? `Modified: ${editedFiles.slice(0, 5).join(', ')}`
-              : null
-          await db.update(schema.agentTaskContext)
-            .set({
-              status: finalStatus,
-              branchName: branchName || null,
-              filesChanged: editedFiles,
-              summary: ctxSummary,
-              completedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(eq(schema.agentTaskContext.id, agentTaskContextId))
-        } catch (ctxErr: any) {
-          console.error('[execute.get] Failed to update agent task context:', ctxErr?.message)
-        }
-      }
-
-      // Close all streams after cleanup
-      for (const s of entry.streams) {
-        try { s.close() } catch {}
-      }
-    })
   }, 10)
 
   return stream.send()

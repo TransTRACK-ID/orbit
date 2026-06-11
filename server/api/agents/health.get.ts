@@ -1,11 +1,12 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { eq, and, or, gte } from 'drizzle-orm'
+import { eq, or, gte } from 'drizzle-orm'
 import { activeProcesses } from '~/server/utils/runtime'
 import { getQueueStatus } from '~/server/utils/browser-queue'
 import { accessSync, constants } from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { isCursorInstalled, isCursorAuthenticated } from '~/server/utils/cursor-agent'
 
 const execAsync = promisify(exec)
 
@@ -19,36 +20,48 @@ export default defineEventHandler(async (event) => {
   let runtimeReachable = false
   try {
     accessSync(opencodePath, constants.X_OK)
-    // Verify it actually runs
     await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
     runtimeReachable = true
   } catch {
     runtimeReachable = false
   }
 
-  // 2. Fetch all agents for this user
+  // 2. Check if cursor binary is reachable and authenticated
+  let cursorRuntimeReachable = false
+  let cursorAuthMethod: 'api_key' | 'login' | 'none' = 'none'
+  try {
+    if (await isCursorInstalled()) {
+      const auth = await isCursorAuthenticated()
+      if (auth.ok) {
+        cursorRuntimeReachable = true
+        cursorAuthMethod = auth.method
+      }
+    }
+  } catch {
+    cursorRuntimeReachable = false
+  }
+
+  // 3. Fetch all agents for this user (with runtime for per-runtime health)
   const agents = await db.query.agents.findMany({
     where: eq(schema.agents.userId, user.id),
-    columns: { id: true },
+    columns: { id: true, runtime: true },
   })
 
-  // 3. Find tasks assigned to agents that have active runtime processes
+  // 4. Find tasks assigned to agents that have active runtime processes
   const busyAgentIds = new Set<string>()
-  if (runtimeReachable) {
-    for (const [taskId, entry] of activeProcesses.entries()) {
-      if (entry.proc.exitCode === null) {
-        const task = await db.query.tasks.findFirst({
-          where: eq(schema.tasks.id, taskId),
-          columns: { agentAssigneeId: true },
-        })
-        if (task?.agentAssigneeId) {
-          busyAgentIds.add(task.agentAssigneeId)
-        }
+  for (const [taskId, entry] of activeProcesses.entries()) {
+    if (entry.proc.exitCode === null) {
+      const task = await db.query.tasks.findFirst({
+        where: eq(schema.tasks.id, taskId),
+        columns: { agentAssigneeId: true },
+      })
+      if (task?.agentAssigneeId) {
+        busyAgentIds.add(task.agentAssigneeId)
       }
     }
   }
 
-  // 4. Check browser QA queue for busy agents
+  // 5. Check browser QA queue for busy agents
   const browserQueue = getQueueStatus()
   if (browserQueue.isRunning && browserQueue.nextJob) {
     const task = await db.query.tasks.findFirst({
@@ -60,10 +73,11 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 5. Build health map
+  // 6. Build health map based on each agent's runtime
   const health: Record<string, 'idle' | 'busy' | 'offline'> = {}
   for (const agent of agents) {
-    if (!runtimeReachable) {
+    const runtimeOk = agent.runtime === 'cursor' ? cursorRuntimeReachable : runtimeReachable
+    if (!runtimeOk) {
       health[agent.id] = 'offline'
     } else if (busyAgentIds.has(agent.id)) {
       health[agent.id] = 'busy'
@@ -72,7 +86,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 6. Fetch current tasks per agent from agentTaskContext (running or last 24h)
+  // 7. Fetch current tasks per agent from agentTaskContext (running or last 24h)
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const ctxRows = await db.query.agentTaskContext.findMany({
     where: or(
@@ -111,5 +125,12 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  return { runtimeReachable, health, browserQueue, currentTasks }
+  return {
+    runtimeReachable,
+    cursorRuntimeReachable,
+    cursorAuthMethod,
+    health,
+    browserQueue,
+    currentTasks,
+  }
 })

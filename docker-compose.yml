@@ -16,6 +16,11 @@ services:
       - OPENCODE_PATH=/root/.opencode/bin/opencode
       # Base64-encoded opencode.json (use: base64 -i opencode/opencode.json)
       - OPENCODE_CONFIG_BASE64=${OPENCODE_CONFIG_BASE64:-}
+      # Agent runtime selection: opencode (default) | cursor
+      - AGENT_RUNTIME=${AGENT_RUNTIME:-opencode}
+      - CURSOR_AGENT_PATH=/usr/local/bin/cursor-agent
+      - CURSOR_API_KEY=${CURSOR_API_KEY:-}
+      - CURSOR_MODEL=${CURSOR_MODEL:-auto}
       - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - WEB_CONTAINER_NAME=orbit-app

@@ -1,7 +1,6 @@
 import { createEventStream } from 'h3'
-import { spawn, exec } from 'child_process'
-import { promisify } from 'util'
-import { accessSync, constants, existsSync, mkdirSync } from 'fs'
+import { spawn } from 'child_process'
+import { existsSync, mkdirSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
@@ -13,10 +12,13 @@ import {
   pendingBrainstormMessages,
 } from '~/server/utils/brainstorm-runtime'
 import type { BrainstormProcState } from '~/server/utils/brainstorm-runtime'
-
-const execAsync = promisify(exec)
-
-const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
+import {
+  checkAgentRuntimeAvailability,
+  getAgentRuntimeLabel,
+  getOpencodePath,
+  resolveAppAgentRuntime,
+} from '~/server/utils/agent-runner'
+import { spawnCursorAgent } from '~/server/utils/cursor-agent'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
 
@@ -144,31 +146,24 @@ export default defineEventHandler(async (event) => {
     orderBy: [asc(schema.brainstormAttachments.createdAt)],
   })
 
-  let opencodeOk = false
-  try {
-    accessSync(opencodePath, constants.X_OK)
-    opencodeOk = true
-  } catch {}
+  const agentRuntime = await resolveAppAgentRuntime()
+  const runtimeLabel = getAgentRuntimeLabel(agentRuntime)
+  const runtimeCheck = await checkAgentRuntimeAvailability(agentRuntime)
 
   const stream = createEventStream(event)
 
   setTimeout(async () => {
-    let opencodeVersion = ''
-    if (opencodeOk) {
-      try {
-        const { stdout } = await execAsync(`"${opencodePath}" --version`, { timeout: 5000 })
-        opencodeVersion = stdout.trim()
-      } catch (versionErr: any) {
-        opencodeVersion = `version check failed: ${versionErr.message}`
-      }
-    }
-
-    if (!opencodeOk) {
-      await stream.push(JSON.stringify({ step: `opencode not found at ${opencodePath}`, timestamp: Date.now() }))
+    if (!runtimeCheck.ok) {
+      await stream.push(JSON.stringify({ step: runtimeCheck.error, timestamp: Date.now() }))
       stream.close()
       return
     }
-    await stream.push(JSON.stringify({ step: `opencode version: ${opencodeVersion || 'unknown'}`, timestamp: Date.now() }))
+    if (runtimeCheck.version) {
+      await stream.push(JSON.stringify({
+        step: `${runtimeLabel} version: ${runtimeCheck.version}`,
+        timestamp: Date.now(),
+      }))
+    }
 
     const existing = activeBrainstormProcesses.get(id)
     if (existing) {
@@ -312,34 +307,152 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       LC_ALL: process.env.LC_ALL,
       GITLAB_TOKEN: process.env.GITLAB_TOKEN,
       GITLAB_HOST: process.env.GITLAB_HOST,
+      CURSOR_API_KEY: process.env.CURSOR_API_KEY,
+      CURSOR_MODEL: process.env.CURSOR_MODEL,
+      CURSOR_AGENT_PATH: process.env.CURSOR_AGENT_PATH,
       ...(repoToken ? { GITHUB_TOKEN: repoToken } : {}),
     }
 
-    const spawnArgs = [
-      'run',
-      '--format', 'json',
-      '--dangerously-skip-permissions',
-      '--dir', workDir,
-    ]
     const attachmentFilePaths: string[] = []
     if (attachments.length > 0) {
       for (const att of attachments) {
         if (existsSync(att.path)) {
-          spawnArgs.push('--file', att.path)
           attachmentFilePaths.push(att.path)
         }
       }
     }
-    spawnArgs.push('--', fullMessage)
 
-    await stream.push(JSON.stringify({ step: `Exec: ${opencodePath} run --format json --dir ${workDir}${attachmentFilePaths.length > 0 ? ' --file ' + attachmentFilePaths.join(' --file ') : ''} -- "<message>"`, timestamp: Date.now() }))
+    let proc: import('child_process').ChildProcess
 
-    const proc = spawn(opencodePath, spawnArgs, {
-      cwd: workDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
-      env: minimalEnv,
-    })
+    if (agentRuntime === 'cursor') {
+      let cursorMessage = fullMessage
+      if (attachmentFilePaths.length > 0) {
+        cursorMessage += `\n\n[ATTACHED FILES]\nThe following files are attached and available for analysis:\n${attachmentFilePaths.map(p => `- ${p}`).join('\n')}`
+      }
+      await stream.push(JSON.stringify({
+        step: `Exec: cursor-agent --workspace ${workDir} "<message>"`,
+        timestamp: Date.now(),
+      }))
+
+      const entry: BrainstormProcState = { proc: null as any, streams: [], heartbeat: null }
+      activeBrainstormProcesses.set(id, entry)
+      addStreamToBrainstormProc(id, stream, entry)
+
+      let hasOutput = false
+      let lastActivity = Date.now()
+
+      try {
+        const cursorRun = await spawnCursorAgent(cursorMessage, {
+          workdir: workDir,
+          onText: async (_delta, accumulated) => {
+            lastActivity = Date.now()
+            hasOutput = true
+            const payload: any = { step: 'cursor content', timestamp: Date.now() }
+            if (accumulated.trim()) payload.agentReply = accumulated.trim()
+            await pushToBrainstormStreams(entry, JSON.stringify(payload))
+          },
+          onActivity: async (activity) => {
+            lastActivity = Date.now()
+            hasOutput = true
+            await pushToBrainstormStreams(entry, JSON.stringify({ step: activity, timestamp: Date.now() }))
+          },
+          onStderr: (text) => {
+            lastActivity = Date.now()
+            const trimmed = text.trim()
+            if (!trimmed) return
+            hasOutput = true
+            const level = trimmed.startsWith('ERROR') || trimmed.includes('error:') ? 'ERROR' : 'WARN'
+            pushToBrainstormStreams(entry, JSON.stringify({
+              step: `[${level}] ${trimmed.slice(0, 200)}`,
+              timestamp: Date.now(),
+            })).catch(() => {})
+          },
+        })
+        proc = cursorRun.proc
+        entry.proc = proc
+      } catch (err: any) {
+        await stream.push(JSON.stringify({ step: `Failed to start cursor-agent: ${err.message}`, timestamp: Date.now() }))
+        stream.close()
+        return
+      }
+
+      const runtimeTimeout = setTimeout(() => {
+        if (proc.exitCode === null) {
+          const msg = `Brainstorm timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
+          pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() })).catch(() => {})
+          try { proc.kill('SIGTERM') } catch {}
+          setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
+        }
+      }, MAX_RUNTIME_MS)
+
+      const heartbeat = setInterval(async () => {
+        const idle = Math.round((Date.now() - lastActivity) / 1000)
+        const alive = proc.exitCode === null
+        if (!hasOutput || idle > 30) {
+          const msg = alive ? `Waiting for ${runtimeLabel} (${idle}s)` : `Process exited (code ${proc.exitCode})`
+          await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+        }
+      }, 5000)
+      entry.heartbeat = heartbeat
+
+      const finalizeEntry = async (msg: string) => {
+        if (entry.proc === null) return
+        clearInterval(heartbeat)
+        clearTimeout(runtimeTimeout)
+        await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+        for (const s of entry.streams) {
+          try { s.close() } catch {}
+        }
+        entry.proc = null
+        entry.completedAt = Date.now()
+        entry.exitMessage = msg
+        setTimeout(() => {
+          if (activeBrainstormProcesses.get(id) === entry) {
+            activeBrainstormProcesses.delete(id)
+          }
+        }, 30000)
+      }
+
+      proc.on('error', async (err) => {
+        await finalizeEntry(`Failed to start ${runtimeLabel}: ${err.message}`)
+      })
+
+      proc.on('close', async (code, signal) => {
+        let msg: string
+        if (signal) {
+          msg = `Terminated by ${signal}`
+        } else {
+          msg = code === 0 ? 'Brainstorm session completed' : `Exited with code ${code}`
+        }
+        await finalizeEntry(msg)
+      })
+
+      return
+    } else {
+      const opencodePath = getOpencodePath()
+      const spawnArgs = [
+        'run',
+        '--format', 'json',
+        '--dangerously-skip-permissions',
+        '--dir', workDir,
+      ]
+      for (const filePath of attachmentFilePaths) {
+        spawnArgs.push('--file', filePath)
+      }
+      spawnArgs.push('--', fullMessage)
+
+      await stream.push(JSON.stringify({
+        step: `Exec: ${opencodePath} run --format json --dir ${workDir}${attachmentFilePaths.length > 0 ? ' --file ' + attachmentFilePaths.join(' --file ') : ''} -- "<message>"`,
+        timestamp: Date.now(),
+      }))
+
+      proc = spawn(opencodePath, spawnArgs, {
+        cwd: workDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        env: minimalEnv,
+      })
+    }
 
     const entry: BrainstormProcState = { proc, streams: [], heartbeat: null }
     activeBrainstormProcesses.set(id, entry)
@@ -362,71 +475,90 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
       const idle = Math.round((Date.now() - lastActivity) / 1000)
       const alive = proc.exitCode === null
       if (!hasOutput || idle > 30) {
-        const msg = alive ? `Waiting for opencode (${idle}s)` : `Process exited (code ${proc.exitCode})`
+        const msg = alive ? `Waiting for ${runtimeLabel} (${idle}s)` : `Process exited (code ${proc.exitCode})`
         await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
       }
     }, 5000)
     entry.heartbeat = heartbeat
 
-    const parseAndPush = async (line: string) => {
-      if (!line.trim()) return
-      try {
-        const evt = JSON.parse(line)
-        const part = evt.part
-        let logMsg = ''
-        let fullText = ''
-
-        switch (evt.type) {
-          case 'step_start':
-            logMsg = 'Step started'
-            break
-          case 'text':
-            fullText = typeof part === 'string' ? part : part.text || part.content || ''
-            logMsg = formatTextEvent(part)
-            break
-          case 'step_finish':
-            logMsg = 'Step completed'
-            break
-          case 'tool_use':
-            if (part?.state?.status === 'completed') {
-              logMsg = formatToolEvent(part)
-            }
-            break
-          case 'step_error':
-            logMsg = `Error: ${part?.error || 'unknown error'}`
-            break
-          default:
-            if (typeof part === 'string') {
-              logMsg = part.slice(0, 120)
-            }
-        }
-
-        if (logMsg || fullText) {
-          hasOutput = true
-          lastActivity = Date.now()
-          const payload: any = { step: logMsg, timestamp: Date.now() }
-          if (fullText) payload.agentReply = fullText.trim()
-          await pushToBrainstormStreams(entry, JSON.stringify(payload))
-        }
-      } catch {
-        lastActivity = Date.now()
-        const raw = line.trim().slice(0, 200)
-        if (raw) {
-          hasOutput = true
-          const msg = `opencode output: ${raw}`
-          await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
-        }
+    const finalizeEntry = async (msg: string) => {
+      if (entry.proc === null) return
+      clearInterval(heartbeat)
+      clearTimeout(runtimeTimeout)
+      hasOutput = true
+      await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+      for (const s of entry.streams) {
+        try { s.close() } catch {}
       }
+      entry.proc = null
+      entry.completedAt = Date.now()
+      entry.exitMessage = msg
+      setTimeout(() => {
+        if (activeBrainstormProcesses.get(id) === entry) {
+          activeBrainstormProcesses.delete(id)
+        }
+      }, 30000)
     }
 
-    proc.stdout?.on('data', (chunk: Buffer) => {
-      lineBuffer += chunk.toString()
-      const lines = lineBuffer.split('\n')
-      lineBuffer = lines.pop() || ''
-      for (const line of lines) {
-        if (line.trim()) parseAndPush(line.trim())
+    const parseAndPush = async (line: string) => {
+        if (!line.trim()) return
+        try {
+          const evt = JSON.parse(line)
+          const part = evt.part
+          let logMsg = ''
+          let fullText = ''
+
+          switch (evt.type) {
+            case 'step_start':
+              logMsg = 'Step started'
+              break
+            case 'text':
+              fullText = typeof part === 'string' ? part : part.text || part.content || ''
+              logMsg = formatTextEvent(part)
+              break
+            case 'step_finish':
+              logMsg = 'Step completed'
+              break
+            case 'tool_use':
+              if (part?.state?.status === 'completed') {
+                logMsg = formatToolEvent(part)
+              }
+              break
+            case 'step_error':
+              logMsg = `Error: ${part?.error || 'unknown error'}`
+              break
+            default:
+              if (typeof part === 'string') {
+                logMsg = part.slice(0, 120)
+              }
+          }
+
+          if (logMsg || fullText) {
+            hasOutput = true
+            lastActivity = Date.now()
+            const payload: any = { step: logMsg, timestamp: Date.now() }
+            if (fullText) payload.agentReply = fullText.trim()
+            await pushToBrainstormStreams(entry, JSON.stringify(payload))
+          }
+        } catch {
+          lastActivity = Date.now()
+          const raw = line.trim().slice(0, 200)
+          if (raw) {
+            hasOutput = true
+            const msg = `${runtimeLabel} output: ${raw}`
+            await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+          }
+        }
       }
-    })
+
+      proc.stdout?.on('data', (chunk: Buffer) => {
+        lineBuffer += chunk.toString()
+        const lines = lineBuffer.split('\n')
+        lineBuffer = lines.pop() || ''
+        for (const line of lines) {
+          if (line.trim()) parseAndPush(line.trim())
+        }
+      })
 
     proc.stderr?.on('data', (chunk: Buffer) => {
       lastActivity = Date.now()
@@ -442,51 +574,17 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     })
 
     proc.on('error', async (err) => {
-      if (entry.proc === null) return // Already finalized
-      clearInterval(heartbeat)
-      clearTimeout(runtimeTimeout)
-      hasOutput = true
-      const msg = `Failed to start opencode: ${err.message}`
-      await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
-      for (const s of entry.streams) {
-        try { s.close() } catch {}
-      }
-      entry.proc = null
-      entry.completedAt = Date.now()
-      entry.exitMessage = msg
-      setTimeout(() => {
-        if (activeBrainstormProcesses.get(id) === entry) {
-          activeBrainstormProcesses.delete(id)
-        }
-      }, 30000)
+      await finalizeEntry(`Failed to start ${runtimeLabel}: ${err.message}`)
     })
 
     proc.on('close', async (code, signal) => {
-      if (entry.proc === null) return // Already finalized
-      clearInterval(heartbeat)
-      clearTimeout(runtimeTimeout)
-      hasOutput = true
       let msg: string
       if (signal) {
         msg = `Terminated by ${signal}`
       } else {
         msg = code === 0 ? 'Brainstorm session completed' : `Exited with code ${code}`
       }
-      await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
-      // Close all streams so the client EventSource disconnects cleanly
-      for (const s of entry.streams) {
-        try { s.close() } catch {}
-      }
-      // Mark as completed to prevent reconnection loops
-      entry.proc = null
-      entry.completedAt = Date.now()
-      entry.exitMessage = msg
-      // Clean up after 30 seconds
-      setTimeout(() => {
-        if (activeBrainstormProcesses.get(id) === entry) {
-          activeBrainstormProcesses.delete(id)
-        }
-      }, 30000)
+      await finalizeEntry(msg)
     })
   }, 0)
 

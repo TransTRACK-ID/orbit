@@ -7,6 +7,7 @@ import { accessSync, constants } from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { isCursorInstalled, isCursorAuthenticated } from '~/server/utils/cursor-agent'
+import { resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
 
 const execAsync = promisify(exec)
 
@@ -73,10 +74,15 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 6. Build health map based on each agent's runtime
+  // 6. Build health map based on each agent's effective runtime
   const health: Record<string, 'idle' | 'busy' | 'offline'> = {}
   for (const agent of agents) {
-    const runtimeOk = agent.runtime === 'cursor' ? cursorRuntimeReachable : runtimeReachable
+    const effectiveRuntime = await resolveEffectiveRuntime(agent.runtime)
+    const runtimeOk = effectiveRuntime === 'cursor'
+      ? cursorRuntimeReachable
+      : effectiveRuntime === 'browser-qa'
+        ? true
+        : runtimeReachable
     if (!runtimeOk) {
       health[agent.id] = 'offline'
     } else if (busyAgentIds.has(agent.id)) {

@@ -267,6 +267,13 @@ export interface RuntimeInfo {
   desc: string
 }
 
+export interface AgentRuntimeOption extends RuntimeInfo {
+  id: string
+  enabled?: boolean
+  isDefault?: boolean
+  canDisable?: boolean
+}
+
 // ─── Pull Request ───
 export interface PullRequest {
   id: string

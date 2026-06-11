@@ -330,7 +330,7 @@ definePageMeta({
   layout: 'default',
 })
 
-const { agents, loading, agentCounts, runtimeInfo, runtimes, getAgentStatus, runtimeReachable, fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent: deleteAgentApi, getAgentCurrentTasks } = useAgent()
+const { agents, loading, agentCounts, runtimeInfo, runtimes, getAgentStatus, runtimeReachable, fetchAgents, fetchHealth, createAgent, updateAgent, deleteAgent: deleteAgentApi, getAgentCurrentTasks, defaultRuntime, resolveTemplateRuntime } = useAgent()
 const { addLog } = useLog()
 
 let healthInterval: ReturnType<typeof setInterval> | null = null
@@ -403,7 +403,7 @@ function openCreateModalWithTemplate(templateKey: string) {
   editingAgent.value = null
   form.name = template.name || ''
   form.role = template.role || 'Custom Agent'
-  form.runtime = template.runtime || 'opencode'
+  form.runtime = resolveTemplateRuntime(template.runtime || defaultRuntime.value)
   form.purpose = template.purpose || ''
   form.status = (template.status as AgentStatus) || 'idle'
   form.color = template.color || '#7C3AED'
@@ -430,7 +430,7 @@ function closeModal() {
 function resetForm() {
   form.name = ''
   form.role = 'Custom Agent'
-  form.runtime = 'opencode'
+  form.runtime = defaultRuntime.value
   form.purpose = ''
   form.status = 'idle'
   form.color = '#7C3AED'
@@ -441,11 +441,15 @@ async function saveAgent() {
 
   saving.value = true
   try {
+    const payload = {
+      ...form,
+      runtime: resolveTemplateRuntime(form.runtime),
+    }
     if (editingAgent.value) {
-      await updateAgent(editingAgent.value.id, { ...form })
+      await updateAgent(editingAgent.value.id, payload)
       addLog('System', `Updated agent "${form.name}"`)
     } else {
-      await createAgent({ ...form })
+      await createAgent(payload)
       addLog('System', `Created agent "${form.name}"`)
     }
     closeModal()

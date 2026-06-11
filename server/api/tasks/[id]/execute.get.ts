@@ -157,6 +157,7 @@ function formatTextEvent(part: any): string {
 
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
+import { resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
 import { enqueueBrowserJob } from '~/server/utils/browser-queue'
 import type { BrowserRunConfig } from '~/server/utils/browser-runtime'
 import { getDiffSummary } from '~/server/utils/git-summary'
@@ -347,7 +348,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  const agentRuntime = (task.agentAssignee?.runtime as string) || process.env.AGENT_RUNTIME || 'opencode'
+  const requestedRuntime = (task.agentAssignee?.runtime as string) || process.env.AGENT_RUNTIME || 'opencode'
+  const agentRuntime = await resolveEffectiveRuntime(requestedRuntime)
+  const runtimeFallbackMessage = requestedRuntime !== agentRuntime
+    ? `Runtime "${requestedRuntime}" is disabled — falling back to "${agentRuntime}"`
+    : null
 
   let opencodeOk = false
   let cursorOk = false
@@ -461,6 +466,10 @@ export default defineEventHandler(async (event) => {
     async function pushAndPersist(msg: string) {
       await stream.push(JSON.stringify({ step: msg, timestamp: Date.now() }))
       await persistLog(msg)
+    }
+
+    if (runtimeFallbackMessage) {
+      await pushAndPersist(runtimeFallbackMessage)
     }
 
     let lineBuffer = ''
@@ -1021,7 +1030,7 @@ export default defineEventHandler(async (event) => {
       return
     }
     // ── Browser QA runtime branch ──
-    if (task.agentAssignee?.runtime === 'browser-qa') {
+    if (agentRuntime === 'browser-qa') {
       await pushAndPersist(`Browser QA agent assigned — preparing dev server and browser container...`)
 
       const outputDir = `${workDir}/.orbit-browser-output/${id}`

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process'
+import { readFileSync, existsSync } from 'fs'
 
 export interface AnalyzeOptions {
   /** Working directory for the Cursor session. */
@@ -120,7 +121,24 @@ export async function spawnCursorAgent(
     args.push('--workspace', workdir)
   }
 
-  args.push(prompt)
+  // Cursor CLI does not natively read AGENTS.md (OpenCode's instructions file).
+  // It uses .cursorrules / .cursor/rules/*.mdc instead. To keep behavior aligned
+  // with the existing agent instructions, read AGENTS.md from the same path
+  // used by OpenCode and prepend it to the prompt as system instructions.
+  const agentsMdPath = process.env.CURSOR_AGENTS_MD_PATH || process.env.AGENTS_MD_PATH || '/root/.config/opencode/AGENTS.md'
+  let finalPrompt = prompt
+  try {
+    if (existsSync(agentsMdPath)) {
+      const agentsMd = readFileSync(agentsMdPath, 'utf-8')
+      if (agentsMd.trim()) {
+        finalPrompt = `[SYSTEM INSTRUCTIONS]\n${agentsMd.trim()}\n\n[USER REQUEST]\n${prompt}`
+      }
+    }
+  } catch {
+    // Non-fatal: if reading AGENTS.md fails, continue with the raw prompt.
+  }
+
+  args.push(finalPrompt)
 
   let accumulated = ''
   let chatId: string | undefined

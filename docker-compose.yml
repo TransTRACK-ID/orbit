@@ -18,8 +18,8 @@ services:
       - OPENCODE_CONFIG_BASE64=${OPENCODE_CONFIG_BASE64:-}
       # Agent runtime selection: opencode (default) | cursor
       - AGENT_RUNTIME=${AGENT_RUNTIME:-opencode}
-      - NUXT_AGENT_RUNTIME=${AGENT_RUNTIME:-opencode}
-      - NUXT_PUBLIC_AGENT_RUNTIME=${AGENT_RUNTIME:-opencode}
+      - NUXT_AGENT_RUNTIME=${NUXT_AGENT_RUNTIME:-${AGENT_RUNTIME:-opencode}}
+      - NUXT_PUBLIC_AGENT_RUNTIME=${NUXT_PUBLIC_AGENT_RUNTIME:-${AGENT_RUNTIME:-opencode}}
       - CURSOR_AGENT_PATH=/usr/local/bin/cursor-agent
       - CURSOR_API_KEY=${CURSOR_API_KEY:-}
       - CURSOR_MODEL=${CURSOR_MODEL:-auto}

@@ -6,7 +6,7 @@ Orbit is a project management platform that blends traditional kanban task track
 
 - **Kanban boards** — workspaces, projects, customizable columns, labels, and priorities
 - **AI agent execution** — assign tasks to agents powered by OpenCode or Cursor CLI
-- **Repository integration** — connect GitHub or GitLab repositories per project
+- **Repository integration** — connect GitHub or GitLab repositories per project, or scaffold from built-in templates
 - **Pull request workflow** — create, review, and track PRs linked to tasks
 - **Brainstorm mode** — chat with agents about a repository before writing a PRD
 - **Live preview** — spin up dev servers for task worktrees in isolated environments
@@ -64,7 +64,19 @@ See [.env.example](.env.example) for the full list.
 
 ## Project templates
 
-Orbit can scaffold new repositories from built-in templates (e.g. Nuxt 3 SPA). Templates live in `server/templates/` and are configured in `server/data/templates.json`. You can also connect an existing repository instead of using a template.
+Orbit ships with built-in project templates so you can scaffold a new repository without leaving the UI.
+
+**In the app:** Create Project → **From Template** → pick a starter (e.g. **Nuxt 3 SPA Starter**) → configure name and variables. Orbit copies the template into `ORBIT_PROJECTS_DIR`, substitutes placeholders, and initializes git. You can also use templates from **Brainstorm** when creating a new repository.
+
+**Bring your own repo:** Create a blank project and connect an existing GitHub/GitLab repository in workspace settings — templates are optional.
+
+| Template | Stack | What you get |
+|----------|-------|--------------|
+| `nuxt3-spa-starter` | Node / Nuxt 3 | SPA with Pinia, Tailwind, auth scaffolding, PWA, and Vitest |
+
+Template sources live in `server/templates/`; registry in `server/data/templates.json`. Super admins can add templates via **Admin → Templates**.
+
+See [docs/PROJECT_TEMPLATES.md](docs/PROJECT_TEMPLATES.md) for variables, customization, and how to author new templates.
 
 ## Architecture
 
@@ -87,6 +99,7 @@ Browser (Vue/Nuxt)
 - [SECURITY.md](SECURITY.md) — vulnerability reporting
 - [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) — Docker and production deployment
 - [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) — OpenCode, Cursor, and browser QA setup
+- [docs/PROJECT_TEMPLATES.md](docs/PROJECT_TEMPLATES.md) — scaffold projects from built-in templates
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community guidelines
 
 ## License

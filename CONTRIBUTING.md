@@ -56,6 +56,10 @@ Thank you for your interest in contributing! This guide covers local setup and t
 
 See [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) for full setup instructions for OpenCode, Cursor CLI, and browser QA agents.
 
+## Project templates
+
+Built-in templates live in `server/templates/` and are registered in `server/data/templates.json`. To add or modify a template, see [docs/PROJECT_TEMPLATES.md](docs/PROJECT_TEMPLATES.md).
+
 ## Questions?
 
 Open a GitHub issue for bugs or feature requests. For security issues, see [SECURITY.md](SECURITY.md).

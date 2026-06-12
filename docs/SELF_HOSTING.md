@@ -26,7 +26,7 @@ The app is exposed on port 3000 by default. For production, place a reverse prox
 
 | Host path | Container path | Purpose |
 |-----------|----------------|---------|
-| `~/orbit-projects` | `/root/orbit-projects` | Git clones and task worktrees |
+| `~/orbit-projects` | `/root/orbit-projects` | Git clones, task worktrees, and repos scaffolded from [project templates](PROJECT_TEMPLATES.md) |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Browser QA agent (optional) |
 
 Override paths with environment variables:

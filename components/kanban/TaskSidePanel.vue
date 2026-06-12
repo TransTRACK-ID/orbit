@@ -705,7 +705,10 @@
                       <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
                       <span class="text-xs text-surface-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
+                    <KanbanMarkdownBody
+                      :content="comment.body"
+                      wrapper-class="text-sm text-surface-700 leading-relaxed comment-body"
+                    />
                   </div>
                 </div>
 
@@ -726,7 +729,10 @@
                       <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
                       <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <div class="text-sm text-primary-800 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
+                    <KanbanMarkdownBody
+                      :content="comment.body"
+                      wrapper-class="text-sm text-primary-800 leading-relaxed comment-body"
+                    />
                   </div>
                 </div>
               </template>
@@ -1164,7 +1170,10 @@
                         <span v-if="comment.path" class="text-[9px] text-surface-400 font-mono truncate">{{ comment.path }}{{ comment.line ? `:${comment.line}` : '' }}</span>
                         <span v-if="comment.isReview" class="text-[9px] text-amber-500 ml-auto">review</span>
                       </div>
-                      <div class="text-[11px] text-surface-600 leading-relaxed review-feedback-body" v-html="parseMarkdown(comment.body)" />
+                      <KanbanMarkdownBody
+                        :content="comment.body"
+                        wrapper-class="text-[11px] text-surface-600 leading-relaxed review-feedback-body comment-body"
+                      />
                     </div>
                   </div>
 
@@ -1611,6 +1620,7 @@
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment } from '~/types'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
+import { parseMarkdown } from '~/utils/markdown'
 import { useDebounceFn } from '@vueuse/core'
 import { nextTick, onMounted, onUnmounted } from 'vue'
 
@@ -2920,63 +2930,10 @@ async function handleFixFeedback() {
   }
 }
 
-function parseMarkdown(md: string): string {
-  if (!md) return '<p class="text-surface-400 italic">No description provided</p>'
-
-  // 1. Extract fenced code blocks first so they don't get processed by other rules
-  const codeBlocks: string[] = []
-  let processed = md.replace(/```(\w*)?\n([\s\S]*?)```/g, (_match, lang, code) => {
-    const idx = codeBlocks.length
-    codeBlocks.push(code)
-    return `__FENCED_BLOCK_${idx}__`
-  })
-
-  // 2. Extract inline code so it doesn't get wrapped in paragraphs
-  const inlineCodes: string[] = []
-  processed = processed.replace(/`([^`]+)`/g, (_match, code) => {
-    const idx = inlineCodes.length
-    inlineCodes.push(code)
-    return `__INLINE_CODE_${idx}__`
-  })
-
-  // 3. Process markdown structure
-  processed = processed
-    .replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, text) => {
-      const level = hashes.length
-      return `<h${level} class="font-semibold text-slate-800 mt-2 mb-1">${text}</h${level}>`
-    })
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="rounded-lg border border-surface-200 max-w-full my-2" />')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary-600 hover:text-primary-700 underline">$1</a>')
-    .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^(.*)$/gm, (match) => {
-      // Don't wrap placeholders, images, or empty lines in paragraphs
-      if (/^__(FENCED_BLOCK|INLINE_CODE)_\d+__$/.test(match.trim()) || !match.trim() || /^<img\b/.test(match.trim())) return match
-      return `<p class="mb-1">${match}</p>`
-    })
-    .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')
-    .replace(/<p class="mb-1"><li class="ml-4">(.*?)<\/li><\/p>/g, '<li class="ml-4">$1</li>')
-    .replace(/(<li class="ml-4">.*?<\/li>\s*)+/g, '<ul class="list-disc pl-2 my-1">$&</ul>')
-    .replace(/\n/g, '')
-
-  // 4. Restore inline code
-  processed = processed.replace(/__INLINE_CODE_(\d+)__/g, (_match, idx) => {
-    return `<code>${inlineCodes[parseInt(idx)]}</code>`
-  })
-
-  // 5. Restore fenced code blocks as <pre><code>
-  processed = processed.replace(/__FENCED_BLOCK_(\d+)__/g, (_match, idx) => {
-    const code = codeBlocks[parseInt(idx)]
-    return `<pre><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`
-  })
-
-  return processed
-}
-
 const renderedDescription = computed(() => {
-  return parseMarkdown(task.value?.description || '')
+  const desc = task.value?.description || ''
+  if (!desc.trim()) return '<p class="text-surface-400 italic">No description provided</p>'
+  return parseMarkdown(desc)
 })
 
 onMounted(async () => {
@@ -3917,5 +3874,81 @@ function formatActivity(log: ActivityLog) {
 }
 .dark .comment-body :deep(img) {
   border-color: #334155;
+}
+
+.comment-body :deep(del),
+.comment-body :deep(s) {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.comment-body :deep(hr) {
+  margin: 8px 0;
+  border-color: #e2e8f0;
+}
+.dark .comment-body :deep(hr) {
+  border-color: #334155;
+}
+
+.comment-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.comment-body :deep(th),
+.comment-body :deep(td) {
+  border: 1px solid #e2e8f0;
+  padding: 4px 6px;
+  text-align: left;
+}
+.dark .comment-body :deep(th),
+.dark .comment-body :deep(td) {
+  border-color: #334155;
+}
+
+.comment-body :deep(th) {
+  background: #f8fafc;
+  font-weight: 600;
+}
+.dark .comment-body :deep(th) {
+  background: #0f172a;
+}
+
+.comment-body :deep(input[type='checkbox']) {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.comment-body :deep(details) {
+  margin: 6px 0;
+}
+
+.comment-body :deep(summary) {
+  cursor: pointer;
+  font-weight: 500;
+  color: #475569;
+}
+
+.comment-body :deep(summary:hover) {
+  color: #1e293b;
+}
+.dark .comment-body :deep(summary) {
+  color: #94a3b8;
+}
+.dark .comment-body :deep(summary:hover) {
+  color: #f1f5f9;
+}
+
+.comment-body :deep(.mermaid) {
+  margin: 8px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.comment-body :deep(.mermaid svg) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

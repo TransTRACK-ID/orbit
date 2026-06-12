@@ -33,6 +33,7 @@
 
     <div
       v-else
+      ref="previewRoot"
       class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
       v-html="rendered"
     />
@@ -49,31 +50,18 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const tab = ref<'write' | 'preview'>('write')
+import { parseMarkdown } from '~/utils/markdown'
+import { useMermaidRender } from '~/composables/useMermaid'
 
-function parseMarkdown(md: string): string {
-  return md
-    .replace(/\\n/g, '\n')
-    .replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, text) => {
-      const level = hashes.length
-      return `<h${level} class="font-semibold text-slate-800 mt-2 mb-1">${text}</h${level}>`
-    })
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-xs">$1</code>')
-    .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^(.*)$/gm, '<p class="mb-1">$1</p>')
-    .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')
-    .replace(/<p class="mb-1"><li class="ml-4">(.*?)<\/li><\/p>/g, '<li class="ml-4">$1</li>')
-    .replace(/(<li class="ml-4">.*?<\/li>\s*)+/g, '<ul class="list-disc pl-2 my-1">$&</ul>')
-    .replace(/\n/g, '')
-}
+const tab = ref<'write' | 'preview'>('write')
+const previewRoot = ref<HTMLElement | null>(null)
 
 const rendered = computed(() => {
   if (!props.modelValue) return '<p class="text-surface-400 italic">No description provided</p>'
   return parseMarkdown(props.modelValue)
 })
+
+useMermaidRender(previewRoot, () => tab.value, () => props.modelValue)
 
 function onInput(e: Event) {
   const target = e.target as HTMLTextAreaElement
@@ -202,5 +190,14 @@ function onInput(e: Event) {
 }
 .dark .prose :deep(th) {
   background: #0f172a;
+}
+.prose :deep(.mermaid) {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.prose :deep(.mermaid svg) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

@@ -1,6 +1,6 @@
 {
   "name": "orbit",
-  "private": true,
+  "private": false,
   "type": "module",
   "scripts": {
     "dev": "nuxt dev --no-fork",
@@ -21,7 +21,6 @@
     "@tiptap/extension-placeholder": "^2.6.0",
     "@tiptap/starter-kit": "^2.6.0",
     "@tiptap/vue-3": "^2.6.0",
-    "@transtrack/ui": "^1.0.0",
     "@vueuse/core": "^11.0.0",
     "@vueuse/integrations": "^11.0.0",
     "autoprefixer": "^10.4.0",

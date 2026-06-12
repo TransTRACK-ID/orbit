@@ -11,6 +11,7 @@ import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
 import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent'
+import { getAttachmentsDir, getOpencodePath } from '~/server/utils/paths'
 
 const execAsync = promisify(exec)
 
@@ -298,7 +299,6 @@ function generateHumanSummary(diffContent: string, changedFiles: string[]): stri
   return `${pieces.join('; ')} ${fileList}.`
 }
 
-const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
 
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
@@ -354,6 +354,7 @@ export default defineEventHandler(async (event) => {
     ? `Runtime "${requestedRuntime}" is disabled — falling back to "${agentRuntime}"`
     : null
 
+  const opencodePath = getOpencodePath()
   let opencodeOk = false
   let cursorOk = false
   if (agentRuntime === 'cursor') {
@@ -1107,8 +1108,7 @@ export default defineEventHandler(async (event) => {
         let attachmentUrl: string | null = null
         if (screenshotPath) {
           try {
-            const HOME = process.env.HOME || '/root'
-            const ATTACHMENTS_DIR = `${HOME}/orbit-attachments`
+            const ATTACHMENTS_DIR = getAttachmentsDir()
             const taskAttachDir = path.join(ATTACHMENTS_DIR, id)
             mkdirSync(taskAttachDir, { recursive: true })
             const attachFilename = `qa-screenshot-${randomUUID()}.png`

@@ -8,16 +8,16 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { isCursorInstalled, isCursorAuthenticated } from '~/server/utils/cursor-agent'
 import { resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
+import { getOpencodePath } from '~/server/utils/paths'
 
 const execAsync = promisify(exec)
-
-const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const db = getDb()
 
   // 1. Check if opencode binary is reachable
+  const opencodePath = getOpencodePath()
   let runtimeReachable = false
   try {
     accessSync(opencodePath, constants.X_OK)

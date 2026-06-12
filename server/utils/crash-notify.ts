@@ -1,10 +1,8 @@
 /**
  * crash-notify.ts
  * Fires a JSON POST webhook when an agent process crashes or exits with an error.
- * Set CRASH_WEBHOOK_URL in your environment to override the default endpoint.
+ * Set CRASH_WEBHOOK_URL in your environment to enable notifications.
  */
-
-const DEFAULT_WEBHOOK_URL = 'https://webhook.transtrack.id/24201b64-d5e3-4a44-8329-4597d4352cdb'
 
 export interface CrashPayload {
   taskId: string
@@ -19,7 +17,7 @@ export interface CrashPayload {
 }
 
 export async function fireCrashWebhook(payload: CrashPayload): Promise<void> {
-  const url = process.env.CRASH_WEBHOOK_URL || DEFAULT_WEBHOOK_URL
+  const url = process.env.CRASH_WEBHOOK_URL
   if (!url) return
 
   try {

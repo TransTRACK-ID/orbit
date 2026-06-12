@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import type { EventStream } from 'h3'
+import { getHostHome } from './paths'
 import { startPreview, stopPreview } from './preview-orchestrator'
 
 export type BrowserRunConfig = {
@@ -94,11 +95,8 @@ export async function runBrowserContainer(
   if (hostOutputDir.startsWith('/root/orbit-projects')) {
     // If running in Docker Desktop on Mac/Windows, the volume was mapped from ~/orbit-projects.
     // However, '~' is not expanded by the docker daemon, so we need an absolute path.
-    // For simplicity, we expect the host's actual HOME to be passed, or we assume a Mac default
-    // if not provided, but since we cannot reliably guess the host's absolute path from inside 
-    // the container without a dedicated env var, we'll replace /root with the HOST_HOME if available,
-    // otherwise fallback to a best-guess Mac path if running under zeinersyad.
-    const hostHome = process.env.HOST_HOME || '/Users/zeinersyad'
+    // Replace container /root paths with the host home when volume mounts use host paths.
+    const hostHome = getHostHome()
     hostOutputDir = hostOutputDir.replace('/root/orbit-projects', `${hostHome}/orbit-projects`)
   }
 

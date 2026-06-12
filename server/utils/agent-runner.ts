@@ -4,12 +4,9 @@ import { accessSync, constants } from 'fs'
 import { getDefaultAgentRuntime, resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
 import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent'
 import { processOpencodeLine } from '~/server/utils/opencode-parser'
+import { getOpencodePath } from '~/server/utils/paths'
 
 const execAsync = promisify(exec)
-
-export function getOpencodePath(): string {
-  return process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
-}
 
 export function getAgentRuntimeLabel(runtime: string): string {
   return runtime === 'cursor' ? 'cursor-agent' : 'opencode'

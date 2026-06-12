@@ -5,11 +5,12 @@ import { randomUUID } from 'crypto'
 import { mkdirSync, writeFileSync, existsSync } from 'fs'
 import { readMultipartFormData } from 'h3'
 import path from 'path'
+import { getBrainstormAttachmentsDir } from '~/server/utils/paths'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const MAX_ATTACHMENTS = 3
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
-const ATTACHMENTS_DIR = `${process.env.HOME || '/Users/zeinersyad'}/orbit-attachments/brainstorms`
+const ATTACHMENTS_DIR = getBrainstormAttachmentsDir()
 
 export default defineEventHandler(async (event) => {
   const { id: brainstormId } = getRouterParams(event)

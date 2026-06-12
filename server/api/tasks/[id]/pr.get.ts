@@ -4,6 +4,7 @@ import { existsSync } from 'fs'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
+import { projectsDir } from '~/server/utils/worktree-resolver'
 
 const execAsync = promisify(exec)
 
@@ -15,8 +16,6 @@ function sanitizeBranchName(title: string): string {
       .replace(/^-+|-+$/g, '')
       .slice(0, 50)
 }
-
-const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)

@@ -3,6 +3,8 @@
  * Extracted to avoid duplication between execute.get.ts, pr.post.ts, and brainstorm chat.
  */
 
+import { getProjectsDir } from './paths'
+
 export function injectTokenIntoRemoteUrl(url: string, platform: string, token?: string | null): string {
   if (!token) return url
 
@@ -19,7 +21,7 @@ export function injectTokenIntoRemoteUrl(url: string, platform: string, token?: 
   return url.replace(/^https:\/\//, `https://oauth2:${token}@`)
 }
 
-const projectsDir = `${process.env.HOME || '/root'}/orbit-projects`
+const projectsDir = getProjectsDir()
 
 export function getCloneDir(repoUrl: string, repoName?: string): string {
   const name = repoName || repoUrl.split('/').pop()?.replace('.git', '') || 'repo'

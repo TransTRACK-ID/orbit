@@ -8,8 +8,6 @@ import { resolveCloneDir } from '~/server/utils/worktree-resolver'
 
 const execAsync = promisify(exec)
 
-const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
-
 async function runGitDiff(repoDir: string, base: string, head: string) {
   const { stdout: diffStat } = await execAsync(`git diff --stat ${base}...${head}`, { cwd: repoDir })
   const { stdout: diffOutput } = await execAsync(`git diff ${base}...${head}`, { cwd: repoDir })
@@ -54,7 +52,7 @@ export default defineEventHandler(async (event) => {
     return { files: [], totalAdditions: 0, totalDeletions: 0, rawDiff: '', error: 'No repository linked' }
   }
 
-  const cloneDir = resolveCloneDir(projectsDir, repo.url, repo.name)
+  const cloneDir = resolveCloneDir(repo.url, repo.name)
   const baseBranch = pr.baseBranch || repo.defaultBranch || 'main'
   const headBranch = pr.headBranch || pr.task?.branchName || ''
 

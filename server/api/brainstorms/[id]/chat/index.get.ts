@@ -15,44 +15,13 @@ import type { BrainstormProcState } from '~/server/utils/brainstorm-runtime'
 import {
   checkAgentRuntimeAvailability,
   getAgentRuntimeLabel,
-  getOpencodePath,
   resolveAppAgentRuntime,
 } from '~/server/utils/agent-runner'
+import { getOpencodePath } from '~/server/utils/paths'
 import { spawnCursorAgent } from '~/server/utils/cursor-agent'
-const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
+import { resolveCloneDir, projectsDir } from '~/server/utils/worktree-resolver'
+
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
-
-function extractRepoName(url: string): string {
-  const match = url.match(/\/([^/]+?)(\.git)?$/)
-  return match ? match[1] : 'repo'
-}
-
-function sanitizeDirName(name: string): string {
-  return name
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9._-]/g, '')
-    .replace(/^-+|-+$/g, '')
-    || 'repo'
-}
-
-function resolveCloneDir(projectsDir: string, repoUrl: string, repoName?: string | null): string {
-  const urlName = sanitizeDirName(extractRepoName(repoUrl))
-  const displayName = repoName ? sanitizeDirName(repoName) : null
-  const rawDisplayName = repoName ? repoName.trim() : null
-
-  if (rawDisplayName) {
-    const rawDisplayDir = `${projectsDir}/${rawDisplayName}`
-    if (existsSync(rawDisplayDir)) return rawDisplayDir
-  }
-
-  if (displayName) {
-    const displayDir = `${projectsDir}/${displayName}`
-    if (existsSync(displayDir)) return displayDir
-  }
-
-  return `${projectsDir}/${urlName}`
-}
 
 function formatToolEvent(part: any): string {
   if (!part) return ''
@@ -209,7 +178,7 @@ export default defineEventHandler(async (event) => {
     }
 
     if (repoUrl) {
-      const cloneDir = resolveCloneDir(projectsDir, repoUrl, repoName)
+      const cloneDir = resolveCloneDir(repoUrl, repoName, projectsDir)
 
       if (!existsSync(cloneDir)) {
         await stream.push(JSON.stringify({ step: `Cloning ${repoUrl}...`, timestamp: Date.now() }))

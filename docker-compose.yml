@@ -13,6 +13,8 @@ services:
       - AUTH_ORIGIN=${AUTH_ORIGIN:-http://localhost:3000}
       - PROJECT_DIR=/app
       - HOME=/root
+      - ORBIT_PROJECTS_DIR=/root/orbit-projects
+      - ORBIT_ATTACHMENTS_DIR=/root/orbit-attachments
       - OPENCODE_PATH=/root/.opencode/bin/opencode
       # Base64-encoded opencode.json (use: base64 -i opencode/opencode.json)
       - OPENCODE_CONFIG_BASE64=${OPENCODE_CONFIG_BASE64:-}
@@ -44,10 +46,12 @@ services:
     entrypoint: ["sh", "-c", "echo 'Browser agent image built successfully' && exit 0"]
     restart: "no"
 
-# Shared network with orbit-docs nginx reverse proxy
+# For standalone self-hosting, use the default bridge network.
+# For deployments behind orbit-docs nginx, set ORBIT_NETWORK=orbit-shared and create the external network first.
 networks:
   orbit-shared:
-    external: true
+    name: ${ORBIT_NETWORK:-orbit-default}
+    driver: bridge
 
 volumes:
   orbit-pgdata:

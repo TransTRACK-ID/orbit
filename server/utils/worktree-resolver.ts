@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'fs'
+import { getProjectsDir } from '~/server/utils/paths'
 
-const DEFAULT_PROJECTS_DIR = `${process.env.HOME || '/root'}/orbit-projects`
+const DEFAULT_PROJECTS_DIR = getProjectsDir()
 
 function extractRepoName(url: string): string {
   const match = url.match(/\/([^/]+?)(\.git)?$/)

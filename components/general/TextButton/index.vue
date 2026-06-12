@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { color } from "chart.js/helpers";
 import { computed } from "vue";
 import Loading from "~/components/icons/Loading/index.vue";
 

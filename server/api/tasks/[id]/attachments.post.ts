@@ -5,10 +5,11 @@ import { randomUUID } from 'crypto'
 import { mkdirSync, writeFileSync, existsSync } from 'fs'
 import { readMultipartFormData } from 'h3'
 import path from 'path'
+import { getAttachmentsDir } from '~/server/utils/paths'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'text/html', 'text/markdown', 'text/plain']
-const ATTACHMENTS_DIR = `${process.env.HOME || '/Users/zeinersyad'}/orbit-attachments`
+const ATTACHMENTS_DIR = getAttachmentsDir()
 
 export default defineEventHandler(async (event) => {
   const { id: taskId } = getRouterParams(event)

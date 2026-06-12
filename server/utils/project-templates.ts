@@ -5,9 +5,11 @@ import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { injectTokenIntoRemoteUrl } from './git-helpers'
+import { getProjectsDir } from './paths'
 
 const execAsync = promisify(exec)
-const projectsDir = `${process.env.HOME || '/root'}/orbit-projects`
+
+const projectsDir = getProjectsDir()
 
 /**
  * Resolve the project root directory by checking multiple strategies.
@@ -232,7 +234,7 @@ export async function initializeFromTemplate(
   // Git init
   if (template.gitInit) {
     await execAsync('git init', execOptions)
-    await execAsync('git config user.email "orbit@transtrack.ai"', execOptions)
+    await execAsync('git config user.email "orbit@users.noreply.github.com"', execOptions)
     await execAsync('git config user.name "Orbit"', execOptions)
     await execAsync('git add -A', execOptions)
     await execAsync(`git commit -m "${template.initialCommitMessage}"`, execOptions)

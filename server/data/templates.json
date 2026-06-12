@@ -2,7 +2,7 @@
   {
     "id": "nuxt3-spa-starter",
     "name": "Nuxt 3 SPA Starter",
-    "description": "Full-featured Nuxt 3 SPA with auth, Pinia, Tailwind, PWA, and testing",
+    "description": "Minimal Nuxt 3 SPA with Tailwind CSS — a clean starting point for new projects",
     "category": "frontend",
     "stack": "node",
     "sourceType": "local_path",

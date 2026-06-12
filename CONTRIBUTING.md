@@ -54,13 +54,7 @@ Thank you for your interest in contributing! This guide covers local setup and t
 
 ## Agent runtimes
 
-Orbit supports multiple agent backends:
-
-| Runtime | Env var | Notes |
-|---------|---------|-------|
-| OpenCode | `AGENT_RUNTIME=opencode` | Default; requires OpenCode CLI on PATH |
-| Cursor | `AGENT_RUNTIME=cursor` | Requires `CURSOR_API_KEY` |
-| Browser QA | Per-agent config | Requires Docker and `FIREWORKS_API_KEY` |
+See [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) for full setup instructions for OpenCode, Cursor CLI, and browser QA agents.
 
 ## Questions?
 

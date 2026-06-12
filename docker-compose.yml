@@ -6,7 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: orbit-app
-    # Port 3000 is internal only — nginx (in orbit-docs compose) proxies external traffic
+    ports:
+      - "3000:3000"
     environment:
       - POSTGRES_URL=${POSTGRES_URL}
       - NUXT_AUTH_SECRET=${NUXT_AUTH_SECRET:-your-super-secret-key-at-least-32-chars-long}
@@ -27,6 +28,7 @@ services:
       - CURSOR_MODEL=${CURSOR_MODEL:-auto}
       - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - BROWSER_QA_LLM_MODEL=${BROWSER_QA_LLM_MODEL:-}
       - WEB_CONTAINER_NAME=orbit-app
     volumes:
       # Mount the orbit-projects directory to preserve git clones between restarts

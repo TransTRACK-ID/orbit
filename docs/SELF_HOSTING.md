@@ -20,7 +20,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-The app listens on port 3000 inside the container. Expose it directly or place a reverse proxy in front.
+The app is exposed on port 3000 by default. For production, place a reverse proxy with TLS in front and set `AUTH_ORIGIN` to your public URL.
 
 ## Volume mounts
 

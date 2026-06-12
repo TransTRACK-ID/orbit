@@ -105,7 +105,7 @@ export async function runBrowserContainer(
     '--rm',
     '-e', `FIREWORKS_API_KEY=${apiKey}`,
     '-e', `FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1`,
-    '-e', `LLM_MODEL=accounts/fireworks/routers/kimi-k2p6-turbo`,
+    '-e', `LLM_MODEL=${process.env.BROWSER_QA_LLM_MODEL || 'accounts/fireworks/routers/kimi-k2p6-turbo'}`,
     '-e', `HEADED=${config.headed}`,
     '-v', `${hostOutputDir}:/output`,
   ]

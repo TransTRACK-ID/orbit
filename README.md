@@ -58,8 +58,13 @@ By default, repository clones are stored in `~/orbit-projects` on the host (moun
 | `ORBIT_PROJECTS_DIR` | Where git clones/worktrees are stored |
 | `ORBIT_ATTACHMENTS_DIR` | Where uploaded attachments are stored |
 | `CRASH_WEBHOOK_URL` | Optional webhook for agent crash notifications |
+| `BROWSER_QA_LLM_MODEL` | Fireworks model for browser QA agent (optional) |
 
 See [.env.example](.env.example) for the full list.
+
+## Project templates
+
+Orbit can scaffold new repositories from built-in templates (e.g. Nuxt 3 SPA). Templates live in `server/templates/` and are configured in `server/data/templates.json`. You can also connect an existing repository instead of using a template.
 
 ## Architecture
 
@@ -81,6 +86,8 @@ Browser (Vue/Nuxt)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and code conventions
 - [SECURITY.md](SECURITY.md) — vulnerability reporting
 - [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) — Docker and production deployment
+- [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) — OpenCode, Cursor, and browser QA setup
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community guidelines
 
 ## License
 

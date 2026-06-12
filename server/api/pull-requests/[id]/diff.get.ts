@@ -18,15 +18,45 @@ async function runGitDiff(repoDir: string, base: string, head: string) {
   let totalAdditions = 0
   let totalDeletions = 0
 
+  // Parse per-file additions/deletions from rawDiff for accurate counts
+  const fileStats: Record<string, { additions: number; deletions: number }> = {}
+  let currentFile = ''
+  for (const line of diffOutput.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      // Extract file path from 'diff --git a/<path> b/<path>'
+      const m = line.match(/diff --git a\/(.+) b\/.+$/)
+      currentFile = m ? m[1] : ''
+      if (currentFile && !fileStats[currentFile]) {
+        fileStats[currentFile] = { additions: 0, deletions: 0 }
+      }
+    } else if (currentFile) {
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        fileStats[currentFile].additions++
+        totalAdditions++
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        fileStats[currentFile].deletions++
+        totalDeletions++
+      }
+    }
+  }
+
+  // Build file list from stat output (preserves original order and handles renames)
   for (const line of diffStat.split('\n')) {
-    const match = line.match(/^(.+?)\s+\|\s+(\d+)\s+([\-+]+)$/)
+    const match = line.match(/^(.+?)\s+\|\s+/)
     if (match) {
       const path = match[1].trim()
-      const adds = (match[3].match(/\+/g) || []).length
-      const dels = (match[3].match(/-/g) || []).length
+      // Use counts from rawDiff if available, fall back to visual bar counts
+      const stats = fileStats[path]
+      const adds = stats?.additions ?? (line.match(/\+/g) || []).length
+      const dels = stats?.deletions ?? (line.match(/-/g) || []).length
       files.push({ path, additions: adds, deletions: dels })
-      totalAdditions += adds
-      totalDeletions += dels
+    }
+  }
+
+  // If stat parsing found no files but rawDiff has content, derive files from rawDiff
+  if (files.length === 0 && Object.keys(fileStats).length > 0) {
+    for (const [path, stats] of Object.entries(fileStats)) {
+      files.push({ path, additions: stats.additions, deletions: stats.deletions })
     }
   }
 
@@ -54,7 +84,7 @@ export default defineEventHandler(async (event) => {
     return { files: [], totalAdditions: 0, totalDeletions: 0, rawDiff: '', error: 'No repository linked' }
   }
 
-  const cloneDir = resolveCloneDir(projectsDir, repo.url, repo.name)
+  const cloneDir = resolveCloneDir(repo.url, repo.name, projectsDir)
   const baseBranch = pr.baseBranch || repo.defaultBranch || 'main'
   const headBranch = pr.headBranch || pr.task?.branchName || ''
 

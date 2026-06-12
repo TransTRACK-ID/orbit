@@ -93,10 +93,14 @@ function fileDiffPreviewLines(filePath: string): string[] {
   const lines = props.diff.rawDiff.split('\n')
   let collecting = false
   const out: string[] = []
+  // Git diff headers look like: diff --git a/<path> b/<path>
+  // Anchor the match on the b/<path> segment to avoid partial matches
+  const headerPattern = `b/${filePath}`
   for (const line of lines) {
     if (line.startsWith('diff --git')) {
       if (collecting) break
-      collecting = line.includes(filePath)
+      // Match on b/<filePath> OR the plain filePath for robustness
+      collecting = line.endsWith(headerPattern) || line.includes(` b/${filePath}`) || line.includes(filePath)
       if (collecting) out.push(line)
       continue
     }

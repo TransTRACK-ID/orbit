@@ -33,6 +33,7 @@
 
     <div
       v-else
+      ref="previewRoot"
       class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
       v-html="rendered"
     />
@@ -50,13 +51,17 @@ const emit = defineEmits<{
 }>()
 
 import { parseMarkdown } from '~/utils/markdown'
+import { useMermaidRender } from '~/composables/useMermaid'
 
 const tab = ref<'write' | 'preview'>('write')
+const previewRoot = ref<HTMLElement | null>(null)
 
 const rendered = computed(() => {
   if (!props.modelValue) return '<p class="text-surface-400 italic">No description provided</p>'
   return parseMarkdown(props.modelValue)
 })
+
+useMermaidRender(previewRoot, () => tab.value, () => props.modelValue)
 
 function onInput(e: Event) {
   const target = e.target as HTMLTextAreaElement
@@ -185,5 +190,14 @@ function onInput(e: Event) {
 }
 .dark .prose :deep(th) {
   background: #0f172a;
+}
+.prose :deep(.mermaid) {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.prose :deep(.mermaid svg) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

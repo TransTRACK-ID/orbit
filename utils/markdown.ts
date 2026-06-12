@@ -1,9 +1,25 @@
 import { marked } from 'marked'
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 marked.use({
   gfm: true,
   breaks: true,
   renderer: {
+    code({ text, lang, escaped }) {
+      if (lang?.toLowerCase() === 'mermaid') {
+        return `<div class="mermaid">${escapeHtml(text)}</div>\n`
+      }
+      const langClass = lang ? ` class="language-${lang}"` : ''
+      const code = escaped ? text : escapeHtml(text)
+      return `<pre><code${langClass}>${code}</code></pre>\n`
+    },
     link({ href, title, tokens }) {
       const text = this.parser.parseInline(tokens)
       const titleAttr = title ? ` title="${title}"` : ''

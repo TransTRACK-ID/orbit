@@ -705,7 +705,10 @@
                       <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
                       <span class="text-xs text-surface-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
+                    <KanbanMarkdownBody
+                      :content="comment.body"
+                      wrapper-class="text-sm text-surface-700 leading-relaxed comment-body"
+                    />
                   </div>
                 </div>
 
@@ -726,7 +729,10 @@
                       <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
                       <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <div class="text-sm text-primary-800 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)"></div>
+                    <KanbanMarkdownBody
+                      :content="comment.body"
+                      wrapper-class="text-sm text-primary-800 leading-relaxed comment-body"
+                    />
                   </div>
                 </div>
               </template>
@@ -1164,7 +1170,10 @@
                         <span v-if="comment.path" class="text-[9px] text-surface-400 font-mono truncate">{{ comment.path }}{{ comment.line ? `:${comment.line}` : '' }}</span>
                         <span v-if="comment.isReview" class="text-[9px] text-amber-500 ml-auto">review</span>
                       </div>
-                      <div class="text-[11px] text-surface-600 leading-relaxed review-feedback-body" v-html="parseMarkdown(comment.body)" />
+                      <KanbanMarkdownBody
+                        :content="comment.body"
+                        wrapper-class="text-[11px] text-surface-600 leading-relaxed review-feedback-body comment-body"
+                      />
                     </div>
                   </div>
 
@@ -3930,5 +3939,16 @@ function formatActivity(log: ActivityLog) {
 }
 .dark .comment-body :deep(summary:hover) {
   color: #f1f5f9;
+}
+
+.comment-body :deep(.mermaid) {
+  margin: 8px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.comment-body :deep(.mermaid svg) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

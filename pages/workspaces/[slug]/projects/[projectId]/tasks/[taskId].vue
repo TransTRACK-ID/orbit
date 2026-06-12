@@ -104,7 +104,10 @@
                   <span class="text-sm font-medium text-surface-900">{{ comment.user?.name }}</span>
                   <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
                 </div>
-                <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)" />
+                <KanbanMarkdownBody
+                  :content="comment.body"
+                  wrapper-class="text-sm text-surface-700 leading-relaxed comment-body"
+                />
               </div>
             </div>
           </div>
@@ -127,7 +130,6 @@
 
 <script setup lang="ts">
 import type { Task, Comment } from '~/types'
-import { parseMarkdown } from '~/utils/markdown'
 
 definePageMeta({
   layout: 'default',
@@ -296,5 +298,16 @@ function formatDate(dateStr: string) {
 .comment-body :deep(input[type='checkbox']) {
   margin-right: 4px;
   vertical-align: middle;
+}
+
+.comment-body :deep(.mermaid) {
+  margin: 8px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.comment-body :deep(.mermaid svg) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

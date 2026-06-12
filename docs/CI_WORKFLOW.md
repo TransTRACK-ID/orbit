@@ -1,8 +1,39 @@
 # GitHub Actions CI
 
-CI is configured in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). It runs on pushes and pull requests to `main`:
+The push token used for this branch lacks the `workflow` scope, so CI must be added via the GitHub UI after merge.
 
-1. `pnpm install --frozen-lockfile`
-2. `pnpm build` (with dummy `POSTGRES_URL` and `NUXT_AUTH_SECRET`)
+Create `.github/workflows/ci.yml` with:
 
-If you need to add or modify workflows, ensure your git token has the `workflow` scope, or edit the file directly in the GitHub UI.
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+        env:
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/orbit
+          NUXT_AUTH_SECRET: ci-build-secret-key-at-least-32-chars
+```
+
+Alternatively, merge the PR and add the workflow file in a follow-up commit using a token with `workflow` scope.

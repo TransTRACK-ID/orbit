@@ -39,6 +39,7 @@
         :pull-requests="filteredPullRequests"
         :selected-id="selectedPrId"
         :loading="prsLoading"
+        :refreshing="prsRefreshing"
         :auto-sync="autoSyncEnabled"
         @select="selectPr"
         @toggle-auto-sync="toggleAutoSync"
@@ -52,8 +53,10 @@
         :diff-loading="diffLoading"
         :auto-sync="autoSyncEnabled"
         :fixing-feedback="fixingFeedback"
+        :syncing="prSyncing"
         @sync="syncPr"
         @fix-feedback="fixFeedback"
+        @merged="handleMerged"
       />
     </div>
   </div>
@@ -79,6 +82,7 @@ const workspace = ref<Workspace | null>(null)
 const repositories = ref<Repository[]>([])
 const pullRequests = ref<PullRequest[]>([])
 const prsLoading = ref(false)
+const prsRefreshing = ref(false) // silent background refresh indicator
 
 const filterStatus = ref<string>('open')
 const filterReviewState = ref<string | undefined>(undefined)
@@ -89,9 +93,10 @@ const selectedPrId = ref<string | null>(null)
 const selectedPr = ref<PullRequest | null>(null)
 const detailLoading = ref(false)
 
-const prDiff = ref<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string } | null>(null)
+const prDiff = ref<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string; error?: string } | null>(null)
 const diffLoading = ref(false)
 const fixingFeedback = ref(false)
+const prSyncing = ref(false)
 
 const bottleneckStats = ref<any>(null)
 const bottlenecksLoading = ref(false)
@@ -120,15 +125,15 @@ function startAutoSync() {
   syncAllPullRequests().then(() => Promise.all([loadPullRequests(), loadBottlenecks()]))
   autoSyncTimer = setInterval(async () => {
     if (!workspace.value) return
-    // Sync all open PRs against GitHub/GitLab, then refresh the list
+    // Sync all open PRs against GitHub/GitLab, then refresh the list silently
     await syncAllPullRequests()
     await Promise.all([
-      loadPullRequests(),
+      loadPullRequests(true), // silent — no spinner, no content wipe
       loadBottlenecks(),
     ])
-    // If a PR is selected, reload its detail panel so status/comments stay fresh
+    // If a PR is selected, silently refresh its detail without wiping the panel
     if (selectedPrId.value) {
-      await selectPr(selectedPrId.value)
+      await silentRefreshPr(selectedPrId.value)
     }
   }, 30000) // every 30 seconds
 }
@@ -161,9 +166,13 @@ async function loadRepositories() {
   repositories.value = await fetchRepositories(workspace.value.id)
 }
 
-async function loadPullRequests() {
+async function loadPullRequests(silent = false) {
   if (!workspace.value) return
-  prsLoading.value = true
+  if (silent) {
+    prsRefreshing.value = true
+  } else {
+    prsLoading.value = true
+  }
   try {
     const query: Record<string, string> = {}
     if (filterStatus.value) query.status = filterStatus.value
@@ -180,6 +189,7 @@ async function loadPullRequests() {
     console.error('Failed to load pull requests:', err)
   } finally {
     prsLoading.value = false
+    prsRefreshing.value = false
   }
 }
 
@@ -222,14 +232,45 @@ async function selectPr(id: string) {
   }
 }
 
+/**
+ * Silent background refresh — updates state in-place without clearing content
+ * or showing loading spinners. Used by auto-sync to avoid UI flash.
+ */
+async function silentRefreshPr(id: string) {
+  try {
+    const res = await $fetch<{ pullRequest: PullRequest }>(`/api/pull-requests/${id}`)
+    // Only update if this PR is still selected
+    if (selectedPrId.value === id) {
+      selectedPr.value = res.pullRequest
+    }
+  } catch (err) {
+    console.error('Failed to silently refresh PR detail:', err)
+  }
+
+  try {
+    const diffRes = await $fetch<{ files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string; error?: string }>(`/api/pull-requests/${id}/diff`)
+    if (selectedPrId.value === id) {
+      prDiff.value = diffRes
+    }
+  } catch (err) {
+    console.error('Failed to silently refresh diff:', err)
+  }
+}
+
 async function syncPr(id: string) {
+  prSyncing.value = true
   try {
     await $fetch(`/api/pull-requests/${id}/sync`, { method: 'POST' })
-    await selectPr(id)
-    await loadPullRequests()
-    await loadBottlenecks()
+    // Refresh data without blanking the panel — silent refresh keeps content visible
+    await Promise.all([
+      silentRefreshPr(id),
+      loadPullRequests(true),
+      loadBottlenecks(),
+    ])
   } catch (err) {
     console.error('Failed to sync PR:', err)
+  } finally {
+    prSyncing.value = false
   }
 }
 
@@ -253,6 +294,15 @@ async function fixFeedback(id: string) {
   } finally {
     fixingFeedback.value = false
   }
+}
+
+async function handleMerged() {
+  // Optimistically update the selected PR status in-place
+  if (selectedPr.value) {
+    selectedPr.value = { ...selectedPr.value, status: 'merged' }
+  }
+  // Silently refresh the list so the PR's status chip updates
+  await loadPullRequests(true)
 }
 
 watch([filterStatus, filterReviewState, filterRepositoryId, filterSearch], () => {

@@ -12,3 +12,4 @@ server/database/migrations/
 server/database/orbit.db
 .impeccable
 .vercel
+.opencode

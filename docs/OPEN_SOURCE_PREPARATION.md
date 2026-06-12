@@ -11,11 +11,11 @@ This document is the master checklist for preparing [Orbit](https://github.com/T
 | Community files | Done (Phase 1) | `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` (orbit-docs has no CoC) |
 | `.github/` templates | Ahead of reference | Issue + PR templates added; **orbit-docs has no `.github/` directory** |
 | `.env.example` | Partial | Core vars documented; orbit-docs also lists Docker deploy vars (`IMAGE_NAME`, `COMPOSE_PUBLIC_PORT`, etc.) |
-| CI | Missing (both repos) | Neither Orbit nor orbit-docs ships `.github/workflows/ci.yml` yet (see [CI_WORKFLOW.md](CI_WORKFLOW.md)) |
-| `package.json` metadata | Behind reference | orbit-docs sets `repository`, `bugs`, `homepage`, and is not `"private"`; Orbit still has `"private": true` |
+| CI | Done (Phase 3) | `.github/workflows/ci.yml` — `pnpm install` + `pnpm build` on PRs |
+| `package.json` metadata | Done (Phase 3) | `repository`, `bugs`, `homepage` set; `"private": false` |
 | Tests in CONTRIBUTING | Behind reference | orbit-docs documents `bun run test` (Vitest); Orbit has no root test script yet |
-| Internal URLs | **Action required** | Hardcoded TransTRACK webhooks and infra scripts remain in Orbit code |
-| Project template | **Action required** | `nuxt3-spa-starter` still contains company-specific assets and CI scripts |
+| Internal URLs | Done (Phase 2) | Crash webhook is opt-in; internal CI scripts removed from template |
+| Project template | Done (Phase 2) | `nuxt3-spa-starter` neutralized — internal CI, Sonar, and company branding removed |
 | `@transtrack/ui` dependency | Review | orbit-docs uses Flowbite directly; Orbit couples UI to `@transtrack/ui` |
 
 ---
@@ -97,7 +97,7 @@ Follow the patterns established in [orbit-docs](https://github.com/TransTRACK-ID
 - `ISSUE_TEMPLATE/feature_request.yml`
 - `ISSUE_TEMPLATE/config.yml` — link to `SECURITY.md` for vulnerabilities
 
-**Still to add (neither repo has this yet):**
+**Added in Phase 3:**
 
 - `workflows/ci.yml` — `pnpm install` + `pnpm build` on PRs (see [CI_WORKFLOW.md](CI_WORKFLOW.md))
 
@@ -142,18 +142,20 @@ Expand `.env.example` with documented optional vars (paths, webhooks, browser QA
 3. Add GitHub issue/PR templates
 4. Expand `.env.example`
 
-### Phase 2 — Remove internal artifacts (medium risk)
+### Phase 2 — Remove internal artifacts (medium risk) ✅
 
-1. Delete internal CI scripts from `nuxt3-spa-starter`
-2. Remove hardcoded crash webhook default
-3. Neutralize template branding (logos, README)
-4. Delete scratch files (`test_regex.js`, etc.)
-5. Fix git config email in `project-templates.ts`
+1. ~~Delete internal CI scripts from `nuxt3-spa-starter`~~
+2. ~~Remove hardcoded crash webhook default~~
+3. ~~Neutralize template branding (logos, README)~~
+4. ~~Delete scratch files (`test_regex.js`, etc.)~~
+5. ~~Fix git config email in `project-templates.ts`~~
 
-### Phase 3 — CI & release (higher coordination)
+Also removed: `.gitlab-ci.yml`, `sonar-project.properties`, unused logo components.
 
-1. Add `.github/workflows/ci.yml`
-2. Enable GitHub vulnerability reporting
+### Phase 3 — CI & release (higher coordination) — partial ✅
+
+1. ~~Add `.github/workflows/ci.yml`~~
+2. Enable GitHub vulnerability reporting (operator action in repo settings)
 3. Tag first public release (`v0.1.0` or similar)
 4. Announce alongside [orbit-docs](https://github.com/TransTRACK-ID/orbit-docs) as the documentation companion product
 

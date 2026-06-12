@@ -15,12 +15,10 @@ const currentYear = new Date().getFullYear();
           class="grid lg:grid-cols-2 grid-cols-1 text-center items-center justify-between"
         >
           <div class="flex w-full items-center gap-2">
-            <img src="/logo-transtrack.png" alt="logo-transtrack" />
-            <img src="/logo-text-transtrack.png" alt="logo-text-transtrack" />
+            <h1 class="text-2xl font-semibold text-gray-900">Orbit SPA Starter</h1>
           </div>
           <h2 class="text-xs text-end text-gray-400">
-            © 2019 - {{ currentYear }} PT. Indo Trans Teknologi. All Rights
-            Reserved.
+            © {{ currentYear }} Orbit. All rights reserved.
           </h2>
         </div>
 

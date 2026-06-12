@@ -232,7 +232,7 @@ export async function initializeFromTemplate(
   // Git init
   if (template.gitInit) {
     await execAsync('git init', execOptions)
-    await execAsync('git config user.email "orbit@transtrack.ai"', execOptions)
+    await execAsync('git config user.email "orbit@users.noreply.github.com"', execOptions)
     await execAsync('git config user.name "Orbit"', execOptions)
     await execAsync('git add -A', execOptions)
     await execAsync(`git commit -m "${template.initialCommitMessage}"`, execOptions)

@@ -1,10 +1,10 @@
 # GitHub Actions CI
 
-Orbit does not yet ship a CI workflow in the repository. Add one before the public release so contributors get fast feedback on pull requests.
+Orbit ships a CI workflow at `.github/workflows/ci.yml` that runs `pnpm install` and `pnpm build` on pushes and pull requests to `main`.
 
-## Recommended workflow
+## Workflow
 
-Create `.github/workflows/ci.yml`:
+The current workflow:
 
 ```yaml
 name: CI
@@ -42,7 +42,7 @@ jobs:
 
 If your push token lacks the GitHub `workflow` scope, the workflow file must be added via the GitHub web UI or a token with workflow permissions.
 
-> **Note:** [orbit-docs](https://github.com/TransTRACK-ID/orbit-docs) also does not ship a `.github/workflows/` directory today — CI must be added to both repositories before public release.
+> **Note:** [orbit-docs](https://github.com/TransTRACK-ID/orbit-docs) still does not ship a `.github/workflows/` directory — consider adding CI there as well before public release.
 
 ## Future improvements
 

@@ -71,7 +71,7 @@ See `server/utils/project-templates.ts` for the full `TemplateConfig` shape and 
 - Keep `postInitCommands` minimal; heavy installs can time out during scaffolding.
 - Document any required env vars in the template's own `README.md`.
 
-> **OSS note:** Before public release, remove internal CI scripts and branding from `nuxt3-spa-starter`. See [OPEN_SOURCE_PREPARATION.md](OPEN_SOURCE_PREPARATION.md).
+> **OSS note:** Internal CI scripts and company-specific branding have been removed from `nuxt3-spa-starter`. See [OPEN_SOURCE_PREPARATION.md](OPEN_SOURCE_PREPARATION.md) for the full checklist.
 
 ## Storage and paths
 

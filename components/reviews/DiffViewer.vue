@@ -1,121 +1,167 @@
 <template>
-  <div>
-    <UiLoadingState v-if="loading" text="Loading diff..." />
+  <div class="flex flex-col h-full min-h-0">
+    <UiLoadingState v-if="loading" text="Loading diff..." class="p-8" />
 
-    <div v-else-if="diff && diff.files.length > 0">
-      <!-- Summary bar -->
-      <div class="flex items-center gap-3 mb-4 text-xs text-surface-600">
-        <span class="font-semibold text-surface-900">{{ diff.files.length }} file{{ diff.files.length !== 1 ? 's' : '' }} changed</span>
-        <span class="text-green-600 font-semibold tabular-nums">+{{ diff.totalAdditions }}</span>
-        <span class="text-red-500 font-semibold tabular-nums">-{{ diff.totalDeletions }}</span>
+    <div v-else-if="diff && parsedFiles.length > 0" class="flex flex-col flex-1 min-h-0">
+      <!-- Summary -->
+      <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-100 flex-shrink-0 bg-white">
+        <div class="flex items-center gap-3 text-xs text-surface-600 min-w-0">
+          <span class="font-semibold text-surface-900">
+            {{ parsedFiles.length }} file{{ parsedFiles.length !== 1 ? 's' : '' }} changed
+          </span>
+          <span class="text-green-600 font-semibold tabular-nums">+{{ diff.totalAdditions }}</span>
+          <span class="text-red-500 font-semibold tabular-nums">-{{ diff.totalDeletions }}</span>
+        </div>
+
+        <div v-if="parsedFiles.length > 6" class="relative flex-shrink-0">
+          <Icon name="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400 pointer-events-none" />
+          <input
+            v-model="fileSearch"
+            type="search"
+            placeholder="Filter files..."
+            class="w-44 text-xs rounded-md border border-surface-200 bg-surface-50 pl-7 pr-2 py-1.5 focus:border-accent focus:ring-1 focus:ring-accent outline-none placeholder:text-surface-400 text-surface-700"
+          />
+        </div>
       </div>
 
-      <!-- File blocks -->
-      <div class="space-y-3">
-        <div
-          v-for="(file, idx) in parsedFiles"
-          :key="file.path"
-          class="border border-surface-200 rounded-xl overflow-hidden"
+      <div class="flex flex-1 min-h-0">
+        <!-- File list -->
+        <nav
+          class="w-60 flex-shrink-0 border-r border-surface-200 overflow-y-auto bg-surface-50"
+          aria-label="Changed files"
         >
-          <!-- Sticky file header -->
-          <button
-            class="w-full flex items-center justify-between px-4 py-2.5 bg-surface-50 border-b border-surface-200 text-left group hover:bg-surface-100 transition-colors sticky top-0 z-10"
-            @click="toggleFile(idx)"
-          >
-            <div class="flex items-center gap-2.5 min-w-0">
-              <!-- File status badge -->
-              <span
-                class="text-xs font-bold w-4 h-4 rounded flex items-center justify-center flex-shrink-0 font-mono"
-                :class="fileStatusClass(file.status)"
-                :title="fileStatusLabel(file.status)"
-              >{{ file.status.charAt(0).toUpperCase() }}</span>
+          <div v-if="filteredFiles.length === 0" class="px-4 py-8 text-center">
+            <p class="text-xs text-surface-500">No files match your search</p>
+          </div>
 
+          <ul v-else class="py-1">
+            <li v-for="entry in filteredFiles" :key="entry.file.path">
+              <button
+                type="button"
+                class="w-full flex items-start gap-2 px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                :class="selectedFileIndex === entry.index
+                  ? 'bg-accent/8 text-surface-900'
+                  : 'text-surface-700 hover:bg-surface-100'"
+                :aria-current="selectedFileIndex === entry.index ? 'true' : undefined"
+                @click="selectFile(entry.index)"
+              >
+                <span
+                  class="text-xs font-bold w-4 h-4 rounded flex items-center justify-center flex-shrink-0 font-mono mt-0.5"
+                  :class="fileStatusClass(entry.file.status)"
+                  :title="fileStatusLabel(entry.file.status)"
+                >{{ entry.file.status.charAt(0).toUpperCase() }}</span>
+
+                <span class="flex-1 min-w-0">
+                  <span class="block text-xs font-medium truncate font-mono leading-snug">
+                    {{ fileName(entry.file.path) }}
+                  </span>
+                  <span
+                    v-if="fileDir(entry.file.path)"
+                    class="block text-xs text-surface-400 truncate font-mono mt-0.5 leading-snug"
+                  >
+                    {{ fileDir(entry.file.path) }}
+                  </span>
+                  <span
+                    v-if="entry.file.oldPath && entry.file.oldPath !== entry.file.path"
+                    class="block text-xs text-amber-600 truncate font-mono mt-0.5 leading-snug"
+                  >
+                    {{ entry.file.oldPath }}
+                  </span>
+                </span>
+
+                <span class="flex flex-col items-end gap-0.5 flex-shrink-0 tabular-nums">
+                  <span v-if="entry.file.additions > 0" class="text-xs text-green-600 font-semibold leading-none">
+                    +{{ entry.file.additions }}
+                  </span>
+                  <span v-if="entry.file.deletions > 0" class="text-xs text-red-500 font-semibold leading-none">
+                    -{{ entry.file.deletions }}
+                  </span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Diff panel -->
+        <div class="flex-1 min-w-0 flex flex-col min-h-0 bg-white">
+          <template v-if="selectedFile">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-surface-100 flex-shrink-0 bg-surface-50">
               <Icon name="lucide:file-code" class="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
               <span class="text-xs font-mono font-medium text-surface-800 truncate">
-                <!-- Show old → new path for renames -->
-                <span v-if="file.oldPath && file.oldPath !== file.path" class="text-surface-400">{{ file.oldPath }} → </span>{{ file.path }}
+                <span
+                  v-if="selectedFile.oldPath && selectedFile.oldPath !== selectedFile.path"
+                  class="text-surface-400"
+                >{{ selectedFile.oldPath }} → </span>{{ selectedFile.path }}
               </span>
-            </div>
-            <div class="flex items-center gap-3 flex-shrink-0 ml-3">
-              <!-- Diff bar -->
-              <div class="flex items-center gap-0.5 h-2.5">
-                <div
-                  v-if="file.additions > 0"
-                  class="h-full rounded-sm bg-green-400"
-                  :style="{ width: `${barWidth(file.additions, file.additions + file.deletions)}px` }"
-                />
-                <div
-                  v-if="file.deletions > 0"
-                  class="h-full rounded-sm bg-red-400"
-                  :style="{ width: `${barWidth(file.deletions, file.additions + file.deletions)}px` }"
-                />
+              <div class="ml-auto flex items-center gap-2 flex-shrink-0 tabular-nums">
+                <div class="flex items-center gap-0.5 h-2.5">
+                  <div
+                    v-if="selectedFile.additions > 0"
+                    class="h-full rounded-sm bg-green-400"
+                    :style="{ width: `${barWidth(selectedFile.additions, selectedFile.additions + selectedFile.deletions)}px` }"
+                  />
+                  <div
+                    v-if="selectedFile.deletions > 0"
+                    class="h-full rounded-sm bg-red-400"
+                    :style="{ width: `${barWidth(selectedFile.deletions, selectedFile.additions + selectedFile.deletions)}px` }"
+                  />
+                </div>
+                <span class="text-xs text-green-600 font-semibold">+{{ selectedFile.additions }}</span>
+                <span class="text-xs text-red-500 font-semibold">-{{ selectedFile.deletions }}</span>
               </div>
-              <span class="text-xs text-green-600 font-semibold tabular-nums">+{{ file.additions }}</span>
-              <span class="text-xs text-red-500 font-semibold tabular-nums">-{{ file.deletions }}</span>
-              <Icon
-                name="lucide:chevron-right"
-                class="w-3.5 h-3.5 text-surface-400 transition-transform duration-150"
-                :class="{ 'rotate-90': expandedFiles.includes(idx) }"
-              />
             </div>
-          </button>
 
-          <!-- Diff content -->
-          <div v-if="expandedFiles.includes(idx)" class="overflow-x-auto">
-            <div v-if="file.hunks.length > 0">
-              <table class="w-full border-collapse text-xs font-mono" style="min-width: 0">
-                <tbody>
-                  <template v-for="(hunk, hIdx) in file.hunks" :key="hIdx">
-                    <!-- Hunk header -->
-                    <tr class="bg-sky-50 border-y border-sky-100 select-none">
-                      <td class="w-10 text-right pr-3 py-1 text-sky-400 select-none" />
-                      <td class="w-10 text-right pr-3 py-1 text-sky-400 select-none" />
-                      <td class="py-1 px-3 text-sky-600 font-semibold whitespace-pre">{{ hunk.header }}</td>
-                    </tr>
-                    <!-- Lines -->
-                    <tr
-                      v-for="(line, lIdx) in hunk.lines"
-                      :key="lIdx"
-                      class="group"
-                      :class="lineRowClass(line.type)"
-                    >
-                      <!-- Old line number -->
-                      <td
-                        class="w-10 text-right pr-3 py-0.5 select-none border-r border-surface-100 text-surface-400 leading-5"
-                        :class="lineNumClass(line.type)"
-                        style="min-width: 40px"
-                      >{{ line.oldNum ?? '' }}</td>
-                      <!-- New line number -->
-                      <td
-                        class="w-10 text-right pr-3 py-0.5 select-none border-r border-surface-100 text-surface-400 leading-5"
-                        :class="lineNumClass(line.type)"
-                        style="min-width: 40px"
-                      >{{ line.newNum ?? '' }}</td>
-                      <!-- Sign + content -->
-                      <td class="py-0.5 pl-2 pr-4 whitespace-pre leading-5" :class="lineContentClass(line.type)">
-                        <span class="select-none mr-2 font-bold" :class="lineSignClass(line.type)">{{ lineSign(line.type) }}</span>{{ line.content }}
-                      </td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
+            <div class="flex-1 min-h-0 overflow-auto">
+              <div v-if="selectedFile.hunks.length > 0">
+                <table class="w-full border-collapse text-xs font-mono" style="min-width: 0">
+                  <tbody>
+                    <template v-for="(hunk, hIdx) in selectedFile.hunks" :key="hIdx">
+                      <tr class="bg-sky-50 border-y border-sky-100 select-none">
+                        <td class="w-10 text-right pr-3 py-1 text-sky-400 select-none" />
+                        <td class="w-10 text-right pr-3 py-1 text-sky-400 select-none" />
+                        <td class="py-1 px-3 text-sky-600 font-semibold whitespace-pre">{{ hunk.header }}</td>
+                      </tr>
+                      <tr
+                        v-for="(line, lIdx) in hunk.lines"
+                        :key="lIdx"
+                        class="group"
+                        :class="lineRowClass(line.type)"
+                      >
+                        <td
+                          class="w-10 text-right pr-3 py-0.5 select-none border-r border-surface-100 text-surface-400 leading-5"
+                          :class="lineNumClass(line.type)"
+                          style="min-width: 40px"
+                        >{{ line.oldNum ?? '' }}</td>
+                        <td
+                          class="w-10 text-right pr-3 py-0.5 select-none border-r border-surface-100 text-surface-400 leading-5"
+                          :class="lineNumClass(line.type)"
+                          style="min-width: 40px"
+                        >{{ line.newNum ?? '' }}</td>
+                        <td class="py-0.5 pl-2 pr-4 whitespace-pre leading-5" :class="lineContentClass(line.type)">
+                          <span class="select-none mr-2 font-bold" :class="lineSignClass(line.type)">{{ lineSign(line.type) }}</span>{{ line.content }}
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else class="flex flex-col items-center justify-center py-16 text-center px-4">
+                <Icon name="lucide:binary" class="w-5 h-5 mb-2 text-surface-300" />
+                <p class="text-xs text-surface-500">Binary file or no preview available</p>
+              </div>
             </div>
-            <div v-else class="py-5 text-center text-xs text-surface-400 bg-surface-50">
-              <Icon name="lucide:binary" class="w-4 h-4 mx-auto mb-1 opacity-40" />
-              Binary file or no preview available
-            </div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
 
     <!-- Empty state -->
-    <div v-else class="text-center py-12">
-      <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mx-auto mb-3">
+    <div v-else class="flex flex-col items-center justify-center flex-1 py-12 px-4">
+      <div class="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-3">
         <Icon name="lucide:file-diff" class="w-6 h-6 text-surface-400" />
       </div>
       <p class="text-sm font-semibold text-surface-600">No diff available</p>
-      <p v-if="diff?.error" class="text-xs text-red-500 mt-1.5 max-w-xs mx-auto leading-relaxed">{{ diff.error }}</p>
+      <p v-if="diff?.error" class="text-xs text-red-500 mt-1.5 max-w-xs text-center leading-relaxed">{{ diff.error }}</p>
       <p v-else class="text-xs text-surface-400 mt-1">Sync this PR to load the latest changes</p>
     </div>
   </div>
@@ -154,27 +200,53 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-// Auto-expand first file
-const expandedFiles = ref<number[]>([0])
+const fileSearch = ref('')
+const selectedFileIndex = ref(0)
 
 const parsedFiles = computed<ParsedFile[]>(() => {
   if (!props.diff) return []
   return parseRawDiff(props.diff.rawDiff, props.diff.files)
 })
 
-watch(() => props.diff?.files?.length, (count) => {
-  if (count && count > 0) {
-    expandedFiles.value = [0]
-  }
+const filteredFiles = computed(() => {
+  const query = fileSearch.value.trim().toLowerCase()
+  return parsedFiles.value
+    .map((file, index) => ({ file, index }))
+    .filter(({ file }) => {
+      if (!query) return true
+      return file.path.toLowerCase().includes(query)
+        || file.oldPath?.toLowerCase().includes(query)
+    })
+})
+
+const selectedFile = computed(() => parsedFiles.value[selectedFileIndex.value] ?? null)
+
+watch(() => props.diff?.files?.length, () => {
+  selectedFileIndex.value = 0
+  fileSearch.value = ''
 }, { immediate: true })
 
-function toggleFile(idx: number) {
-  const i = expandedFiles.value.indexOf(idx)
-  if (i === -1) {
-    expandedFiles.value.push(idx)
-  } else {
-    expandedFiles.value.splice(i, 1)
+watch(filteredFiles, (entries) => {
+  if (entries.length === 0) return
+  const isSelectedVisible = entries.some(entry => entry.index === selectedFileIndex.value)
+  if (!isSelectedVisible) {
+    selectedFileIndex.value = entries[0].index
   }
+})
+
+function selectFile(index: number) {
+  selectedFileIndex.value = index
+}
+
+function fileName(path: string): string {
+  const parts = path.split('/')
+  return parts[parts.length - 1] || path
+}
+
+function fileDir(path: string): string {
+  const parts = path.split('/')
+  if (parts.length <= 1) return ''
+  return parts.slice(0, -1).join('/')
 }
 
 function barWidth(value: number, total: number): number {
@@ -189,7 +261,6 @@ function parseRawDiff(
   filesMeta: { path: string; additions: number; deletions: number }[]
 ): ParsedFile[] {
   if (!rawDiff) {
-    // Return files from metadata with empty hunks
     return filesMeta.map(f => ({
       path: f.path,
       status: 'modified' as const,
@@ -200,14 +271,12 @@ function parseRawDiff(
   }
 
   const results: ParsedFile[] = []
-  // Split on diff --git boundaries
   const sections = rawDiff.split(/^(?=diff --git )/m)
 
   for (const section of sections) {
     if (!section.trim()) continue
     const lines = section.split('\n')
 
-    // Extract file paths from diff --git a/... b/...
     const diffHeaderLine = lines[0]
     const diffHeaderMatch = diffHeaderLine.match(/^diff --git a\/(.+) b\/(.+)$/)
     if (!diffHeaderMatch) continue
@@ -216,7 +285,6 @@ function parseRawDiff(
     const newPathRaw = diffHeaderMatch[2]
     const filePath = newPathRaw
 
-    // Detect file status
     let status: ParsedFile['status'] = 'modified'
     let oldPath: string | undefined
 
@@ -230,18 +298,15 @@ function parseRawDiff(
       }
     }
 
-    // Parse hunks
     const hunks: DiffHunk[] = []
     let currentHunk: DiffHunk | null = null
     let oldLineNum = 0
     let newLineNum = 0
 
-    // Find where hunks start (after the header block)
     let inHeader = true
     for (const line of lines) {
       if (line.startsWith('@@')) {
         inHeader = false
-        // Parse hunk header: @@ -a,b +c,d @@ optional context
         const hunkMatch = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/)
         if (hunkMatch) {
           oldLineNum = parseInt(hunkMatch[1], 10)
@@ -255,25 +320,21 @@ function parseRawDiff(
       if (inHeader) continue
       if (!currentHunk) continue
 
-      // No-newline indicator
       if (line === '\\ No newline at end of file') {
         currentHunk.lines.push({ type: 'no-newline', content: line })
         continue
       }
 
-      // Addition
       if (line.startsWith('+')) {
         currentHunk.lines.push({ type: 'add', content: line.slice(1), newNum: newLineNum++ })
         continue
       }
 
-      // Deletion
       if (line.startsWith('-')) {
         currentHunk.lines.push({ type: 'del', content: line.slice(1), oldNum: oldLineNum++ })
         continue
       }
 
-      // Context
       if (line.startsWith(' ') || line === '') {
         currentHunk.lines.push({
           type: 'ctx',
@@ -284,7 +345,6 @@ function parseRawDiff(
       }
     }
 
-    // Get actual +/- counts from metadata or calculate from hunks
     const meta = filesMeta.find(f => f.path === filePath || f.path === oldPathRaw)
     const additions = meta?.additions ?? hunks.flatMap(h => h.lines).filter(l => l.type === 'add').length
     const deletions = meta?.deletions ?? hunks.flatMap(h => h.lines).filter(l => l.type === 'del').length
@@ -292,7 +352,6 @@ function parseRawDiff(
     results.push({ path: filePath, oldPath, status, additions, deletions, hunks })
   }
 
-  // If parsing yielded nothing but metadata has files, fall back
   if (results.length === 0 && filesMeta.length > 0) {
     return filesMeta.map(f => ({
       path: f.path,

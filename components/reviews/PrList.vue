@@ -1,11 +1,28 @@
 <template>
   <div class="w-72 bg-white border-r border-surface-200 flex flex-col flex-shrink-0 min-h-0 overflow-hidden">
     <!-- Header -->
-    <div class="px-4 py-3 border-b border-surface-100 flex items-center justify-between flex-shrink-0">
-      <span class="text-xs font-semibold text-surface-700">
-        Pull Requests
-        <span class="ml-1 text-surface-400 font-normal">({{ pullRequests.length }})</span>
-      </span>
+    <div class="px-4 py-3 border-b border-surface-100 flex items-center justify-between gap-2 flex-shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <button
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-surface-200 bg-surface-50 hover:bg-surface-100 transition-colors text-xs font-medium focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:outline-none flex-shrink-0"
+          :class="{ 'bg-surface-100 border-surface-300': showFilters }"
+          title="Show or hide filters"
+          @click="$emit('update:showFilters', !showFilters)"
+        >
+          <Icon name="lucide:filter" class="w-3.5 h-3.5" />
+          <span class="max-sm:hidden">Filters</span>
+          <span
+            v-if="activeFilterCount > 0"
+            class="px-1.5 py-0.5 rounded-full bg-accent text-white text-xs font-semibold min-w-[18px] text-center leading-none"
+          >
+            {{ activeFilterCount }}
+          </span>
+        </button>
+        <span class="text-xs font-semibold text-surface-700 truncate">
+          Pull Requests
+          <span class="ml-1 text-surface-400 font-normal">({{ pullRequests.length }})</span>
+        </span>
+      </div>
       <button
         class="text-xs font-semibold px-2 py-1 rounded-md border transition-colors flex items-center gap-1.5"
         :class="autoSync
@@ -63,11 +80,14 @@ defineProps<{
   loading?: boolean
   refreshing?: boolean
   autoSync?: boolean
+  showFilters?: boolean
+  activeFilterCount?: number
 }>()
 
 defineEmits<{
   select: [id: string]
   'toggle-auto-sync': []
+  'update:showFilters': [show: boolean]
 }>()
 </script>
 

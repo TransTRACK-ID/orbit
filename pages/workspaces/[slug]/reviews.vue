@@ -24,15 +24,25 @@
 
     <div v-else class="flex flex-1 overflow-hidden min-h-0">
       <!-- Filter Sidebar -->
-      <ReviewsPrFilterSidebar
-        v-model:status="filterStatus"
-        v-model:review-state="filterReviewState"
-        v-model:repository-id="filterRepositoryId"
-        v-model:search="filterSearch"
-        :repositories="repositories"
-        :loading="prsLoading"
-        @refresh="loadPullRequests"
-      />
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 -translate-x-2"
+        enter-to-class="opacity-100 translate-x-0"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100 translate-x-0"
+        leave-to-class="opacity-0 -translate-x-2"
+      >
+        <ReviewsPrFilterSidebar
+          v-if="showFilters"
+          v-model:status="filterStatus"
+          v-model:review-state="filterReviewState"
+          v-model:repository-id="filterRepositoryId"
+          v-model:search="filterSearch"
+          :repositories="repositories"
+          :loading="prsLoading"
+          @refresh="loadPullRequests"
+        />
+      </Transition>
 
       <!-- PR List -->
       <ReviewsPrList
@@ -41,8 +51,11 @@
         :loading="prsLoading"
         :refreshing="prsRefreshing"
         :auto-sync="autoSyncEnabled"
+        :show-filters="showFilters"
+        :active-filter-count="activeFilterCount"
         @select="selectPr"
         @toggle-auto-sync="toggleAutoSync"
+        @update:show-filters="showFilters = $event"
       />
 
       <!-- Detail Panel -->
@@ -84,10 +97,21 @@ const pullRequests = ref<PullRequest[]>([])
 const prsLoading = ref(false)
 const prsRefreshing = ref(false) // silent background refresh indicator
 
+const showFilters = ref(false)
+
 const filterStatus = ref<string>('open')
 const filterReviewState = ref<string | undefined>(undefined)
 const filterRepositoryId = ref<string | undefined>(undefined)
 const filterSearch = ref('')
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (filterSearch.value.trim()) count++
+  if (filterStatus.value !== 'open') count++
+  if (filterReviewState.value) count++
+  if (filterRepositoryId.value) count++
+  return count
+})
 
 const selectedPrId = ref<string | null>(null)
 const selectedPr = ref<PullRequest | null>(null)

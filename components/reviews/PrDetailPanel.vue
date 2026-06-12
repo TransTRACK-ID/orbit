@@ -119,10 +119,10 @@
       </div>
 
       <!-- Tab panels -->
-      <div class="flex-1 min-h-0 overflow-y-auto">
+      <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
 
         <!-- Changes tab -->
-        <div v-if="activeTab === 'changes'" class="p-5">
+        <div v-if="activeTab === 'changes'" class="flex-1 min-h-0 flex flex-col overflow-hidden">
           <ReviewsDiffViewer
             :diff="diff"
             :loading="diffLoading"
@@ -130,7 +130,7 @@
         </div>
 
         <!-- Comments tab -->
-        <div v-else-if="activeTab === 'comments'" class="p-5">
+        <div v-else-if="activeTab === 'comments'" class="flex-1 min-h-0 overflow-y-auto p-5">
           <div v-if="pullRequest.comments && pullRequest.comments.length > 0" class="space-y-3">
             <ReviewsReviewComment
               v-for="comment in pullRequest.comments"

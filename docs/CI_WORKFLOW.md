@@ -40,7 +40,9 @@ jobs:
 
 ## Workflow scope note
 
-If your push token lacks the GitHub `workflow` scope, the workflow file must be added via the GitHub web UI or a token with workflow permissions. See [orbit-docs](https://github.com/TransTRACK-ID/orbit-docs) for a working CI reference.
+If your push token lacks the GitHub `workflow` scope, the workflow file must be added via the GitHub web UI or a token with workflow permissions.
+
+> **Note:** [orbit-docs](https://github.com/TransTRACK-ID/orbit-docs) also does not ship a `.github/workflows/` directory today — CI must be added to both repositories before public release.
 
 ## Future improvements
 

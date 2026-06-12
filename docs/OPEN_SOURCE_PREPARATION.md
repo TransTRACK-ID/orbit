@@ -7,14 +7,16 @@ This document is the master checklist for preparing [Orbit](https://github.com/T
 | Area | Status | Notes |
 |------|--------|-------|
 | License | Done | MIT in `LICENSE` |
-| README | Needs work | Currently a one-line stub; orbit-docs has features, quick start, env table |
-| Community files | Partial | `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` added in this branch |
-| `.env.example` | Partial | Core vars present; path/webhook vars documented |
-| CI | Missing | No `.github/workflows/ci.yml` (see [CI_WORKFLOW.md](CI_WORKFLOW.md)) |
-| Internal URLs | **Action required** | Hardcoded TransTRACK webhooks and infra scripts remain |
+| README | Done (Phase 1) | Features, quick start, config table, doc index — mirrors orbit-docs README pattern |
+| Community files | Done (Phase 1) | `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` (orbit-docs has no CoC) |
+| `.github/` templates | Ahead of reference | Issue + PR templates added; **orbit-docs has no `.github/` directory** |
+| `.env.example` | Partial | Core vars documented; orbit-docs also lists Docker deploy vars (`IMAGE_NAME`, `COMPOSE_PUBLIC_PORT`, etc.) |
+| CI | Missing (both repos) | Neither Orbit nor orbit-docs ships `.github/workflows/ci.yml` yet (see [CI_WORKFLOW.md](CI_WORKFLOW.md)) |
+| `package.json` metadata | Behind reference | orbit-docs sets `repository`, `bugs`, `homepage`, and is not `"private"`; Orbit still has `"private": true` |
+| Tests in CONTRIBUTING | Behind reference | orbit-docs documents `bun run test` (Vitest); Orbit has no root test script yet |
+| Internal URLs | **Action required** | Hardcoded TransTRACK webhooks and infra scripts remain in Orbit code |
 | Project template | **Action required** | `nuxt3-spa-starter` still contains company-specific assets and CI scripts |
-| `@transtrack/ui` dependency | Review | Public npm package, but couples UI to TransTRACK branding |
-| `package.json` `"private": true` | Review | Remove when publishing is intentional |
+| `@transtrack/ui` dependency | Review | orbit-docs uses Flowbite directly; Orbit couples UI to `@transtrack/ui` |
 
 ---
 
@@ -79,20 +81,24 @@ Follow the patterns established in [orbit-docs](https://github.com/TransTRACK-ID
 | `README.md` | Features, quick start, config table, doc index | `README.md` |
 | `CONTRIBUTING.md` | Dev setup, branching, code conventions | `CONTRIBUTING.md` |
 | `SECURITY.md` | Vulnerability reporting, self-host security notes | `SECURITY.md` |
-| `CODE_OF_CONDUCT.md` | Community guidelines | (orbit-docs uses similar) |
-| `docs/SELF_HOSTING.md` | Docker deployment, volumes, networking | Docker section in README |
-| `docs/AGENT_RUNTIMES.md` | OpenCode, Cursor, browser QA setup | `DOC_AGENT` section |
+| `PRODUCT.md` | Product vision and design principles | `PRODUCT.md` |
+| `CODE_OF_CONDUCT.md` | Community guidelines | Not present in orbit-docs (Orbit addition) |
+| `docs/SELF_HOSTING.md` | Docker deployment, volumes, networking | Docker section in README + `docker-compose.yml` |
+| `docs/AGENT_RUNTIMES.md` | OpenCode, Cursor, browser QA setup | `DOC_AGENT` / Cursor vars in `.env.example` |
 | `docs/PROJECT_TEMPLATES.md` | Template usage and authoring | N/A (Orbit-specific) |
-| `docs/CI_WORKFLOW.md` | CI workflow instructions | orbit-docs has `.github/workflows/` |
+| `docs/CI_WORKFLOW.md` | CI workflow instructions | Not present in orbit-docs either |
 
 ### GitHub community health
 
-Add under `.github/`:
+**Already added in this branch (goes beyond orbit-docs):**
 
 - `pull_request_template.md` — summary + test plan
 - `ISSUE_TEMPLATE/bug_report.yml`
 - `ISSUE_TEMPLATE/feature_request.yml`
 - `ISSUE_TEMPLATE/config.yml` — link to `SECURITY.md` for vulnerabilities
+
+**Still to add (neither repo has this yet):**
+
 - `workflows/ci.yml` — `pnpm install` + `pnpm build` on PRs (see [CI_WORKFLOW.md](CI_WORKFLOW.md))
 
 ### Configuration

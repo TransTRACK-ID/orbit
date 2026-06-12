@@ -1,7 +1,15 @@
 {
   "name": "orbit",
-  "private": true,
+  "private": false,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TransTRACK-ID/orbit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TransTRACK-ID/orbit/issues"
+  },
+  "homepage": "https://github.com/TransTRACK-ID/orbit#readme",
   "scripts": {
     "dev": "nuxt dev --no-fork",
     "build": "nuxt build",

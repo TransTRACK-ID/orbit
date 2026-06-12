@@ -197,8 +197,8 @@ Catatan header:
   - `color: 'primary'|'success'|'info'|'warning'|'error'|'default'`
 - Emit: `on-click`
 - Slots: `prefix`, `suffix`
-- Storybook referensi: https://storybook.transtrack.id/?path=/story/general-outlinedbutton--outlined-button-story
-- Instalasi: `npm install @transtrack/nuxt-ui` dan cara import component ada pada halaman storybook
+- Komponen UI tersedia di `components/general/` (contoh: `OutlinedButton`, `Button`, `TextInput`)
+- Orbit menggunakan `@transtrack/ui` sebagai dependensi UI — lihat dokumentasi paket di [npm](https://www.npmjs.com/package/@transtrack/ui)
 
 Contoh penggunaan:
 

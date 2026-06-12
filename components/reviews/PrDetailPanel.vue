@@ -81,15 +81,16 @@
             <code class="bg-surface-100 px-1.5 py-0.5 rounded text-xs font-mono">{{ pullRequest.baseBranch }}</code>
           </div>
 
-          <!-- Link to task -->
-          <NuxtLink
+          <!-- Open linked task in side panel -->
+          <button
             v-if="pullRequest.task"
-            :to="`/workspaces/${route.params.slug}/projects/${pullRequest.task.projectId}/board?task=${pullRequest.task.id}`"
-            class="text-xs text-accent hover:text-accent-hover font-medium flex items-center gap-1 ml-auto no-underline"
+            type="button"
+            class="text-xs text-accent hover:text-accent-hover font-medium flex items-center gap-1 ml-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded px-1"
+            @click="$emit('view-task')"
           >
             <Icon name="lucide:kanban" class="w-3.5 h-3.5" />
             View task
-          </NuxtLink>
+          </button>
         </div>
       </div>
 
@@ -179,8 +180,6 @@
 <script setup lang="ts">
 import type { PullRequest } from '~/types'
 
-const route = useRoute()
-
 const props = defineProps<{
   pullRequest: PullRequest | null
   diff: { files: any[]; totalAdditions: number; totalDeletions: number; rawDiff: string; error?: string } | null
@@ -195,6 +194,7 @@ defineEmits<{
   sync: [id: string]
   'fix-feedback': [id: string]
   merged: []
+  'view-task': []
 }>()
 
 // Default to 'changes' tab; switch to 'comments' if there are comments

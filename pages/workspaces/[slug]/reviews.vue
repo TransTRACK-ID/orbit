@@ -70,15 +70,33 @@
         @sync="syncPr"
         @fix-feedback="fixFeedback"
         @merged="handleMerged"
+        @view-task="openLinkedTaskPanel"
       />
     </div>
+
+    <!-- Task side panel -->
+    <KanbanTaskSidePanel
+      v-if="showTaskSidePanel && selectedTask && taskPanelProjectId"
+      :task-id="selectedTask.id"
+      :project-id="taskPanelProjectId"
+      :workspace-id="workspace?.id || ''"
+      :statuses="taskPanelStatuses"
+      :labels="taskPanelLabels"
+      :members="taskPanelMembers"
+      :agents="agents"
+      :repositories="repositories"
+      @close="closeTaskDetail"
+      @updated="handleTaskUpdated"
+      @deleted="handleTaskDeleted"
+      @duplicated="handleTaskDuplicated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, nextTick } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
-import type { PullRequest, Workspace, Repository } from '~/types'
+import type { PullRequest, Workspace, Repository, Task, Status, Label, ProjectMember } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -90,6 +108,15 @@ const slug = computed(() => route.params.slug as string)
 const { getWorkspaceBySlug } = useWorkspace()
 const { fetchRepositories } = useRepository()
 const { startRuntime } = useAgentRuntime()
+const { fetchProjectDetail, fetchMembers } = useProject()
+const { agents, fetchAgents } = useAgent()
+const { fetchTaskDetail } = useTask()
+const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
+
+const taskPanelStatuses = ref<Status[]>([])
+const taskPanelLabels = ref<Label[]>([])
+const taskPanelMembers = ref<ProjectMember[]>([])
+const taskPanelProjectId = ref<string | null>(null)
 
 const workspace = ref<Workspace | null>(null)
 const repositories = ref<Repository[]>([])
@@ -298,19 +325,67 @@ async function syncPr(id: string) {
   }
 }
 
+async function ensureTaskPanelContext(projectId: string) {
+  if (taskPanelProjectId.value === projectId && taskPanelStatuses.value.length > 0) {
+    return
+  }
+
+  const data = await fetchProjectDetail(projectId)
+  taskPanelStatuses.value = data.statuses || []
+  taskPanelLabels.value = data.labels || []
+  taskPanelMembers.value = await fetchMembers(projectId)
+  taskPanelProjectId.value = projectId
+
+  if (agents.value.length === 0) {
+    await fetchAgents()
+  }
+}
+
+async function openTaskPanel(taskId: string, projectId: string) {
+  await ensureTaskPanelContext(projectId)
+  const task = await fetchTaskDetail(taskId)
+  openTaskDetail(task)
+}
+
+function openLinkedTaskPanel() {
+  const task = selectedPr.value?.task
+  if (!task?.id || !task.projectId) return
+  openTaskPanel(task.id, task.projectId)
+}
+
+function handleTaskUpdated(task: Task) {
+  if (selectedTask.value?.id === task.id) {
+    selectedTask.value = task
+  }
+  if (selectedPr.value?.task?.id === task.id) {
+    selectedPr.value = {
+      ...selectedPr.value,
+      task: { ...selectedPr.value.task!, ...task },
+    }
+  }
+}
+
+function handleTaskDeleted() {
+  closeTaskDetail()
+}
+
+function handleTaskDuplicated(task: Task) {
+  closeTaskDetail()
+  nextTick(() => openTaskDetail(task))
+}
+
 async function fixFeedback(id: string) {
   if (fixingFeedback.value) return
   fixingFeedback.value = true
   try {
     const res = await $fetch<{ success: true; taskId: string; commentCount: number; feedbackLength: number }>(`/api/pull-requests/${id}/fix-feedback`, { method: 'POST' })
     if (res.success && res.taskId) {
-      // The server already stored the feedback; we just need to start the runtime stream
       await startRuntime(res.taskId)
 
-      // Navigate to the task board so the user can watch the agent work
       const pr = selectedPr.value
-      if (pr?.task?.project?.id) {
-        await navigateTo(`/workspaces/${slug.value}/projects/${pr.task.project.id}/board?task=${pr.task.id}`)
+      const projectId = pr?.task?.projectId
+      if (projectId) {
+        await openTaskPanel(res.taskId, projectId)
       }
     }
   } catch (err) {
@@ -345,12 +420,16 @@ onMounted(async () => {
     return
   }
 
-  // Pre-select PR by task ID
+  // Pre-select PR by task ID and open the linked task panel
   const taskId = route.query.task as string
   if (taskId) {
     const pr = pullRequests.value.find((p) => p.taskId === taskId)
     if (pr) {
-      selectPr(pr.id)
+      await selectPr(pr.id)
+      const projectId = pr.task?.projectId
+      if (projectId) {
+        await openTaskPanel(taskId, projectId)
+      }
     }
   }
 

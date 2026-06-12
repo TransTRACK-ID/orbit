@@ -49,26 +49,9 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const tab = ref<'write' | 'preview'>('write')
+import { parseMarkdown } from '~/utils/markdown'
 
-function parseMarkdown(md: string): string {
-  return md
-    .replace(/\\n/g, '\n')
-    .replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, text) => {
-      const level = hashes.length
-      return `<h${level} class="font-semibold text-slate-800 mt-2 mb-1">${text}</h${level}>`
-    })
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-xs">$1</code>')
-    .replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^(.*)$/gm, '<p class="mb-1">$1</p>')
-    .replace(/<p class="mb-1"><h(\d)[^>]*>(.*?)<\/h\d><\/p>/g, '<h$1 class="font-semibold text-slate-800 mt-2 mb-1">$2</h$1>')
-    .replace(/<p class="mb-1"><li class="ml-4">(.*?)<\/li><\/p>/g, '<li class="ml-4">$1</li>')
-    .replace(/(<li class="ml-4">.*?<\/li>\s*)+/g, '<ul class="list-disc pl-2 my-1">$&</ul>')
-    .replace(/\n/g, '')
-}
+const tab = ref<'write' | 'preview'>('write')
 
 const rendered = computed(() => {
   if (!props.modelValue) return '<p class="text-surface-400 italic">No description provided</p>'

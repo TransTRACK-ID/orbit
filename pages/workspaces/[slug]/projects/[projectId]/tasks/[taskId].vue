@@ -104,7 +104,7 @@
                   <span class="text-sm font-medium text-surface-900">{{ comment.user?.name }}</span>
                   <span class="text-xs text-surface-400">{{ formatDate(comment.createdAt) }}</span>
                 </div>
-                <p class="text-sm text-surface-700" v-html="parseCommentBody(comment.body)"></p>
+                <div class="text-sm text-surface-700 leading-relaxed comment-body" v-html="parseMarkdown(comment.body)" />
               </div>
             </div>
           </div>
@@ -127,7 +127,7 @@
 
 <script setup lang="ts">
 import type { Task, Comment } from '~/types'
-import { marked } from 'marked'
+import { parseMarkdown } from '~/utils/markdown'
 
 definePageMeta({
   layout: 'default',
@@ -137,7 +137,7 @@ const route = useRoute()
 const router = useRouter()
 const taskId = computed(() => route.params.taskId as string)
 
-const { fetchTaskDetailComposite, addComment } = useTask()
+const { fetchTaskDetailComposite, addComment, fetchComments } = useTask()
 
 const loading = ref(true)
 const task = ref<Task | null>(null)
@@ -176,8 +176,125 @@ function formatDate(dateStr: string) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function parseCommentBody(body: string): string {
-  if (!body) return ''
-  return marked.parse(body, { async: false, breaks: true }) as string
-}
 </script>
+
+<style scoped>
+.comment-body :deep(p) {
+  margin: 3px 0;
+}
+
+.comment-body :deep(strong) {
+  font-weight: 600;
+}
+
+.comment-body :deep(em) {
+  font-style: italic;
+}
+
+.comment-body :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: #e2e8f0;
+  color: #334155;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.comment-body :deep(pre) {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 4px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-body :deep(pre code) {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.comment-body :deep(ul),
+.comment-body :deep(ol) {
+  margin: 4px 0;
+  padding-left: 16px;
+}
+
+.comment-body :deep(li) {
+  margin: 2px 0;
+}
+
+.comment-body :deep(a) {
+  color: #6366f1;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.comment-body :deep(blockquote) {
+  border-left: 2px solid #cbd5e1;
+  margin: 4px 0;
+  padding: 2px 0 2px 8px;
+  color: #64748b;
+}
+
+.comment-body :deep(h1),
+.comment-body :deep(h2),
+.comment-body :deep(h3),
+.comment-body :deep(h4) {
+  font-weight: 600;
+  margin: 6px 0 3px;
+  line-height: 1.3;
+}
+
+.comment-body :deep(h1) { font-size: 14px; }
+.comment-body :deep(h2) { font-size: 13px; }
+.comment-body :deep(h3) { font-size: 12px; }
+.comment-body :deep(h4) { font-size: 11px; }
+
+.comment-body :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin: 8px 0;
+}
+
+.comment-body :deep(del),
+.comment-body :deep(s) {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.comment-body :deep(hr) {
+  margin: 8px 0;
+  border-color: #e2e8f0;
+}
+
+.comment-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.comment-body :deep(th),
+.comment-body :deep(td) {
+  border: 1px solid #e2e8f0;
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.comment-body :deep(th) {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.comment-body :deep(input[type='checkbox']) {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+</style>

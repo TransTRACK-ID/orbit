@@ -721,7 +721,7 @@
                       <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
                       <span class="text-xs text-surface-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <KanbanMarkdownBody
+                    <KanbanCommentBody
                       :content="comment.body"
                       wrapper-class="text-sm text-surface-700 leading-relaxed comment-body"
                     />
@@ -745,9 +745,10 @@
                       <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
                       <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
                     </div>
-                    <KanbanMarkdownBody
+                    <KanbanCommentBody
                       :content="comment.body"
                       wrapper-class="text-sm text-primary-800 leading-relaxed comment-body"
+                      on-agent
                     />
                   </div>
                 </div>

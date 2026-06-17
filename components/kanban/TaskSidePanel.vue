@@ -357,36 +357,52 @@
             </div>
           </div>
 
-          <div v-if="isBacklog && task.assigneeType === 'agent'" class="mb-6">
-            <h5 class="text-xs font-semibold text-surface-500 uppercase mb-2">Repository <span class="text-error-500">*</span></h5>
-            <div v-if="repositories && repositories.length > 0">
-              <div class="relative">
-                <select
-                  :value="task.repositoryId || ''"
-                  required
-                  class="w-full text-sm rounded-lg border border-surface-200 pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none bg-white cursor-pointer"
-                  @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value || null)"
-                >
-                  <option value="" disabled>Select a repository</option>
-                  <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
-                    {{ repo.name }} — {{ repo.defaultBranch }}
-                  </option>
-                </select>
-                <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+          <!-- Repository — visible for agent tasks across all statuses; editable only in backlog -->
+          <div v-if="task.assigneeType === 'agent'" class="mb-6">
+            <h5 class="text-xs font-semibold text-surface-500 uppercase mb-2">
+              Repository
+              <span v-if="isBacklog" class="text-error-500">*</span>
+            </h5>
+            <!-- Editable: backlog only -->
+            <template v-if="isBacklog">
+              <div v-if="repositories && repositories.length > 0">
+                <div class="relative">
+                  <select
+                    :value="task.repositoryId || ''"
+                    required
+                    class="w-full text-sm rounded-lg border border-surface-200 pl-3 pr-8 py-2 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none bg-white cursor-pointer"
+                    @change="handleUpdate('repositoryId', ($event.target as HTMLSelectElement).value || null)"
+                  >
+                    <option value="" disabled>Select a repository</option>
+                    <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
+                      {{ repo.name }} — {{ repo.defaultBranch }}
+                    </option>
+                  </select>
+                  <Icon name="lucide:chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+                </div>
+                <p class="text-[10px] text-surface-400 mt-1.5">Required for agent code context</p>
               </div>
-              <p class="text-[10px] text-surface-400 mt-1.5">Required for agent code context</p>
-            </div>
-            <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
-              <p class="text-xs text-surface-500">
-                No repositories connected.
-                <NuxtLink
-                  :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                  class="text-accent font-medium hover:text-accent-hover"
-                  @click="$emit('close')"
-                >
-                  Add one in settings
-                </NuxtLink>
-              </p>
+              <div v-else class="p-3 rounded-lg bg-surface-50 border border-surface-200">
+                <p class="text-xs text-surface-500">
+                  No repositories connected.
+                  <NuxtLink
+                    :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                    class="text-accent font-medium hover:text-accent-hover"
+                    @click="$emit('close')"
+                  >
+                    Add one in settings
+                  </NuxtLink>
+                </p>
+              </div>
+            </template>
+            <!-- Read-only: non-backlog statuses -->
+            <div v-else class="flex items-center gap-2 text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-surface-400 flex-shrink-0"><path d="M4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8.34a2 2 0 0 0-.59-1.42l-3.34-3.34A2 2 0 0 0 14.34 3H6a2 2 0 0 0-2 2"/><path d="M14 3v4a2 2 0 0 0 2 2h4"/></svg>
+              <code v-if="task.repositoryId && selectedRepository" class="font-mono text-xs text-surface-700">
+                {{ selectedRepository.name }} — {{ selectedRepository.defaultBranch }}
+              </code>
+              <span v-else class="text-surface-400 text-xs">No repository</span>
+              <span class="ml-auto text-[10px] text-surface-400 italic">Locked outside backlog</span>
             </div>
           </div>
 
@@ -1825,6 +1841,11 @@ const canStartPreview = computed(() => {
 
 const isBacklog = computed(() =>
   task.value?.status?.name && /backlog/i.test(task.value.status.name)
+)
+
+/** Resolves the repository currently selected on the task, used for read-only display outside backlog */
+const selectedRepository = computed(() =>
+  props.repositories?.find(r => r.id === task.value?.repositoryId)
 )
 
 /** Tracks when we are sending a comment to the agent runtime */

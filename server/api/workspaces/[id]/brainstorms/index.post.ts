@@ -42,6 +42,8 @@ export default defineEventHandler(async (event) => {
       workspaceId: id,
       repositoryId: body.repositoryId || null,
       title: storedTitle,
+      mode,
+      grillStatus: mode === 'grill' ? 'active' : null,
     })
     .returning()
 

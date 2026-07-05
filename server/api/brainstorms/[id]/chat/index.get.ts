@@ -19,8 +19,9 @@ import {
   resolveAppAgentRuntime,
 } from '~/server/utils/agent-runner'
 import { spawnCursorAgent } from '~/server/utils/cursor-agent'
-import { getBrainstormMode } from '~/server/utils/grill-mode'
+import { resolveBrainstormMode, enrichBrainstorm } from '~/server/utils/grill-mode'
 import { GRILLING_RULES, buildGrillChatMessage } from '~/server/utils/grill-prompt'
+import { canStartGrillAgentTurn } from '~/server/utils/grill-state'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
 
@@ -121,6 +122,12 @@ export default defineEventHandler(async (event) => {
 
   if (!brainstorm) {
     throw createError({ statusCode: 404, statusMessage: 'Brainstorm not found' })
+  }
+
+  const enrichedBrainstorm = enrichBrainstorm(brainstorm)
+  const grillTurnCheck = canStartGrillAgentTurn(enrichedBrainstorm, message)
+  if (!grillTurnCheck.allowed) {
+    throw createError({ statusCode: 409, statusMessage: grillTurnCheck.reason || 'Cannot start grill agent turn' })
   }
 
   // Fetch conversation history for context (limit to last 20 messages to avoid
@@ -291,7 +298,7 @@ When the user asks for changes, explain WHAT should change and WHY, but explicit
 CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
 
     const attachmentPrompt = buildAttachmentPrompt(attachments)
-    const brainstormMode = getBrainstormMode(brainstorm.title)
+    const brainstormMode = resolveBrainstormMode(brainstorm)
     const isGrillMode = brainstormMode === 'grill'
 
     const chatMessage = isGrillMode

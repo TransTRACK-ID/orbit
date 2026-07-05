@@ -37,7 +37,7 @@
           Running
         </span>
         <button
-          v-if="!isRunning"
+          v-if="!isRunning && !(isGrillMode && grillStatus === 'awaiting_answer')"
           class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-primary-500 text-white hover:bg-primary-600 transition-colors flex items-center gap-1"
           @click="handleStart"
         >
@@ -58,13 +58,28 @@
     <!-- Grill mode banner -->
     <div
       v-if="isGrillMode"
-      class="px-4 py-2.5 bg-amber-50 border-b border-amber-100 flex items-start gap-2 flex-shrink-0"
+      class="px-4 py-2.5 border-b flex items-start gap-2 flex-shrink-0"
+      :class="grillStatus === 'complete'
+        ? 'bg-emerald-50 border-emerald-100'
+        : 'bg-amber-50 border-amber-100'"
     >
-      <Icon name="lucide:flame" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+      <Icon
+        :name="grillStatus === 'complete' ? 'lucide:check-circle' : 'lucide:flame'"
+        class="w-4 h-4 flex-shrink-0 mt-0.5"
+        :class="grillStatus === 'complete' ? 'text-emerald-600' : 'text-amber-600'"
+      />
       <div class="min-w-0">
-        <p class="text-xs font-semibold text-amber-800">Grill mode — answer one question at a time</p>
-        <p class="text-[11px] text-amber-700 mt-0.5">
-          The agent will ask structured questions with recommended answers. Respond to each question before the next one.
+        <p
+          class="text-xs font-semibold"
+          :class="grillStatus === 'complete' ? 'text-emerald-800' : 'text-amber-800'"
+        >
+          {{ grillBannerTitle }}
+        </p>
+        <p
+          class="text-[11px] mt-0.5"
+          :class="grillStatus === 'complete' ? 'text-emerald-700' : 'text-amber-700'"
+        >
+          {{ grillBannerDescription }}
         </p>
       </div>
     </div>
@@ -106,7 +121,21 @@
           >
             <Icon name="lucide:bot" class="w-3.5 h-3.5" />
           </div>
-          <div class="max-w-[80%]">
+          <div class="max-w-[80%] space-y-2">
+            <GrillQuestionCard
+              v-if="getGrillQuestionMetadata(msg)"
+              :metadata="getGrillQuestionMetadata(msg)!"
+              :disabled="isRunning || isSending"
+              :answered="getGrillQuestionMetadata(msg)!.status !== 'pending'"
+              @use-recommended="handleUseRecommended"
+            />
+            <div
+              v-if="getGrillCompleteMetadata(msg)"
+              class="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-3"
+            >
+              <p class="text-xs font-semibold text-emerald-800 mb-1">Grill session complete</p>
+              <p class="text-sm text-surface-800 leading-relaxed">{{ getGrillCompleteMetadata(msg)!.summary }}</p>
+            </div>
             <div class="bg-surface-50 border border-surface-100 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-sm text-surface-800 leading-relaxed max-w-none brainstorm-markdown">
               <div v-html="parseMarkdown(msg.content)" />
             </div>
@@ -278,18 +307,16 @@
              <textarea
                ref="textareaRef"
                v-model="newMessage"
-               :placeholder="isGrillMode
-                 ? (isRunning ? 'Answer the question above...' : 'Answer the agent\'s question...')
-                 : (isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...')"
+               :placeholder="inputPlaceholder"
                 class="block w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y min-h-10"
-               :disabled="isSending"
+               :disabled="!canSendMessage || isSending"
                rows="1"
                @keydown="handleKeydown"
              />
             <span v-if="isSending" class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-surface-400">Sending...</span>
           </div>
           <button
-            :disabled="!newMessage.trim() || isSending"
+            :disabled="!newMessage.trim() || isSending || !canSendMessage"
             class="px-3 py-2.5 rounded-lg bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 h-10 flex-shrink-0"
             @click="handleSend"
           >
@@ -298,7 +325,7 @@
         </div>
         <p class="text-[10px] text-surface-400 mt-1.5 flex items-center gap-1">
           <Icon name="lucide:shield" class="w-3 h-3" />
-          {{ isGrillMode ? 'Grill mode — read-only, one question at a time' : 'Read-only mode — the agent will not edit any files' }}
+          {{ inputHint }}
         </p>
       </div>
     </div>
@@ -332,7 +359,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Brainstorm, BrainstormMessage, BrainstormAttachment } from '~/types'
+import type { Brainstorm, BrainstormMessage, BrainstormAttachment, GrillCompleteMetadata, GrillQuestionMetadata } from '~/types'
+import { getPrimaryGrillMetadata, parseGrillBlocks } from '~/utils/grill-parser'
 import { nextTick, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
@@ -372,6 +400,90 @@ const userInitials = computed(() => {
 
 const isGrillMode = computed(() => props.brainstorm.mode === 'grill')
 const displayTitle = computed(() => props.brainstorm.displayTitle || props.brainstorm.title)
+const grillStatus = computed(() => props.brainstorm.grillStatus ?? null)
+
+const grillBannerTitle = computed(() => {
+  if (grillStatus.value === 'complete') return 'Grill complete — decisions captured'
+  if (grillStatus.value === 'awaiting_answer') return 'Your turn — answer the question below'
+  return 'Grill mode — answer one question at a time'
+})
+
+const grillBannerDescription = computed(() => {
+  if (grillStatus.value === 'complete') {
+    return 'All branches are resolved. You can follow up or generate a PRD.'
+  }
+  if (grillStatus.value === 'awaiting_answer') {
+    return 'Use the recommended answer or type your own before the agent continues.'
+  }
+  return 'The agent will ask structured questions with recommended answers. Respond to each question before the next one.'
+})
+
+const canSendMessage = computed(() => {
+  if (!isGrillMode.value) return true
+  if (props.isRunning) return false
+  if (grillStatus.value === null) return true
+  if (grillStatus.value === 'complete') return true
+  if (grillStatus.value === 'awaiting_answer') return true
+  return false
+})
+
+const inputPlaceholder = computed(() => {
+  if (!isGrillMode.value) {
+    return props.isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'
+  }
+  if (grillStatus.value === 'complete') {
+    return 'Optional follow-up...'
+  }
+  if (grillStatus.value === 'awaiting_answer') {
+    return 'Answer the question above...'
+  }
+  if (props.isRunning) {
+    return 'Waiting for the agent...'
+  }
+  return 'Waiting for the next question...'
+})
+
+const inputHint = computed(() => {
+  if (!isGrillMode.value) {
+    return 'Read-only mode — the agent will not edit any files'
+  }
+  if (grillStatus.value === 'awaiting_answer') {
+    return 'Grill mode — answer the current question to continue'
+  }
+  if (grillStatus.value === 'complete') {
+    return 'Grill mode complete — read-only follow-ups allowed'
+  }
+  return 'Grill mode — read-only, one question at a time'
+})
+
+function getGrillQuestionMetadata(msg: BrainstormMessage): GrillQuestionMetadata | null {
+  if (msg.metadata?.type === 'grill_question') {
+    return msg.metadata
+  }
+  if (msg.id === 'live-reply' && msg.content) {
+    const { blocks } = parseGrillBlocks(msg.content)
+    const metadata = getPrimaryGrillMetadata(blocks)
+    if (metadata?.type === 'grill_question') return metadata
+  }
+  return null
+}
+
+function getGrillCompleteMetadata(msg: BrainstormMessage): GrillCompleteMetadata | null {
+  if (msg.metadata?.type === 'grill_complete') {
+    return msg.metadata
+  }
+  if (msg.id === 'live-reply' && msg.content) {
+    const { blocks } = parseGrillBlocks(msg.content)
+    const metadata = getPrimaryGrillMetadata(blocks)
+    if (metadata?.type === 'grill_complete') return metadata
+  }
+  return null
+}
+
+function handleUseRecommended(answer: string) {
+  if (!canSendMessage.value || props.isSending) return
+  emit('send', answer)
+}
 
 // Create task modal state
 const showCreateTaskModal = ref(false)
@@ -538,7 +650,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 async function handleSend() {
   const content = newMessage.value.trim()
-  if (!content || props.isSending) return
+  if (!content || props.isSending || !canSendMessage.value) return
   newMessage.value = ''
   nextTick(() => {
     if (textareaRef.value) {

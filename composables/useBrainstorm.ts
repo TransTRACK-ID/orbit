@@ -78,15 +78,26 @@ export const useBrainstorm = () => {
     }
   }
 
+  function applyBrainstormUpdate(brainstormId: string, updated: Brainstorm) {
+    if (currentBrainstorm.value?.id === brainstormId) {
+      currentBrainstorm.value = updated
+    }
+    const idx = brainstorms.value.findIndex((b) => b.id === brainstormId)
+    if (idx !== -1) {
+      brainstorms.value[idx] = updated
+    }
+  }
+
   async function sendMessage(brainstormId: string, content: string) {
     sending.value = true
     try {
-      const message = await $fetch<BrainstormMessage>(`/api/brainstorms/${brainstormId}/messages`, {
+      const result = await $fetch<{ message: BrainstormMessage; brainstorm: Brainstorm }>(`/api/brainstorms/${brainstormId}/messages`, {
         method: 'POST',
         body: { role: 'user', content },
       })
-      messages.value.push(message)
-      return message
+      messages.value.push(result.message)
+      applyBrainstormUpdate(brainstormId, result.brainstorm)
+      return result.message
     } catch (err) {
       console.error('Failed to send message:', err)
       throw err
@@ -97,12 +108,20 @@ export const useBrainstorm = () => {
 
   async function saveAssistantMessage(brainstormId: string, content: string) {
     try {
-      const message = await $fetch<BrainstormMessage>(`/api/brainstorms/${brainstormId}/messages`, {
+      const result = await $fetch<{
+        message: BrainstormMessage
+        brainstorm: Brainstorm
+        warning?: string
+      }>(`/api/brainstorms/${brainstormId}/messages/assistant`, {
         method: 'POST',
-        body: { role: 'assistant', content },
+        body: { content },
       })
-      messages.value.push(message)
-      return message
+      messages.value.push(result.message)
+      applyBrainstormUpdate(brainstormId, result.brainstorm)
+      if (result.warning) {
+        console.warn('[grill]', result.warning)
+      }
+      return result.message
     } catch (err) {
       console.error('Failed to save assistant message:', err)
     }

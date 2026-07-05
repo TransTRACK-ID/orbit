@@ -682,9 +682,20 @@ async function handleSend(content: string) {
   }
   clearChatStep(bsId)
 
-  await sendMessage(bsId, content)
+  try {
+    await sendMessage(bsId, content)
+  } catch (err: any) {
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to send message', 'Error')
+    return
+  }
+
   chatRunningState.value = true
-  await startChat(bsId, content)
+  try {
+    await startChat(bsId, content)
+  } catch (err: any) {
+    chatRunningState.value = false
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to start agent', 'Error')
+  }
 }
 
 function handleStart() {

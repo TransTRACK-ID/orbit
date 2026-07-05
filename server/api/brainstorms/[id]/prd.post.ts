@@ -5,7 +5,9 @@ import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
+import { resolveBrainstormMode } from '~/server/utils/grill-mode'
 import { resolveCloneDir, projectsDir } from '~/server/utils/worktree-resolver'
+import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForPrompt } from '~/utils/grill-decisions'
 import {
   checkAgentRuntimeAvailability,
   resolveAppAgentRuntime,
@@ -39,6 +41,14 @@ export default defineEventHandler(async (event) => {
     where: eq(schema.brainstormMessages.brainstormId, brainstormId),
     orderBy: [asc(schema.brainstormMessages.createdAt)],
   })
+
+  const brainstormMode = resolveBrainstormMode(brainstorm)
+  if (brainstormMode === 'grill' && brainstorm.grillStatus !== 'complete') {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Complete the grill session before generating a PRD',
+    })
+  }
 
   if (messages.length < 2) {
     throw createError({ statusCode: 400, statusMessage: 'Brainstorm must have at least 2 messages to generate a PRD' })
@@ -79,13 +89,23 @@ export default defineEventHandler(async (event) => {
 
     const conversationText = messages.map(m => `[${m.role === 'user' ? 'User' : 'Assistant'}]: ${m.content}`).join('\n\n')
 
+    const decisionsLedger = brainstormMode === 'grill'
+      ? extractGrillDecisionsFromMessages(messages, {
+          grillStatus: brainstorm.grillStatus as 'complete' | null,
+          currentQuestionId: brainstorm.currentQuestionId,
+        })
+      : null
+    const decisionsBlock = decisionsLedger
+      ? formatResolvedDecisionsForPrompt(decisionsLedger)
+      : ''
+
     const prompt = `You are a senior product manager. Analyze the following brainstorm conversation and produce a structured Product Requirements Document (PRD).
 
 ${attachmentPrompt}[BRAINSTORM CONTEXT]
 Title: ${brainstorm.title}
 Repository: ${repoName}
-
-[CONVERSATION]
+${brainstormMode === 'grill' ? 'Session type: Grill-me (structured Q&A — resolved decisions are authoritative)\n' : ''}
+${decisionsBlock ? `${decisionsBlock}\n\n` : ''}[CONVERSATION — supporting context]
 ${conversationText}
 
 [OUTPUT FORMAT]
@@ -138,7 +158,7 @@ Return a JSON object with this exact structure:
 
 IMPORTANT:
 - Extract requirements from the actual brainstorm conversation, do not hallucinate features
-- Include quantifiable goals and metrics where possible
+${brainstormMode === 'grill' ? '- For grill-me sessions, treat [RESOLVED DECISIONS] as authoritative — the PRD MUST reflect every agreed decision\n' : ''}- Include quantifiable goals and metrics where possible
 - Map urgency keywords from the conversation to requirement priorities
 - Keep content concise but comprehensive
 - Return ONLY the JSON object, no other text.`

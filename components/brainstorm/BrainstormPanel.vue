@@ -19,13 +19,20 @@
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <button
-          v-if="messages.length >= 2 && !isRunning"
+          v-if="canGeneratePrd && !isRunning"
           class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-purple-500 text-white hover:bg-purple-600 transition-colors flex items-center gap-1"
           @click="handleGeneratePrd"
         >
           <Icon name="lucide:file-text" class="w-3 h-3" />
           Generate PRD
         </button>
+        <span
+          v-else-if="isGrillMode && !isRunning && messages.length >= 2 && grillStatus !== 'complete'"
+          class="text-[10px] font-medium px-2 py-1 rounded-md bg-surface-100 text-surface-500"
+          title="Complete the grill session to generate a PRD"
+        >
+          PRD after grill
+        </span>
         <span
           v-if="isRunning"
           class="text-[10px] font-semibold px-2 py-1 rounded-full bg-primary-100 text-primary-700 flex items-center gap-1.5"
@@ -416,6 +423,13 @@ const grillBannerDescription = computed(() => {
     return 'Use the recommended answer or type your own before the agent continues.'
   }
   return 'The agent will ask structured questions with recommended answers. Respond to each question before the next one.'
+})
+
+const canGeneratePrd = computed(() => {
+  if (!isGrillMode.value) {
+    return props.messages.length >= 2
+  }
+  return grillStatus.value === 'complete'
 })
 
 const canSendMessage = computed(() => {

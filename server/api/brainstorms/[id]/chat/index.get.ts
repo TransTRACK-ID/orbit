@@ -22,6 +22,7 @@ import { spawnCursorAgent } from '~/server/utils/cursor-agent'
 import { resolveBrainstormMode, enrichBrainstorm } from '~/server/utils/grill-mode'
 import { GRILLING_RULES, buildGrillChatMessage } from '~/server/utils/grill-prompt'
 import { canStartGrillAgentTurn } from '~/server/utils/grill-state'
+import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForChat } from '~/utils/grill-decisions'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
 
@@ -301,8 +302,15 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     const brainstormMode = resolveBrainstormMode(brainstorm)
     const isGrillMode = brainstormMode === 'grill'
 
+    const grillDecisionsContext = isGrillMode
+      ? formatResolvedDecisionsForChat(extractGrillDecisionsFromMessages(historyMessages, {
+          grillStatus: enrichedBrainstorm.grillStatus,
+          currentQuestionId: enrichedBrainstorm.currentQuestionId,
+        }))
+      : ''
+
     const chatMessage = isGrillMode
-      ? buildGrillChatMessage({ message, historyMessages, attachmentPrompt })
+      ? `${grillDecisionsContext ? `${grillDecisionsContext}\n\n` : ''}${buildGrillChatMessage({ message, historyMessages, attachmentPrompt })}`
       : message
         ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}[USER MESSAGE]\n${message}\n\nPlease respond to this message. Remember: read-only mode — do NOT edit any files.`
         : historyMessages.length > 0

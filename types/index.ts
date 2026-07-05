@@ -362,6 +362,28 @@ export interface GrillCompleteMetadata {
 
 export type GrillMessageMetadata = GrillQuestionMetadata | GrillCompleteMetadata
 
+export interface GrillDecision {
+  messageId: string
+  topic: string
+  question: string
+  answer: string
+  status: 'accepted' | 'revised'
+}
+
+export interface GrillPendingDecision {
+  messageId: string
+  topic?: string
+  question: string
+  recommendedAnswer: string
+}
+
+export interface GrillDecisionsLedger {
+  resolved: GrillDecision[]
+  pending: GrillPendingDecision | null
+  summary: string | null
+  isComplete: boolean
+}
+
 export interface Brainstorm {
   id: string
   workspaceId: string

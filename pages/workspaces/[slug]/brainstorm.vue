@@ -84,6 +84,15 @@
             </p>
           </div>
 
+          <!-- Grill decision ledger -->
+          <GrillDecisionLedger
+            v-if="currentBrainstorm?.mode === 'grill' && selectedBrainstormId"
+            :resolved="grillDecisionsLedger.resolved"
+            :pending="grillDecisionsLedger.pending"
+            :summary="grillDecisionsLedger.summary"
+            :is-complete="grillDecisionsLedger.isComplete"
+          />
+
           <!-- PRDs for selected brainstorm -->
           <div v-if="prds.length > 0 && selectedBrainstormId" class="mt-2 pt-2 border-t border-surface-100">
             <div class="flex items-center justify-between px-1 mb-1">
@@ -385,6 +394,7 @@
 
 <script setup lang="ts">
 import type { Brainstorm, Workspace, Prd, PrdSection, TemplateConfig, Repository, BrainstormMode } from '~/types'
+import { extractGrillDecisionsFromMessages } from '~/utils/grill-decisions'
 
 definePageMeta({
   layout: 'default',
@@ -485,6 +495,22 @@ const generationStep = computed(() => {
 const generationProgress = computed(() => {
   if (!currentBrainstorm.value) return 0
   return prdGenerationProgress.value[currentBrainstorm.value.id] || 0
+})
+
+const grillDecisionsLedger = computed(() => {
+  if (!currentBrainstorm.value || currentBrainstorm.value.mode !== 'grill') {
+    return {
+      resolved: [],
+      pending: null,
+      summary: null,
+      isComplete: false,
+    }
+  }
+
+  return extractGrillDecisionsFromMessages(messages.value, {
+    grillStatus: currentBrainstorm.value.grillStatus ?? null,
+    currentQuestionId: currentBrainstorm.value.currentQuestionId ?? null,
+  })
 })
 
 onMounted(async () => {
@@ -726,6 +752,10 @@ async function handleCreateTask(messageId: string, projectId: string) {
 
 async function handleGeneratePrd() {
   if (!currentBrainstorm.value) return
+  if (currentBrainstorm.value.mode === 'grill' && currentBrainstorm.value.grillStatus !== 'complete') {
+    toastError('Complete the grill session before generating a PRD', 'Grill in progress')
+    return
+  }
   try {
     activeTab.value = 'prd'
     await generatePrd(currentBrainstorm.value.id)

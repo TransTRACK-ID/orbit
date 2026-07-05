@@ -55,8 +55,19 @@
             @click="selectBrainstorm(bs.id)"
           >
             <div class="flex items-center gap-2 mb-1">
-              <Icon name="lucide:lightbulb" class="w-3.5 h-3.5 text-primary-500 flex-shrink-0" :class="bs.archived ? 'opacity-40' : ''" />
-              <span class="text-xs font-semibold truncate flex-1" :class="bs.archived ? 'text-surface-400 line-through' : 'text-surface-900'">{{ bs.title }}</span>
+              <Icon
+                v-if="bs.mode === 'grill'"
+                name="lucide:flame"
+                class="w-3.5 h-3.5 text-amber-500 flex-shrink-0"
+                :class="bs.archived ? 'opacity-40' : ''"
+              />
+              <Icon
+                v-else
+                name="lucide:lightbulb"
+                class="w-3.5 h-3.5 text-primary-500 flex-shrink-0"
+                :class="bs.archived ? 'opacity-40' : ''"
+              />
+              <span class="text-xs font-semibold truncate flex-1" :class="bs.archived ? 'text-surface-400 line-through' : 'text-surface-900'">{{ bs.displayTitle || bs.title }}</span>
               <span v-if="bs._prdCount" class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full flex-shrink-0">
                 {{ bs._prdCount }} PRD{{ bs._prdCount > 1 ? 's' : '' }}
               </span>
@@ -72,6 +83,16 @@
               {{ bs.repository.name }}
             </p>
           </div>
+
+          <!-- Grill decision ledger -->
+          <GrillDecisionLedger
+            v-if="currentBrainstorm?.mode === 'grill' && selectedBrainstormId"
+            :resolved="grillDecisionsLedger.resolved"
+            :pending="grillDecisionsLedger.pending"
+            :summary="grillDecisionsLedger.summary"
+            :is-complete="grillDecisionsLedger.isComplete"
+            @create-task="handleCreateGrillTaskFromLedger"
+          />
 
           <!-- PRDs for selected brainstorm -->
           <div v-if="prds.length > 0 && selectedBrainstormId" class="mt-2 pt-2 border-t border-surface-100">
@@ -143,6 +164,7 @@
           <div v-if="activeTab === 'chat'" class="flex-1 min-h-0">
             <BrainstormPanel
               v-if="currentBrainstorm"
+              ref="brainstormPanelRef"
               :brainstorm="currentBrainstorm"
               :messages="messages"
               :is-running="chatRunningState"
@@ -209,12 +231,51 @@
 
           <div class="flex-1 overflow-y-auto p-6 pt-4 space-y-4">
             <div>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Session type</label>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                  :class="sessionMode === 'chat' ? 'bg-surface-900 text-white border-surface-900 dark:bg-black dark:border-black' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
+                  @click="sessionMode = 'chat'; createError = ''"
+                >
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5"
+                  :class="sessionMode === 'grill' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-surface-600 border-surface-200 hover:border-surface-300'"
+                  @click="sessionMode = 'grill'; createError = ''"
+                >
+                  <Icon name="lucide:flame" class="w-3 h-3" />
+                  Grill me
+                </button>
+              </div>
+              <p class="text-xs text-surface-400 mt-1.5">
+                {{ sessionMode === 'grill'
+                  ? 'Structured interview — the agent asks one question at a time with recommended answers'
+                  : 'Free-form brainstorm about your codebase' }}
+              </p>
+            </div>
+
+            <div>
               <label class="block text-xs font-medium text-surface-600 mb-1.5">Title</label>
               <TextInput
                 v-model="createTitle"
                 placeholder="e.g. API Design Discussion"
                 required
               />
+            </div>
+
+            <div v-if="sessionMode === 'grill'">
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Plan or design to grill</label>
+              <textarea
+                v-model="createInitialPlan"
+                rows="4"
+                placeholder="Describe your plan, feature idea, or design decision you want stress-tested..."
+                class="block w-full text-sm rounded-lg border border-surface-200 bg-white px-3 py-2.5 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-colors resize-y min-h-[96px]"
+              />
+              <p class="text-xs text-surface-400 mt-1">The agent will interview you about this plan, one question at a time.</p>
             </div>
 
             <div>
@@ -310,7 +371,7 @@
             <Button
               v-if="!(repoMode === 'new' && selectedTemplate)"
               :loading="creating"
-              :disabled="!createTitle.trim() || (repoMode === 'new' && !repoFromTemplate)"
+              :disabled="!createTitle.trim() || (repoMode === 'new' && !repoFromTemplate) || (sessionMode === 'grill' && !createInitialPlan.trim())"
               @click="handleCreate"
             >
               Create
@@ -334,7 +395,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Brainstorm, Workspace, Prd, PrdSection, TemplateConfig, Repository } from '~/types'
+import type { Brainstorm, Workspace, Prd, PrdSection, TemplateConfig, Repository, BrainstormMode } from '~/types'
+import { extractGrillDecisionsFromMessages } from '~/utils/grill-decisions'
 
 definePageMeta({
   layout: 'default',
@@ -394,6 +456,8 @@ const selectedBrainstormId = ref<string | null>(null)
 const showCreate = ref(false)
 const showArchived = ref(false)
 const createTitle = ref('')
+const createInitialPlan = ref('')
+const sessionMode = ref<BrainstormMode>('chat')
 const createRepoId = ref('')
 const creating = ref(false)
 const createError = ref('')
@@ -433,6 +497,22 @@ const generationStep = computed(() => {
 const generationProgress = computed(() => {
   if (!currentBrainstorm.value) return 0
   return prdGenerationProgress.value[currentBrainstorm.value.id] || 0
+})
+
+const grillDecisionsLedger = computed(() => {
+  if (!currentBrainstorm.value || currentBrainstorm.value.mode !== 'grill') {
+    return {
+      resolved: [],
+      pending: null,
+      summary: null,
+      isComplete: false,
+    }
+  }
+
+  return extractGrillDecisionsFromMessages(messages.value, {
+    grillStatus: currentBrainstorm.value.grillStatus ?? null,
+    currentQuestionId: currentBrainstorm.value.currentQuestionId ?? null,
+  })
 })
 
 onMounted(async () => {
@@ -531,9 +611,14 @@ async function handleCreate() {
     const bs = await createBrainstorm(workspace.value.id, {
       title: createTitle.value.trim(),
       repositoryId: repoId,
+      mode: sessionMode.value,
+      initialPlan: sessionMode.value === 'grill' ? createInitialPlan.value.trim() : undefined,
     })
+    const createdMode = sessionMode.value
     showCreate.value = false
     createTitle.value = ''
+    createInitialPlan.value = ''
+    sessionMode.value = 'chat'
     createRepoId.value = ''
     repoMode.value = 'existing'
     repoFromTemplate.value = null
@@ -541,6 +626,11 @@ async function handleCreate() {
     templates.value = []
     selectedBrainstormId.value = bs.id
     await loadBrainstorm(bs.id)
+
+    if (createdMode === 'grill') {
+      chatRunningState.value = true
+      await startChat(bs.id)
+    }
   } catch (err: any) {
     createError.value = err?.data?.message || 'Failed to create brainstorm'
   } finally {
@@ -620,9 +710,20 @@ async function handleSend(content: string) {
   }
   clearChatStep(bsId)
 
-  await sendMessage(bsId, content)
+  try {
+    await sendMessage(bsId, content)
+  } catch (err: any) {
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to send message', 'Error')
+    return
+  }
+
   chatRunningState.value = true
-  await startChat(bsId, content)
+  try {
+    await startChat(bsId, content)
+  } catch (err: any) {
+    chatRunningState.value = false
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to start agent', 'Error')
+  }
 }
 
 function handleStart() {
@@ -639,20 +740,41 @@ function handleStop() {
 
 const { success: toastSuccess, error: toastError } = useToast()
 
-async function handleCreateTask(messageId: string, projectId: string) {
+async function handleCreateTask(projectId: string, source: 'message' | 'grill_summary', messageId?: string) {
   if (!currentBrainstorm.value) return
+  if (source === 'grill_summary' && currentBrainstorm.value.mode === 'grill' && currentBrainstorm.value.grillStatus !== 'complete') {
+    toastError('Complete the grill session before creating a task', 'Grill in progress')
+    return
+  }
   try {
-    const task = await convertToTask(currentBrainstorm.value.id, messageId, projectId)
+    const task = await convertToTask(currentBrainstorm.value.id, projectId, { messageId, source })
     toastSuccess(`Task "${task.title}" was created with the improvement label and added to the backlog.`, 'Task created')
   } catch (err: any) {
-    toastError(err?.data?.message || 'Failed to create task', 'Error')
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to create task', 'Error')
   }
+}
+
+const brainstormPanelRef = ref<{ openCreateGrillTaskModal: () => void } | null>(null)
+
+function handleCreateGrillTaskFromLedger() {
+  if (currentBrainstorm.value?.mode === 'grill' && currentBrainstorm.value.grillStatus !== 'complete') {
+    toastError('Complete the grill session before creating a task', 'Grill in progress')
+    return
+  }
+  activeTab.value = 'chat'
+  nextTick(() => {
+    brainstormPanelRef.value?.openCreateGrillTaskModal()
+  })
 }
 
 // ─── PRD ───
 
 async function handleGeneratePrd() {
   if (!currentBrainstorm.value) return
+  if (currentBrainstorm.value.mode === 'grill' && currentBrainstorm.value.grillStatus !== 'complete') {
+    toastError('Complete the grill session before generating a PRD', 'Grill in progress')
+    return
+  }
   try {
     activeTab.value = 'prd'
     await generatePrd(currentBrainstorm.value.id)

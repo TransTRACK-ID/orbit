@@ -5,12 +5,12 @@
       <div class="flex items-center gap-3 min-w-0">
         <div
           class="w-8 h-8 rounded-lg flex items-center justify-center text-white flex-shrink-0"
-          style="background: #8B5CF6"
+          :style="{ background: isGrillMode ? '#f59e0b' : '#8B5CF6' }"
         >
-          <Icon name="lucide:lightbulb" class="w-4 h-4" />
+          <Icon :name="isGrillMode ? 'lucide:flame' : 'lucide:lightbulb'" class="w-4 h-4" />
         </div>
         <div class="min-w-0">
-          <h3 class="text-sm font-semibold text-surface-900 truncate">{{ brainstorm.title }}</h3>
+          <h3 class="text-sm font-semibold text-surface-900 truncate">{{ displayTitle }}</h3>
           <p v-if="brainstorm.repository" class="text-[11px] text-surface-400 truncate">
             {{ brainstorm.repository.name }} — {{ brainstorm.repository.defaultBranch }}
           </p>
@@ -19,13 +19,28 @@
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <button
-          v-if="messages.length >= 2 && !isRunning"
+          v-if="canGeneratePrd && !isRunning"
           class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-purple-500 text-white hover:bg-purple-600 transition-colors flex items-center gap-1"
           @click="handleGeneratePrd"
         >
           <Icon name="lucide:file-text" class="w-3 h-3" />
           Generate PRD
         </button>
+        <button
+          v-if="canCreateGrillTask && !isRunning"
+          class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-colors flex items-center gap-1"
+          @click="openCreateGrillTaskModal"
+        >
+          <Icon name="lucide:square-plus" class="w-3 h-3" />
+          Create task
+        </button>
+        <span
+          v-else-if="isGrillMode && !isRunning && messages.length >= 2 && grillStatus !== 'complete'"
+          class="text-[10px] font-medium px-2 py-1 rounded-md bg-surface-100 text-surface-500"
+          title="Complete the grill session to generate a PRD"
+        >
+          PRD after grill
+        </span>
         <span
           v-if="isRunning"
           class="text-[10px] font-semibold px-2 py-1 rounded-full bg-primary-100 text-primary-700 flex items-center gap-1.5"
@@ -37,7 +52,7 @@
           Running
         </span>
         <button
-          v-if="!isRunning"
+          v-if="!isRunning && !(isGrillMode && grillStatus === 'awaiting_answer')"
           class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-primary-500 text-white hover:bg-primary-600 transition-colors flex items-center gap-1"
           @click="handleStart"
         >
@@ -55,6 +70,35 @@
       </div>
     </div>
 
+    <!-- Grill mode banner -->
+    <div
+      v-if="isGrillMode"
+      class="px-4 py-2.5 border-b flex items-start gap-2 flex-shrink-0"
+      :class="grillStatus === 'complete'
+        ? 'bg-emerald-50 border-emerald-100'
+        : 'bg-amber-50 border-amber-100'"
+    >
+      <Icon
+        :name="grillStatus === 'complete' ? 'lucide:check-circle' : 'lucide:flame'"
+        class="w-4 h-4 flex-shrink-0 mt-0.5"
+        :class="grillStatus === 'complete' ? 'text-emerald-600' : 'text-amber-600'"
+      />
+      <div class="min-w-0">
+        <p
+          class="text-xs font-semibold"
+          :class="grillStatus === 'complete' ? 'text-emerald-800' : 'text-amber-800'"
+        >
+          {{ grillBannerTitle }}
+        </p>
+        <p
+          class="text-[11px] mt-0.5"
+          :class="grillStatus === 'complete' ? 'text-emerald-700' : 'text-amber-700'"
+        >
+          {{ grillBannerDescription }}
+        </p>
+      </div>
+    </div>
+
     <!-- Messages -->
     <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
       <div v-if="messagesLoading" class="flex flex-col items-center justify-center h-full text-surface-400">
@@ -66,9 +110,9 @@
       </div>
 
       <div v-else-if="displayMessages.length === 0 && !isRunning" class="flex flex-col items-center justify-center h-full text-surface-400">
-        <Icon name="lucide:messages-square" class="w-10 h-10 mb-3 opacity-40" />
-        <p class="text-sm">Start a conversation about your codebase</p>
-        <p class="text-[11px] mt-1">The agent will read and analyze files without making changes</p>
+        <Icon :name="isGrillMode ? 'lucide:flame' : 'lucide:messages-square'" class="w-10 h-10 mb-3 opacity-40" />
+        <p class="text-sm">{{ isGrillMode ? 'Waiting for the first grill question' : 'Start a conversation about your codebase' }}</p>
+        <p class="text-[11px] mt-1">{{ isGrillMode ? 'The agent will stress-test your plan one question at a time' : 'The agent will read and analyze files without making changes' }}</p>
       </div>
 
       <template v-for="msg in displayMessages" :key="msg.id">
@@ -88,11 +132,25 @@
         <div v-else class="flex gap-2.5">
           <div
             class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
-            style="background: #8B5CF6"
+            :style="{ background: isGrillMode ? '#f59e0b' : '#8B5CF6' }"
           >
             <Icon name="lucide:bot" class="w-3.5 h-3.5" />
           </div>
-          <div class="max-w-[80%]">
+          <div class="max-w-[80%] space-y-2">
+            <GrillQuestionCard
+              v-if="getGrillQuestionMetadata(msg)"
+              :metadata="getGrillQuestionMetadata(msg)!"
+              :disabled="isRunning || isSending"
+              :answered="getGrillQuestionMetadata(msg)!.status !== 'pending'"
+              @use-recommended="handleUseRecommended"
+            />
+            <div
+              v-if="getGrillCompleteMetadata(msg)"
+              class="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-3"
+            >
+              <p class="text-xs font-semibold text-emerald-800 mb-1">Grill session complete</p>
+              <p class="text-sm text-surface-800 leading-relaxed">{{ getGrillCompleteMetadata(msg)!.summary }}</p>
+            </div>
             <div class="bg-surface-50 border border-surface-100 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-sm text-surface-800 leading-relaxed max-w-none brainstorm-markdown">
               <div v-html="parseMarkdown(msg.content)" />
             </div>
@@ -115,7 +173,7 @@
       <div v-if="isRunning && !chatReply.trim()" class="flex gap-2.5">
         <div
           class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-          style="background: #8B5CF6"
+          :style="{ background: isGrillMode ? '#f59e0b' : '#8B5CF6' }"
         >
           <Icon name="lucide:bot" class="w-3.5 h-3.5" />
         </div>
@@ -134,7 +192,9 @@
       <div v-if="showCreateTaskModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showCreateTaskModal = false">
         <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
           <div class="flex items-center justify-between mb-5">
-            <h3 class="text-lg font-semibold text-surface-900">Create Task from Message</h3>
+            <h3 class="text-lg font-semibold text-surface-900">
+              {{ createTaskMode === 'grill_summary' ? 'Create Task from Grill Summary' : 'Create Task from Message' }}
+            </h3>
             <button class="text-surface-400 hover:text-surface-600 transition-colors p-1" @click="showCreateTaskModal = false">
               <Icon name="lucide:x" class="w-4 h-4" />
             </button>
@@ -162,8 +222,10 @@
             </div>
 
             <div class="bg-surface-50 rounded-lg border border-surface-100 p-3">
-              <p class="text-[11px] font-semibold text-surface-500 uppercase tracking-wide mb-1">Message preview</p>
-              <p class="text-xs text-surface-700 line-clamp-4">{{ selectedMessage?.content || '' }}</p>
+              <p class="text-[11px] font-semibold text-surface-500 uppercase tracking-wide mb-1">
+                {{ createTaskMode === 'grill_summary' ? 'Task preview' : 'Message preview' }}
+              </p>
+              <p class="text-xs text-surface-700 line-clamp-6 whitespace-pre-wrap">{{ createTaskPreview }}</p>
             </div>
           </div>
 
@@ -264,16 +326,16 @@
              <textarea
                ref="textareaRef"
                v-model="newMessage"
-               :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
+               :placeholder="inputPlaceholder"
                 class="block w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y min-h-10"
-               :disabled="isSending"
+               :disabled="!canSendMessage || isSending"
                rows="1"
                @keydown="handleKeydown"
              />
             <span v-if="isSending" class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-surface-400">Sending...</span>
           </div>
           <button
-            :disabled="!newMessage.trim() || isSending"
+            :disabled="!newMessage.trim() || isSending || !canSendMessage"
             class="px-3 py-2.5 rounded-lg bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 h-10 flex-shrink-0"
             @click="handleSend"
           >
@@ -282,7 +344,7 @@
         </div>
         <p class="text-[10px] text-surface-400 mt-1.5 flex items-center gap-1">
           <Icon name="lucide:shield" class="w-3 h-3" />
-          Read-only mode — the agent will not edit any files
+          {{ inputHint }}
         </p>
       </div>
     </div>
@@ -316,7 +378,9 @@
 </template>
 
 <script setup lang="ts">
-import type { Brainstorm, BrainstormMessage, BrainstormAttachment } from '~/types'
+import type { Brainstorm, BrainstormMessage, BrainstormAttachment, GrillCompleteMetadata, GrillQuestionMetadata } from '~/types'
+import { getPrimaryGrillMetadata, parseGrillBlocks } from '~/utils/grill-parser'
+import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForTask } from '~/utils/grill-decisions'
 import { nextTick, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
@@ -334,7 +398,7 @@ const emit = defineEmits<{
   send: [content: string]
   start: []
   stop: []
-  createTask: [messageId: string, projectId: string]
+  createTask: [projectId: string, source: 'message' | 'grill_summary', messageId?: string]
   generatePrd: []
 }>()
 
@@ -354,12 +418,129 @@ const userInitials = computed(() => {
   return userName.value.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 })
 
+const isGrillMode = computed(() => props.brainstorm.mode === 'grill')
+const displayTitle = computed(() => props.brainstorm.displayTitle || props.brainstorm.title)
+const grillStatus = computed(() => props.brainstorm.grillStatus ?? null)
+
+const grillBannerTitle = computed(() => {
+  if (grillStatus.value === 'complete') return 'Grill complete — decisions captured'
+  if (grillStatus.value === 'awaiting_answer') return 'Your turn — answer the question below'
+  return 'Grill mode — answer one question at a time'
+})
+
+const grillBannerDescription = computed(() => {
+  if (grillStatus.value === 'complete') {
+    return 'All branches are resolved. You can follow up, create a task, or generate a PRD.'
+  }
+  if (grillStatus.value === 'awaiting_answer') {
+    return 'Use the recommended answer or type your own before the agent continues.'
+  }
+  return 'The agent will ask structured questions with recommended answers. Respond to each question before the next one.'
+})
+
+const canGeneratePrd = computed(() => {
+  if (!isGrillMode.value) {
+    return props.messages.length >= 2
+  }
+  return grillStatus.value === 'complete'
+})
+
+const canCreateGrillTask = computed(() => isGrillMode.value && grillStatus.value === 'complete')
+
+const grillTaskPreview = computed(() => {
+  if (!canCreateGrillTask.value) return ''
+  const ledger = extractGrillDecisionsFromMessages(props.messages, {
+    grillStatus: grillStatus.value,
+    currentQuestionId: props.brainstorm.currentQuestionId ?? null,
+  })
+  const initialPlan = props.messages.find((message) => message.role === 'user')?.content || null
+  return formatResolvedDecisionsForTask(ledger, {
+    title: displayTitle.value,
+    initialPlan,
+  }).description
+})
+
+const canSendMessage = computed(() => {
+  if (!isGrillMode.value) return true
+  if (props.isRunning) return false
+  if (grillStatus.value === null) return true
+  if (grillStatus.value === 'complete') return true
+  if (grillStatus.value === 'awaiting_answer') return true
+  return false
+})
+
+const inputPlaceholder = computed(() => {
+  if (!isGrillMode.value) {
+    return props.isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'
+  }
+  if (grillStatus.value === 'complete') {
+    return 'Optional follow-up...'
+  }
+  if (grillStatus.value === 'awaiting_answer') {
+    return 'Answer the question above...'
+  }
+  if (props.isRunning) {
+    return 'Waiting for the agent...'
+  }
+  return 'Waiting for the next question...'
+})
+
+const inputHint = computed(() => {
+  if (!isGrillMode.value) {
+    return 'Read-only mode — the agent will not edit any files'
+  }
+  if (grillStatus.value === 'awaiting_answer') {
+    return 'Grill mode — answer the current question to continue'
+  }
+  if (grillStatus.value === 'complete') {
+    return 'Grill mode complete — read-only follow-ups allowed'
+  }
+  return 'Grill mode — read-only, one question at a time'
+})
+
+function getGrillQuestionMetadata(msg: BrainstormMessage): GrillQuestionMetadata | null {
+  if (msg.metadata?.type === 'grill_question') {
+    return msg.metadata
+  }
+  if (msg.id === 'live-reply' && msg.content) {
+    const { blocks } = parseGrillBlocks(msg.content)
+    const metadata = getPrimaryGrillMetadata(blocks)
+    if (metadata?.type === 'grill_question') return metadata
+  }
+  return null
+}
+
+function getGrillCompleteMetadata(msg: BrainstormMessage): GrillCompleteMetadata | null {
+  if (msg.metadata?.type === 'grill_complete') {
+    return msg.metadata
+  }
+  if (msg.id === 'live-reply' && msg.content) {
+    const { blocks } = parseGrillBlocks(msg.content)
+    const metadata = getPrimaryGrillMetadata(blocks)
+    if (metadata?.type === 'grill_complete') return metadata
+  }
+  return null
+}
+
+function handleUseRecommended(answer: string) {
+  if (!canSendMessage.value || props.isSending) return
+  emit('send', answer)
+}
+
 // Create task modal state
 const showCreateTaskModal = ref(false)
+const createTaskMode = ref<'message' | 'grill_summary'>('message')
 const selectedMessage = ref<BrainstormMessage | null>(null)
 const selectedProjectId = ref('')
 const creatingTask = ref(false)
 const createTaskError = ref('')
+
+const createTaskPreview = computed(() => {
+  if (createTaskMode.value === 'grill_summary') {
+    return grillTaskPreview.value
+  }
+  return selectedMessage.value?.content || ''
+})
 
 // ─── Attachments ───
 const { fetchAttachments, uploadAttachment, deleteAttachment } = useBrainstorm()
@@ -443,18 +624,33 @@ onUnmounted(() => {
 })
 
 function openCreateTaskModal(msg: BrainstormMessage) {
+  createTaskMode.value = 'message'
   selectedMessage.value = msg
   selectedProjectId.value = ''
   createTaskError.value = ''
   showCreateTaskModal.value = true
 }
 
+function openCreateGrillTaskModal() {
+  createTaskMode.value = 'grill_summary'
+  selectedMessage.value = null
+  selectedProjectId.value = ''
+  createTaskError.value = ''
+  showCreateTaskModal.value = true
+}
+
 async function handleCreateTask() {
-  if (!selectedMessage.value || !selectedProjectId.value) return
+  if (!selectedProjectId.value) return
+  if (createTaskMode.value === 'message' && !selectedMessage.value) return
   creatingTask.value = true
   createTaskError.value = ''
   try {
-    emit('createTask', selectedMessage.value.id, selectedProjectId.value)
+    emit(
+      'createTask',
+      selectedProjectId.value,
+      createTaskMode.value,
+      selectedMessage.value?.id,
+    )
     showCreateTaskModal.value = false
   } catch (err: any) {
     createTaskError.value = err?.data?.message || 'Failed to create task'
@@ -519,7 +715,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 async function handleSend() {
   const content = newMessage.value.trim()
-  if (!content || props.isSending) return
+  if (!content || props.isSending || !canSendMessage.value) return
   newMessage.value = ''
   nextTick(() => {
     if (textareaRef.value) {
@@ -542,6 +738,10 @@ function handleStop() {
 function handleGeneratePrd() {
   emit('generatePrd')
 }
+
+defineExpose({
+  openCreateGrillTaskModal,
+})
 
 import { marked } from 'marked'
 

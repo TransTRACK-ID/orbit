@@ -341,6 +341,49 @@ export interface ActivityFeedItem {
 }
 
 // ─── Brainstorm ───
+export type BrainstormMode = 'chat' | 'grill'
+export type GrillStatus = 'active' | 'awaiting_answer' | 'complete'
+
+export interface GrillQuestionMetadata {
+  type: 'grill_question'
+  topic?: string
+  question: string
+  recommendedAnswer: string
+  rationale?: string
+  status: 'pending' | 'accepted' | 'revised'
+  userAnswer?: string
+}
+
+export interface GrillCompleteMetadata {
+  type: 'grill_complete'
+  summary: string
+  decisions: Array<{ topic: string; question: string; answer: string }>
+}
+
+export type GrillMessageMetadata = GrillQuestionMetadata | GrillCompleteMetadata
+
+export interface GrillDecision {
+  messageId: string
+  topic: string
+  question: string
+  answer: string
+  status: 'accepted' | 'revised'
+}
+
+export interface GrillPendingDecision {
+  messageId: string
+  topic?: string
+  question: string
+  recommendedAnswer: string
+}
+
+export interface GrillDecisionsLedger {
+  resolved: GrillDecision[]
+  pending: GrillPendingDecision | null
+  summary: string | null
+  isComplete: boolean
+}
+
 export interface Brainstorm {
   id: string
   workspaceId: string
@@ -351,6 +394,11 @@ export interface Brainstorm {
   updatedAt: string
   repository?: Repository | null
   _prdCount?: number
+  mode?: BrainstormMode
+  grillStatus?: GrillStatus | null
+  currentQuestionId?: string | null
+  /** Title without the internal grill prefix (legacy sessions) */
+  displayTitle?: string
 }
 
 export interface BrainstormMessage {
@@ -358,6 +406,7 @@ export interface BrainstormMessage {
   brainstormId: string
   role: 'user' | 'assistant'
   content: string
+  metadata?: GrillMessageMetadata | null
   createdAt: string
 }
 

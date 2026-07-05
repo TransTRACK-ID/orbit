@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { enrichBrainstorm } from '~/server/utils/grill-mode'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
 
   const countMap = new Map(prdCounts.map(c => [c.brainstormId, c.count]))
 
-  const enrichedBrainstorms = brainstorms.map(bs => ({
+  const enrichedBrainstorms = brainstorms.map(bs => enrichBrainstorm({
     ...bs,
     _prdCount: countMap.get(bs.id) || 0,
   }))

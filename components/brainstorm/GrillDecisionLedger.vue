@@ -70,6 +70,15 @@
         <p class="text-[10px] font-semibold text-emerald-800 mb-0.5">Session complete</p>
         <p class="text-[10px] text-emerald-700 leading-snug line-clamp-3">{{ summary }}</p>
       </div>
+
+      <button
+        v-if="isComplete"
+        class="w-full mt-1.5 px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-1"
+        @click="$emit('create-task')"
+      >
+        <Icon name="lucide:square-plus" class="w-3 h-3" />
+        Create task from summary
+      </button>
     </div>
   </div>
 </template>
@@ -82,5 +91,9 @@ defineProps<{
   pending: GrillPendingDecision | null
   summary: string | null
   isComplete: boolean
+}>()
+
+defineEmits<{
+  createTask: []
 }>()
 </script>

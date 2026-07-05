@@ -26,6 +26,14 @@
           <Icon name="lucide:file-text" class="w-3 h-3" />
           Generate PRD
         </button>
+        <button
+          v-if="canCreateGrillTask && !isRunning"
+          class="text-[10px] font-semibold px-2.5 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-colors flex items-center gap-1"
+          @click="openCreateGrillTaskModal"
+        >
+          <Icon name="lucide:square-plus" class="w-3 h-3" />
+          Create task
+        </button>
         <span
           v-else-if="isGrillMode && !isRunning && messages.length >= 2 && grillStatus !== 'complete'"
           class="text-[10px] font-medium px-2 py-1 rounded-md bg-surface-100 text-surface-500"
@@ -184,7 +192,9 @@
       <div v-if="showCreateTaskModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showCreateTaskModal = false">
         <div class="bg-white rounded-xl border border-surface-200 shadow-lg w-full max-w-md p-6 animate-scale-in">
           <div class="flex items-center justify-between mb-5">
-            <h3 class="text-lg font-semibold text-surface-900">Create Task from Message</h3>
+            <h3 class="text-lg font-semibold text-surface-900">
+              {{ createTaskMode === 'grill_summary' ? 'Create Task from Grill Summary' : 'Create Task from Message' }}
+            </h3>
             <button class="text-surface-400 hover:text-surface-600 transition-colors p-1" @click="showCreateTaskModal = false">
               <Icon name="lucide:x" class="w-4 h-4" />
             </button>
@@ -212,8 +222,10 @@
             </div>
 
             <div class="bg-surface-50 rounded-lg border border-surface-100 p-3">
-              <p class="text-[11px] font-semibold text-surface-500 uppercase tracking-wide mb-1">Message preview</p>
-              <p class="text-xs text-surface-700 line-clamp-4">{{ selectedMessage?.content || '' }}</p>
+              <p class="text-[11px] font-semibold text-surface-500 uppercase tracking-wide mb-1">
+                {{ createTaskMode === 'grill_summary' ? 'Task preview' : 'Message preview' }}
+              </p>
+              <p class="text-xs text-surface-700 line-clamp-6 whitespace-pre-wrap">{{ createTaskPreview }}</p>
             </div>
           </div>
 
@@ -368,6 +380,7 @@
 <script setup lang="ts">
 import type { Brainstorm, BrainstormMessage, BrainstormAttachment, GrillCompleteMetadata, GrillQuestionMetadata } from '~/types'
 import { getPrimaryGrillMetadata, parseGrillBlocks } from '~/utils/grill-parser'
+import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForTask } from '~/utils/grill-decisions'
 import { nextTick, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
@@ -385,7 +398,7 @@ const emit = defineEmits<{
   send: [content: string]
   start: []
   stop: []
-  createTask: [messageId: string, projectId: string]
+  createTask: [projectId: string, source: 'message' | 'grill_summary', messageId?: string]
   generatePrd: []
 }>()
 
@@ -417,7 +430,7 @@ const grillBannerTitle = computed(() => {
 
 const grillBannerDescription = computed(() => {
   if (grillStatus.value === 'complete') {
-    return 'All branches are resolved. You can follow up or generate a PRD.'
+    return 'All branches are resolved. You can follow up, create a task, or generate a PRD.'
   }
   if (grillStatus.value === 'awaiting_answer') {
     return 'Use the recommended answer or type your own before the agent continues.'
@@ -430,6 +443,21 @@ const canGeneratePrd = computed(() => {
     return props.messages.length >= 2
   }
   return grillStatus.value === 'complete'
+})
+
+const canCreateGrillTask = computed(() => isGrillMode.value && grillStatus.value === 'complete')
+
+const grillTaskPreview = computed(() => {
+  if (!canCreateGrillTask.value) return ''
+  const ledger = extractGrillDecisionsFromMessages(props.messages, {
+    grillStatus: grillStatus.value,
+    currentQuestionId: props.brainstorm.currentQuestionId ?? null,
+  })
+  const initialPlan = props.messages.find((message) => message.role === 'user')?.content || null
+  return formatResolvedDecisionsForTask(ledger, {
+    title: displayTitle.value,
+    initialPlan,
+  }).description
 })
 
 const canSendMessage = computed(() => {
@@ -501,10 +529,18 @@ function handleUseRecommended(answer: string) {
 
 // Create task modal state
 const showCreateTaskModal = ref(false)
+const createTaskMode = ref<'message' | 'grill_summary'>('message')
 const selectedMessage = ref<BrainstormMessage | null>(null)
 const selectedProjectId = ref('')
 const creatingTask = ref(false)
 const createTaskError = ref('')
+
+const createTaskPreview = computed(() => {
+  if (createTaskMode.value === 'grill_summary') {
+    return grillTaskPreview.value
+  }
+  return selectedMessage.value?.content || ''
+})
 
 // ─── Attachments ───
 const { fetchAttachments, uploadAttachment, deleteAttachment } = useBrainstorm()
@@ -588,18 +624,33 @@ onUnmounted(() => {
 })
 
 function openCreateTaskModal(msg: BrainstormMessage) {
+  createTaskMode.value = 'message'
   selectedMessage.value = msg
   selectedProjectId.value = ''
   createTaskError.value = ''
   showCreateTaskModal.value = true
 }
 
+function openCreateGrillTaskModal() {
+  createTaskMode.value = 'grill_summary'
+  selectedMessage.value = null
+  selectedProjectId.value = ''
+  createTaskError.value = ''
+  showCreateTaskModal.value = true
+}
+
 async function handleCreateTask() {
-  if (!selectedMessage.value || !selectedProjectId.value) return
+  if (!selectedProjectId.value) return
+  if (createTaskMode.value === 'message' && !selectedMessage.value) return
   creatingTask.value = true
   createTaskError.value = ''
   try {
-    emit('createTask', selectedMessage.value.id, selectedProjectId.value)
+    emit(
+      'createTask',
+      selectedProjectId.value,
+      createTaskMode.value,
+      selectedMessage.value?.id,
+    )
     showCreateTaskModal.value = false
   } catch (err: any) {
     createTaskError.value = err?.data?.message || 'Failed to create task'
@@ -687,6 +738,10 @@ function handleStop() {
 function handleGeneratePrd() {
   emit('generatePrd')
 }
+
+defineExpose({
+  openCreateGrillTaskModal,
+})
 
 import { marked } from 'marked'
 

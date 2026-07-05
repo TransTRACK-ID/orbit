@@ -124,3 +124,38 @@ export function formatResolvedDecisionsForChat(ledger: GrillDecisionsLedger): st
   return `[RESOLVED DECISIONS SO FAR — do not re-ask these]
 ${lines.join('\n')}`
 }
+
+export function formatResolvedDecisionsForTask(
+  ledger: GrillDecisionsLedger,
+  options?: { title?: string; initialPlan?: string | null },
+): { title: string; description: string } {
+  const displayTitle = options?.title?.trim() || 'Grill session'
+  const title = displayTitle.length > 100
+    ? `${displayTitle.slice(0, 97)}...`
+    : displayTitle
+
+  const sections: string[] = []
+
+  if (ledger.summary) {
+    sections.push(`## Session Summary\n\n${ledger.summary}`)
+  }
+
+  if (ledger.resolved.length > 0) {
+    const decisionBlocks = ledger.resolved.map((decision) => {
+      const statusLabel = decision.status === 'accepted'
+        ? 'User accepted recommended answer'
+        : 'User revised from recommended answer'
+      return `### ${decision.topic}\n\n**Question:** ${decision.question}\n\n**Decision:** ${decision.answer}\n\n**Status:** ${statusLabel}`
+    })
+
+    sections.push(`## Resolved Decisions\n\nThese decisions were explicitly agreed during the grill-me session. Implementation MUST follow them.\n\n${decisionBlocks.join('\n\n')}`)
+  }
+
+  if (options?.initialPlan?.trim()) {
+    sections.push(`## Original Plan\n\n${options.initialPlan.trim()}`)
+  }
+
+  const description = sections.join('\n\n') || ledger.summary || 'Task created from grill session.'
+
+  return { title, description }
+}

@@ -244,11 +244,19 @@ export const useBrainstorm = () => {
     return updated
   }
 
-  async function convertToTask(brainstormId: string, messageId: string, projectId: string) {
+  async function convertToTask(
+    brainstormId: string,
+    projectId: string,
+    options?: { messageId?: string; source?: 'message' | 'grill_summary' },
+  ) {
     try {
       const task = await $fetch<Task>(`/api/brainstorms/${brainstormId}/tasks`, {
         method: 'POST',
-        body: { messageId, projectId },
+        body: {
+          projectId,
+          messageId: options?.messageId,
+          source: options?.source || (options?.messageId ? 'message' : 'grill_summary'),
+        },
       })
       return task
     } catch (err) {

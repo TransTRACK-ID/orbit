@@ -91,6 +91,7 @@
             :pending="grillDecisionsLedger.pending"
             :summary="grillDecisionsLedger.summary"
             :is-complete="grillDecisionsLedger.isComplete"
+            @create-task="handleCreateGrillTaskFromLedger"
           />
 
           <!-- PRDs for selected brainstorm -->
@@ -163,6 +164,7 @@
           <div v-if="activeTab === 'chat'" class="flex-1 min-h-0">
             <BrainstormPanel
               v-if="currentBrainstorm"
+              ref="brainstormPanelRef"
               :brainstorm="currentBrainstorm"
               :messages="messages"
               :is-running="chatRunningState"
@@ -738,14 +740,31 @@ function handleStop() {
 
 const { success: toastSuccess, error: toastError } = useToast()
 
-async function handleCreateTask(messageId: string, projectId: string) {
+async function handleCreateTask(projectId: string, source: 'message' | 'grill_summary', messageId?: string) {
   if (!currentBrainstorm.value) return
+  if (source === 'grill_summary' && currentBrainstorm.value.mode === 'grill' && currentBrainstorm.value.grillStatus !== 'complete') {
+    toastError('Complete the grill session before creating a task', 'Grill in progress')
+    return
+  }
   try {
-    const task = await convertToTask(currentBrainstorm.value.id, messageId, projectId)
+    const task = await convertToTask(currentBrainstorm.value.id, projectId, { messageId, source })
     toastSuccess(`Task "${task.title}" was created with the improvement label and added to the backlog.`, 'Task created')
   } catch (err: any) {
-    toastError(err?.data?.message || 'Failed to create task', 'Error')
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to create task', 'Error')
   }
+}
+
+const brainstormPanelRef = ref<{ openCreateGrillTaskModal: () => void } | null>(null)
+
+function handleCreateGrillTaskFromLedger() {
+  if (currentBrainstorm.value?.mode === 'grill' && currentBrainstorm.value.grillStatus !== 'complete') {
+    toastError('Complete the grill session before creating a task', 'Grill in progress')
+    return
+  }
+  activeTab.value = 'chat'
+  nextTick(() => {
+    brainstormPanelRef.value?.openCreateGrillTaskModal()
+  })
 }
 
 // ─── PRD ───

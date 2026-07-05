@@ -1,12 +1,30 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { logActivityFeed } from '~/server/utils/activity'
+import { resolveBrainstormMode, decodeBrainstormTitle } from '~/server/utils/grill-mode'
+import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForTask } from '~/utils/grill-decisions'
 import { eq, count, and, asc } from 'drizzle-orm'
 import { z } from 'zod'
 
 const convertSchema = z.object({
   projectId: z.string().uuid(),
-  messageId: z.string().uuid(),
+  messageId: z.string().uuid().optional(),
+  source: z.enum(['message', 'grill_summary']).default('message'),
+}).superRefine((body, ctx) => {
+  if (body.source === 'message' && !body.messageId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'messageId is required when source is message',
+      path: ['messageId'],
+    })
+  }
+  if (body.source === 'grill_summary' && body.messageId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'messageId must not be provided when source is grill_summary',
+      path: ['messageId'],
+    })
+  }
 })
 
 export default defineEventHandler(async (event) => {
@@ -25,17 +43,73 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Brainstorm not found' })
   }
 
-  // Fetch the message
-  const message = await db.query.brainstormMessages.findFirst({
-    where: eq(schema.brainstormMessages.id, body.messageId),
-  })
+  const brainstormMode = resolveBrainstormMode(brainstorm)
+  const displayTitle = decodeBrainstormTitle(brainstorm.title)
 
-  if (!message) {
-    throw createError({ statusCode: 404, statusMessage: 'Message not found' })
-  }
+  let title = ''
+  let content = ''
+  let taskSourceLabel = 'brainstorm'
 
-  if (message.brainstormId !== brainstormId) {
-    throw createError({ statusCode: 400, statusMessage: 'Message does not belong to this brainstorm' })
+  if (body.source === 'grill_summary') {
+    if (brainstormMode !== 'grill') {
+      throw createError({ statusCode: 400, statusMessage: 'Grill summary tasks are only available for grill sessions' })
+    }
+    if (brainstorm.grillStatus !== 'complete') {
+      throw createError({ statusCode: 400, statusMessage: 'Complete the grill session before creating a task' })
+    }
+
+    const allMessages = await db.query.brainstormMessages.findMany({
+      where: eq(schema.brainstormMessages.brainstormId, brainstormId),
+      orderBy: [asc(schema.brainstormMessages.createdAt)],
+    })
+
+    const ledger = extractGrillDecisionsFromMessages(allMessages, {
+      grillStatus: brainstorm.grillStatus,
+      currentQuestionId: brainstorm.currentQuestionId,
+    })
+
+    const initialPlan = allMessages.find((message) => message.role === 'user')?.content || null
+    const formatted = formatResolvedDecisionsForTask(ledger, {
+      title: displayTitle,
+      initialPlan,
+    })
+
+    title = formatted.title
+    content = formatted.description
+    taskSourceLabel = 'grill summary'
+  } else {
+    const message = await db.query.brainstormMessages.findFirst({
+      where: eq(schema.brainstormMessages.id, body.messageId!),
+    })
+
+    if (!message) {
+      throw createError({ statusCode: 404, statusMessage: 'Message not found' })
+    }
+
+    if (message.brainstormId !== brainstormId) {
+      throw createError({ statusCode: 400, statusMessage: 'Message does not belong to this brainstorm' })
+    }
+
+    content = message.content
+
+    if (message.metadata?.type === 'grill_complete') {
+      const allMessages = await db.query.brainstormMessages.findMany({
+        where: eq(schema.brainstormMessages.brainstormId, brainstormId),
+        orderBy: [asc(schema.brainstormMessages.createdAt)],
+      })
+      const ledger = extractGrillDecisionsFromMessages(allMessages, {
+        grillStatus: brainstorm.grillStatus,
+        currentQuestionId: brainstorm.currentQuestionId,
+      })
+      const initialPlan = allMessages.find((entry) => entry.role === 'user')?.content || null
+      const formatted = formatResolvedDecisionsForTask(ledger, {
+        title: displayTitle,
+        initialPlan,
+      })
+      title = formatted.title
+      content = formatted.description
+      taskSourceLabel = 'grill summary'
+    }
   }
 
   // Find backlog status for the project
@@ -49,22 +123,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'No backlog status found for this project' })
   }
 
-  // Auto-generate title from the message content
-  let title = ''
-  const content = message.content
-
-  // Try to extract first heading (e.g., "## Title" or "# Title")
-  const headingMatch = content.match(/^#{1,3}\s+(.+)$/m)
-  if (headingMatch) {
-    title = headingMatch[1].trim()
-  } else {
-    // Use first sentence or first line
-    const firstLine = content.split('\n')[0].trim()
-    title = firstLine.replace(/^\*\*(.+)\*\*$/, '$1') // Remove bold wrapping
-    if (title.length > 100) {
-      // Try to find first sentence
-      const sentenceMatch = title.match(/^([^.!?]+[.!?])/)
-      title = sentenceMatch ? sentenceMatch[1].trim() : title.slice(0, 97) + '...'
+  if (!title) {
+    // Auto-generate title from the message content
+    const headingMatch = content.match(/^#{1,3}\s+(.+)$/m)
+    if (headingMatch) {
+      title = headingMatch[1].trim()
+    } else {
+      const firstLine = content.split('\n')[0].trim()
+      title = firstLine.replace(/^\*\*(.+)\*\*$/, '$1')
+      if (title.length > 100) {
+        const sentenceMatch = title.match(/^([^.!?]+[.!?])/)
+        title = sentenceMatch ? sentenceMatch[1].trim() : title.slice(0, 97) + '...'
+      }
     }
   }
 
@@ -134,7 +204,7 @@ export default defineEventHandler(async (event) => {
     entityType: 'task',
     entityId: task.id,
     entityName: title,
-    message: `created task "${title}" from brainstorm "${brainstorm.title}"`,
+    message: `created task "${title}" from ${taskSourceLabel} "${displayTitle}"`,
   })
 
   // Auto-select "improvement" label — find or create it

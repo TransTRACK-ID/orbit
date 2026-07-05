@@ -341,6 +341,8 @@ export interface ActivityFeedItem {
 }
 
 // ─── Brainstorm ───
+export type BrainstormMode = 'chat' | 'grill'
+
 export interface Brainstorm {
   id: string
   workspaceId: string
@@ -351,6 +353,10 @@ export interface Brainstorm {
   updatedAt: string
   repository?: Repository | null
   _prdCount?: number
+  /** Enriched from title prefix in Phase 1; will come from DB column in Phase 2 */
+  mode?: BrainstormMode
+  /** Title without the internal grill prefix */
+  displayTitle?: string
 }
 
 export interface BrainstormMessage {

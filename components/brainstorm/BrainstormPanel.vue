@@ -5,12 +5,12 @@
       <div class="flex items-center gap-3 min-w-0">
         <div
           class="w-8 h-8 rounded-lg flex items-center justify-center text-white flex-shrink-0"
-          style="background: #8B5CF6"
+          :style="{ background: isGrillMode ? '#f59e0b' : '#8B5CF6' }"
         >
-          <Icon name="lucide:lightbulb" class="w-4 h-4" />
+          <Icon :name="isGrillMode ? 'lucide:flame' : 'lucide:lightbulb'" class="w-4 h-4" />
         </div>
         <div class="min-w-0">
-          <h3 class="text-sm font-semibold text-surface-900 truncate">{{ brainstorm.title }}</h3>
+          <h3 class="text-sm font-semibold text-surface-900 truncate">{{ displayTitle }}</h3>
           <p v-if="brainstorm.repository" class="text-[11px] text-surface-400 truncate">
             {{ brainstorm.repository.name }} — {{ brainstorm.repository.defaultBranch }}
           </p>
@@ -55,6 +55,20 @@
       </div>
     </div>
 
+    <!-- Grill mode banner -->
+    <div
+      v-if="isGrillMode"
+      class="px-4 py-2.5 bg-amber-50 border-b border-amber-100 flex items-start gap-2 flex-shrink-0"
+    >
+      <Icon name="lucide:flame" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+      <div class="min-w-0">
+        <p class="text-xs font-semibold text-amber-800">Grill mode — answer one question at a time</p>
+        <p class="text-[11px] text-amber-700 mt-0.5">
+          The agent will ask structured questions with recommended answers. Respond to each question before the next one.
+        </p>
+      </div>
+    </div>
+
     <!-- Messages -->
     <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
       <div v-if="messagesLoading" class="flex flex-col items-center justify-center h-full text-surface-400">
@@ -66,9 +80,9 @@
       </div>
 
       <div v-else-if="displayMessages.length === 0 && !isRunning" class="flex flex-col items-center justify-center h-full text-surface-400">
-        <Icon name="lucide:messages-square" class="w-10 h-10 mb-3 opacity-40" />
-        <p class="text-sm">Start a conversation about your codebase</p>
-        <p class="text-[11px] mt-1">The agent will read and analyze files without making changes</p>
+        <Icon :name="isGrillMode ? 'lucide:flame' : 'lucide:messages-square'" class="w-10 h-10 mb-3 opacity-40" />
+        <p class="text-sm">{{ isGrillMode ? 'Waiting for the first grill question' : 'Start a conversation about your codebase' }}</p>
+        <p class="text-[11px] mt-1">{{ isGrillMode ? 'The agent will stress-test your plan one question at a time' : 'The agent will read and analyze files without making changes' }}</p>
       </div>
 
       <template v-for="msg in displayMessages" :key="msg.id">
@@ -88,7 +102,7 @@
         <div v-else class="flex gap-2.5">
           <div
             class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
-            style="background: #8B5CF6"
+            :style="{ background: isGrillMode ? '#f59e0b' : '#8B5CF6' }"
           >
             <Icon name="lucide:bot" class="w-3.5 h-3.5" />
           </div>
@@ -115,7 +129,7 @@
       <div v-if="isRunning && !chatReply.trim()" class="flex gap-2.5">
         <div
           class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-          style="background: #8B5CF6"
+          :style="{ background: isGrillMode ? '#f59e0b' : '#8B5CF6' }"
         >
           <Icon name="lucide:bot" class="w-3.5 h-3.5" />
         </div>
@@ -264,7 +278,9 @@
              <textarea
                ref="textareaRef"
                v-model="newMessage"
-               :placeholder="isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...'"
+               :placeholder="isGrillMode
+                 ? (isRunning ? 'Answer the question above...' : 'Answer the agent\'s question...')
+                 : (isRunning ? 'Type a follow-up message...' : 'Ask about your codebase...')"
                 class="block w-full text-sm rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 pr-10 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors disabled:opacity-60 resize-y min-h-10"
                :disabled="isSending"
                rows="1"
@@ -282,7 +298,7 @@
         </div>
         <p class="text-[10px] text-surface-400 mt-1.5 flex items-center gap-1">
           <Icon name="lucide:shield" class="w-3 h-3" />
-          Read-only mode — the agent will not edit any files
+          {{ isGrillMode ? 'Grill mode — read-only, one question at a time' : 'Read-only mode — the agent will not edit any files' }}
         </p>
       </div>
     </div>
@@ -353,6 +369,9 @@ const userName = computed(() => authData.value?.user?.name || 'You')
 const userInitials = computed(() => {
   return userName.value.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 })
+
+const isGrillMode = computed(() => props.brainstorm.mode === 'grill')
+const displayTitle = computed(() => props.brainstorm.displayTitle || props.brainstorm.title)
 
 // Create task modal state
 const showCreateTaskModal = ref(false)

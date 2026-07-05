@@ -1,4 +1,4 @@
-import type { Brainstorm, BrainstormMessage, Task, BrainstormAttachment } from '~/types'
+import type { Brainstorm, BrainstormMessage, Task, BrainstormAttachment, BrainstormMode } from '~/types'
 
 const brainstorms = ref<Brainstorm[]>([])
 const currentBrainstorm = ref<Brainstorm | null>(null)
@@ -28,7 +28,15 @@ export const useBrainstorm = () => {
     }
   }
 
-  async function createBrainstorm(workspaceId: string, data: { title: string; repositoryId?: string | null }) {
+  async function createBrainstorm(
+    workspaceId: string,
+    data: {
+      title: string
+      repositoryId?: string | null
+      mode?: BrainstormMode
+      initialPlan?: string
+    },
+  ) {
     const brainstorm = await $fetch<Brainstorm>(`/api/workspaces/${workspaceId}/brainstorms`, {
       method: 'POST',
       body: data,

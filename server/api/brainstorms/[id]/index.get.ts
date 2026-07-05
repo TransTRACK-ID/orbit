@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { enrichBrainstorm } from '~/server/utils/grill-mode'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -19,5 +20,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Brainstorm not found' })
   }
 
-  return brainstorm
+  return enrichBrainstorm(brainstorm)
 })

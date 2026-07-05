@@ -19,6 +19,8 @@ import {
   resolveAppAgentRuntime,
 } from '~/server/utils/agent-runner'
 import { spawnCursorAgent } from '~/server/utils/cursor-agent'
+import { getBrainstormMode } from '~/server/utils/grill-mode'
+import { GRILLING_RULES, buildGrillChatMessage } from '~/server/utils/grill-prompt'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
 
@@ -289,14 +291,20 @@ When the user asks for changes, explain WHAT should change and WHY, but explicit
 CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
 
     const attachmentPrompt = buildAttachmentPrompt(attachments)
+    const brainstormMode = getBrainstormMode(brainstorm.title)
+    const isGrillMode = brainstormMode === 'grill'
 
-    const chatMessage = message
-      ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}[USER MESSAGE]\n${message}\n\nPlease respond to this message. Remember: read-only mode — do NOT edit any files.`
-      : historyMessages.length > 0
-        ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}Please continue the conversation based on the history above. Remember: read-only mode — do NOT edit any files.`
-        : `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}Please give a brief summary of this codebase and ask how you can help.`
+    const chatMessage = isGrillMode
+      ? buildGrillChatMessage({ message, historyMessages, attachmentPrompt })
+      : message
+        ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}[USER MESSAGE]\n${message}\n\nPlease respond to this message. Remember: read-only mode — do NOT edit any files.`
+        : historyMessages.length > 0
+          ? `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}Please continue the conversation based on the history above. Remember: read-only mode — do NOT edit any files.`
+          : `${attachmentPrompt ? attachmentPrompt + '\n\n' : ''}Please give a brief summary of this codebase and ask how you can help.`
 
-    const fullMessage = `${platformRule}\n\n${readOnlyRule}\n\n${securityRule}\n\n${conversationHistory}${chatMessage}`
+    const grillRule = isGrillMode ? GRILLING_RULES : ''
+
+    const fullMessage = `${platformRule}\n\n${readOnlyRule}${grillRule ? `\n\n${grillRule}` : ''}\n\n${securityRule}\n\n${conversationHistory}${chatMessage}`
 
     const minimalEnv: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,

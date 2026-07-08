@@ -23,6 +23,7 @@ import { resolveBrainstormMode, enrichBrainstorm } from '~/server/utils/grill-mo
 import { GRILLING_RULES, buildGrillChatMessage } from '~/server/utils/grill-prompt'
 import { canStartGrillAgentTurn } from '~/server/utils/grill-state'
 import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForChat } from '~/utils/grill-decisions'
+import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
 
@@ -89,7 +90,7 @@ function formatTextEvent(part: any): string {
   return lines[0].slice(0, 120)
 }
 
-import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
+export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
 

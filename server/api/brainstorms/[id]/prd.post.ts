@@ -8,6 +8,7 @@ import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
 import { resolveBrainstormMode } from '~/server/utils/grill-mode'
 import { resolveCloneDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForPrompt } from '~/utils/grill-decisions'
+import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
 import {
   checkAgentRuntimeAvailability,
   resolveAppAgentRuntime,
@@ -83,9 +84,7 @@ export default defineEventHandler(async (event) => {
 
     const repoName = brainstorm.repository?.name || 'None'
 
-    const attachmentPrompt = attachments.length > 0
-      ? `[ATTACHED FILES]\n${attachments.map((a, i) => `${i + 1}. ${a.originalName} (${a.mimeType})`).join('\n')}\n\n`
-      : ''
+    const attachmentPrompt = buildBrainstormAttachmentPrompt(attachments)
 
     const conversationText = messages.map(m => `[${m.role === 'user' ? 'User' : 'Assistant'}]: ${m.content}`).join('\n\n')
 

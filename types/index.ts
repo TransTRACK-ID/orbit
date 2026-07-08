@@ -183,6 +183,7 @@ export interface BrainstormAttachment {
   originalName: string
   mimeType: string
   size: number
+  hasExtractedText?: boolean
   createdAt: string
 }
 

@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
     originalName: a.originalName,
     mimeType: a.mimeType,
     size: a.size,
+    hasExtractedText: !!a.extractedText,
     createdAt: a.createdAt,
   }))
 })

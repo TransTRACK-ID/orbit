@@ -89,22 +89,7 @@ function formatTextEvent(part: any): string {
   return lines[0].slice(0, 120)
 }
 
-function buildAttachmentPrompt(
-  attachments: typeof schema.brainstormAttachments.$inferSelect[],
-): string {
-  if (attachments.length === 0) return ''
-  const lines = attachments.map((att, idx) => {
-    const safeName = att.originalName
-      .replace(/[\n\r]/g, ' ')
-      .replace(/[[\]]/g, '')
-      .replace(/`/g, "'")
-      .slice(0, 100)
-    return `${idx + 1}. ${safeName} (${att.mimeType})`
-  })
-  return `[ATTACHED FILES]\nThe user has attached ${attachments.length} file(s) to this message. You can see and analyze them. When the user asks about these files, describe exactly what you see in them: colors, layouts, UI elements, text content, design details, people, objects, scenes, or any visual information. Do NOT say you cannot see them — these files ARE visible to you as message attachments.\n\n${lines.join('\n')}`
-}
-
-export default defineEventHandler(async (event) => {
+import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
   const { id } = getRouterParams(event)
   const user = await requireAuth(event)
 
@@ -298,7 +283,7 @@ When the user asks for changes, explain WHAT should change and WHY, but explicit
     const securityRule = `[SECURITY BOUNDARIES]
 CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
 
-    const attachmentPrompt = buildAttachmentPrompt(attachments)
+    const attachmentPrompt = buildBrainstormAttachmentPrompt(attachments)
     const brainstormMode = resolveBrainstormMode(brainstorm)
     const isGrillMode = brainstormMode === 'grill'
 
@@ -339,7 +324,7 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     const attachmentFilePaths: string[] = []
     if (attachments.length > 0) {
       for (const att of attachments) {
-        if (existsSync(att.path)) {
+        if (att.mimeType.startsWith('image/') && existsSync(att.path)) {
           attachmentFilePaths.push(att.path)
         }
       }

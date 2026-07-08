@@ -283,16 +283,28 @@
           <div
             v-for="att in attachments"
             :key="att.id"
-            class="relative group cursor-pointer"
-            @click="openLightbox(att)"
+            class="relative group"
+            :class="isImageAttachment(att) ? 'cursor-pointer' : ''"
+            @click="isImageAttachment(att) ? openLightbox(att) : undefined"
           >
-            <div class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100">
+            <div
+              v-if="isImageAttachment(att)"
+              class="w-8 h-8 rounded-lg overflow-hidden border border-surface-200 bg-surface-100"
+            >
               <img
                 :src="`/api/brainstorms/${brainstorm.id}/attachments/${att.id}`"
                 class="w-full h-full object-cover"
                 loading="lazy"
                 @error="hideImage"
               />
+            </div>
+            <div
+              v-else
+              class="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-surface-200 bg-surface-50 text-[11px] text-surface-700 max-w-[160px]"
+              :title="att.originalName"
+            >
+              <Icon name="lucide:file-text" class="w-3.5 h-3.5 flex-shrink-0 text-surface-500" />
+              <span class="truncate">{{ att.originalName }}</span>
             </div>
             <button
               type="button"
@@ -317,7 +329,7 @@
           <input
             ref="attachmentInput"
             type="file"
-            accept="image/png,image/jpeg,image/jpg"
+            accept="image/png,image/jpeg,image/jpg,.pdf,.docx,.txt,.md,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             class="hidden"
             @change="handleAttachmentFileSelect"
           />
@@ -344,7 +356,7 @@
         </div>
         <p class="text-[10px] text-surface-400 mt-1.5 flex items-center gap-1">
           <Icon name="lucide:shield" class="w-3 h-3" />
-          {{ inputHint }}
+          {{ inputHint }} — attach images, PDFs, or documents for extra context
         </p>
       </div>
     </div>
@@ -561,7 +573,12 @@ async function loadAttachments() {
   }
 }
 
+function isImageAttachment(att: BrainstormAttachment): boolean {
+  return att.mimeType.startsWith('image/')
+}
+
 function openLightbox(att: BrainstormAttachment) {
+  if (!isImageAttachment(att)) return
   lightboxImage.value = att
 }
 

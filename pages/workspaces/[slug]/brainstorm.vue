@@ -279,6 +279,54 @@
             </div>
 
             <div>
+              <label class="block text-xs font-medium text-surface-600 mb-1.5">Context files (optional)</label>
+              <div
+                v-if="createAttachments.length > 0"
+                class="flex flex-wrap gap-2 mb-2"
+              >
+                <div
+                  v-for="(file, index) in createAttachments"
+                  :key="`${file.name}-${index}`"
+                  class="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-surface-200 bg-surface-50 text-xs text-surface-700 max-w-full"
+                >
+                  <Icon
+                    :name="isImageFile(file) ? 'lucide:image' : 'lucide:file-text'"
+                    class="w-3.5 h-3.5 flex-shrink-0 text-surface-500"
+                  />
+                  <span class="truncate max-w-[180px]">{{ file.name }}</span>
+                  <button
+                    type="button"
+                    class="text-surface-400 hover:text-surface-600 flex-shrink-0"
+                    @click="removeCreateAttachment(index)"
+                  >
+                    <Icon name="lucide:x" class="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-200 text-surface-600 hover:bg-surface-50 transition-colors"
+                  :class="{ 'opacity-50 cursor-not-allowed': createAttachments.length >= 3 }"
+                  :disabled="createAttachments.length >= 3"
+                  @click="createAttachmentInput?.click()"
+                >
+                  <Icon name="lucide:paperclip" class="w-3.5 h-3.5" />
+                  Attach file
+                </button>
+                <span class="text-[11px] text-surface-400">PNG, JPEG, PDF, DOCX, TXT, MD — max 3 files</span>
+              </div>
+              <input
+                ref="createAttachmentInput"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,.pdf,.docx,.txt,.md,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                class="hidden"
+                @change="handleCreateAttachmentSelect"
+              />
+              <p class="text-xs text-surface-400 mt-1.5">Documents and PDFs are parsed into text to give the AI more context.</p>
+            </div>
+
+            <div>
               <label class="block text-xs font-medium text-surface-600 mb-1.5">Repository</label>
               <div class="flex items-center gap-2 mb-2">
                 <button
@@ -429,6 +477,7 @@ const {
   clearChatStep,
   archiveBrainstorm,
   convertToTask,
+  uploadAttachment,
 } = useBrainstorm()
 
 const {
@@ -468,6 +517,8 @@ const templates = ref<TemplateConfig[]>([])
 const loadingTemplates = ref(false)
 const selectedTemplate = ref<TemplateConfig | null>(null)
 const repoFromTemplate = ref<Repository | null>(null)
+const createAttachments = ref<File[]>([])
+const createAttachmentInput = ref<HTMLInputElement | null>(null)
 
 const visibleBrainstorms = computed(() => {
   if (showArchived.value) {
@@ -603,7 +654,6 @@ async function handleCreate() {
   try {
     let repoId = createRepoId.value || null
 
-    // Use repo from template if in new mode
     if (repoMode.value === 'new' && repoFromTemplate.value) {
       repoId = repoFromTemplate.value.id
     }
@@ -614,10 +664,16 @@ async function handleCreate() {
       mode: sessionMode.value,
       initialPlan: sessionMode.value === 'grill' ? createInitialPlan.value.trim() : undefined,
     })
+
+    for (const file of createAttachments.value) {
+      await uploadAttachment(bs.id, file)
+    }
+
     const createdMode = sessionMode.value
     showCreate.value = false
     createTitle.value = ''
     createInitialPlan.value = ''
+    createAttachments.value = []
     sessionMode.value = 'chat'
     createRepoId.value = ''
     repoMode.value = 'existing'
@@ -692,11 +748,40 @@ async function handleCreateRepoFromTemplate(formData: any) {
   }
 }
 
+watch(showCreate, (open) => {
+  if (!open) {
+    createAttachments.value = []
+    createError.value = ''
+  }
+})
+
 watch(repoMode, (newMode) => {
   if (newMode === 'new' && templates.value.length === 0) {
     loadTemplates()
   }
 })
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/')
+}
+
+function handleCreateAttachmentSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0) return
+  const file = input.files[0]
+  if (createAttachments.value.length >= 3) {
+    createError.value = 'Attachment limit reached (max 3)'
+    input.value = ''
+    return
+  }
+  createAttachments.value.push(file)
+  createError.value = ''
+  input.value = ''
+}
+
+function removeCreateAttachment(index: number) {
+  createAttachments.value.splice(index, 1)
+}
 
 async function handleSend(content: string) {
   if (!currentBrainstorm.value) return

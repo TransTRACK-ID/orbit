@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, integer, timestamp, text } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { brainstorms } from './brainstorms'
 
@@ -10,6 +10,7 @@ export const brainstormAttachments = pgTable('brainstorm_attachments', {
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   size: integer('size').notNull(),
   path: varchar('path', { length: 500 }).notNull(),
+  extractedText: text('extracted_text'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

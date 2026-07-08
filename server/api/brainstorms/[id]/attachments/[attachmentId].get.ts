@@ -9,6 +9,10 @@ function getMimeType(filePath: string): string {
     case 'png': return 'image/png'
     case 'jpg':
     case 'jpeg': return 'image/jpeg'
+    case 'pdf': return 'application/pdf'
+    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    case 'txt': return 'text/plain'
+    case 'md': return 'text/markdown'
     default: return 'application/octet-stream'
   }
 }
@@ -30,7 +34,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Attachment file missing' })
   }
 
-  const mime = getMimeType(attachment.path)
+  const mime = attachment.mimeType || getMimeType(attachment.path)
   setHeader(event, 'Content-Type', mime)
   setHeader(event, 'Content-Disposition', `inline; filename="${attachment.originalName}"`)
 

@@ -151,8 +151,11 @@
               <p class="text-xs font-semibold text-emerald-800 mb-1">Grill session complete</p>
               <p class="text-sm text-surface-800 leading-relaxed">{{ getGrillCompleteMetadata(msg)!.summary }}</p>
             </div>
-            <div class="bg-surface-50 border border-surface-100 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-sm text-surface-800 leading-relaxed max-w-none brainstorm-markdown">
-              <div v-html="parseMarkdown(msg.content)" />
+            <div
+              v-if="getAssistantDisplayContent(msg)"
+              class="bg-surface-50 border border-surface-100 rounded-2xl rounded-tl-md px-3.5 py-2.5 text-sm text-surface-800 leading-relaxed max-w-none brainstorm-markdown"
+            >
+              <div v-html="parseMarkdown(getAssistantDisplayContent(msg))" />
             </div>
             <!-- Create task action -->
             <div class="flex items-center gap-2 mt-1.5 ml-1">
@@ -391,7 +394,7 @@
 
 <script setup lang="ts">
 import type { Brainstorm, BrainstormMessage, BrainstormAttachment, GrillCompleteMetadata, GrillQuestionMetadata } from '~/types'
-import { getPrimaryGrillMetadata, parseGrillBlocks } from '~/utils/grill-parser'
+import { getPrimaryGrillMetadata, parseGrillBlocks, stripGrillBlocksFromContent } from '~/utils/grill-parser'
 import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForTask } from '~/utils/grill-decisions'
 import { nextTick, watch, onMounted, onUnmounted } from 'vue'
 
@@ -520,6 +523,10 @@ function getGrillQuestionMetadata(msg: BrainstormMessage): GrillQuestionMetadata
     if (metadata?.type === 'grill_question') return metadata
   }
   return null
+}
+
+function getAssistantDisplayContent(msg: BrainstormMessage): string {
+  return stripGrillBlocksFromContent(msg.content)
 }
 
 function getGrillCompleteMetadata(msg: BrainstormMessage): GrillCompleteMetadata | null {

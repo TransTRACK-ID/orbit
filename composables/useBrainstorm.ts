@@ -170,7 +170,13 @@ export const useBrainstorm = () => {
           }
         }
         if (data.agentReply) {
-          replyBuffer += data.agentReply
+          const next = data.agentReply
+          // cursor-agent sends the full accumulated reply each event; opencode sends chunks.
+          if (next.startsWith(replyBuffer)) {
+            replyBuffer = next
+          } else if (!replyBuffer || !replyBuffer.endsWith(next)) {
+            replyBuffer += next
+          }
           chatReplies.value = { ...chatReplies.value, [brainstormId]: replyBuffer }
         }
       } catch {}

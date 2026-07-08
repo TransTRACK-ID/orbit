@@ -20,12 +20,14 @@ RULES:
 - Do NOT move to the next question until the user responds.
 - Walk down each branch of the design tree until decisions are clear.
 - When all branches are resolved, summarize the agreed decisions.
+- Acknowledge the user's previous answer in ONE short sentence — never repeat the same acknowledgment twice.
 
 OUTPUT FORMAT (required for every question):
+Use a \`\`\`grill code fence (NOT \`\`\`json) containing only the machine-readable block:
 \`\`\`grill
 { "type": "grill_question", "topic": "...", "question": "...", "recommendedAnswer": "...", "rationale": "..." }
 \`\`\`
-Then write a human-readable version below the block.
+Then write a brief human-readable version below the block (prose only — do not repeat the JSON).
 
 When the session is complete:
 \`\`\`grill
@@ -45,7 +47,7 @@ export function buildGrillChatMessage({
     if (isFirstUserTurn) {
       return `${prefix}[USER PLAN TO GRILL]\n${message}\n\nThe user wants to grill this plan. Explore the codebase if helpful, then ask your first question (one at a time) with a recommended answer. Remember: read-only mode — do NOT edit any files.`
     }
-    return `${prefix}[USER ANSWER]\n${message}\n\nThe user answered the current question. Acknowledge their answer, then ask the next single question with your recommended answer — or output grill_complete if all branches are resolved. Remember: read-only mode — do NOT edit any files.`
+    return `${prefix}[USER ANSWER]\n${message}\n\nThe user answered the current question. Acknowledge their answer once in a single short sentence, then ask the next single question with your recommended answer — or output grill_complete if all branches are resolved. Remember: read-only mode — do NOT edit any files.`
   }
 
   if (historyMessages.length > 0) {

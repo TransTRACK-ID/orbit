@@ -29,14 +29,37 @@ export interface ParseGrillBlocksResult {
   warning?: string
 }
 
+const GRILL_FENCE_REGEX = /```(?:grill|json)\s*\n?([\s\S]+?)\n?```/gi
+
+function isGrillJson(jsonText: string): boolean {
+  try {
+    const parsed = JSON.parse(jsonText.trim()) as { type?: string }
+    return parsed.type === 'grill_question' || parsed.type === 'grill_complete'
+  } catch {
+    return false
+  }
+}
+
 function extractGrillFences(rawText: string): string[] {
   const fences: string[] = []
-  const fenceRegex = /```grill\s*\n?([\s\S]+?)\n?```/gi
+  const fenceRegex = new RegExp(GRILL_FENCE_REGEX.source, GRILL_FENCE_REGEX.flags)
   let match
   while ((match = fenceRegex.exec(rawText)) !== null) {
-    fences.push(match[1].trim())
+    const inner = match[1].trim()
+    if (isGrillJson(inner)) {
+      fences.push(inner)
+    }
   }
   return fences
+}
+
+/** Remove machine-readable grill blocks from assistant prose shown in chat. */
+export function stripGrillBlocksFromContent(content: string): string {
+  const fenceRegex = new RegExp(GRILL_FENCE_REGEX.source, GRILL_FENCE_REGEX.flags)
+  return content
+    .replace(fenceRegex, (match, inner: string) => (isGrillJson(inner) ? '' : match))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function parseGrillFence(jsonText: string): GrillMessageMetadata | null {

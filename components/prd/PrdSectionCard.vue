@@ -80,9 +80,16 @@ watch(() => props.section.content, (val) => {
 })
 
 const sectionIcons: Record<string, string> = {
+  problem_statement: 'lucide:alert-circle',
+  solution: 'lucide:lightbulb',
+  user_stories: 'lucide:users',
+  implementation_decisions: 'lucide:cpu',
+  testing_decisions: 'lucide:flask-conical',
+  out_of_scope: 'lucide:circle-off',
+  further_notes: 'lucide:sticky-note',
+  // Legacy (pre to-prd migration)
   overview: 'lucide:book-open',
   goals: 'lucide:target',
-  user_stories: 'lucide:users',
   requirements: 'lucide:list-checks',
   technical_spec: 'lucide:cpu',
   acceptance_criteria: 'lucide:check-circle',

@@ -431,9 +431,16 @@ export interface Prd {
 }
 
 export type PrdSectionType =
+  | 'problem_statement'
+  | 'solution'
+  | 'user_stories'
+  | 'implementation_decisions'
+  | 'testing_decisions'
+  | 'out_of_scope'
+  | 'further_notes'
+  /** @deprecated Legacy slugs from pre to-prd PRDs */
   | 'overview'
   | 'goals'
-  | 'user_stories'
   | 'requirements'
   | 'technical_spec'
   | 'acceptance_criteria'

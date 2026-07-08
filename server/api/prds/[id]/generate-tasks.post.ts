@@ -9,6 +9,7 @@ import {
   resolveAppAgentRuntime,
   spawnAgentPromptProcess,
 } from '~/server/utils/agent-runner'
+import { toPrdSectionSourceList } from '~/server/utils/to-prd-prompt'
 
 const MAX_RUNTIME_MS = 8 * 60 * 1000 // 8 minutes
 
@@ -99,7 +100,7 @@ Rules:
 - Tasks should be completable in 1-3 days
 - Group related tasks with parentIndex
 - Priority: urgent, high, medium, low, or none
-- sectionSource: overview, goals, user_stories, requirements, technical_spec, acceptance_criteria, milestones, risks
+- sectionSource: ${toPrdSectionSourceList()} (or legacy slugs overview, goals, requirements, technical_spec, acceptance_criteria, milestones, risks for older PRDs)
 - Only use existing project labels if provided; do not invent new label names
 - Return ONLY the JSON array, no other text`
 

@@ -5,10 +5,11 @@ import { getDb, schema } from '~/server/database'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
-import { resolveBrainstormMode } from '~/server/utils/grill-mode'
+import { resolveBrainstormMode, enrichBrainstorm } from '~/server/utils/grill-mode'
 import { resolveCloneDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForPrompt } from '~/utils/grill-decisions'
 import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
+import { buildToPrdPrompt } from '~/server/utils/to-prd-prompt'
 import {
   checkAgentRuntimeAvailability,
   resolveAppAgentRuntime,
@@ -43,6 +44,7 @@ export default defineEventHandler(async (event) => {
     orderBy: [asc(schema.brainstormMessages.createdAt)],
   })
 
+  const enrichedBrainstorm = enrichBrainstorm(brainstorm)
   const brainstormMode = resolveBrainstormMode(brainstorm)
   if (brainstormMode === 'grill' && brainstorm.grillStatus !== 'complete') {
     throw createError({
@@ -51,7 +53,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (messages.length < 2) {
+  if (brainstormMode !== 'grill' && messages.length < 2) {
     throw createError({ statusCode: 400, statusMessage: 'Brainstorm must have at least 2 messages to generate a PRD' })
   }
 
@@ -98,75 +100,23 @@ export default defineEventHandler(async (event) => {
       ? formatResolvedDecisionsForPrompt(decisionsLedger)
       : ''
 
-    const prompt = `You are a senior product manager. Analyze the following brainstorm conversation and produce a structured Product Requirements Document (PRD).
+    const repo = brainstorm.repository as (typeof schema.repositories.$inferSelect) | null
+    const hasRepo = !!(repo?.url && existsSync(resolveCloneDir(repo.url, repo.name, projectsDir)))
 
-${attachmentPrompt}[BRAINSTORM CONTEXT]
-Title: ${brainstorm.title}
-Repository: ${repoName}
-${brainstormMode === 'grill' ? 'Session type: Grill-me (structured Q&A — resolved decisions are authoritative)\n' : ''}
-${decisionsBlock ? `${decisionsBlock}\n\n` : ''}[CONVERSATION — supporting context]
-${conversationText}
-
-[OUTPUT FORMAT]
-Return a JSON object with this exact structure:
-{
-  "title": "PRD title",
-  "sections": [
-    {
-      "sectionType": "overview",
-      "title": "Product Overview",
-      "content": "markdown content..."
-    },
-    {
-      "sectionType": "goals",
-      "title": "Goals & Objectives",
-      "content": "markdown content..."
-    },
-    {
-      "sectionType": "user_stories",
-      "title": "User Stories",
-      "content": "As a [role], I want [feature] so that [benefit]..."
-    },
-    {
-      "sectionType": "requirements",
-      "title": "Functional Requirements",
-      "content": "markdown content with numbered requirements..."
-    },
-    {
-      "sectionType": "technical_spec",
-      "title": "Technical Specification",
-      "content": "markdown content..."
-    },
-    {
-      "sectionType": "acceptance_criteria",
-      "title": "Acceptance Criteria",
-      "content": "markdown content..."
-    },
-    {
-      "sectionType": "milestones",
-      "title": "Milestones & Timeline",
-      "content": "markdown content..."
-    },
-    {
-      "sectionType": "risks",
-      "title": "Risks & Mitigations",
-      "content": "markdown content..."
-    }
-  ]
-}
-
-IMPORTANT:
-- Extract requirements from the actual brainstorm conversation, do not hallucinate features
-${brainstormMode === 'grill' ? '- For grill-me sessions, treat [RESOLVED DECISIONS] as authoritative — the PRD MUST reflect every agreed decision\n' : ''}- Include quantifiable goals and metrics where possible
-- Map urgency keywords from the conversation to requirement priorities
-- Keep content concise but comprehensive
-- Return ONLY the JSON object, no other text.`
+    const prompt = buildToPrdPrompt({
+      brainstormTitle: enrichedBrainstorm.displayTitle || brainstorm.title,
+      repoName,
+      mode: brainstormMode === 'grill' ? 'grill' : 'chat',
+      attachmentPrompt: attachmentPrompt ? `${attachmentPrompt}\n\n` : '',
+      conversationText,
+      decisionsBlock,
+      hasRepo,
+    })
 
     // Resolve workDir from the brainstorm's repository (same as chat endpoint).
     // In production (Docker), process.cwd() is /app (Orbit itself), which causes
     // opencode to use the wrong project config and may fail to produce output.
     let workDir = process.cwd()
-    const repo = brainstorm.repository as (typeof schema.repositories.$inferSelect) | null
     if (repo?.url) {
       const cloneDir = resolveCloneDir(repo.url, repo.name, projectsDir)
       if (existsSync(cloneDir)) {

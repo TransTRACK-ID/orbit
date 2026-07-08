@@ -1,6 +1,3 @@
-import { PDFParse } from 'pdf-parse'
-import mammoth from 'mammoth'
-
 const MAX_EXTRACTED_CHARS = 50_000
 
 export type DocumentKind = 'pdf' | 'docx' | 'text' | 'image' | 'unknown'
@@ -47,6 +44,19 @@ function truncateText(text: string): string {
   return `${trimmed.slice(0, MAX_EXTRACTED_CHARS)}\n\n[... truncated — document exceeds ${MAX_EXTRACTED_CHARS} characters]`
 }
 
+async function extractPdfText(data: Buffer): Promise<string> {
+  const { extractText, getDocumentProxy } = await import('unpdf')
+  const pdf = await getDocumentProxy(new Uint8Array(data))
+  const { text } = await extractText(pdf, { mergePages: true })
+  return typeof text === 'string' ? text : text.join('\n\n')
+}
+
+async function extractDocxText(data: Buffer): Promise<string> {
+  const mammoth = await import('mammoth')
+  const result = await mammoth.extractRawText({ buffer: data })
+  return result.value || ''
+}
+
 export async function extractDocumentText(
   data: Buffer,
   mimeType: string,
@@ -60,19 +70,10 @@ export async function extractDocumentText(
       if (hasBinary) return null
       return truncateText(data.toString('utf-8'))
     }
-    case 'pdf': {
-      const parser = new PDFParse({ data })
-      try {
-        const result = await parser.getText()
-        return truncateText(result.text || '')
-      } finally {
-        await parser.destroy()
-      }
-    }
-    case 'docx': {
-      const result = await mammoth.extractRawText({ buffer: data })
-      return truncateText(result.value || '')
-    }
+    case 'pdf':
+      return truncateText(await extractPdfText(data))
+    case 'docx':
+      return truncateText(await extractDocxText(data))
     default:
       return null
   }

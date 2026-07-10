@@ -2,16 +2,8 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { updateTaskSchema } from '~/server/utils/validation'
 import { logActivityFeed } from '~/server/utils/activity'
+import { unifyAssignee } from '~/server/utils/unify-assignee'
 import { eq } from 'drizzle-orm'
-
-function unifyAssignee(task: any) {
-  if (!task) return task
-  const { agentAssignee, assignee, ...rest } = task
-  const unified = task.assigneeType === 'agent' && agentAssignee
-    ? { id: agentAssignee.id, name: agentAssignee.name, initials: agentAssignee.initials, color: agentAssignee.color }
-    : task.assigneeType === 'user' ? assignee : null
-  return { ...rest, assignee: unified }
-}
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)

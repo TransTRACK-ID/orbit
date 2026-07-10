@@ -2,6 +2,7 @@ import { requireProjectAccess } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { createTaskSchema } from '~/server/utils/validation'
 import { logActivityFeed } from '~/server/utils/activity'
+import { unifyAssignee } from '~/server/utils/unify-assignee'
 import { eq, count, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -99,14 +100,8 @@ export default defineEventHandler(async (event) => {
     message: `created task "${body.title}"`,
   })
 
-  const { agentAssignee, assignee, ...rest } = createdTask || {}
-  const unifiedAssignee = createdTask?.assigneeType === 'agent' && agentAssignee
-    ? { id: agentAssignee.id, name: agentAssignee.name, initials: agentAssignee.initials, color: agentAssignee.color }
-    : createdTask?.assigneeType === 'user' ? assignee : null
-
   return {
-    ...rest,
-    assignee: unifiedAssignee,
+    ...unifyAssignee(createdTask),
     agentAssignee: undefined,
     labels: createdTask?.taskLabels?.map((tl) => tl.label) || [],
     taskLabels: undefined,

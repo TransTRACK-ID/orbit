@@ -1829,13 +1829,16 @@ const isBacklog = computed(() =>
 )
 
 const assignedAgent = computed(() => {
-  if (task.value?.assigneeType !== 'agent' || !task.value.assigneeId) return null
-  return props.agents.find(a => a.id === task.value?.assigneeId) ?? null
+  if (task.value?.assigneeType !== 'agent') return null
+  const agentId = task.value.assignee?.id
+  if (!agentId) return null
+  return props.agents.find(a => a.id === agentId) ?? null
 })
 
 const agentRequiresRepository = computed(() => {
   if (task.value?.assigneeType !== 'agent') return false
-  return assignedAgent.value?.repositoryRequired !== false
+  const flag = assignedAgent.value?.repositoryRequired ?? task.value.assignee?.repositoryRequired
+  return flag !== false
 })
 
 /** Resolves the repository currently selected on the task, used for read-only display outside backlog */

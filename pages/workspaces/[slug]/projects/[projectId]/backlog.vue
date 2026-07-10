@@ -65,6 +65,9 @@
         :workspace-id="workspaceId"
         :statuses="statuses"
         :labels="labels"
+        :members="members"
+        :agents="agents"
+        :repositories="repositories"
         @close="closeTaskDetail"
         @updated="handleTaskUpdated"
         @deleted="handleTaskDeleted"
@@ -77,6 +80,9 @@
         :statuses="statuses"
         :labels="labels"
         :project-id="projectId"
+        :members="members"
+        :agents="agents"
+        :repositories="repositories"
         @close="showCreateModal = false"
         @created="handleTaskCreated"
       />
@@ -85,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label } from '~/types'
+import type { Task, Status, Label, ProjectMember } from '~/types'
 import { flashHighlight } from '~/composables/useKanban'
 
 definePageMeta({
@@ -96,7 +102,9 @@ const route = useRoute()
 const projectId = computed(() => route.params.projectId as string)
 
 const { tasks, loading, fetchTasks } = useTask()
-const { fetchProjectDetail, projectStatuses, projectLabels } = useProject()
+const { fetchProjectDetail, fetchMembers, projectStatuses, projectLabels } = useProject()
+const { agents, fetchAgents } = useAgent()
+const { repositories } = useRepository()
 const { showTaskSidePanel, selectedTask, openTaskDetail, closeTaskDetail } = useKanban()
 const { logs: runtimeLogs, addLog, persistLog } = useLog()
 
@@ -141,6 +149,7 @@ watch(runtimeLogs, async (logs) => {
 
 const statuses = ref<Status[]>([])
 const labels = ref<Label[]>([])
+const members = ref<ProjectMember[]>([])
 const workspaceId = ref('')
 const showCreateModal = ref(false)
 
@@ -153,7 +162,11 @@ onMounted(async () => {
   statuses.value = data.statuses || []
   labels.value = data.labels || []
   workspaceId.value = data.workspaceId || ''
-  await fetchTasks(projectId.value)
+  members.value = await fetchMembers(projectId.value)
+  await Promise.all([
+    fetchTasks(projectId.value),
+    fetchAgents(),
+  ])
 })
 
 function handleOpenTask(task: Task) {

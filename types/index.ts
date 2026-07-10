@@ -162,6 +162,8 @@ export interface TaskAssignee {
   initials?: string
   color?: string
   avatarUrl?: string | null
+  repositoryRequired?: boolean
+  browserEnabled?: boolean
 }
 
 // ─── Attachment ───

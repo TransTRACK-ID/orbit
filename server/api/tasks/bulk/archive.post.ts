@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { unifyAssignee } from '~/server/utils/unify-assignee'
 import { eq, inArray, and } from 'drizzle-orm'
 import { z } from 'zod'
 
@@ -7,15 +8,6 @@ const bulkArchiveSchema = z.object({
   taskIds: z.array(z.string().uuid()).min(1),
   archived: z.boolean().default(true),
 })
-
-function unifyAssignee(task: any) {
-  if (!task) return task
-  const { agentAssignee, assignee, ...rest } = task
-  const unified = task.assigneeType === 'agent' && agentAssignee
-    ? { id: agentAssignee.id, name: agentAssignee.name, initials: agentAssignee.initials, color: agentAssignee.color }
-    : task.assigneeType === 'user' ? assignee : null
-  return { ...rest, assignee: unified }
-}
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)

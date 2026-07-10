@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, desc, and } from 'drizzle-orm'
+import { parseAgentReplyMessage, parseAgentReplyScreenshots } from '~/server/utils/agent-reply'
 
 /**
  * Returns persisted agent runtime responses for a task.
@@ -44,9 +45,10 @@ export default defineEventHandler(async (event) => {
 
   return allEntries.map(log => ({
     id: `agent-${log.id}`,
-    body: (log.newValue as { message: string }).message,
+    body: parseAgentReplyMessage(log.newValue),
     createdAt: log.createdAt,
     agentName: defaultAgentName,
     agentColor: defaultAgentColor,
+    screenshots: parseAgentReplyScreenshots(id, log.newValue),
   }))
 })

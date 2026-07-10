@@ -20,6 +20,8 @@ export interface AnalyzeOptions {
   onDebugEvent?: (event: { type: string; payload: Record<string, unknown> }) => void
   /** Called when the agent uses a tool. */
   onToolUse?: (tool: string, args: Record<string, unknown>) => void
+  /** Called when a tool call completes (cursor stream-json only). */
+  onToolResult?: (tool: string, args: Record<string, unknown>, result: unknown) => void
   /** Called with stderr output from the cursor process. */
   onStderr?: (text: string) => void
 }
@@ -76,6 +78,18 @@ export function extractCursorToolUse(ev: CursorStreamEvent): { tool: string; arg
   }
 
   return null
+}
+
+export function extractCursorToolResult(ev: CursorStreamEvent): { tool: string; args: Record<string, unknown>; result: unknown } | null {
+  if (ev.type !== 'tool_call' || ev.subtype !== 'completed') return null
+  const toolUse = extractCursorToolUse(ev)
+  if (!toolUse) return null
+
+  const toolCall = ev.tool_call as Record<string, unknown> | undefined
+  const mcp = toolCall?.mcpToolCall as Record<string, unknown> | undefined
+  const result = mcp?.result ?? toolCall?.result ?? ev.result
+
+  return { ...toolUse, result }
 }
 
 function appendAssistantText(ev: CursorStreamEvent, onAppend: (text: string) => void) {
@@ -166,6 +180,7 @@ export async function spawnCursorAgent(
     onTokens,
     onDebugEvent,
     onToolUse,
+    onToolResult,
     onStderr,
     model: optModel,
   } = options
@@ -285,7 +300,14 @@ export async function spawnCursorAgent(
           .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
           .join(', ')
         onActivity?.(`Tool: ${toolUse.tool}(${argSummary})`)
-        onToolUse?.(toolUse.tool, toolUse.args)
+        if (ev.subtype === 'completed') {
+          const toolResult = extractCursorToolResult(ev)
+          if (toolResult) {
+            onToolResult?.(toolResult.tool, toolResult.args, toolResult.result)
+          }
+        } else {
+          onToolUse?.(toolUse.tool, toolUse.args)
+        }
       }
       return
     }
@@ -313,7 +335,14 @@ export async function spawnCursorAgent(
         .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
         .join(', ')
       onActivity?.(`Tool: ${toolUse.tool}(${argSummary})`)
-      onToolUse?.(toolUse.tool, toolUse.args)
+      if (ev.subtype === 'completed') {
+        const toolResult = extractCursorToolResult(ev)
+        if (toolResult) {
+          onToolResult?.(toolResult.tool, toolResult.args, toolResult.result)
+        }
+      } else {
+        onToolUse?.(toolUse.tool, toolUse.args)
+      }
     }
 
     if (ev.type === 'error') {

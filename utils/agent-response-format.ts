@@ -16,7 +16,11 @@ One short paragraph of what you did or found.
 Use a bullet list with \`- \` for outcomes, issues, or checks.
 
 ## Evidence (when testing)
-Use fenced code blocks for snapshots, logs, or snippets:
+Use a bullet list. For browser screenshots, list the filename only:
+- Screenshot: login-success.png
+Orbit attaches and displays screenshots automatically from \`.orbit/screenshots/\`.
+
+For logs or JSON snippets, use fenced code blocks:
 \`\`\`text
 paste relevant output here
 \`\`\`
@@ -26,6 +30,7 @@ Formatting rules (strict — comments are rendered as HTML from markdown):
 - Put a blank line after each heading before body text or lists
 - Use \`- \` bullet lists for Results and Evidence (one fact per bullet)
 - Put URLs as plain https:// links (they become clickable automatically)
+- For screenshots: use \`- Screenshot: <filename>.png\` (filename only, no paths or markdown images)
 - Put emails and short technical values as plain text — do NOT use backticks or inline code
 - Put JSON, logs, and console output in fenced \`\`\`json or \`\`\`text blocks only
 - Keep Summary to 1–2 sentences; put details in Results and Evidence

@@ -750,6 +750,8 @@
                       :content="comment.body"
                       :on-agent="true"
                       :collapse-threshold="280"
+                      :screenshots="comment.screenshots"
+                      @preview-screenshot="openAgentScreenshotLightbox"
                     />
                   </div>
                 </div>
@@ -2120,12 +2122,26 @@ const latestAgentReply = computed(() => {
  * entries in activity_logs that were saved by the opencode runtime. Unlike
  * the in-memory runtimeLogsForTask, these survive page refresh.
  */
-const agentReplies = ref<Array<{ id: string; body: string; createdAt: string; agentName: string; agentColor?: string }>>([])
+const agentReplies = ref<Array<{
+  id: string
+  body: string
+  createdAt: string
+  agentName: string
+  agentColor?: string
+  screenshots?: Array<{ id: string; originalName: string; url: string }>
+}>>([])
 
 async function fetchAgentReplies() {
   if (!task.value) return
   try {
-    const fetched = await $fetch(`/api/tasks/${task.value.id}/agent-replies`) as Array<{ id: string; body: string; createdAt: string; agentName: string; agentColor?: string }>
+    const fetched = await $fetch(`/api/tasks/${task.value.id}/agent-replies`) as Array<{
+      id: string
+      body: string
+      createdAt: string
+      agentName: string
+      agentColor?: string
+      screenshots?: Array<{ id: string; originalName: string; url: string }>
+    }>
     agentReplies.value = fetched
     // Only clear the in-memory bridge once we confirm the reply was persisted.
     // This prevents a gap where no agent reply is visible during the fetch.
@@ -2162,6 +2178,7 @@ const allComments = computed(() => {
         authorName: agent?.name || chatAgentIdentity.value.name || 'Agent',
         authorColor: r.agentColor || agent?.color || chatAgentIdentity.value.color || '#6366f1',
         isAgent: true,
+        screenshots: r.screenshots ?? [],
       }
     }),
   ]
@@ -2190,6 +2207,7 @@ const allComments = computed(() => {
       authorName: isLive ? chatAgentIdentity.value.name : (lastChatReplyAuthor.value || chatAgentIdentity.value.name),
       authorColor: isLive ? (chatAgentIdentity.value.color || '#6366f1') : (lastChatReplyAuthorColor.value || '#6366f1'),
       isAgent: true,
+      screenshots: [],
     })
   }
 
@@ -2388,6 +2406,19 @@ function openLightbox(att: Attachment) {
   lightboxImage.value = att
 }
 
+function openAgentScreenshotLightbox(shot: { id: string; originalName: string }) {
+  lightboxImage.value = {
+    id: shot.id,
+    taskId: props.taskId,
+    filename: shot.originalName,
+    originalName: shot.originalName,
+    mimeType: 'image/png',
+    size: 0,
+    path: '',
+    createdAt: '',
+  }
+}
+
 function openHtmlAttachment(att: Attachment) {
   window.open(`/api/tasks/${props.taskId}/attachments/${att.id}`, '_blank')
 }
@@ -2502,6 +2533,7 @@ watch(runtimeActive, async (active) => {
     // This prevents a gap where no agent reply is visible during the fetch.
     setTimeout(async () => {
       await fetchAgentReplies()
+      await loadAttachments()
       await checkPreview()
     }, 500)
   }

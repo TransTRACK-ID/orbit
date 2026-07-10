@@ -8,6 +8,17 @@ export type BrowserMcpSetup = {
 }
 
 export const MCP_SERVER_ID = 'chrome-devtools'
+export const ORBIT_SCREENSHOTS_DIR = '.orbit/screenshots'
+
+export function getOrbitScreenshotsPath(workDir: string): string {
+  return path.join(workDir, ORBIT_SCREENSHOTS_DIR)
+}
+
+export function ensureOrbitScreenshotsDir(workDir: string): string {
+  const screenshotsDir = getOrbitScreenshotsPath(workDir)
+  mkdirSync(screenshotsDir, { recursive: true })
+  return screenshotsDir
+}
 
 function getNpxPath(): string {
   return process.env.NPX_PATH || 'npx'
@@ -94,6 +105,7 @@ export function ensureOrbitGitignore(workDir: string) {
 export function setupBrowserMcp(workDir: string, runtime: string, taskUrls: string[] = []): BrowserMcpSetup {
   const orbitDir = path.join(workDir, '.orbit')
   mkdirSync(orbitDir, { recursive: true })
+  ensureOrbitScreenshotsDir(workDir)
   ensureOrbitGitignore(workDir)
 
   const { command, args } = getChromeDevToolsMcpLaunch()
@@ -177,7 +189,8 @@ Before finishing any QA, login, or UI verification task you MUST:
 1. Call **navigate_page** or **new_page** to open the target site
 2. Call **take_snapshot** and use element **uid** values from the snapshot
 3. Use **fill**, **click**, and **press_key** for interactions
-4. Capture the final state with **take_snapshot** or **take_screenshot**
+4. Capture evidence with **take_screenshot** using filePath: \`.orbit/screenshots/<descriptive-name>.png\`
+   (e.g. \`.orbit/screenshots/login-success.png\`). Always save screenshots to this folder.
 
 Tool names are prefixed as \`mcp_chrome-devtools_*\` in Cursor (e.g. \`mcp_chrome-devtools_navigate_page\`).
 
@@ -203,7 +216,8 @@ export function buildBrowserContextBlock(previewUrl: string | null, taskUrls: st
     '1. navigate_page or new_page → open the target URL',
     '2. take_snapshot → inspect the page and note element uids',
     '3. fill / click / press_key → perform login or UI actions',
-    '4. take_snapshot or take_screenshot → capture evidence of the outcome',
+    '4. take_screenshot with filePath: .orbit/screenshots/<name>.png → save visual evidence (required for QA)',
+    '5. take_snapshot → capture page text state when helpful',
     'In Cursor, tools appear as mcp_chrome-devtools_navigate_page, mcp_chrome-devtools_take_snapshot, etc.',
     'Do NOT use curl, wget, fetch, or shell HTTP checks instead of Chrome DevTools MCP.',
     'Do NOT claim you tested a website unless MCP tools were called in this session.',
@@ -275,6 +289,10 @@ const BROWSER_MCP_TOOL_HINTS = [
   'list_network_requests',
 ]
 
+export function isTakeScreenshotTool(toolName: string): boolean {
+  return toolName.toLowerCase().includes('take_screenshot')
+}
+
 export function isBrowserMcpTool(toolName: string): boolean {
   const normalized = toolName.toLowerCase()
   return BROWSER_MCP_TOOL_HINTS.some((hint) => normalized.includes(hint))
@@ -293,7 +311,7 @@ Required steps (in order):
 1. mcp_chrome-devtools_navigate_page (or navigate_page) → open ${urlHint}
 2. mcp_chrome-devtools_take_snapshot (or take_snapshot) → read the page
 3. mcp_chrome-devtools_fill / click / press_key → perform login or UI actions
-4. take_snapshot or take_screenshot → capture evidence
+4. take_screenshot with filePath: .orbit/screenshots/<name>.png → capture visual evidence
 
 Do NOT use curl, wget, or fetch. Do NOT report test results without MCP tool output.
 Password/credential links in the task are for you to read in the browser — not to skip browser testing.`

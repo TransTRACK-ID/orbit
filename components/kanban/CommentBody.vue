@@ -8,6 +8,8 @@
       <KanbanAgentReportBody
         v-if="onAgent"
         :content="content"
+        :screenshots="screenshots"
+        @preview-screenshot="emit('previewScreenshot', $event)"
       />
       <KanbanMarkdownBody
         v-else
@@ -60,10 +62,15 @@ const props = withDefaults(defineProps<{
   onAgent?: boolean
   /** Max height in px before the body collapses. */
   collapseThreshold?: number
+  screenshots?: Array<{ id: string; originalName: string; url: string }>
 }>(), {
   collapseThreshold: 120,
   onAgent: false,
 })
+
+const emit = defineEmits<{
+  previewScreenshot: [shot: { id: string; originalName: string }]
+}>()
 
 const bodyRef = ref<HTMLElement | null>(null)
 

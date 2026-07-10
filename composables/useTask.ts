@@ -122,7 +122,14 @@ export const useTask = () => {
       comments: Comment[]
       activityLogs: ActivityLog[]
       attachments: Attachment[]
-      agentReplies: Array<{ id: string; body: string; createdAt: string; agentName: string; agentColor?: string }>
+      agentReplies: Array<{
+        id: string
+        body: string
+        createdAt: string
+        agentName: string
+        agentColor?: string
+        screenshots?: Array<{ id: string; originalName: string; url: string }>
+      }>
     }>(`/api/tasks/${id}/detail`, { headers: ssrHeaders })
     currentTask.value = data.task
     comments.value = data.comments

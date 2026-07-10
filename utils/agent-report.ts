@@ -11,10 +11,17 @@ export interface AgentReportListItem {
   value: string
 }
 
+export interface AgentReportScreenshot {
+  attachmentId: string
+  originalName: string
+  url: string
+}
+
 export interface AgentReportSection {
   title: AgentReportSectionName | string
   paragraphs: string[]
   items: AgentReportListItem[]
+  images: AgentReportScreenshot[]
   code?: string
 }
 
@@ -87,9 +94,9 @@ function parseSectionBody(body: string, title: string): Omit<AgentReportSection,
   const paragraphs: string[] = []
   const items: AgentReportListItem[] = []
   let code: string | undefined
+  const isListSection = /^(Results|Findings|Steps|Evidence)$/i.test(title)
 
   const lines = body.split('\n').map(l => l.trim()).filter(Boolean)
-  const isListSection = /^(Results|Findings|Steps|Evidence)$/i.test(title)
 
   for (const line of lines) {
     if (/^[-*+]\s/.test(line) || (isListSection && /^[^:]+:\s+.+$/.test(line))) {
@@ -110,11 +117,92 @@ function parseSectionBody(body: string, title: string): Omit<AgentReportSection,
   if (isListSection && items.length === 0 && paragraphs.length === 1) {
     const sentenceItems = splitSentencesToItems(paragraphs[0]!)
     if (sentenceItems.length >= 2) {
-      return { paragraphs: [], items: sentenceItems, code }
+      return { paragraphs: [], items: sentenceItems, images: [], code }
     }
   }
 
-  return { paragraphs, items, code }
+  return { paragraphs, items, images: [], code }
+}
+
+const SCREENSHOT_FILENAME_RE = /^screenshot:\s*(.+)$/i
+
+function extractScreenshotFilename(item: AgentReportListItem): string | null {
+  if (item.label && /^screenshot$/i.test(item.label.trim())) {
+    return item.value.trim()
+  }
+
+  const fromValue = item.value.trim().match(SCREENSHOT_FILENAME_RE)
+  if (fromValue) return fromValue[1]!.trim()
+
+  return null
+}
+
+function basename(filename: string): string {
+  const normalized = filename.replace(/\\/g, '/')
+  const parts = normalized.split('/')
+  return parts[parts.length - 1] || filename
+}
+
+export function attachScreenshotsToSections(
+  sections: AgentReportSection[],
+  screenshots: AgentReportScreenshot[],
+): AgentReportSection[] {
+  if (!screenshots.length) {
+    return sections.map(section => ({ ...section, images: section.images ?? [] }))
+  }
+
+  const byName = new Map<string, AgentReportScreenshot>()
+  for (const shot of screenshots) {
+    byName.set(shot.originalName.toLowerCase(), shot)
+    byName.set(basename(shot.originalName).toLowerCase(), shot)
+  }
+
+  const used = new Set<string>()
+  const takeScreenshot = (filename: string): AgentReportScreenshot | null => {
+    const key = basename(filename).toLowerCase()
+    const shot = byName.get(key)
+    if (!shot || used.has(shot.attachmentId)) return null
+    used.add(shot.attachmentId)
+    return shot
+  }
+
+  const enriched = sections.map((section) => {
+    const images: AgentReportScreenshot[] = [...(section.images ?? [])]
+
+    if (/^evidence$/i.test(section.title)) {
+      for (const item of section.items) {
+        const filename = extractScreenshotFilename(item)
+        if (!filename) continue
+        const shot = takeScreenshot(filename)
+        if (shot) images.push(shot)
+      }
+    }
+
+    return { ...section, images }
+  })
+
+  const unmatched = screenshots.filter(shot => !used.has(shot.attachmentId))
+  if (unmatched.length === 0) return enriched
+
+  const evidenceIndex = enriched.findIndex(section => /^evidence$/i.test(section.title))
+  if (evidenceIndex >= 0) {
+    const evidence = enriched[evidenceIndex]!
+    enriched[evidenceIndex] = {
+      ...evidence,
+      images: [...evidence.images, ...unmatched],
+    }
+    return enriched
+  }
+
+  return [
+    ...enriched,
+    {
+      title: 'Evidence',
+      paragraphs: [],
+      items: [],
+      images: unmatched,
+    },
+  ]
 }
 
 export function parseAgentReportSections(raw: string): AgentReportSection[] {

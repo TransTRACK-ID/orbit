@@ -33,6 +33,29 @@
         </li>
       </ul>
 
+      <div
+        v-if="section.images.length > 0"
+        class="agent-report-body__images"
+      >
+        <button
+          v-for="(image, imageIndex) in section.images"
+          :key="`img-${index}-${image.attachmentId}-${imageIndex}`"
+          type="button"
+          class="agent-report-body__image-button"
+          :title="image.originalName"
+          @click="previewImage(image)"
+        >
+          <img
+            :src="image.url"
+            :alt="image.originalName"
+            class="agent-report-body__image"
+            loading="lazy"
+            @error="hideBrokenImage"
+          />
+          <span class="agent-report-body__image-caption">{{ image.originalName }}</span>
+        </button>
+      </div>
+
       <pre
         v-if="section.code"
         class="agent-report-body__code"
@@ -43,30 +66,69 @@
 
 <script setup lang="ts">
 import {
+  attachScreenshotsToSections,
   hasAgentReportStructure,
   linkifyAgentText,
   parseAgentReportSections,
+  type AgentReportScreenshot,
   type AgentReportSection,
 } from '~/utils/agent-report'
 
+export type AgentReplyScreenshot = {
+  id: string
+  originalName: string
+  url: string
+}
+
 const props = defineProps<{
   content: string
+  screenshots?: AgentReplyScreenshot[]
 }>()
+
+const emit = defineEmits<{
+  previewScreenshot: [shot: { id: string; originalName: string }]
+}>()
+
+const screenshotMeta = computed<AgentReportScreenshot[]>(() => {
+  return (props.screenshots ?? []).map(shot => ({
+    attachmentId: shot.id,
+    originalName: shot.originalName,
+    url: shot.url,
+  }))
+})
 
 const sections = computed<AgentReportSection[]>(() => {
   if (!props.content?.trim()) return []
+
+  let parsed: AgentReportSection[]
   if (!hasAgentReportStructure(props.content)) {
-    return [{
+    parsed = [{
       title: 'Report',
       paragraphs: [props.content.trim()],
       items: [],
+      images: [],
     }]
+  } else {
+    parsed = parseAgentReportSections(props.content)
   }
-  return parseAgentReportSections(props.content)
+
+  return attachScreenshotsToSections(parsed, screenshotMeta.value)
 })
 
 function linkify(text: string): string {
   return linkifyAgentText(text)
+}
+
+function previewImage(image: AgentReportScreenshot) {
+  emit('previewScreenshot', {
+    id: image.attachmentId,
+    originalName: image.originalName,
+  })
+}
+
+function hideBrokenImage(event: Event) {
+  const target = event.target as HTMLImageElement | null
+  if (target) target.style.display = 'none'
 }
 </script>
 
@@ -128,6 +190,50 @@ function linkify(text: string): string {
   margin-right: 0.25rem;
 }
 
+.agent-report-body__images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.55rem;
+}
+
+.agent-report-body__image-button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0;
+  border: 1px solid theme('colors.surface.200');
+  border-radius: 8px;
+  background: theme('colors.surface.50');
+  overflow: hidden;
+  cursor: zoom-in;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.agent-report-body__image-button:hover {
+  border-color: theme('colors.semantic.purple');
+  box-shadow: 0 0 0 1px theme('colors.semantic.purple/20');
+}
+
+.agent-report-body__image {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  display: block;
+  background: theme('colors.surface.100');
+}
+
+.agent-report-body__image-caption {
+  padding: 0 0.45rem 0.45rem;
+  font-size: 0.6875rem;
+  color: theme('colors.surface.500');
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .agent-report-body__code {
   margin: 0.45rem 0 0;
   padding: 0.65rem 0.8rem;
@@ -168,6 +274,19 @@ function linkify(text: string): string {
 
 :global(.dark) .agent-report-body__label {
   color: theme('colors.surface.200');
+}
+
+:global(.dark) .agent-report-body__image-button {
+  background: theme('colors.surface.800');
+  border-color: theme('colors.surface.700');
+}
+
+:global(.dark) .agent-report-body__image {
+  background: theme('colors.surface.900');
+}
+
+:global(.dark) .agent-report-body__image-caption {
+  color: theme('colors.surface.400');
 }
 
 :global(.dark) .agent-report-body__code {

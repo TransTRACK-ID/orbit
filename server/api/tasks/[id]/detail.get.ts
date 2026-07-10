@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { unifyAssignee } from '~/server/utils/unify-assignee'
+import { parseAgentReplyMessage, parseAgentReplyScreenshots } from '~/server/utils/agent-reply'
 import { eq, asc, desc, and, ne } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -116,10 +117,11 @@ export default defineEventHandler(async (event) => {
     })),
     agentReplies: agentReplyLogs.map((log) => ({
       id: `agent-${log.id}`,
-      body: (log.newValue as { message: string }).message,
+      body: parseAgentReplyMessage(log.newValue),
       createdAt: log.createdAt,
       agentName: defaultAgentName,
       agentColor: defaultAgentColor,
+      screenshots: parseAgentReplyScreenshots(id, log.newValue),
     })),
   }
 })

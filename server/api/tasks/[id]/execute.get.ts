@@ -165,11 +165,19 @@ import {
   extractUrlsFromText,
   getChromiumAvailability,
   isBrowserMcpTool,
+  isTakeScreenshotTool,
   pickPrimaryBrowserTestUrl,
   resolvePreviewUrlForAgent,
   setupBrowserMcp,
   verifyCursorBrowserMcpTools,
 } from '~/server/utils/browser-mcp'
+import {
+  extractBase64ImageFromToolResult,
+  harvestAgentScreenshots,
+  saveScreenshotFromBase64,
+  trackScreenshotPathFromToolArgs,
+  type AgentScreenshotAttachment,
+} from '~/server/utils/agent-screenshot'
 import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
@@ -496,6 +504,32 @@ export default defineEventHandler(async (event) => {
     let editedFiles: string[] = []
     let agentReplyContent = ''
     let rawAgentStreamText = ''
+    const agentScreenshotPaths: string[] = []
+    let agentScreenshotAttachments: AgentScreenshotAttachment[] = []
+
+    function trackAgentScreenshotPath(filePath: string | null) {
+      if (!filePath) return
+      if (!agentScreenshotPaths.includes(filePath)) {
+        agentScreenshotPaths.push(filePath)
+      }
+    }
+
+    function handleScreenshotTool(tool: string, args: Record<string, unknown>, result?: unknown) {
+      if (!browserEnabled || !isTakeScreenshotTool(tool)) return
+
+      const fromArgs = trackScreenshotPathFromToolArgs(workDir, args)
+      trackAgentScreenshotPath(fromArgs)
+
+      if (result != null) {
+        const base64 = extractBase64ImageFromToolResult(result)
+        if (base64) {
+          const name = typeof args.filePath === 'string'
+            ? path.basename(args.filePath)
+            : `screenshot-${Date.now()}.png`
+          trackAgentScreenshotPath(saveScreenshotFromBase64(workDir, base64, name))
+        }
+      }
+    }
 
     function applyAgentStreamText(fullText: string): string {
       rawAgentStreamText = fullText.trim()
@@ -1327,16 +1361,57 @@ export default defineEventHandler(async (event) => {
         }))
         persistLog(msg)
 
+        if (!wasLoopKill) {
+          try {
+            agentScreenshotAttachments = await harvestAgentScreenshots({
+              db,
+              taskId: id,
+              workDir,
+              trackedPaths: agentScreenshotPaths,
+            })
+            for (const shot of agentScreenshotAttachments) {
+              const step = `Saved screenshot evidence: ${shot.originalName}`
+              await pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() }))
+              persistLog(step)
+            }
+          } catch (shotErr: any) {
+            console.error('[execute.get] Failed to harvest agent screenshots:', shotErr?.message || shotErr)
+          }
+        }
+
         if (agentReplyContent) {
           try {
             await db.insert(schema.activityLogs).values({
               taskId: id,
               userId: user.id,
               action: 'agent_reply',
-              newValue: { message: agentReplyContent },
+              newValue: {
+                message: agentReplyContent,
+                screenshots: agentScreenshotAttachments.map(shot => ({
+                  id: shot.id,
+                  originalName: shot.originalName,
+                })),
+              },
             })
           } catch (err: any) {
             console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
+          }
+        } else if (agentScreenshotAttachments.length > 0) {
+          try {
+            await db.insert(schema.activityLogs).values({
+              taskId: id,
+              userId: user.id,
+              action: 'agent_reply',
+              newValue: {
+                message: '## Evidence\n\nBrowser screenshots captured during this run.',
+                screenshots: agentScreenshotAttachments.map(shot => ({
+                  id: shot.id,
+                  originalName: shot.originalName,
+                })),
+              },
+            })
+          } catch (err: any) {
+            console.error('[execute.get] Failed to persist screenshot-only agent_reply:', err?.message || err)
           }
         }
       }
@@ -1675,6 +1750,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
               pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() })).catch(() => {})
               persistLog(step)
             }
+            handleScreenshotTool(tool, args)
             if (tool === 'edit' || tool === 'write') {
               editCount++
               const filePath = String(args.path || args.filePath || 'unknown')
@@ -1691,6 +1767,10 @@ The status_name should match one of the existing statuses in the project (e.g., 
                 }
               }
             }
+          },
+          onToolResult: (tool, args, result) => {
+            lastActivity = Date.now()
+            handleScreenshotTool(tool, args, result)
           },
           onStderr: (text) => {
             lastActivity = Date.now()
@@ -2015,6 +2095,13 @@ The status_name should match one of the existing statuses in the project (e.g., 
                 const input = part?.state?.input || {}
                 if (browserEnabled && tool && isBrowserMcpTool(String(tool))) {
                   usedBrowserMcp = true
+                }
+                if (tool && isTakeScreenshotTool(String(tool))) {
+                  handleScreenshotTool(
+                    String(tool),
+                    input as Record<string, unknown>,
+                    part?.state?.output,
+                  )
                 }
                 if (tool === 'edit' || tool === 'write') {
                   editCount++

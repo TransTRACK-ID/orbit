@@ -162,6 +162,7 @@ import {
   buildNoRepositoryBlock,
   ensureCursorBrowserMcpApproved,
   extractUrlsFromText,
+  getChromiumAvailability,
   isBrowserMcpTool,
   resolvePreviewUrlForAgent,
   setupBrowserMcp,
@@ -1059,6 +1060,12 @@ export default defineEventHandler(async (event) => {
       ? extractUrlsFromText(task.title, task.description)
       : []
     if (browserEnabled) {
+      const chromium = getChromiumAvailability()
+      if (chromium.ok) {
+        await pushAndPersist(`Chromium: ${chromium.message} (${chromium.path})`)
+      } else {
+        await pushAndPersist(`Chromium unavailable: ${chromium.message}`)
+      }
       try {
         const mcpSetup = setupBrowserMcp(workDir, agentRuntime, taskUrls)
         opencodeConfigPath = mcpSetup.opencodeConfigPath
@@ -1512,6 +1519,10 @@ The status_name should match one of the existing statuses in the project (e.g., 
       CURSOR_API_KEY: process.env.CURSOR_API_KEY,
       CURSOR_MODEL: process.env.CURSOR_MODEL,
       CURSOR_AGENT_PATH: process.env.CURSOR_AGENT_PATH,
+      CHROME_PATH: process.env.CHROME_PATH,
+      CHROME_EXECUTABLE_PATH: process.env.CHROME_EXECUTABLE_PATH,
+      CHROME_DEVTOOLS_MCP_BIN: process.env.CHROME_DEVTOOLS_MCP_BIN,
+      CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS: process.env.CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS,
       ...(repoToken ? { GITHUB_TOKEN: repoToken } : {}),
       ...(opencodeConfigPath ? { OPENCODE_CONFIG: opencodeConfigPath } : {}),
     }

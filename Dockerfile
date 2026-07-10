@@ -123,13 +123,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && if [ -x /usr/bin/chromium-browser ] && [ ! -e /usr/bin/chromium ]; then ln -sf /usr/bin/chromium-browser /usr/bin/chromium; fi \
+    && test -x /usr/bin/chromium \
+    && chromium --version
 
 ENV CHROME_PATH=/usr/bin/chromium
+ENV CHROME_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Pre-install Chrome DevTools MCP (used when agents have Browser enabled)
 RUN npm install -g chrome-devtools-mcp@latest \
     && rm -rf /tmp/* \
+    && command -v chrome-devtools-mcp >/dev/null \
     && chrome-devtools-mcp --help >/dev/null 2>&1 || true
 
 ENV CHROME_DEVTOOLS_MCP_BIN=chrome-devtools-mcp

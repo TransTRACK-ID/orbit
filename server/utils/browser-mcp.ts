@@ -20,11 +20,40 @@ function getMcpProcessEnv(): Record<string, string> {
   }
 }
 
+export function getChromeExecutablePath(): string {
+  return process.env.CHROME_PATH || process.env.CHROME_EXECUTABLE_PATH || '/usr/bin/chromium'
+}
+
+/** Returns Chromium availability for runtime logging (Docker image should ship /usr/bin/chromium). */
+export function getChromiumAvailability(): { ok: boolean; path: string; message: string } {
+  const chromePath = getChromeExecutablePath()
+  if (!existsSync(chromePath)) {
+    return {
+      ok: false,
+      path: chromePath,
+      message: `Chromium not found at ${chromePath}. Rebuild the Docker image (apt package chromium) or set CHROME_PATH.`,
+    }
+  }
+  const result = spawnSync(chromePath, ['--version'], {
+    encoding: 'utf-8',
+    timeout: 15_000,
+  })
+  const version = [result.stdout, result.stderr].filter(Boolean).join(' ').trim()
+  if (result.status !== 0 || !version) {
+    return {
+      ok: false,
+      path: chromePath,
+      message: version || `Failed to run ${chromePath} --version`,
+    }
+  }
+  return { ok: true, path: chromePath, message: version }
+}
+
 /** Resolve chrome-devtools-mcp command + args (Docker uses pre-installed global binary). */
 export function getChromeDevToolsMcpLaunch(): { command: string; args: string[] } {
   const args = ['--headless', '--isolated=true']
-  const chromePath = process.env.CHROME_PATH || process.env.CHROME_EXECUTABLE_PATH
-  if (chromePath) {
+  const chromePath = getChromeExecutablePath()
+  if (existsSync(chromePath)) {
     args.push(`--executablePath=${chromePath}`)
     // Required for Chromium inside Docker containers
     args.push(

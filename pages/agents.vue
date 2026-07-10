@@ -77,14 +77,14 @@
     </div>
 
     <!-- Agent grid -->
-    <div v-else class="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3.5">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3.5 items-start">
       <div
         v-for="agent in agents"
         :key="agent.id"
-        class="border rounded-xl p-[18px] hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150"
+        class="flex flex-col border rounded-xl p-[18px] hover:border-accent hover:shadow-lg hover:-translate-y-px transition-all duration-150"
         :class="getAgentStatus(agent.id) === 'offline' ? 'bg-surface-50 border-surface-300 opacity-70' : 'bg-white border-surface-200'"
       >
-        <div class="flex items-center gap-3 mb-2.5">
+        <div class="flex items-start gap-3">
           <div
             class="relative w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
             :style="{ background: agent.color }"
@@ -95,53 +95,56 @@
               :class="statusDotClass(getAgentStatus(agent.id))"
             />
           </div>
-          <div class="min-w-0">
-            <div class="text-sm font-semibold">{{ agent.name }}</div>
-            <div class="text-[10px] text-surface-400 mt-0.5">{{ agent.role }}</div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-semibold leading-tight">{{ agent.name }}</div>
+            <div class="text-xs text-surface-400 mt-0.5 leading-snug">
+              {{ agent.role }}
+              <span class="text-surface-300 mx-1">·</span>
+              <span class="inline-flex items-center gap-1">
+                <Icon name="lucide:briefcase" class="w-3 h-3 text-accent" />
+                {{ agent.projectName || 'Global pool' }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="text-[10px] text-surface-400 mb-2.5 flex items-center gap-1.5">
-          <Icon name="lucide:briefcase" class="w-2.5 h-2.5 text-accent" />
-          {{ agent.projectName || 'Global pool' }}
-        </div>
-
-        <div class="flex items-center gap-2.5 flex-wrap mb-2.5">
-          <span class="text-[9px] font-semibold flex items-center gap-1">
+        <div class="flex items-center gap-2 flex-wrap mt-2.5">
+          <span class="text-xs font-medium flex items-center gap-1 text-surface-600">
             <span
-              class="w-[6px] h-[6px] rounded-full"
+              class="w-1.5 h-1.5 rounded-full"
               :class="statusDotClass(getAgentStatus(agent.id))"
             />
             {{ statusLabel(getAgentStatus(agent.id)) }}
           </span>
           <span
             v-if="agent.browserEnabled"
-            class="text-[9px] font-semibold flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded"
+            class="text-xs font-medium flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded"
           >
-            <Icon name="lucide:globe" class="w-2.5 h-2.5" />
+            <Icon name="lucide:globe" class="w-3 h-3" />
             Browser
           </span>
           <span
             v-if="agent.repositoryRequired === false"
-            class="text-[9px] font-semibold flex items-center gap-1 text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded"
+            class="text-xs font-medium flex items-center gap-1 text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded"
           >
-            <Icon name="lucide:external-link" class="w-2.5 h-2.5" />
+            <Icon name="lucide:external-link" class="w-3 h-3" />
             External
           </span>
         </div>
 
-        <div class="p-2 bg-surface-50 rounded-md text-[10px] text-surface-400 leading-snug border-l-[3px] border-accent line-clamp-3">
-          <strong class="text-surface-900 font-semibold">Purpose:</strong> {{ agent.purpose }}
-        </div>
+        <p class="mt-2.5 text-xs text-surface-500 leading-snug line-clamp-3">
+          <span class="text-surface-700 font-medium">Purpose</span>
+          {{ agent.purpose }}
+        </p>
 
         <!-- Current Tasks -->
         <div v-if="getAgentCurrentTasks(agent.id).length > 0" class="mt-2.5">
-          <div class="text-[9px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Current Tasks</div>
+          <div class="text-xs font-medium text-surface-400 mb-1.5">Current tasks</div>
           <div class="space-y-1.5">
             <div
               v-for="task in getAgentCurrentTasks(agent.id).slice(0, 3)"
               :key="task.taskId"
-              class="p-2 rounded-md border text-[10px] leading-snug"
+              class="p-2 rounded-md border text-xs leading-snug"
               :class="task.status === 'running'
                 ? 'bg-accent/5 border-accent/20'
                 : task.status === 'error'
@@ -150,36 +153,36 @@
             >
               <div class="flex items-center gap-1.5 mb-0.5">
                 <span
-                  class="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                  class="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   :class="task.status === 'running' ? 'bg-accent animate-pulse' : task.status === 'error' ? 'bg-red-400' : 'bg-green-500'"
                 />
-                <span class="font-semibold text-surface-900 truncate">{{ task.taskTitle }}</span>
+                <span class="font-medium text-surface-900 truncate">{{ task.taskTitle }}</span>
                 <span
-                  class="ml-auto text-[8px] font-semibold uppercase flex-shrink-0"
+                  class="ml-auto text-xs font-medium capitalize flex-shrink-0"
                   :class="task.status === 'running' ? 'text-accent' : task.status === 'error' ? 'text-red-500' : 'text-green-600'"
                 >{{ task.status }}</span>
               </div>
-              <div v-if="task.branchName" class="text-[9px] text-surface-400 font-mono truncate">
-                <Icon name="lucide:git-branch" class="w-2 h-2" /> {{ task.branchName }}
+              <div v-if="task.branchName" class="text-xs text-surface-400 font-mono truncate">
+                <Icon name="lucide:git-branch" class="w-2.5 h-2.5" /> {{ task.branchName }}
               </div>
-              <div v-if="task.filesChanged.length > 0" class="text-[9px] text-surface-400 mt-0.5">
+              <div v-if="task.filesChanged.length > 0" class="text-xs text-surface-400 mt-0.5">
                 {{ task.filesChanged.length }} file{{ task.filesChanged.length !== 1 ? 's' : '' }} changed
               </div>
-              <div v-if="task.summary" class="text-[9px] text-surface-500 mt-0.5 line-clamp-2">{{ task.summary }}</div>
+              <div v-if="task.summary" class="text-xs text-surface-500 mt-0.5 line-clamp-2">{{ task.summary }}</div>
             </div>
           </div>
         </div>
 
-        <div class="flex gap-1.5 mt-2.5 pt-2.5 border-t border-surface-200">
+        <div class="flex gap-1.5 mt-3 pt-2.5 border-t border-surface-200">
           <button
-            class="px-2.5 py-1 rounded text-[9px] font-semibold border border-surface-200 hover:bg-surface-50 transition-colors flex items-center gap-1"
+            class="px-2.5 py-1 rounded text-xs font-medium border border-surface-200 hover:bg-surface-50 transition-colors flex items-center gap-1"
             @click="openEditModal(agent)"
           >
-            <Icon name="lucide:pencil" class="w-2.5 h-2.5" />
+            <Icon name="lucide:pencil" class="w-3 h-3" />
             Edit
           </button>
           <button
-            class="px-2.5 py-1 rounded text-[9px] font-semibold border border-accent text-accent hover:bg-red-50 transition-colors flex items-center gap-1"
+            class="px-2.5 py-1 rounded text-xs font-medium border border-accent text-accent hover:bg-red-50 transition-colors flex items-center gap-1"
             :disabled="deletingId === agent.id"
             :class="{ 'opacity-60 cursor-wait': deletingId === agent.id }"
             @click="handleDelete(agent)"

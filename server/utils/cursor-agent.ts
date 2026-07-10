@@ -327,7 +327,8 @@ export async function spawnCursorAgent(
       onTokens?.(tokens)
     }
 
-    appendAssistantText(ev, text => appendText(text, ev.type === 'result'))
+    // With --stream-partial-output, ev.delta carries assistant text incrementally.
+    // Appending full assistant payloads here duplicates streamed content (2–3×).
 
     const toolUse = extractCursorToolUse(ev)
     if (toolUse) {

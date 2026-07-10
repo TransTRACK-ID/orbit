@@ -23,6 +23,46 @@ function normalizeForCompare(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
+/**
+ * Collapse agent output repeated 2–5 times in a row (cursor stream-json often
+ * duplicates via deltas + assistant payloads + result).
+ */
+export function collapseRepeatedAgentText(text: string): string {
+  const trimmed = dedupeRepeatedReportSections(text.trim())
+  if (!trimmed) return ''
+
+  const normalized = normalizeForCompare(trimmed)
+  if (normalized.length < 80) return trimmed
+
+  for (let copies = 2; copies <= 5; copies++) {
+    const baseUnitLen = Math.floor(normalized.length / copies)
+    if (baseUnitLen < 40) break
+
+    for (let delta = -15; delta <= 15; delta++) {
+      const unitLen = baseUnitLen + delta
+      if (unitLen < 40 || unitLen * copies > normalized.length + 20) continue
+
+      const unit = normalized.slice(0, unitLen)
+      let matches = true
+      for (let i = 1; i < copies; i++) {
+        if (normalized.slice(i * unitLen, (i + 1) * unitLen) !== unit) {
+          matches = false
+          break
+        }
+      }
+      if (!matches) continue
+
+      const consumed = unitLen * copies
+      if (normalized.length - consumed > 40) continue
+
+      const origUnitLen = Math.round(trimmed.length / copies)
+      return trimmed.slice(0, origUnitLen).trim()
+    }
+  }
+
+  return trimmed
+}
+
 function isNarrationParagraph(paragraph: string): boolean {
   if (/^#{1,6}\s+/.test(paragraph)) return false
   if (/^(?:\*\*)?(?:Summary|Results|Findings|Steps|Evidence|Conclusion)(?:\*\*)?\s*:?\s*$/i.test(paragraph)) return false

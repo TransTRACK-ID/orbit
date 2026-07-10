@@ -2,8 +2,8 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb } from '~/server/database'
 import { enrichBrainstorm, resolveBrainstormMode } from '~/server/utils/grill-mode'
 import { persistAssistantGrillMessage } from '~/server/utils/grill-state'
-import { dedupeRepeatedReportSections } from '~/utils/agent-comment'
-import { eq } from 'drizzle-orm'
+import { collapseRepeatedAgentText } from '~/utils/agent-comment'
+import { and, desc, eq } from 'drizzle-orm'
 import { schema } from '~/server/database'
 
 export default defineEventHandler(async (event) => {
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Content is required' })
   }
 
-  const content = dedupeRepeatedReportSections(body.content.trim())
+  const content = collapseRepeatedAgentText(body.content.trim())
   if (!content) {
     throw createError({ statusCode: 400, statusMessage: 'Content is required' })
   }
@@ -27,6 +27,17 @@ export default defineEventHandler(async (event) => {
 
   if (!brainstorm) {
     throw createError({ statusCode: 404, statusMessage: 'Brainstorm not found' })
+  }
+
+  const lastAssistant = await db.query.brainstormMessages.findFirst({
+    where: and(
+      eq(schema.brainstormMessages.brainstormId, id),
+      eq(schema.brainstormMessages.role, 'assistant'),
+    ),
+    orderBy: [desc(schema.brainstormMessages.createdAt)],
+  })
+  if (lastAssistant?.content.trim() === content) {
+    return { message: lastAssistant, brainstorm: enrichBrainstorm(brainstorm) }
   }
 
   const mode = resolveBrainstormMode(brainstorm)

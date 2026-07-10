@@ -686,14 +686,18 @@ async function handleCreateTask() {
 // Combine persisted messages with the live streaming reply
 const displayMessages = computed(() => {
   const result = [...props.messages]
-  if (props.chatReply.trim()) {
-    result.push({
-      id: 'live-reply',
-      brainstormId: props.brainstorm.id,
-      role: 'assistant',
-      content: props.chatReply.trim(),
-      createdAt: new Date().toISOString(),
-    })
+  const liveReply = props.chatReply.trim()
+  if (liveReply) {
+    const lastAssistant = [...props.messages].reverse().find((m) => m.role === 'assistant')
+    if (!lastAssistant || lastAssistant.content.trim() !== liveReply) {
+      result.push({
+        id: 'live-reply',
+        brainstormId: props.brainstorm.id,
+        role: 'assistant',
+        content: liveReply,
+        createdAt: new Date().toISOString(),
+      })
+    }
   }
   return result
 })

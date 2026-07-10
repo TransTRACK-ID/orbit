@@ -25,12 +25,12 @@ import { canStartGrillAgentTurn } from '~/server/utils/grill-state'
 import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForChat } from '~/utils/grill-decisions'
 import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
 import { processOpencodeLine } from '~/server/utils/opencode-parser'
-import { dedupeRepeatedReportSections } from '~/utils/agent-comment'
+import { collapseRepeatedAgentText } from '~/utils/agent-comment'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
 
 function dedupeAgentReply(text: string): string {
-  return dedupeRepeatedReportSections(text.trim())
+  return collapseRepeatedAgentText(text)
 }
 
 function extractRepoName(url: string): string {

@@ -731,24 +731,25 @@
                 <!-- Persisted agent reply -->
                 <div
                   v-else
-                  class="flex gap-3 p-3 rounded-lg bg-gradient-to-r from-primary-50/50 to-primary-50 border border-primary-100"
+                  class="flex gap-3 p-3.5 rounded-lg border border-surface-200 bg-white ring-1 ring-semantic-purple/10 dark:bg-surface-900 dark:border-surface-700 dark:ring-semantic-purple/20"
                 >
                   <span
-                    class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
-                    :style="{ background: comment.authorColor || '#6366f1' }"
+                    class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold text-white flex-shrink-0"
+                    :style="{ background: comment.authorColor || '#7C3AED' }"
                   >
                     {{ computedInitials(comment.authorName) }}
                   </span>
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-0.5">
-                      <span class="text-sm font-medium text-primary-700">{{ comment.authorName }}</span>
-                      <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-600 font-semibold">AGENT</span>
-                      <span class="text-xs text-primary-400 ml-auto">{{ formatDate(comment.createdAt) }}</span>
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-sm font-medium text-surface-900">{{ comment.authorName }}</span>
+                      <span class="text-xs px-1.5 py-0.5 rounded-full bg-semantic-purple/10 text-semantic-purple font-medium">Agent</span>
+                      <span class="text-xs text-surface-400 ml-auto tabular-nums">{{ formatDate(comment.createdAt) }}</span>
                     </div>
                     <KanbanCommentBody
                       :content="comment.body"
-                      wrapper-class="text-sm text-primary-800"
+                      wrapper-class="text-sm text-surface-700 agent-report"
                       :on-agent="true"
+                      :collapse-threshold="220"
                     />
                   </div>
                 </div>
@@ -1638,6 +1639,7 @@ import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Reposito
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { parseMarkdown } from '~/utils/markdown'
+import { formatAgentCommentForDisplay } from '~/utils/agent-comment'
 import { useDebounceFn } from '@vueuse/core'
 import { nextTick, onMounted, onUnmounted } from 'vue'
 
@@ -2106,7 +2108,8 @@ const latestAgentReply = computed(() => {
   for (const log of recentLogs) {
     const msg = log.message.replace(/^>\s*/, '')
     if (msg.startsWith('[AGENT_REPLY]')) {
-      return msg.replace(/^\[AGENT_REPLY\]\s*/, '')
+      const raw = msg.replace(/^\[AGENT_REPLY\]\s*/, '')
+      return formatAgentCommentForDisplay(raw) || null
     }
   }
   return null

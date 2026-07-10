@@ -219,6 +219,7 @@ export async function spawnCursorAgent(
   args.push(finalPrompt)
 
   let accumulated = ''
+  let resultLocked = false
   const proc = spawn(getCursorPath(), args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd: workdir || process.cwd(),
@@ -234,12 +235,60 @@ export async function spawnCursorAgent(
 
   function appendText(text: string, replace = false) {
     if (!text) return
+    if (resultLocked && !replace) return
     accumulated = replace ? text : accumulated + text
     onText?.(replace ? '' : text, accumulated)
   }
 
+  function applyFinalResult(text: string) {
+    if (!text.trim()) return
+    resultLocked = true
+    accumulated = text.trim()
+    onText?.('', accumulated)
+  }
+
   function processEvent(ev: CursorStreamEvent) {
     onDebugEvent?.({ type: `cursor.${String(ev.type)}`, payload: ev })
+
+    if (ev.type === 'result') {
+      const resultText = typeof ev.result === 'string'
+        ? ev.result
+        : (() => {
+            const message = ev.message as { content?: Array<{ type?: string; text?: string }> } | undefined
+            return message?.content
+              ?.filter(part => part.type === 'text' && part.text)
+              .map(part => part.text)
+              .join('') || ''
+          })()
+      if (resultText.trim()) {
+        applyFinalResult(resultText)
+      }
+
+      const tokens = ev.tokens as { input: number; output: number } | undefined
+      if (tokens) onTokens?.(tokens)
+
+      const toolUse = extractCursorToolUse(ev)
+      if (toolUse) {
+        const argSummary = Object.entries(toolUse.args)
+          .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+          .join(', ')
+        onActivity?.(`Tool: ${toolUse.tool}(${argSummary})`)
+        onToolUse?.(toolUse.tool, toolUse.args)
+      }
+      return
+    }
+
+    if (resultLocked) {
+      const toolUse = extractCursorToolUse(ev)
+      if (toolUse) {
+        const argSummary = Object.entries(toolUse.args)
+          .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+          .join(', ')
+        onActivity?.(`Tool: ${toolUse.tool}(${argSummary})`)
+        onToolUse?.(toolUse.tool, toolUse.args)
+      }
+      return
+    }
 
     if (typeof ev.result === 'string' && ev.result && ev.type !== 'result') {
       appendText(ev.result, true)

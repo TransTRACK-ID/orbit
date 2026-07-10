@@ -267,3 +267,77 @@
 .dark .markdown-body.on-agent :deep(a) {
   color: #c7d2fe;
 }
+
+/* Structured agent QA reports */
+.markdown-body.agent-report {
+  max-width: 65ch;
+}
+
+.markdown-body.agent-report :deep(h2) {
+  margin: 1em 0 0.35em;
+  padding-bottom: 0;
+  border-bottom: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--surface-600, #64748b);
+}
+
+.markdown-body.agent-report :deep(h2:first-child),
+.markdown-body.agent-report :deep(> h2:first-child) {
+  margin-top: 0;
+}
+
+.markdown-body.agent-report :deep(h3) {
+  margin: 0.85em 0 0.3em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--surface-700, #475569);
+}
+
+.markdown-body.agent-report :deep(p) {
+  margin: 0 0 0.55em;
+  color: var(--surface-700, #475569);
+}
+
+.markdown-body.agent-report :deep(ul),
+.markdown-body.agent-report :deep(ol) {
+  margin: 0.15em 0 0.65em;
+}
+
+.markdown-body.agent-report :deep(li) {
+  margin: 0.15em 0;
+}
+
+.markdown-body.agent-report :deep(li > p) {
+  margin: 0;
+}
+
+.markdown-body.agent-report :deep(pre) {
+  margin: 0.35em 0 0.65em;
+  padding: 0.65em 0.85em;
+  font-size: 0.8125rem;
+  background: var(--surface-50, #f8fafc);
+  color: var(--surface-800, #1e293b);
+  border: 1px solid var(--surface-200, #e2e8f0);
+}
+
+.markdown-body.agent-report :deep(pre code) {
+  color: inherit;
+}
+
+.dark .markdown-body.agent-report :deep(h2) {
+  color: var(--surface-400, #94a3b8);
+}
+
+.dark .markdown-body.agent-report :deep(h3),
+.dark .markdown-body.agent-report :deep(p) {
+  color: var(--surface-300, #cbd5e1);
+}
+
+.dark .markdown-body.agent-report :deep(pre) {
+  background: var(--surface-800, #1e293b);
+  color: var(--surface-100, #f1f5f9);
+  border-color: var(--surface-700, #334155);
+}

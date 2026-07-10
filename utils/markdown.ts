@@ -42,6 +42,7 @@ function normalizeMarkdownInput(md: string): string {
   // Blank line before block elements (GFM is picky without these)
   text = text.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2')
   text = text.replace(/([^\n])\n([-*+] |\d+\. )/g, '$1\n\n$2')
+  text = text.replace(/(#{1,6}[^\n]+)\n([-*+] )/g, '$1\n\n$2')
   text = text.replace(/([^\n])\n(```)/g, '$1\n\n$2')
   text = text.replace(/([^\n])\n(>\s)/g, '$1\n\n$2')
 

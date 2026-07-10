@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { unifyAssignee } from '~/server/utils/unify-assignee'
+import { formatAgentCommentForDisplay } from '~/utils/agent-comment'
 import { eq, asc, desc, and, ne } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -116,7 +117,7 @@ export default defineEventHandler(async (event) => {
     })),
     agentReplies: agentReplyLogs.map((log) => ({
       id: `agent-${log.id}`,
-      body: (log.newValue as { message: string }).message,
+      body: formatAgentCommentForDisplay((log.newValue as { message: string }).message),
       createdAt: log.createdAt,
       agentName: defaultAgentName,
       agentColor: defaultAgentColor,

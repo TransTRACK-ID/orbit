@@ -65,8 +65,6 @@ const bodyRef = ref<HTMLElement | null>(null)
 const mergedWrapperClass = computed(() => {
   return [props.wrapperClass, props.onAgent ? 'on-agent' : ''].filter(Boolean).join(' ')
 })
-
-/** True natural (scroll) height of the rendered body, tracked live. */
 const naturalHeight = ref(0)
 
 /** Whether the user has collapsed it. Defaults to collapsed when overlong. */
@@ -125,10 +123,9 @@ const innerStyle = computed(() => {
   pointer-events: none;
 }
 
-/* Agent replies render on a purple-tinted card; match that surface so the
-   fade blends. The parent opts in via the `on-agent` class. */
+/* Agent replies sit on a white card with a subtle purple ring; fade to white. */
 .comment-collapse.on-agent .comment-collapse__fade {
-  background: linear-gradient(to bottom, transparent, rgba(238, 242, 255, 0.9));
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.98));
 }
 
 .comment-collapse__button {
@@ -137,8 +134,8 @@ const innerStyle = computed(() => {
   gap: 3px;
   padding: 2px 8px;
   border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: theme('colors.surface.500');
   background: theme('colors.surface.100');
   border: 1px solid theme('colors.surface.200');
@@ -170,7 +167,7 @@ const innerStyle = computed(() => {
   background: linear-gradient(to bottom, transparent, theme('colors.surface.800'));
 }
 :global(.dark) .comment-collapse.on-agent .comment-collapse__fade {
-  background: linear-gradient(to bottom, transparent, rgba(49, 46, 64, 0.9));
+  background: linear-gradient(to bottom, transparent, theme('colors.surface.900'));
 }
 :global(.dark) .comment-collapse__button {
   color: theme('colors.surface.400');

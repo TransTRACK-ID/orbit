@@ -4,7 +4,7 @@ import { getDefaultAgentRuntime, updateRuntimeSettings, type AgentRuntimeId } fr
 
 const updateRuntimeSettingsSchema = z.object({
   runtimes: z.array(z.object({
-    id: z.enum(['opencode', 'cursor', 'browser-qa']),
+    id: z.enum(['opencode', 'cursor']),
     enabled: z.boolean(),
   })).min(1),
 })

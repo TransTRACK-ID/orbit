@@ -2,7 +2,6 @@ import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, or, gte } from 'drizzle-orm'
 import { activeProcesses } from '~/server/utils/runtime'
-import { getQueueStatus } from '~/server/utils/browser-queue'
 import { accessSync, constants } from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -62,27 +61,13 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 5. Check browser QA queue for busy agents
-  const browserQueue = getQueueStatus()
-  if (browserQueue.isRunning && browserQueue.nextJob) {
-    const task = await db.query.tasks.findFirst({
-      where: eq(schema.tasks.id, browserQueue.nextJob),
-      columns: { agentAssigneeId: true },
-    })
-    if (task?.agentAssigneeId) {
-      busyAgentIds.add(task.agentAssigneeId)
-    }
-  }
-
-  // 6. Build health map based on each agent's effective runtime
+  // 5. Build health map based on each agent's effective runtime
   const health: Record<string, 'idle' | 'busy' | 'offline'> = {}
   for (const agent of agents) {
     const effectiveRuntime = await resolveEffectiveRuntime(agent.runtime)
     const runtimeOk = effectiveRuntime === 'cursor'
       ? cursorRuntimeReachable
-      : effectiveRuntime === 'browser-qa'
-        ? true
-        : runtimeReachable
+      : runtimeReachable
     if (!runtimeOk) {
       health[agent.id] = 'offline'
     } else if (busyAgentIds.has(agent.id)) {
@@ -92,7 +77,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 7. Fetch current tasks per agent from agentTaskContext (running or last 24h)
+  // 6. Fetch current tasks per agent from agentTaskContext (running or last 24h)
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const ctxRows = await db.query.agentTaskContext.findMany({
     where: or(
@@ -136,7 +121,6 @@ export default defineEventHandler(async (event) => {
     cursorRuntimeReachable,
     cursorAuthMethod,
     health,
-    browserQueue,
     currentTasks,
   }
 })

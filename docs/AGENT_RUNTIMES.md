@@ -48,40 +48,48 @@ CURSOR_MODEL=auto
 
 Restart the dev server after changing runtime settings.
 
-## Browser QA agent
+## Browser automation (MCP)
 
-The browser QA agent runs headed or headless browser tests inside a Docker container. It builds a live preview of the task worktree, then spawns `orbit/browser-agent:latest` to exercise the UI.
+Agents with **Browser** enabled use [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) via the active CLI runtime (OpenCode or Cursor). The agent's existing LLM drives browser actions — **no separate browser API key**.
+
+Browser runs headless inside the Orbit container using Chromium.
 
 ### Requirements
 
-- Docker available on the host (socket mounted into the Orbit container)
-- Fireworks or OpenAI-compatible API key
-- `orbit/browser-agent:latest` image built (`docker compose build browser-agent`)
+- Node.js `npx` on `PATH` (local dev) or pre-installed `chrome-devtools-mcp` (Docker image)
+- Chromium or Chrome (`CHROME_PATH=/usr/bin/chromium` in Docker)
 
-### Configuration
+### Docker
 
-```env
-FIREWORKS_API_KEY=your-key
-# or
-OPENAI_API_KEY=your-key
+The official image ships Chromium, `chrome-devtools-mcp`, and container-safe Chrome flags (`--no-sandbox`, `shm_size: 1gb` in compose). Rebuild after upgrades:
 
-# Optional — override the default Fireworks model
-BROWSER_QA_LLM_MODEL=accounts/fireworks/models/your-model
-
-# Required when Orbit runs in Docker and spawns browser containers
-WEB_CONTAINER_NAME=orbit-app
-HOST_HOME=/home/youruser
+```bash
+docker compose build --no-cache orbit-app && docker compose up -d
 ```
 
-The browser agent shares the web container's network namespace so it can reach the live preview at `localhost:3000`.
+### Configuration (local dev)
 
-### Headed mode
+Enable **Browser** on an agent in the Agents UI. Orbit injects MCP config into `.orbit/` (gitignored) at spawn time:
 
-When headed mode is enabled, the container exposes VNC on port 5900 for visual debugging.
+```bash
+npx -y chrome-devtools-mcp@latest --headless --isolated=true
+```
+
+Optional:
+
+```env
+CHROME_PATH=/usr/bin/chromium   # custom Chrome/Chromium binary
+```
+
+### Preview (optional)
+
+Orbit does **not** auto-start a dev server. If a preview is already running for the task, the agent prompt includes the preview URL. Otherwise the agent can navigate to external URLs from the task description.
+
+Agents with **Repository** unchecked use a neutral session directory (`~/.orbit-sessions/<taskId>/`) and can test URLs outside the task repository.
 
 ## Runtime selection per agent
 
-Individual agents in a workspace can override the global `AGENT_RUNTIME`. Configure this in the workspace settings UI under agent configuration.
+Individual agents can override the global `AGENT_RUNTIME` (OpenCode vs Cursor). Configure runtimes and the Browser / Repository toggles in the Agents UI.
 
 ## Troubleshooting
 
@@ -89,5 +97,6 @@ Individual agents in a workspace can override the global `AGENT_RUNTIME`. Config
 |---------|-------|
 | Agent exits immediately | `OPENCODE_PATH` or `CURSOR_API_KEY` |
 | No streaming output | Worktree directory exists under `ORBIT_PROJECTS_DIR` |
-| Browser QA can't reach preview | `WEB_CONTAINER_NAME` and Docker socket mount |
-| API key errors | `FIREWORKS_API_KEY` / `OPENAI_API_KEY` in `.env` |
+| Browser MCP not available | Agent has Browser enabled; `npx` and Chromium available |
+| Browser can't reach local preview | Start preview manually from the task panel first |
+| Chrome launch fails in Docker | `CHROME_PATH` points to a valid Chromium binary |

@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: orbit-app
+    # Chromium needs extra shared memory for headless browser MCP
+    shm_size: '1gb'
     # Port 3000 is internal only — nginx (in orbit-docs compose) proxies external traffic
     environment:
       - POSTGRES_URL=${POSTGRES_URL}
@@ -23,26 +25,16 @@ services:
       - CURSOR_AGENT_PATH=/usr/local/bin/cursor-agent
       - CURSOR_API_KEY=${CURSOR_API_KEY:-}
       - CURSOR_MODEL=${CURSOR_MODEL:-auto}
-      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - WEB_CONTAINER_NAME=orbit-app
+      # Chrome DevTools MCP (Browser-enabled agents; uses agent LLM — no extra API key)
+      - CHROME_PATH=/usr/bin/chromium
+      - CHROME_DEVTOOLS_MCP_BIN=chrome-devtools-mcp
+      - CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1
     volumes:
       # Mount the orbit-projects directory to preserve git clones between restarts
       - ~/orbit-projects:/root/orbit-projects
-      # Mount Docker socket so the web container can spawn sibling browser-agent containers
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - orbit-shared
     restart: unless-stopped
-
-  # Build-only service: ensures orbit/browser-agent:latest image exists on the host
-  browser-agent:
-    build:
-      context: ./docker/browser-agent
-      dockerfile: Dockerfile
-    image: orbit/browser-agent:latest
-    entrypoint: ["sh", "-c", "echo 'Browser agent image built successfully' && exit 0"]
-    restart: "no"
 
 # Shared network with orbit-docs nginx reverse proxy
 networks:

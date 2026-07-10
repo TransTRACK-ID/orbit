@@ -10,7 +10,7 @@ Orbit is a project management platform that blends traditional kanban task track
 - **Pull request workflow** — create, review, and track PRs linked to tasks
 - **Brainstorm mode** — chat with agents about a repository before writing a PRD
 - **Live preview** — spin up dev servers for task worktrees in isolated environments
-- **Browser QA agent** — optional headed/headless browser testing via Docker
+- **Browser automation** — optional headless Chrome DevTools MCP on OpenCode or Cursor agents (uses the agent's existing LLM)
 - **Self-hostable** — run with Docker Compose and your own Postgres database
 
 ## Quick start
@@ -34,7 +34,9 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000), register an account, and create a workspace.
 
-> **Database setup:** Schema is managed with Drizzle ORM. Operators run migrations separately — see `CONTRIBUTING.md` for schema conventions.
+Schema is managed with Drizzle ORM. Operators run migrations separately — see `CONTRIBUTING.md` for schema conventions.
+
+**Upgrading:** If you have an existing database, apply `server/database/migrations/0001_browser_mcp.sql` before starting the new version (or run `pnpm db:push` on a fresh schema).
 
 ### Docker
 
@@ -58,7 +60,7 @@ By default, repository clones are stored in `~/orbit-projects` on the host (moun
 | `ORBIT_PROJECTS_DIR` | Where git clones/worktrees are stored |
 | `ORBIT_ATTACHMENTS_DIR` | Where uploaded attachments are stored |
 | `CRASH_WEBHOOK_URL` | Optional webhook for agent crash notifications |
-| `BROWSER_QA_LLM_MODEL` | Fireworks model for browser QA agent (optional) |
+| `CHROME_PATH` | Chromium binary for Chrome DevTools MCP (default in Docker image) |
 
 See [.env.example](.env.example) for the full list.
 
@@ -88,7 +90,7 @@ Browser (Vue/Nuxt)
        │
        ├── PostgreSQL (Drizzle ORM)
        ├── ~/orbit-projects (git clones & worktrees)
-       └── Agent runtimes (OpenCode / Cursor / browser-agent Docker)
+       └── Agent runtimes (OpenCode / Cursor + optional Chrome DevTools MCP)
 ```
 
 ## Documentation
@@ -99,7 +101,7 @@ Browser (Vue/Nuxt)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and code conventions
 - [SECURITY.md](SECURITY.md) — vulnerability reporting
 - [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) — Docker and production deployment
-- [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) — OpenCode, Cursor, and browser QA setup
+- [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) — OpenCode, Cursor, and Chrome DevTools MCP setup
 - [docs/PROJECT_TEMPLATES.md](docs/PROJECT_TEMPLATES.md) — scaffold projects from built-in templates
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community guidelines
 

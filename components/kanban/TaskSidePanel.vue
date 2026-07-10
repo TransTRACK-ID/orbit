@@ -1678,24 +1678,8 @@ const {
   deleteAttachment,
 } = useTask()
 
-interface BrowserSession {
-  id: string
-  taskId: string
-  agentId: string | null
-  status: string
-  summary: string | null
-  error: string | null
-  screenshotPath: string | null
-  outputDir: string | null
-  headed: boolean | null
-  createdAt: string
-  updatedAt: string
-}
-
 const loading = ref(true)
 const task = ref<Task | null>(null)
-const browserSession = ref<BrowserSession | null>(null)
-const screenshotError = ref(false)
 const comments = ref<Comment[]>([])
 const activityLogs = ref<ActivityLog[]>([])
 const newComment = ref('')
@@ -2143,17 +2127,6 @@ async function fetchAgentReplies() {
   }
 }
 
-async function fetchBrowserSession() {
-  if (!task.value) return
-  try {
-    const session = await $fetch<BrowserSession | null>(`/api/tasks/${task.value.id}/browser-session`)
-    browserSession.value = session
-    screenshotError.value = false
-  } catch {
-    browserSession.value = null
-  }
-}
-
 const allComments = computed(() => {
   const merged = [
     ...comments.value.map(c => ({
@@ -2516,7 +2489,6 @@ watch(runtimeActive, async (active) => {
     setTimeout(async () => {
       await fetchAgentReplies()
       await checkPreview()
-      await fetchBrowserSession()
     }, 500)
   }
 })
@@ -2980,7 +2952,6 @@ onMounted(async () => {
 
   // Non-critical secondary data — load in parallel after UI renders
   Promise.all([
-    fetchBrowserSession(),
     checkExistingPr(),
     checkPreview(),
     checkWorktree(),

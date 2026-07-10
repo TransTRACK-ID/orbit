@@ -49,7 +49,7 @@ body:
         - Not applicable
         - OpenCode
         - Cursor
-        - Browser QA
+        - Browser MCP
         - Other
 
   - type: textarea

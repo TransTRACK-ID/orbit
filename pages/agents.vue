@@ -114,6 +114,20 @@
             />
             {{ statusLabel(getAgentStatus(agent.id)) }}
           </span>
+          <span
+            v-if="agent.browserEnabled"
+            class="text-[9px] font-semibold flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded"
+          >
+            <Icon name="lucide:globe" class="w-2.5 h-2.5" />
+            Browser
+          </span>
+          <span
+            v-if="agent.repositoryRequired === false"
+            class="text-[9px] font-semibold flex items-center gap-1 text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded"
+          >
+            <Icon name="lucide:external-link" class="w-2.5 h-2.5" />
+            External
+          </span>
         </div>
 
         <div class="p-2 bg-surface-50 rounded-md text-[10px] text-surface-400 leading-snug border-l-[3px] border-accent line-clamp-3">
@@ -267,6 +281,16 @@
                 </option>
               </select>
             </div>
+            <div class="mb-4 flex flex-col gap-2">
+              <label class="flex items-center gap-2 text-xs text-surface-700 cursor-pointer">
+                <input v-model="form.browserEnabled" type="checkbox" class="rounded border-surface-300 text-accent focus:ring-accent" />
+                <span>Browser — enable Chrome DevTools MCP (headless, uses agent LLM)</span>
+              </label>
+              <label class="flex items-center gap-2 text-xs text-surface-700 cursor-pointer">
+                <input v-model="form.repositoryRequired" type="checkbox" class="rounded border-surface-300 text-accent focus:ring-accent" />
+                <span>Repository — require task repository / worktree</span>
+              </label>
+            </div>
             <div class="mb-4">
               <label class="block text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">Specialization / Purpose</label>
               <textarea
@@ -362,6 +386,8 @@ const form = reactive({
   purpose: '',
   status: 'idle' as AgentStatus,
   color: '#7C3AED',
+  browserEnabled: false,
+  repositoryRequired: true,
 })
 
 function openCreateModal() {
@@ -394,6 +420,8 @@ const agentTemplates: Record<string, Partial<typeof form>> = {
     purpose: 'Detail-oriented QA engineer responsible for test planning, automated testing, bug triage, and quality assurance workflows. Ensures software reliability through rigorous testing and clear defect reporting.',
     status: 'idle',
     color: '#16A34A',
+    browserEnabled: true,
+    repositoryRequired: false,
   },
 }
 
@@ -407,6 +435,8 @@ function openCreateModalWithTemplate(templateKey: string) {
   form.purpose = template.purpose || ''
   form.status = (template.status as AgentStatus) || 'idle'
   form.color = template.color || '#7C3AED'
+  form.browserEnabled = template.browserEnabled ?? false
+  form.repositoryRequired = template.repositoryRequired ?? true
   showModal.value = true
 }
 
@@ -418,6 +448,8 @@ function openEditModal(agent: Agent) {
   form.purpose = agent.purpose
   form.status = agent.status
   form.color = agent.color
+  form.browserEnabled = agent.browserEnabled ?? false
+  form.repositoryRequired = agent.repositoryRequired ?? true
   showModal.value = true
 }
 
@@ -434,6 +466,8 @@ function resetForm() {
   form.purpose = ''
   form.status = 'idle'
   form.color = '#7C3AED'
+  form.browserEnabled = false
+  form.repositoryRequired = true
 }
 
 async function saveAgent() {

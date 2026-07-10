@@ -22,7 +22,6 @@ export const useAgent = () => {
   const runtimeInfo: Record<string, RuntimeInfo> = {
     'opencode':    { name:'OpenCode',    icon:'lucide:code',     color:'#2563EB', desc:'Open-source coding agent with multi-file editing' },
     'cursor':      { name:'Cursor',      icon:'lucide:sparkles', color:'#F59E0B', desc:'Cursor CLI agent with stream-json output' },
-    'browser-qa':  { name:'Browser QA',  icon:'lucide:globe',    color:'#059669', desc:'Automated browser testing with AI agent' },
   }
 
   const runtimes = computed(() => {
@@ -104,7 +103,16 @@ export const useAgent = () => {
     }
   }
 
-  async function createAgent(data: { name: string; role: string; runtime: string; purpose: string; status: AgentStatus; color: string }) {
+  async function createAgent(data: {
+    name: string
+    role: string
+    runtime: string
+    purpose: string
+    status: AgentStatus
+    color: string
+    browserEnabled?: boolean
+    repositoryRequired?: boolean
+  }) {
     const agent = await $fetch<Agent>('/api/agents', {
       method: 'POST',
       body: data,

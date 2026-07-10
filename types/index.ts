@@ -229,7 +229,8 @@ export interface Agent {
   runtime: string
   purpose: string
   tasks: number
-  headed?: boolean
+  browserEnabled?: boolean
+  repositoryRequired?: boolean
   projectName?: string
   wsName?: string
   currentTasks?: AgentCurrentTask[]

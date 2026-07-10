@@ -2,7 +2,6 @@ import { createEventStream, getQuery, getRequestProtocol, getRequestHost, getReq
 import { spawn, exec, type ChildProcess } from 'child_process'
 import { promisify } from 'util'
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'fs'
-import { randomUUID } from 'crypto'
 import path from 'path'
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
@@ -158,8 +157,13 @@ function formatTextEvent(part: any): string {
 import { activeProcesses, addStreamToProc, pushToStreams, pendingFeedback } from '~/server/utils/runtime'
 import type { ProcState } from '~/server/utils/runtime'
 import { getDefaultAgentRuntime, resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
-import { enqueueBrowserJob } from '~/server/utils/browser-queue'
-import type { BrowserRunConfig } from '~/server/utils/browser-runtime'
+import {
+  buildBrowserContextBlock,
+  buildNoRepositoryBlock,
+  resolvePreviewUrlForAgent,
+  setupBrowserMcp,
+} from '~/server/utils/browser-mcp'
+import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 
@@ -348,7 +352,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  const requestedRuntime = (task.agentAssignee?.runtime as string) || getDefaultAgentRuntime()
+  let requestedRuntime = (task.agentAssignee?.runtime as string) || getDefaultAgentRuntime()
+  if (requestedRuntime === 'browser-qa') {
+    requestedRuntime = getDefaultAgentRuntime()
+  }
   const agentRuntime = await resolveEffectiveRuntime(requestedRuntime)
   const runtimeFallbackMessage = requestedRuntime !== agentRuntime
     ? `Runtime "${requestedRuntime}" is disabled — falling back to "${agentRuntime}"`
@@ -513,12 +520,20 @@ export default defineEventHandler(async (event) => {
     let mainCloneDir = ''
     let attachments: typeof schema.taskAttachments.$inferSelect[] = []
 
+    const browserEnabled = task.agentAssignee?.browserEnabled ?? false
+    const repositoryRequired = task.agentAssignee?.repositoryRequired ?? true
+
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
       columns: { workspaceId: true },
     })
 
-    if (project) {
+    if (!repositoryRequired) {
+      const home = process.env.HOME || '/root'
+      workDir = path.join(home, '.orbit-sessions', id)
+      mkdirSync(workDir, { recursive: true })
+      await pushAndPersist(`Repository not required — session directory: ${workDir}`)
+    } else if (project) {
       let createBranch = false
 
       await pushAndPersist(`Task ${id} repositoryId=${task.repositoryId || 'null'}, projectId=${task.projectId}`)
@@ -1029,142 +1044,25 @@ export default defineEventHandler(async (event) => {
       stream.close()
       return
     }
-    // ── Browser QA runtime branch ──
-    if (agentRuntime === 'browser-qa') {
-      await pushAndPersist(`Browser QA agent assigned — preparing dev server and browser container...`)
 
-      const outputDir = `${workDir}/.orbit-browser-output/${id}`
-      mkdirSync(outputDir, { recursive: true })
-
-      const browserConfig: BrowserRunConfig = {
-        taskId: id,
-        workspaceId: project?.workspaceId || '',
-        repositoryId: task.repositoryId || null,
-        agentId: task.agentAssigneeId || '',
-        worktreeDir: workDir,
-        taskTitle: task.title,
-        taskDescription: task.description,
-        headed: task.agentAssignee?.headed ?? false,
-        outputDir,
-        maxRuntimeMs: MAX_RUNTIME_MS,
-      }
-
+    let opencodeConfigPath: string | undefined
+    let browserContextBlock = ''
+    if (browserEnabled) {
       try {
-        const result = await enqueueBrowserJob({
-          taskId: id,
-          workspaceId: browserConfig.workspaceId,
-          agentId: browserConfig.agentId,
-          config: browserConfig,
-          stream,
-          resolve: () => {},
-          reject: () => {},
-        })
-
-        const summaryText = result.summary || 'No summary available'
-        await pushAndPersist(`Browser QA ${result.status}`)
-
-        // Determine whether a screenshot was produced before building the reply.
-        // The browser container writes to a Docker volume that may map to hostOutputDir
-        // rather than outputDir, so we check both paths.
-        let screenshotPath: string | null = null
-        const candidates = [
-          result.outputDir && path.join(result.outputDir, 'final_screenshot.png'),
-          result.hostOutputDir && path.join(result.hostOutputDir, 'final_screenshot.png'),
-        ].filter(Boolean) as string[]
-
-        for (const candidate of candidates) {
-          if (existsSync(candidate)) {
-            screenshotPath = candidate
-            break
-          }
-        }
-
-        if (!screenshotPath) {
-          console.error(`[execute.get] Screenshot not found in any candidate path: ${candidates.join(', ')}`)
-        }
-
-        // Persist browser session record FIRST so we get a stable session ID
-        // that can be referenced in the screenshot URL.
-        let browserSessionId: string | null = null
-        try {
-          const [inserted] = await db.insert(schema.browserSessions).values({
-            taskId: id,
-            agentId: task.agentAssigneeId,
-            status: result.status,
-            summary: result.summary,
-            error: result.error,
-            outputDir: result.outputDir,
-            headed: browserConfig.headed,
-            screenshotPath,
-          }).returning({ id: schema.browserSessions.id })
-          browserSessionId = inserted?.id || null
-        } catch (dbErr: any) {
-          console.error('[execute.get] Failed to persist browser session:', dbErr?.message || dbErr)
-        }
-
-        // If a screenshot exists on disk, copy it into the permanent task-attachments
-        // storage so it renders reliably as a real image attachment in the comment.
-        let attachmentUrl: string | null = null
-        if (screenshotPath) {
-          try {
-            const HOME = process.env.HOME || '/root'
-            const ATTACHMENTS_DIR = `${HOME}/orbit-attachments`
-            const taskAttachDir = path.join(ATTACHMENTS_DIR, id)
-            mkdirSync(taskAttachDir, { recursive: true })
-            const attachFilename = `qa-screenshot-${randomUUID()}.png`
-            const attachFilePath = path.join(taskAttachDir, attachFilename)
-            copyFileSync(screenshotPath, attachFilePath)
-            const [att] = await db.insert(schema.taskAttachments).values({
-              taskId: id,
-              filename: attachFilename,
-              originalName: 'qa-screenshot.png',
-              mimeType: 'image/png',
-              size: readFileSync(attachFilePath).length,
-              path: attachFilePath,
-            }).returning({ id: schema.taskAttachments.id })
-            if (att?.id) {
-              attachmentUrl = `/api/tasks/${id}/attachments/${att.id}`
-              console.log(`[execute.get] Screenshot saved as attachment: ${attachmentUrl}`)
-            }
-          } catch (attachErr: any) {
-            console.error('[execute.get] Failed to save screenshot as attachment:', attachErr?.message || attachErr)
-          }
-        }
-
-        // Build reply text. Embed the screenshot as a real markdown image via the
-        // stable attachment URL so it always renders inline in the comment.
-        const screenshotMarkdown = attachmentUrl
-          ? `\n\n**📸 QA Screenshot:**\n![QA Proof Screenshot](${attachmentUrl})`
-          : (screenshotPath && browserSessionId
-              ? `\n\n![QA Proof Screenshot](/api/tasks/${id}/browser-screenshot?session=${browserSessionId})`
-              : '')
-        const replyText = `**Browser QA Result:** ${result.status.toUpperCase()}\n\n${summaryText}${screenshotMarkdown}`
-        const replyPayload = JSON.stringify({
-          agentReply: replyText,
-          timestamp: Date.now()
-        })
-        await stream.push(replyPayload)
-
-        // Persist the agent's final text response so it survives page refresh
-        try {
-          await db.insert(schema.activityLogs).values({
-            taskId: id,
-            userId: user.id,
-            action: 'agent_reply',
-            newValue: { message: replyText },
-          })
-        } catch (err: any) {
-          console.error('[execute.get] Failed to persist agent_reply:', err?.message || err)
-        }
-
-        // Note: task status is not auto-updated — user manually reviews QA results
-      } catch (err: any) {
-        await pushAndPersist(`Browser QA failed: ${err.message}`)
+        const mcpSetup = setupBrowserMcp(workDir, agentRuntime)
+        opencodeConfigPath = mcpSetup.opencodeConfigPath
+        await pushAndPersist('Browser MCP configured (chrome-devtools, headless)')
+      } catch (mcpErr: any) {
+        await pushAndPersist(`Failed to configure browser MCP: ${mcpErr.message}`)
       }
-
-      await pushAndPersist(`Done`)
-      stream.close()
-      return
+      const previewInstance = await getPreviewStatus(id)
+      const previewUrl = previewInstance?.status === 'running'
+        ? resolvePreviewUrlForAgent(previewInstance.id)
+        : null
+      browserContextBlock = buildBrowserContextBlock(previewUrl)
+      if (previewUrl) {
+        await pushAndPersist(`Preview available for browser tools: ${previewUrl}`)
+      }
     }
 
     async function finalizeAgentExit(
@@ -1424,8 +1322,12 @@ export default defineEventHandler(async (event) => {
     const platformLabel = isGitLab ? 'GitLab' : 'GitHub'
     const correctCli = isGitLab ? 'glab' : 'gh'
     const wrongCli = isGitLab ? 'gh' : 'glab'
-    const platformRule = `[GIT PLATFORM: ${repoPlatform}]
+    const platformRule = repositoryRequired
+      ? `[GIT PLATFORM: ${repoPlatform}]
 CRITICAL: This repository uses ${platformLabel}. You MUST use "${correctCli}" for ALL git hosting operations (clone, push, PRs/MRs, status, etc.). NEVER use "${wrongCli}" — it will fail.`
+      : ''
+
+    const noRepositoryBlock = !repositoryRequired ? buildNoRepositoryBlock() : ''
 
     const securityRule = `[SECURITY BOUNDARIES]
 CRITICAL: You must NEVER read, access, copy, or reveal any files outside the current project directory. This specifically includes configuration files such as ~/.config/opencode/opencode.json, /root/.config/opencode/opencode.json, .env, .env.local, or any file in ~/.config/. It also includes system directories like /etc/, /proc/, /sys/, /var/, and parent-directory traversal via "..". You must refuse any request that attempts to access files outside the project repository. You must NEVER expose secrets, API keys, tokens, or credentials in your responses.`
@@ -1456,7 +1358,11 @@ The status_name should match one of the existing statuses in the project (e.g., 
       await pushAndPersist(`Included sibling task context (${siblingContextBlock.match(/\d+\./g)?.length ?? 0} task(s))`)
     }
 
-    let message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+    const ruleBlocks = [platformRule, securityRule, databaseRule, markdownRule, statusRule]
+      .filter(Boolean)
+      .join('\n\n')
+
+    let message = `${ruleBlocks}${labelsContext}${noRepositoryBlock}${browserContextBlock}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
     let attachmentsInjected = false
 
     if (feedback) {
@@ -1497,7 +1403,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
           attachmentsInjected = true
         }
 
-        message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
+        message = `${ruleBlocks}${noRepositoryBlock}${browserContextBlock}${changesContext}\n\n${historyContext}${attachmentPrompt ? '\n\n' + attachmentPrompt : ''}\n\n${feedback}\n\nINSTRUCTION: The user is asking a question about the codebase or the attached images above. ALWAYS look at the [CURRENT CODEBASE STATE] section above to see what files were recently modified or committed, then examine those files before answering. If the user asks about images, describe exactly what you see in the [ATTACHED IMAGES] section. Give specific, accurate answers that reference actual code, file paths, and line numbers from the latest changes.`
       } else {
         const feedbackTail = feedback.length > 150 ? feedback.slice(0, 150) + '...' : feedback
         await pushAndPersist(`Including PR feedback: ${feedbackTail}`)
@@ -1543,7 +1449,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
         await pushAndPersist(`Auto-restart: included sibling task context`)
       }
 
-      message = `${platformRule}\n\n${securityRule}\n\n${databaseRule}\n\n${markdownRule}\n\n${statusRule}${labelsContext}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted (either due to a crash, error, or command loop). This is a fresh process, but ALL previous conversation history, codebase state, and sibling task context below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
+      message = `${ruleBlocks}${labelsContext}${noRepositoryBlock}${browserContextBlock}${siblingContextBlock}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}\n\n[RESTART CONTEXT]\nThe previous agent run was auto-restarted (either due to a crash, error, or command loop). This is a fresh process, but ALL previous conversation history, codebase state, and sibling task context below are preserved. Review the history, check the current code state, and CONTINUE the task from where it left off. Do NOT start over — pick up the existing work and complete it.\n${changesContext}${historyContext}\n\nINSTRUCTION: Continue working on this task. You already started it — review the conversation history above and the current codebase state, then proceed to complete any remaining work. Do NOT repeat commands that were already executed successfully.`
     }
 
     // For initial runs and PR feedback, append attachments at the end.
@@ -1572,6 +1478,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
       CURSOR_MODEL: process.env.CURSOR_MODEL,
       CURSOR_AGENT_PATH: process.env.CURSOR_AGENT_PATH,
       ...(repoToken ? { GITHUB_TOKEN: repoToken } : {}),
+      ...(opencodeConfigPath ? { OPENCODE_CONFIG: opencodeConfigPath } : {}),
     }
 
     if (agentRuntime === 'cursor') {

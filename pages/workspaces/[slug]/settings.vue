@@ -302,7 +302,7 @@
                 <div class="border-t border-surface-200 pt-4 mt-4">
                   <h4 class="text-sm font-semibold text-surface-900 mb-2">Environment Variables</h4>
                   <p class="text-xs text-surface-500 mb-2">
-                    Paste raw .env content. Injected into dev server during Browser QA.
+                    Paste raw .env content. Injected into the dev server during preview.
                   </p>
                   <textarea
                     v-model="rawEnvVars[repo.id]"

@@ -85,10 +85,7 @@ export function getDevServerByTask(
 }
 
 export async function getBrowserQueueStatus(): Promise<{ isRunning: boolean; queued: number; nextJob: string | null }> {
-  // Re-exported from browser-queue for health endpoint usage
-  // We import lazily to avoid circular deps
-  const { getQueueStatus } = await import('./browser-queue')
-  return getQueueStatus()
+  return { isRunning: false, queued: 0, nextJob: null }
 }
 
 function getAvailablePort(): number {

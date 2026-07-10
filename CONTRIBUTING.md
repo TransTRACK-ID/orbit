@@ -54,7 +54,7 @@ Thank you for your interest in contributing! This guide covers local setup and t
 
 ## Agent runtimes
 
-See [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) for full setup instructions for OpenCode, Cursor CLI, and browser QA agents.
+See [docs/AGENT_RUNTIMES.md](docs/AGENT_RUNTIMES.md) for full setup instructions for OpenCode, Cursor CLI, and browser MCP.
 
 ## Project templates
 

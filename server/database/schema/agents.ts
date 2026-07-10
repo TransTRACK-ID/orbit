@@ -12,7 +12,8 @@ export const agents = pgTable('agents', {
   status: varchar('status', { length: 20 }).notNull().default('idle'),
   color: varchar('color', { length: 7 }).notNull().default('#7C3AED'),
   tasks: integer('tasks').notNull().default(0),
-  headed: boolean('headed').default(false),
+  browserEnabled: boolean('browser_enabled').notNull().default(false),
+  repositoryRequired: boolean('repository_required').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 })

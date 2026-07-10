@@ -10,7 +10,7 @@ import {
   type AgentRuntimeSettingsValue,
 } from '~/server/database/schema/platform-settings'
 
-export type AgentRuntimeId = 'opencode' | 'cursor' | 'browser-qa'
+export type AgentRuntimeId = 'opencode' | 'cursor'
 
 export interface AgentRuntimeDefinition {
   id: AgentRuntimeId
@@ -27,7 +27,6 @@ export interface AgentRuntimeSetting extends AgentRuntimeDefinition {
 const RUNTIME_DEFINITIONS: AgentRuntimeDefinition[] = [
   { id: 'opencode', name: 'OpenCode', desc: 'Open-source coding agent with multi-file editing' },
   { id: 'cursor', name: 'Cursor', desc: 'Cursor CLI agent with stream-json output' },
-  { id: 'browser-qa', name: 'Browser QA', desc: 'Automated browser testing with AI agent' },
 ]
 
 const KNOWN_RUNTIME_IDS = new Set<string>(RUNTIME_DEFINITIONS.map(r => r.id))
@@ -162,7 +161,10 @@ export async function assertRuntimeAllowed(runtime: string): Promise<void> {
 
 export async function resolveEffectiveRuntime(requestedRuntime: string | null | undefined): Promise<string> {
   const fallback = getDefaultAgentRuntime()
-  const runtime = requestedRuntime || fallback
+  let runtime = requestedRuntime || fallback
+  if (runtime === 'browser-qa') {
+    runtime = fallback
+  }
   if (await isRuntimeEnabled(runtime)) {
     return runtime
   }

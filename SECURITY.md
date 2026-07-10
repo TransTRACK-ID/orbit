@@ -19,5 +19,5 @@ Security fixes are applied to the latest release on the `main` branch.
 - **Authentication:** Orbit uses session-based auth via `@sidebase/nuxt-auth`. Set a strong `NUXT_AUTH_SECRET` (32+ characters).
 - **Repository tokens:** Users supply GitHub/GitLab tokens per workspace. Treat these as secrets and restrict database access accordingly.
 - **Agent execution:** Agent runtimes execute shell commands in cloned repositories. Only connect repositories you trust and restrict who can trigger agent runs.
-- **Docker socket:** The default `docker-compose.yml` mounts `/var/run/docker.sock` for browser QA agents. Disable or remove this mount if you do not need browser testing.
+- **Browser MCP:** Headless browser automation runs via Chrome DevTools MCP (`npx chrome-devtools-mcp`). Uses the agent runtime's existing LLM — no separate browser API key.
 - **Crash webhooks:** Set `CRASH_WEBHOOK_URL` only if you want agent crash notifications sent to an external endpoint you control.

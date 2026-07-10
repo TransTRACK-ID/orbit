@@ -6,6 +6,8 @@ export interface AnalyzeOptions {
   workdir?: string
   /** Trust the workspace (skip trust prompts; helps MCP load in headless runs). */
   trustWorkspace?: boolean
+  /** Prepend OpenCode AGENTS.md system instructions (disable for browser-only QA runs). */
+  includeAgentsMd?: boolean
   /** Abort the run early. */
   signal?: AbortSignal
   /** Called whenever a chunk of assistant text arrives. */
@@ -96,7 +98,19 @@ export async function spawnCursorAgent(
   prompt: string,
   options: AnalyzeOptions & { model?: string } = {}
 ): Promise<CursorRun> {
-  const { workdir, trustWorkspace, signal, onText, onActivity, onTokens, onDebugEvent, onToolUse, onStderr, model: optModel } = options
+  const {
+    workdir,
+    trustWorkspace,
+    includeAgentsMd = true,
+    signal,
+    onText,
+    onActivity,
+    onTokens,
+    onDebugEvent,
+    onToolUse,
+    onStderr,
+    model: optModel,
+  } = options
   const model = optModel || getCursorModel()
 
   const installed = await isCursorInstalled()
@@ -109,6 +123,8 @@ export async function spawnCursorAgent(
   }
 
   const args = [
+  // Headless mode — required for --trust and reliable MCP tool injection in CI/Docker.
+    '-p',
     '--force',
     '--approve-mcps',
     '--output-format', 'stream-json',
@@ -133,15 +149,17 @@ export async function spawnCursorAgent(
   // used by OpenCode and prepend it to the prompt as system instructions.
   const agentsMdPath = process.env.CURSOR_AGENTS_MD_PATH || process.env.AGENTS_MD_PATH || '/root/.config/opencode/AGENTS.md'
   let finalPrompt = prompt
-  try {
-    if (existsSync(agentsMdPath)) {
-      const agentsMd = readFileSync(agentsMdPath, 'utf-8')
-      if (agentsMd.trim()) {
-        finalPrompt = `[SYSTEM INSTRUCTIONS]\n${agentsMd.trim()}\n\n[USER REQUEST]\n${prompt}`
+  if (includeAgentsMd) {
+    try {
+      if (existsSync(agentsMdPath)) {
+        const agentsMd = readFileSync(agentsMdPath, 'utf-8')
+        if (agentsMd.trim()) {
+          finalPrompt = `[SYSTEM INSTRUCTIONS]\n${agentsMd.trim()}\n\n[USER REQUEST]\n${prompt}`
+        }
       }
+    } catch {
+      // Non-fatal: if reading AGENTS.md fails, continue with the raw prompt.
     }
-  } catch {
-    // Non-fatal: if reading AGENTS.md fails, continue with the raw prompt.
   }
 
   args.push(finalPrompt)

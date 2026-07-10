@@ -98,5 +98,6 @@ Individual agents can override the global `AGENT_RUNTIME` (OpenCode vs Cursor). 
 | Agent exits immediately | `OPENCODE_PATH` or `CURSOR_API_KEY` |
 | No streaming output | Worktree directory exists under `ORBIT_PROJECTS_DIR` |
 | Browser MCP not available | Agent has Browser enabled; `npx` and Chromium available |
+| Browser enabled but tools not used | Check runtime logs for `Browser MCP ready: N tools`; Martin/Cursor QA tasks need MCP navigate + snapshot |
 | Browser can't reach local preview | Start preview manually from the task panel first |
 | Chrome launch fails in Docker | `CHROME_PATH` points to a valid Chromium binary |

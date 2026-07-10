@@ -161,9 +161,11 @@ import {
   buildBrowserContextBlock,
   buildNoRepositoryBlock,
   ensureCursorBrowserMcpApproved,
+  extractUrlsFromText,
   isBrowserMcpTool,
   resolvePreviewUrlForAgent,
   setupBrowserMcp,
+  verifyCursorBrowserMcpTools,
 } from '~/server/utils/browser-mcp'
 import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 import { getDiffSummary } from '~/server/utils/git-summary'
@@ -1053,9 +1055,12 @@ export default defineEventHandler(async (event) => {
     let opencodeConfigPath: string | undefined
     let browserContextBlock = ''
     let usedBrowserMcp = false
+    const taskUrls = browserEnabled
+      ? extractUrlsFromText(task.title, task.description)
+      : []
     if (browserEnabled) {
       try {
-        const mcpSetup = setupBrowserMcp(workDir, agentRuntime)
+        const mcpSetup = setupBrowserMcp(workDir, agentRuntime, taskUrls)
         opencodeConfigPath = mcpSetup.opencodeConfigPath
         if (mcpSetup.cursorMcpConfigPath) {
           await pushAndPersist(`Browser MCP config written: ${mcpSetup.cursorMcpConfigPath}`)
@@ -1065,8 +1070,17 @@ export default defineEventHandler(async (event) => {
           } else {
             await pushAndPersist(`Browser MCP approval warning: ${approval.message}`)
           }
+          const verification = verifyCursorBrowserMcpTools(workDir)
+          if (verification.ok) {
+            await pushAndPersist(`Browser MCP ready: ${verification.message}`)
+          } else {
+            await pushAndPersist(`Browser MCP verification failed: ${verification.message}`)
+          }
         }
         await pushAndPersist('Browser MCP configured (chrome-devtools, headless)')
+        if (taskUrls.length > 0) {
+          await pushAndPersist(`Browser target URL(s): ${taskUrls.join(', ')}`)
+        }
       } catch (mcpErr: any) {
         await pushAndPersist(`Failed to configure browser MCP: ${mcpErr.message}`)
       }
@@ -1074,7 +1088,7 @@ export default defineEventHandler(async (event) => {
       const previewUrl = previewInstance?.status === 'running'
         ? resolvePreviewUrlForAgent(previewInstance.id)
         : null
-      browserContextBlock = buildBrowserContextBlock(previewUrl)
+      browserContextBlock = buildBrowserContextBlock(previewUrl, taskUrls)
       if (previewUrl) {
         await pushAndPersist(`Preview available for browser tools: ${previewUrl}`)
       }
@@ -1519,6 +1533,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
         const cursorRun = await spawnCursorAgent(message, {
           workdir: workDir,
           trustWorkspace: browserEnabled,
+          includeAgentsMd: repositoryRequired,
           onText: async (_delta, accumulated) => {
             lastActivity = Date.now()
             hasOutput = true
@@ -1588,6 +1603,9 @@ The status_name should match one of the existing statuses in the project (e.g., 
           onActivity: async (activity) => {
             lastActivity = Date.now()
             hasOutput = true
+            if (browserEnabled && isBrowserMcpTool(activity)) {
+              usedBrowserMcp = true
+            }
             await pushToStreams(entry, JSON.stringify({ step: activity, timestamp: Date.now() }))
             persistLog(activity)
           },
@@ -1941,6 +1959,9 @@ The status_name should match one of the existing statuses in the project (e.g., 
                 logMsg = formatToolEvent(part)
                 const tool = part?.tool
                 const input = part?.state?.input || {}
+                if (browserEnabled && tool && isBrowserMcpTool(String(tool))) {
+                  usedBrowserMcp = true
+                }
                 if (tool === 'edit' || tool === 'write') {
                   editCount++
                   const filePath = input.filePath || input.path || 'unknown'

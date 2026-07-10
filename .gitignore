@@ -13,3 +13,4 @@ server/database/orbit.db
 .impeccable
 .vercel
 .opencode
+.orbit/

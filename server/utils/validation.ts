@@ -213,3 +213,87 @@ export const changePasswordSchema = z.object({
 export const createCommentSchema = z.object({
   body: z.string().min(1, 'Comment cannot be empty'),
 })
+
+// ─── QA ───
+export const qaCaseStepSchema = z.object({
+  order: z.number().int().min(0),
+  action: z.string().min(1).max(5000),
+  expected: z.string().min(1).max(5000),
+})
+
+export const createQaSuiteSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  parentId: z.string().uuid().nullable().optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+export const updateQaSuiteSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  parentId: z.string().uuid().nullable().optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+export const createQaCaseSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  suiteId: z.string().uuid().nullable().optional(),
+  preconditions: z.string().max(10000).nullable().optional(),
+  steps: z.array(qaCaseStepSchema).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  status: z.enum(['active', 'draft', 'archived']).optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+export const updateQaCaseSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  suiteId: z.string().uuid().nullable().optional(),
+  preconditions: z.string().max(10000).nullable().optional(),
+  steps: z.array(qaCaseStepSchema).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  status: z.enum(['active', 'draft', 'archived']).optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+export const createQaPlanSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  description: z.string().max(5000).nullable().optional(),
+})
+
+export const updateQaPlanSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().max(5000).nullable().optional(),
+})
+
+export const replaceQaPlanCasesSchema = z.object({
+  caseIds: z.array(z.string().uuid()),
+})
+
+export const createQaRunSchema = z.object({
+  planId: z.string().uuid().nullable().optional(),
+  caseIds: z.array(z.string().uuid()).optional(),
+  taskId: z.string().uuid().nullable().optional(),
+  agentId: z.string().uuid().nullable().optional(),
+  targetUrl: z.string().url().max(2000).nullable().optional(),
+  runtime: z.enum(['cursor', 'opencode']).optional(),
+})
+
+export const updateQaRunSchema = z.object({
+  status: z.enum(['pending', 'running', 'passed', 'failed', 'blocked', 'cancelled']).optional(),
+  summary: z.string().max(20000).nullable().optional(),
+  taskId: z.string().uuid().nullable().optional(),
+  agentId: z.string().uuid().nullable().optional(),
+  targetUrl: z.string().url().max(2000).nullable().optional(),
+  startedAt: z.string().datetime().nullable().optional(),
+  finishedAt: z.string().datetime().nullable().optional(),
+})
+
+export const updateQaRunCaseSchema = z.object({
+  status: z.enum(['pending', 'passed', 'failed', 'blocked', 'skipped']).optional(),
+  actual: z.string().max(20000).nullable().optional(),
+  error: z.string().max(20000).nullable().optional(),
+})
+
+export const executeQaRunSchema = z.object({
+  agentId: z.string().uuid().optional(),
+  taskId: z.string().uuid().nullable().optional(),
+  targetUrl: z.string().url().max(2000).optional(),
+})

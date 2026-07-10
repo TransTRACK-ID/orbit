@@ -1,12 +1,12 @@
 <template>
-  <div class="flex-1 overflow-y-auto py-7 px-8">
+  <div class="flex-1 overflow-y-auto py-5 px-4 sm:py-7 sm:px-8">
     <div class="max-w-3xl mx-auto">
     <div v-if="workspace">
-      <h1 class="text-2xl font-bold text-surface-900 mb-8">Workspace Settings</h1>
+      <h1 class="text-xl font-bold text-surface-900 mb-6">Workspace settings</h1>
 
       <!-- General -->
-      <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-surface-900 mb-4">General</h2>
+      <div class="bg-white rounded-xl border border-surface-200 p-5 mb-4">
+        <h2 class="text-sm font-semibold text-surface-900 mb-4">General</h2>
         <form @submit.prevent="handleUpdate" class="space-y-4">
           <div>
             <label class="block text-xs font-medium text-surface-600 mb-1.5">Name</label>
@@ -17,7 +17,7 @@
             <TextArea v-model="form.description" placeholder="What's this workspace about?" rows="3" />
           </div>
           <div class="flex items-center gap-3">
-            <Button type="submit" :loading="saving">Save</Button>
+            <Button type="submit" color="primary" :loading="saving">Save</Button>
             <TextButton
               v-if="saved"
               class="text-success-500"
@@ -30,10 +30,10 @@
       </div>
 
       <!-- Repositories -->
-      <div id="repositories-section" class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+      <div id="repositories-section" class="bg-white rounded-xl border border-surface-200 p-5 mb-4">
         <div class="flex items-center justify-between mb-1">
-          <h2 class="text-lg font-semibold text-surface-900">Repositories</h2>
-          <Button @click="showAddRepo = true; checkConnectionResult = null" v-if="!showAddRepo">
+          <h2 class="text-sm font-semibold text-surface-900">Repositories</h2>
+          <Button color="primary" @click="showAddRepo = true; checkConnectionResult = null" v-if="!showAddRepo">
             <Icon name="lucide:plus" class="w-3.5 h-3.5" />
             Add Repository
           </Button>
@@ -121,9 +121,10 @@
             </div>
           </div>
           <div class="flex items-center gap-2 mt-4 flex-wrap">
-            <Button @click="handleAddRepo" :loading="addRepoLoading">Add</Button>
-            <OutlinedButton @click="cancelAddRepo">Cancel</OutlinedButton>
+            <Button color="primary" @click="handleAddRepo" :loading="addRepoLoading">Add</Button>
+            <OutlinedButton color="default" @click="cancelAddRepo">Cancel</OutlinedButton>
             <OutlinedButton
+              color="default"
               @click="handleCheckConnection({ url: newRepo.url, platform: newRepo.platform, token: newRepo.token })"
               :loading="checkConnectionLoading"
             >
@@ -307,15 +308,16 @@
                   <textarea
                     v-model="rawEnvVars[repo.id]"
                     rows="4"
-                    class="w-full text-xs font-mono rounded-lg border border-surface-200 bg-surface-50 p-2.5 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
+                    class="w-full text-xs font-mono rounded-lg border border-surface-200 bg-surface-50 p-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-y"
                     placeholder="AUTH_ORIGIN=http://localhost:3000&#10;API_URL=https://api.example.com&#10;SECRET_KEY=xxx"
                   />
                 </div>
               </div>
               <div class="flex items-center gap-2 mt-4 flex-wrap">
-                <Button @click="handleEditRepo(repo.id)" :loading="editRepoLoading">Save</Button>
-                <OutlinedButton @click="editingRepoId = null; checkConnectionResult = null">Cancel</OutlinedButton>
+                <Button color="primary" @click="handleEditRepo(repo.id)" :loading="editRepoLoading">Save</Button>
+                <OutlinedButton color="default" @click="editingRepoId = null; checkConnectionResult = null">Cancel</OutlinedButton>
                 <OutlinedButton
+                  color="default"
                   @click="handleCheckConnection({ url: editRepo.url, platform: editRepo.platform, token: editRepo.token })"
                   :loading="checkConnectionLoading"
                 >
@@ -340,10 +342,10 @@
       </div>
 
       <!-- Members -->
-      <div class="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+      <div class="bg-white rounded-xl border border-surface-200 p-5 mb-4">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-surface-900">Members</h2>
-          <Button @click="showInvite = true">
+          <h2 class="text-sm font-semibold text-surface-900">Members</h2>
+          <Button color="primary" @click="showInvite = true">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 256 256" class="w-4 h-4"><path fill="currentColor" d="M256 136a8 8 0 0 1-8 8h-16v16a8 8 0 0 1-16 0v-16h-16a8 8 0 0 1 0-16h16v-16a8 8 0 0 1 16 0v16h16a8 8 0 0 1 8 8Zm-57.86 43.69a8 8 0 0 1-11.15-1.86A71.58 71.58 0 0 0 128 160a40 40 0 1 0-40-40a40 40 0 0 0 40 40a71.58 71.58 0 0 0 58.99-17.83a8 8 0 1 0-11.31-11.32A55.47 55.47 0 0 1 128 152a24 24 0 1 1 24-24a24 24 0 0 1-24 24a55.47 55.47 0 0 1-47.68-26.15a8 8 0 1 0-13.87 8A71.46 71.46 0 0 0 88 163.27a72.08 72.08 0 0 0-40.53 26.83A8 8 0 0 0 54.6 198.6a56 56 0 0 1 100.79-11.88a56 56 0 0 1 37.53 15.36a8 8 0 0 0 11.23-.39a8 8 0 0 0 .77-10.39Zm-99.37-75.19a24 24 0 1 1-24-24a24 24 0 0 1 24 24Z"/></svg>
             Invite
           </Button>
@@ -352,13 +354,13 @@
       </div>
 
       <!-- Danger zone -->
-      <div class="bg-white rounded-2xl border border-error-200 p-6">
-        <h2 class="text-lg font-semibold text-error-600 mb-4">Danger Zone</h2>
+      <div class="bg-white rounded-xl border border-error-200 p-5">
+        <h2 class="text-sm font-semibold text-error-600 mb-3">Danger zone</h2>
         <p class="text-sm text-surface-500 mb-4">
           Once you delete a workspace, there is no going back. Please be certain.
         </p>
         <Button
-          variant="error"
+          color="error"
           @click="confirmDelete = true"
         >
           <Trash class="w-4 h-4" />

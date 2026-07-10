@@ -36,7 +36,7 @@ const emit = defineEmits(["on-click"]);
 const variant: Record<string, Record<string, string>> = {
   default: {
     default: 'text-gray-500 stroke-gray-500 hover:text-gray-700 hover:bg-gray-100',
-    primary: 'text-primary-500 stroke-primary-500 hover:text-primary-700 hover:bg-primary-100',
+    primary: 'text-accent stroke-accent hover:text-accent-hover hover:bg-accent-soft',
     success: 'text-success-500 stroke-success-500 hover:text-success-700 hover:bg-success-100',
     info: 'text-info-500 stroke-info-500 hover:text-info-700 hover:bg-info-100',
     warning: 'text-warning-500 stroke-warning-500 hover:text-warning-700 hover:bg-warning-100',

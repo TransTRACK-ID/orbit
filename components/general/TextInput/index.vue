@@ -70,11 +70,11 @@ const emit = defineEmits(["on-input", "on-click-clear", "update:modelValue", "bl
 const isFocused = ref(false);
 
 const variant = {
-  primary: "border-primary-500",
-  success: "border-success-500",
-  info: "border-info-500",
-  warning: "border-warning-500",
-  error: "border-error-500",
+  primary: "border-accent ring-accent",
+  success: "border-success-500 ring-success-500",
+  info: "border-info-500 ring-info-500",
+  warning: "border-warning-500 ring-warning-500",
+  error: "border-error-500 ring-error-500",
 };
 
 const borderColor = computed(() => {
@@ -89,15 +89,15 @@ function onClickClear() {
 
 const classContainer = computed(() => {
   const baseClass =
-    "w-full rounded-lg overflow-hidden stroke-gray-500 border-2 flex h-10";
+    "w-full rounded-lg border flex min-h-[40px] transition-colors";
   const border =
     props.isError || props.errorMessage
-      ? variant.error
+      ? "border-error-500 ring-1 ring-error-500"
       : isFocused.value
-      ? borderColor.value
-      : "border-gray-200";
+      ? `${borderColor.value} ring-1`
+      : "border-surface-200";
   const background = props.disabled
-    ? "bg-gray-100"
+    ? "bg-surface-100"
     : props.isError || props.errorMessage
     ? "bg-error-50"
     : "bg-white";
@@ -107,7 +107,7 @@ const classContainer = computed(() => {
 
 const classInput = computed(() => {
   const baseClass =
-    "block px-2.5 w-full h-full border-none text-gray-900 bg-transparent focus:ring-0";
+    "block px-3 w-full h-full min-h-[38px] border-none text-sm text-surface-900 placeholder:text-surface-400 bg-transparent focus:ring-0 outline-none";
   const hideSpinButton =
     "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const cursor = props.disabled ? "cursor-not-allowed" : "";
@@ -150,10 +150,10 @@ function onInput(value: any) {
     <label
       v-if="props.label"
       :for="id"
-      class="mb-1.5 text-sm font-[600] text-gray-700"
+      class="mb-1.5 text-xs font-medium text-surface-600"
     >
       {{ props.label }}
-      <span v-if="props.required" class="text-primary-500">*</span>
+      <span v-if="props.required" class="text-accent">*</span>
     </label>
 
     <slot name="prefix-above" />

@@ -8,12 +8,12 @@
         </div>
         <div class="flex items-center gap-3 flex-shrink-0">
           <NuxtLink :to="`/workspaces/${workspace.slug}/settings`">
-            <OutlinedButton class="max-sm:px-2 max-sm:py-1">
+            <OutlinedButton color="default" class="max-sm:px-2 max-sm:py-1">
               <Icon name="lucide:settings" class="w-3.5 h-3.5" />
               <span class="max-sm:hidden">Settings</span>
             </OutlinedButton>
           </NuxtLink>
-          <Button @click="showCreateProject = true" class="max-sm:px-2 max-sm:py-1">
+          <Button color="primary" @click="showCreateProject = true" class="max-sm:px-2 max-sm:py-1">
             <Icon name="lucide:plus" class="w-3.5 h-3.5" />
             <span class="max-sm:hidden">New Project</span>
           </Button>

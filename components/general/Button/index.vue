@@ -34,7 +34,7 @@ const emit = defineEmits<{
 }>()
 
 const buttonClass = computed((): string => {
-  const baseClass = 'py-2.5 px-3.5 text-sm text-white stroke-white font-semibold rounded-lg flex items-center justify-center transition select-none'
+  const baseClass = 'px-3 py-1.5 text-xs text-white stroke-white font-semibold rounded-lg flex items-center justify-center transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1'
 
   const color = (props.disabled || props.loading)
     ? `${bgColorDisabled.value} cursor-not-allowed`
@@ -44,30 +44,30 @@ const buttonClass = computed((): string => {
 })
 
 const variant = {
-  default: 'bg-gray-500',
-  primary: 'bg-primary-500 ',
-  success: 'bg-success-500 ',
-  info: 'bg-info-500 ',
-  warning: 'bg-warning-500 ',
-  error: 'bg-error-500 ',
+  default: 'bg-surface-600',
+  primary: 'bg-accent',
+  success: 'bg-success-500',
+  info: 'bg-info-500',
+  warning: 'bg-warning-500',
+  error: 'bg-error-500',
 }
 
 const variantDisabled = {
-  default: 'bg-gray-400',
-  primary: 'bg-primary-400',
-  success: 'bg-success-400 ',
-  info: 'bg-info-400 ',
-  warning: 'bg-warning-400 ',
-  error: 'bg-error-400 ',
+  default: 'bg-surface-400',
+  primary: 'bg-accent/50',
+  success: 'bg-success-400',
+  info: 'bg-info-400',
+  warning: 'bg-warning-400',
+  error: 'bg-error-400',
 }
 
 const variantHover = {
-  default: 'hover:bg-gray-400',
-  primary: 'hover:bg-primary-400 ',
-  success: 'hover:bg-success-400 ',
-  info: 'hover:bg-info-400',
-  warning: 'hover:bg-warning-400 ',
-  error: 'hover:bg-error-400 ',
+  default: 'hover:bg-surface-500',
+  primary: 'hover:bg-accent-hover',
+  success: 'hover:bg-success-600',
+  info: 'hover:bg-info-600',
+  warning: 'hover:bg-warning-600',
+  error: 'hover:bg-error-600',
 }
 
 const bgColor = computed(() => {

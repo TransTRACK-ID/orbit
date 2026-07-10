@@ -42,13 +42,13 @@ const emit = defineEmits(["on-input", "update:modelValue"]);
     <label
       v-if="props.label"
       :for="id"
-      class="block mb-1.5 text-sm font-[600] text-gray-700"
+      class="block mb-1.5 text-xs font-medium text-surface-600"
     >
       {{ props.label }}
-      <span v-if="props.required" class="text-primary-500">*</span>
+      <span v-if="props.required" class="text-accent">*</span>
     </label>
 
-    <div class="relative stroke-gray-500">
+    <div class="relative">
       <div class="absolute pl-3 inset-y-0 left-0 flex items-center pointer-events-none">
         <slot name="prefix" />
       </div>
@@ -60,7 +60,7 @@ const emit = defineEmits(["on-input", "update:modelValue"]);
         :type="props.type"
         :placeholder="props.placeholder"
         :maxlength="props.maxLength"
-        class="py-2.5 px-3.5 block w-full border border-gray-300 text-gray-900 bg-white rounded-lg focus:ring-primary-500 focus:border-primary-500 resize-y"
+        class="block w-full text-sm text-surface-900 placeholder:text-surface-400 bg-white rounded-lg border border-surface-200 px-3 py-2.5 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors resize-y"
         :class="$slots.prefix ? 'pl-10' : ''"
         @input="emit('update:modelValue', $event.target?.value)"
       />

@@ -25,17 +25,17 @@ const props = defineProps({
   },
   color: {
     type: String as () => 'primary' | 'success' | 'info' | 'warning' | 'error' | 'default',
-    default: 'primary'
+    default: 'default'
   }
 })
 
 const variant = {
-  default: 'border-gray-500 text-gray-500 [&_svg]:stroke-gray-500 hover:bg-gray-100',
-  primary: 'border-primary-500 text-primary-500 [&_svg]:stroke-primary-500 hover:bg-primary-100',
-  success: 'border-success-500 text-success-500 [&_svg]:stroke-success-500 hover:bg-success-100',
-  info: 'border-info-500 text-info-500 [&_svg]:stroke-info-500 hover:bg-info-100',
-  warning: 'border-warning-500 text-warning-500 [&_svg]:stroke-warning-500 hover:bg-warning-100',
-  error: 'border-error-500 text-error-500 [&_svg]:stroke-error-500 hover:bg-error-100',
+  default: 'border-surface-200 text-surface-600 [&_svg]:stroke-surface-600 hover:bg-surface-50 hover:border-surface-300',
+  primary: 'border-accent text-accent [&_svg]:stroke-accent hover:bg-accent-soft',
+  success: 'border-success-500 text-success-500 [&_svg]:stroke-success-500 hover:bg-success-50',
+  info: 'border-info-500 text-info-500 [&_svg]:stroke-info-500 hover:bg-info-50',
+  warning: 'border-warning-500 text-warning-500 [&_svg]:stroke-warning-500 hover:bg-warning-50',
+  error: 'border-error-500 text-error-500 [&_svg]:stroke-error-500 hover:bg-error-50',
 }
 
 const colorClass = computed(() => {
@@ -45,8 +45,8 @@ const colorClass = computed(() => {
 const emit = defineEmits(['on-click'])
 
 const buttonClass = computed((): string => {
-  const baseClass = 'py-2.5 px-3.5 text-sm font-semibold border rounded-lg flex items-center justify-center transition'
-  const disabled = 'disabled:border-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-600 [&_svg]:disabled:stroke-gray-600'
+  const baseClass = 'px-3 py-1.5 text-xs font-semibold border rounded-lg flex items-center justify-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1'
+  const disabled = 'disabled:border-surface-200 disabled:bg-surface-100 disabled:cursor-not-allowed disabled:text-surface-400 [&_svg]:disabled:stroke-surface-400'
 
   return `${baseClass} ${colorClass.value} ${disabled}`
 })
@@ -55,7 +55,7 @@ const buttonClass = computed((): string => {
 <template>
   <button :id="props.id" :type="type" :disabled="props.disabled || props.loading" :class="buttonClass"
     @click="emit('on-click')">
-    <span class="space-x-2 flex items-center">
+    <span class="flex items-center gap-1.5">
       <Loading v-if="props.loading" size="20" color="default" />
       <slot v-else name="prefix" />
 

@@ -173,7 +173,7 @@ import {
 import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
-import { extractAgentCommentForPersistence } from '~/utils/agent-comment'
+import { extractAgentCommentForPersistence, formatAgentCommentForDisplay } from '~/utils/agent-comment'
 import { AGENT_RESPONSE_MARKDOWN_RULE } from '~/utils/agent-response-format'
 
 function generateCommitMessageFromDiff(diffContent: string, changedFiles: string[]): string {
@@ -498,7 +498,7 @@ export default defineEventHandler(async (event) => {
 
     function applyAgentStreamText(fullText: string): string {
       rawAgentStreamText = fullText.trim()
-      const extracted = extractAgentCommentForPersistence(rawAgentStreamText)
+      const extracted = formatAgentCommentForDisplay(rawAgentStreamText)
       if (extracted) agentReplyContent = extracted
       return extracted
     }
@@ -1305,7 +1305,7 @@ export default defineEventHandler(async (event) => {
         persistLog(msg)
       } else {
         if (rawAgentStreamText) {
-          const finalReply = extractAgentCommentForPersistence(rawAgentStreamText)
+          const finalReply = formatAgentCommentForDisplay(rawAgentStreamText)
           if (finalReply) agentReplyContent = finalReply
         }
 

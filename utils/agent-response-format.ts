@@ -21,11 +21,11 @@ Use fenced code blocks for snapshots, logs, or snippets:
 paste relevant output here
 \`\`\`
 
-Formatting rules:
-- Use \`##\` / \`###\` headings — not ALL CAPS lines.
-- Use \`- \` bullet lists (blank line before the list).
-- Use \`inline code\` for URLs, selectors, field names, and short values.
-- Use tables only when comparing multiple columns.
-- Do NOT wrap the whole reply in a single code fence.
-- Do NOT use HTML tags — markdown only.
-- Separate sections with blank lines.`
+Formatting rules (strict — comments are rendered as HTML from markdown):
+- Every section title MUST use \`##\` on its own line: \`## Summary\`, \`## Results\`, \`## Evidence\`
+- Put a blank line after each heading before body text or lists
+- Use \`- \` bullet lists for Results and Evidence (one fact per bullet)
+- Put URLs, emails, versions, and field names in \`inline code\`
+- Put JSON, logs, and console output in fenced \`\`\`json or \`\`\`text blocks — never inline partial JSON
+- Keep Summary to 1–2 sentences; put details in Results and Evidence
+- Do NOT use bold-only section titles like **Summary** — always \`## Summary\``

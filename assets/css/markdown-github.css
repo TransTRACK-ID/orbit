@@ -271,17 +271,18 @@
 /* Structured agent QA reports */
 .markdown-body.agent-report {
   max-width: 65ch;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 
 .markdown-body.agent-report :deep(h2) {
-  margin: 1em 0 0.35em;
-  padding-bottom: 0;
-  border-bottom: none;
+  margin: 1.15rem 0 0.45rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--surface-200, #e5e5ea);
   font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: var(--surface-600, #64748b);
+  letter-spacing: 0.01em;
+  color: var(--surface-900, #1c1c1e);
 }
 
 .markdown-body.agent-report :deep(h2:first-child),
@@ -290,50 +291,84 @@
 }
 
 .markdown-body.agent-report :deep(h3) {
-  margin: 0.85em 0 0.3em;
+  margin: 0.9rem 0 0.35rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--surface-700, #475569);
+  color: var(--surface-800, #334155);
 }
 
 .markdown-body.agent-report :deep(p) {
-  margin: 0 0 0.55em;
+  margin: 0 0 0.65em;
   color: var(--surface-700, #475569);
 }
 
 .markdown-body.agent-report :deep(ul),
 .markdown-body.agent-report :deep(ol) {
-  margin: 0.15em 0 0.65em;
+  margin: 0.2em 0 0.75em;
+  padding-left: 1.35em;
+}
+
+.markdown-body.agent-report :deep(ul) {
+  list-style-type: disc;
 }
 
 .markdown-body.agent-report :deep(li) {
-  margin: 0.15em 0;
+  margin: 0.25em 0;
+  color: var(--surface-700, #475569);
 }
 
 .markdown-body.agent-report :deep(li > p) {
   margin: 0;
 }
 
+.markdown-body.agent-report :deep(code) {
+  font-size: 0.85em;
+  background: var(--surface-100, #f1f5f9);
+  color: var(--surface-800, #1e293b);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
 .markdown-body.agent-report :deep(pre) {
-  margin: 0.35em 0 0.65em;
-  padding: 0.65em 0.85em;
+  margin: 0.45em 0 0.75em;
+  padding: 0.7em 0.85em;
   font-size: 0.8125rem;
+  line-height: 1.45;
   background: var(--surface-50, #f8fafc);
   color: var(--surface-800, #1e293b);
   border: 1px solid var(--surface-200, #e2e8f0);
+  border-radius: 8px;
 }
 
 .markdown-body.agent-report :deep(pre code) {
+  background: transparent;
+  padding: 0;
   color: inherit;
 }
 
+.markdown-body.agent-report :deep(strong) {
+  font-weight: 600;
+  color: var(--surface-800, #334155);
+}
+
 .dark .markdown-body.agent-report :deep(h2) {
-  color: var(--surface-400, #94a3b8);
+  color: var(--surface-100, #f1f5f9);
+  border-bottom-color: var(--surface-700, #334155);
 }
 
 .dark .markdown-body.agent-report :deep(h3),
-.dark .markdown-body.agent-report :deep(p) {
+.dark .markdown-body.agent-report :deep(p),
+.dark .markdown-body.agent-report :deep(li) {
   color: var(--surface-300, #cbd5e1);
+}
+
+.dark .markdown-body.agent-report :deep(strong) {
+  color: var(--surface-200, #e2e8f0);
+}
+
+.dark .markdown-body.agent-report :deep(code) {
+  background: var(--surface-800, #1e293b);
+  color: var(--surface-100, #f1f5f9);
 }
 
 .dark .markdown-body.agent-report :deep(pre) {

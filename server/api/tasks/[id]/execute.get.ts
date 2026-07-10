@@ -172,6 +172,7 @@ import {
   verifyCursorBrowserMcpTools,
 } from '~/server/utils/browser-mcp'
 import {
+  collectScreenshotCandidates,
   extractBase64ImageFromToolResult,
   harvestAgentScreenshots,
   saveScreenshotFromBase64,
@@ -184,6 +185,8 @@ import { generateConventionalCommit } from '~/server/utils/conventional-commit'
 import { extractAgentCommentForPersistence } from '~/utils/agent-comment'
 import { formatAgentReportForDisplay } from '~/utils/agent-report'
 import { AGENT_RESPONSE_MARKDOWN_RULE } from '~/utils/agent-response-format'
+import { QA_RESULT_JSON_CONTRACT } from '~/utils/qa-result-format'
+import { applyQaResultsFromAgentReply } from '~/server/utils/qa-results'
 
 function generateCommitMessageFromDiff(diffContent: string, changedFiles: string[]): string {
   return generateConventionalCommit(diffContent, changedFiles)
@@ -1414,6 +1417,20 @@ export default defineEventHandler(async (event) => {
             console.error('[execute.get] Failed to persist screenshot-only agent_reply:', err?.message || err)
           }
         }
+
+        // QA run write-back: parse structured qa-result JSON and map screenshots
+        try {
+          const screenshotPaths = workDir
+            ? collectScreenshotCandidates(workDir, agentScreenshotPaths)
+            : []
+          await applyQaResultsFromAgentReply({
+            taskId: id,
+            agentReply: agentReplyContent || '',
+            screenshotPaths,
+          })
+        } catch (qaErr: any) {
+          console.error('[execute.get] Failed to apply QA run results:', qaErr?.message || qaErr)
+        }
       }
 
       if (workDir && mainCloneDir && workDir !== mainCloneDir) {
@@ -1499,6 +1516,12 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
 
     const markdownRule = AGENT_RESPONSE_MARKDOWN_RULE
 
+    const linkedQaRun = await db.query.qaRuns.findFirst({
+      where: (r, { eq: e }) => e(r.taskId, id),
+      columns: { id: true },
+    })
+    const qaResultRule = linkedQaRun ? QA_RESULT_JSON_CONTRACT : ''
+
     const statusRule = `[STATUS CONTROL]
 You have the ability to change the task status at any time during your work. When you have completed a meaningful phase of work or when the task state changes (e.g., moving from implementation to review, or when blocked), emit exactly:
 [ORBIT_STATUS: <status_name>]
@@ -1515,7 +1538,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
       await pushAndPersist(`Included sibling task context (${siblingContextBlock.match(/\d+\./g)?.length ?? 0} task(s))`)
     }
 
-    const ruleBlocks = [platformRule, securityRule, databaseRule, markdownRule, statusRule]
+    const ruleBlocks = [platformRule, securityRule, databaseRule, markdownRule, qaResultRule, statusRule]
       .filter(Boolean)
       .join('\n\n')
 

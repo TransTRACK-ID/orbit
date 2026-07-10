@@ -491,3 +491,131 @@ export interface PaginatedResponse<T> {
   page: number
   pageSize: number
 }
+
+// ─── QA ───
+export type QaCasePriority = 'low' | 'medium' | 'high'
+export type QaCaseStatus = 'active' | 'draft' | 'archived'
+export type QaRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'blocked' | 'cancelled'
+export type QaRunCaseStatus = 'pending' | 'passed' | 'failed' | 'blocked' | 'skipped'
+export type QaRuntime = 'cursor' | 'opencode'
+
+export interface QaCaseStep {
+  order: number
+  action: string
+  expected: string
+}
+
+export interface QaSuite {
+  id: string
+  projectId: string
+  parentId: string | null
+  name: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  children?: QaSuite[]
+  _caseCount?: number
+}
+
+export interface QaCase {
+  id: string
+  projectId: string
+  suiteId: string | null
+  title: string
+  preconditions: string | null
+  steps: QaCaseStep[]
+  priority: QaCasePriority
+  status: QaCaseStatus
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  suite?: QaSuite | null
+}
+
+export interface QaPlan {
+  id: string
+  projectId: string
+  name: string
+  description: string | null
+  createdAt: string
+  updatedAt: string
+  cases?: QaCase[]
+  _caseCount?: number
+}
+
+export interface QaPlanCase {
+  planId: string
+  caseId: string
+  sortOrder: number
+  case?: QaCase
+}
+
+export interface QaRunAttachment {
+  id: string
+  runCaseId: string
+  filename: string
+  originalName: string
+  mimeType: string
+  size: number
+  path: string
+  createdAt: string
+}
+
+export interface QaRunCase {
+  id: string
+  runId: string
+  caseId: string | null
+  title: string
+  steps: QaCaseStep[]
+  sortOrder: number
+  status: QaRunCaseStatus
+  actual: string | null
+  error: string | null
+  createdAt: string
+  updatedAt: string
+  attachments?: QaRunAttachment[]
+}
+
+export interface QaRun {
+  id: string
+  projectId: string
+  planId: string | null
+  taskId: string | null
+  agentId: string | null
+  targetUrl: string | null
+  runtime: QaRuntime
+  status: QaRunStatus
+  summary: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  createdAt: string
+  updatedAt: string
+  plan?: QaPlan | null
+  agent?: Agent | null
+  runCases?: QaRunCase[]
+  project?: { id: string; name: string; color: string }
+  _passedCount?: number
+  _failedCount?: number
+  _totalCount?: number
+}
+
+export interface QaWorkspaceSummary {
+  suiteCount: number
+  caseCount: number
+  planCount: number
+  runCount: number
+  recentRuns: QaRun[]
+}
+
+export interface QaResultPayload {
+  verdict: QaRunStatus | 'passed' | 'failed' | 'blocked'
+  targetUrl?: string
+  cases: Array<{
+    caseId: string
+    status: QaRunCaseStatus
+    actual?: string
+    error?: string
+    screenshots?: string[]
+  }>
+}
+

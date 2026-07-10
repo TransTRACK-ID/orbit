@@ -463,6 +463,21 @@
             </div>
           </div>
 
+          <!-- Last QA bridge -->
+          <div v-if="latestQaRun" class="mb-6">
+            <label class="block text-xs font-medium text-surface-500 mb-2">Last QA</label>
+            <NuxtLink
+              :to="`/workspaces/${route.params.slug}/qa?run=${latestQaRun.id}`"
+              class="flex items-center gap-2 px-3 py-2 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 transition-colors"
+            >
+              <Icon name="lucide:flask-conical" class="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+              <span class="text-xs font-semibold text-sky-800">
+                Last QA: {{ latestQaRun._passedCount || 0 }}/{{ latestQaRun._totalCount || 0 }} passed
+              </span>
+              <span class="text-[10px] text-sky-600 ml-auto capitalize">{{ latestQaRun.status }}</span>
+            </NuxtLink>
+          </div>
+
           <!-- Attachments -->
           <div v-if="attachments.length > 0 || isBacklog" class="mb-6">
             <label class="block text-xs font-medium text-surface-500 mb-2">
@@ -1637,7 +1652,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment } from '~/types'
+import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment, QaRun } from '~/types'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
@@ -2230,7 +2245,9 @@ const runtimeState = computed(() => task.value ? getRunState(task.value.id) : 'i
 
 // ─── Attachments ───
 const { fetchAttachments } = useTask()
+const { fetchTaskQaRuns } = useQa()
 const attachments = ref<Attachment[]>([])
+const latestQaRun = ref<QaRun | null>(null)
 const lightboxImage = ref<Attachment | null>(null)
 const attachmentInput = ref<HTMLInputElement | null>(null)
 const isUploadingAttachment = ref(false)
@@ -2241,6 +2258,16 @@ async function loadAttachments() {
     attachments.value = await fetchAttachments(task.value.id)
   } catch {
     attachments.value = []
+  }
+}
+
+async function loadQaRuns() {
+  if (!task.value) return
+  try {
+    const qaRuns = await fetchTaskQaRuns(task.value.id)
+    latestQaRun.value = qaRuns[0] || null
+  } catch {
+    latestQaRun.value = null
   }
 }
 
@@ -2616,6 +2643,8 @@ watch(() => props.taskId, () => {
   isTitleFocused.value = false
   editingBranchName.value = task.value?.branchName || ''
   branchNameError.value = ''
+  latestQaRun.value = null
+  nextTick(() => loadQaRuns())
 })
 
 const remotePrUrl = ref('')
@@ -2995,6 +3024,7 @@ onMounted(async () => {
     checkExistingPr(),
     checkPreview(),
     checkWorktree(),
+    loadQaRuns(),
   ]).catch(() => {})
 
   // Initialize lastCompletionTimestamp from the most recent "Done" log

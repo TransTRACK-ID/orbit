@@ -121,6 +121,21 @@
             </div>
             <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/reviews') }">Reviews</span>
           </div>
+
+          <div
+            class="sidebar-item"
+            :class="[{ active: route.path.includes('/qa') }, sidebarCollapsed ? 'justify-center px-0' : '']"
+            :title="sidebarCollapsed ? 'QA' : undefined"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/qa`); closeOnMobile()"
+          >
+            <div
+              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+              :style="{ backgroundColor: route.path.includes('/qa') ? '#0EA5E9' : '#94a3b8' }"
+            >
+              <Icon name="lucide:flask-conical" class="w-3 h-3" />
+            </div>
+            <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/qa') }">QA</span>
+          </div>
         </div>
       </template>
 

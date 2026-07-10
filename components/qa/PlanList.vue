@@ -4,6 +4,7 @@ import type { QaPlan } from '~/types'
 defineProps<{
   plans: QaPlan[]
   selectedId: string | null
+  creating?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -16,9 +17,15 @@ const emit = defineEmits<{
   <div class="flex flex-col h-full min-h-0">
     <div class="flex items-center justify-between px-1 mb-2">
       <span class="text-xs font-medium text-surface-600">Plans</span>
-      <button type="button" class="text-xs font-semibold text-primary-600 flex items-center gap-1" @click="emit('create')">
-        <Icon name="lucide:plus" class="w-3 h-3" />
-        New
+      <button
+        type="button"
+        class="text-xs font-semibold text-primary-600 flex items-center gap-1 disabled:opacity-50"
+        :disabled="creating"
+        @click="emit('create')"
+      >
+        <Icon v-if="creating" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+        <Icon v-else name="lucide:plus" class="w-3 h-3" />
+        {{ creating ? 'Creating…' : 'New' }}
       </button>
     </div>
     <div v-if="plans.length === 0" class="text-xs text-surface-400 py-8 text-center">No plans yet</div>

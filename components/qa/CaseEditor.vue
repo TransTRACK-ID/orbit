@@ -6,6 +6,7 @@ const props = defineProps<{
   suites: QaSuite[]
   saving?: boolean
   saved?: boolean
+  deleting?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -77,10 +78,12 @@ function save() {
       <h3 class="text-sm font-semibold text-surface-900 flex-1 truncate">Edit case</h3>
       <button
         type="button"
-        class="text-xs text-red-600 hover:text-red-700"
+        class="text-xs text-red-600 hover:text-red-700 disabled:opacity-50 flex items-center gap-1"
+        :disabled="deleting || saving"
         @click="emit('remove', modelValue.id)"
       >
-        Delete
+        <Icon v-if="deleting" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+        {{ deleting ? 'Deleting…' : 'Delete' }}
       </button>
       <button
         type="button"

@@ -4,6 +4,7 @@ import type { QaRun } from '~/types'
 defineProps<{
   runs: QaRun[]
   selectedId: string | null
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -24,8 +25,12 @@ function statusClass(status: string) {
     <div class="px-1 mb-2">
       <span class="text-xs font-medium text-surface-600">Runs ({{ runs.length }})</span>
     </div>
-    <div v-if="runs.length === 0" class="text-xs text-surface-400 py-8 text-center">No runs yet</div>
-    <div class="flex-1 overflow-y-auto space-y-1">
+    <div v-if="loading" class="flex flex-col items-center gap-2 py-8">
+      <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin text-surface-400" />
+      <span class="text-xs text-surface-400">Loading runs…</span>
+    </div>
+    <div v-else-if="runs.length === 0" class="text-xs text-surface-400 py-8 text-center">No runs yet</div>
+    <div v-else class="flex-1 overflow-y-auto space-y-1">
       <button
         v-for="r in runs"
         :key="r.id"

@@ -4,6 +4,8 @@ import type { QaSuite } from '~/types'
 const props = defineProps<{
   suites: QaSuite[]
   selectedId: string | null
+  creating?: boolean
+  deletingId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -55,10 +57,15 @@ function submitCreate() {
           <span class="text-[10px] text-surface-400">{{ suite._caseCount || 0 }}</span>
           <button
             type="button"
-            class="opacity-0 group-hover:opacity-100 text-surface-400 hover:text-red-500"
+            class="opacity-0 group-hover:opacity-100 text-surface-400 hover:text-red-500 disabled:opacity-100"
+            :disabled="deletingId === suite.id"
             @click.stop="emit('remove', suite.id)"
           >
-            <Icon name="lucide:trash-2" class="w-3 h-3" />
+            <Icon
+              :name="deletingId === suite.id ? 'lucide:loader-2' : 'lucide:trash-2'"
+              class="w-3 h-3"
+              :class="deletingId === suite.id ? 'animate-spin' : ''"
+            />
           </button>
         </div>
         <div
@@ -81,9 +88,14 @@ function submitCreate() {
         type="text"
         placeholder="New suite"
         class="field-input flex-1 text-xs rounded-lg px-2 py-1.5"
+        :disabled="creating"
       />
-      <button type="submit" class="px-2 py-1.5 rounded-lg bg-surface-900 text-white dark:bg-black text-xs">
-        <Icon name="lucide:plus" class="w-3 h-3" />
+      <button
+        type="submit"
+        class="px-2 py-1.5 rounded-lg bg-surface-900 text-white dark:bg-black text-xs disabled:opacity-50"
+        :disabled="creating || !newName.trim()"
+      >
+        <Icon :name="creating ? 'lucide:loader-2' : 'lucide:plus'" class="w-3 h-3" :class="creating ? 'animate-spin' : ''" />
       </button>
     </form>
   </div>

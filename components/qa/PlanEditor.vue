@@ -4,6 +4,11 @@ import type { QaCase, QaPlan } from '~/types'
 const props = defineProps<{
   plan: QaPlan | null
   allCases: QaCase[]
+  saving?: boolean
+  saved?: boolean
+  updatingCases?: boolean
+  casesUpdated?: boolean
+  deleting?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -36,11 +41,13 @@ function toggleCase(id: string) {
 }
 
 function saveMeta() {
-  if (!props.plan) return
+  if (!props.plan || props.saving) return
+  if (!name.value.trim()) return
   emit('save', { name: name.value.trim(), description: description.value || null })
 }
 
 function saveCases() {
+  if (props.updatingCases) return
   emit('replaceCases', selectedIds.value)
 }
 </script>
@@ -52,9 +59,25 @@ function saveCases() {
   <div v-else class="flex flex-col h-full min-h-0 bg-white dark:bg-surface-100 border border-surface-200 dark:border-surface-300 rounded-xl overflow-hidden">
     <div class="px-4 py-3 border-b border-surface-100 flex items-center gap-2">
       <h3 class="text-sm font-semibold flex-1">Edit plan</h3>
-      <button type="button" class="text-xs text-red-600" @click="emit('remove', plan.id)">Delete</button>
-      <button type="button" class="px-3 py-1.5 rounded-lg bg-surface-900 text-white dark:bg-black text-xs font-semibold" @click="saveMeta">
-        Save
+      <button
+        type="button"
+        class="text-xs text-red-600 disabled:opacity-50 flex items-center gap-1"
+        :disabled="deleting"
+        @click="emit('remove', plan.id)"
+      >
+        <Icon v-if="deleting" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+        {{ deleting ? 'Deleting…' : 'Delete' }}
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-lg bg-surface-900 text-white dark:bg-black text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 min-w-[72px] justify-center transition-colors"
+        :class="saved ? 'bg-emerald-600 dark:bg-emerald-700' : ''"
+        :disabled="saving"
+        @click="saveMeta"
+      >
+        <Icon v-if="saving" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+        <Icon v-else-if="saved" name="lucide:check" class="w-3 h-3" />
+        {{ saving ? 'Saving…' : saved ? 'Saved' : 'Save' }}
       </button>
     </div>
     <div class="flex-1 overflow-y-auto p-4 space-y-3">
@@ -69,11 +92,20 @@ function saveCases() {
       <div>
         <div class="flex items-center justify-between mb-2">
           <label class="text-[10px] font-medium text-surface-500">Cases in plan</label>
-          <button type="button" class="text-xs text-primary-600 font-semibold" @click="saveCases">
-            Update cases
+          <button
+            type="button"
+            class="text-xs font-semibold disabled:opacity-50 flex items-center gap-1 transition-colors"
+            :class="casesUpdated ? 'text-emerald-600' : 'text-primary-600'"
+            :disabled="updatingCases"
+            @click="saveCases"
+          >
+            <Icon v-if="updatingCases" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+            <Icon v-else-if="casesUpdated" name="lucide:check" class="w-3 h-3" />
+            {{ updatingCases ? 'Updating…' : casesUpdated ? 'Updated' : 'Update cases' }}
           </button>
         </div>
-        <div class="space-y-1 max-h-80 overflow-y-auto">
+        <div v-if="allCases.length === 0" class="text-xs text-surface-400 py-3">No cases available</div>
+        <div v-else class="space-y-1 max-h-80 overflow-y-auto">
           <label
             v-for="c in allCases"
             :key="c.id"
@@ -82,6 +114,7 @@ function saveCases() {
             <input
               type="checkbox"
               :checked="selectedIds.includes(c.id)"
+              :disabled="updatingCases"
               @change="toggleCase(c.id)"
             />
             <span class="truncate">{{ c.title }}</span>

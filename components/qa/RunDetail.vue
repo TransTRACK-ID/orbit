@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { QaRun, QaRunCase, QaRunCaseStatus } from '~/types'
 
-defineProps<{
+const props = defineProps<{
   run: QaRun | null
+  loading?: boolean
+  updatingCaseId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -20,12 +22,16 @@ function statusClass(status: string) {
 }
 
 function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
+  if (props.updatingCaseId) return
   emit('updateCase', rc.id, { status })
 }
 </script>
 
 <template>
-  <div v-if="!run" class="flex-1 flex items-center justify-center text-xs text-surface-400">
+  <div v-if="loading" class="flex-1 flex items-center justify-center">
+    <UiLoadingState text="Loading run details..." />
+  </div>
+  <div v-else-if="!run" class="flex-1 flex items-center justify-center text-xs text-surface-400">
     Select a run
   </div>
   <div v-else class="flex flex-col h-full min-h-0 bg-white border border-surface-200 rounded-xl overflow-hidden">
@@ -51,6 +57,7 @@ function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
         v-for="rc in run.runCases || []"
         :key="rc.id"
         class="border border-surface-200 rounded-xl overflow-hidden"
+        :class="updatingCaseId === rc.id ? 'opacity-70' : ''"
       >
         <button
           type="button"
@@ -62,6 +69,12 @@ function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
           </span>
           <span class="text-xs font-semibold text-surface-800 truncate flex-1">{{ rc.title }}</span>
           <Icon
+            v-if="updatingCaseId === rc.id"
+            name="lucide:loader-2"
+            class="w-3.5 h-3.5 text-surface-400 animate-spin"
+          />
+          <Icon
+            v-else
             :name="expandedId === rc.id ? 'lucide:chevron-down' : 'lucide:chevron-right'"
             class="w-3.5 h-3.5 text-surface-400"
           />
@@ -73,8 +86,9 @@ function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
               v-for="s in (['passed', 'failed', 'blocked', 'skipped', 'pending'] as QaRunCaseStatus[])"
               :key="s"
               type="button"
-              class="text-[10px] px-2 py-1 rounded-md border"
+              class="text-[10px] px-2 py-1 rounded-md border disabled:opacity-50"
               :class="rc.status === s ? 'border-surface-900 bg-surface-900 text-white dark:bg-black dark:border-black' : 'border-surface-200 text-surface-600'"
+              :disabled="!!updatingCaseId"
               @click="setStatus(rc, s)"
             >
               {{ s }}

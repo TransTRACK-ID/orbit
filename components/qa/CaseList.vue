@@ -4,7 +4,7 @@ import type { QaCase } from '~/types'
 defineProps<{
   cases: QaCase[]
   selectedId: string | null
-  loading?: boolean
+  creating?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -25,16 +25,17 @@ function priorityClass(p: string) {
       <span class="text-xs font-medium text-surface-600">Cases ({{ cases.length }})</span>
       <button
         type="button"
-        class="text-xs font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1"
+        class="text-xs font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1 disabled:opacity-50"
+        :disabled="creating"
         @click="emit('create')"
       >
-        <Icon name="lucide:plus" class="w-3 h-3" />
-        New
+        <Icon v-if="creating" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+        <Icon v-else name="lucide:plus" class="w-3 h-3" />
+        {{ creating ? 'Creating…' : 'New' }}
       </button>
     </div>
 
-    <div v-if="loading" class="text-xs text-surface-400 py-6 text-center">Loading…</div>
-    <div v-else-if="cases.length === 0" class="text-xs text-surface-400 py-8 text-center">
+    <div v-if="cases.length === 0" class="text-xs text-surface-400 py-8 text-center">
       No cases yet
     </div>
     <div v-else class="flex-1 overflow-y-auto space-y-1">

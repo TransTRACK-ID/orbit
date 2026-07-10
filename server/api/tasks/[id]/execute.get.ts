@@ -173,6 +173,7 @@ import {
 import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
+import { extractAgentCommentForPersistence } from '~/utils/agent-comment'
 import { AGENT_RESPONSE_MARKDOWN_RULE } from '~/utils/agent-response-format'
 
 function generateCommitMessageFromDiff(diffContent: string, changedFiles: string[]): string {
@@ -493,6 +494,14 @@ export default defineEventHandler(async (event) => {
     let editCount = 0
     let editedFiles: string[] = []
     let agentReplyContent = ''
+    let rawAgentStreamText = ''
+
+    function applyAgentStreamText(fullText: string): string {
+      rawAgentStreamText = fullText.trim()
+      const extracted = extractAgentCommentForPersistence(rawAgentStreamText)
+      if (extracted) agentReplyContent = extracted
+      return extracted
+    }
 
     // ── Loop detection: track recent bash commands ──
     const LOOP_WINDOW_MS = 60_000
@@ -1295,6 +1304,11 @@ export default defineEventHandler(async (event) => {
         }))
         persistLog(msg)
       } else {
+        if (rawAgentStreamText) {
+          const finalReply = extractAgentCommentForPersistence(rawAgentStreamText)
+          if (finalReply) agentReplyContent = finalReply
+        }
+
         const isCrashFinal = code === null
         const isErrorFinal = code !== null && code !== 0
         const msg = code === 0
@@ -1632,9 +1646,9 @@ The status_name should match one of the existing statuses in the project (e.g., 
               }
               fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
             }
-            agentReplyContent = fullText.trim()
+            const extracted = applyAgentStreamText(fullText)
             const payload: any = { step: 'cursor content', timestamp: Date.now() }
-            if (fullText) payload.agentReply = fullText
+            if (extracted) payload.agentReply = extracted
             await pushToStreams(entry, JSON.stringify(payload))
           },
           onActivity: async (activity) => {
@@ -1984,7 +1998,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
                   // Remove the marker from the displayed text
                   fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
                 }
-                agentReplyContent = fullText.trim()
+                applyAgentStreamText(fullText)
               }
               logMsg = formatTextEvent(part)
               break
@@ -2032,7 +2046,10 @@ The status_name should match one of the existing statuses in the project (e.g., 
             hasOutput = true
             lastActivity = Date.now()
             const payload: any = { step: logMsg, timestamp: Date.now() }
-            if (fullText) payload.agentReply = fullText.trim()
+            if (fullText) {
+              const extracted = applyAgentStreamText(fullText)
+              if (extracted) payload.agentReply = extracted
+            }
             await pushToStreams(entry, JSON.stringify(payload))
             if (logMsg) persistLog(logMsg)
           }

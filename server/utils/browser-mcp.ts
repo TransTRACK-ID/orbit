@@ -1,11 +1,13 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { spawnSync } from 'child_process'
 import path from 'path'
 
 export type BrowserMcpSetup = {
   opencodeConfigPath?: string
+  cursorMcpConfigPath?: string
 }
 
-const MCP_SERVER_ID = 'chrome-devtools'
+export const MCP_SERVER_ID = 'chrome-devtools'
 
 function getNpxPath(): string {
   return process.env.NPX_PATH || 'npx'
@@ -71,8 +73,9 @@ export function setupBrowserMcp(workDir: string, runtime: string): BrowserMcpSet
   if (runtime === 'cursor') {
     const cursorDir = path.join(workDir, '.cursor')
     mkdirSync(cursorDir, { recursive: true })
+    const cursorMcpConfigPath = path.join(cursorDir, 'mcp.json')
     writeFileSync(
-      path.join(cursorDir, 'mcp.json'),
+      cursorMcpConfigPath,
       JSON.stringify({
         mcpServers: {
           [MCP_SERVER_ID]: {
@@ -83,7 +86,7 @@ export function setupBrowserMcp(workDir: string, runtime: string): BrowserMcpSet
         },
       }, null, 2),
     )
-    return {}
+    return { cursorMcpConfigPath }
   }
 
   const configPath = path.join(orbitDir, 'opencode.json')
@@ -105,10 +108,54 @@ export function setupBrowserMcp(workDir: string, runtime: string): BrowserMcpSet
 }
 
 export function buildBrowserContextBlock(previewUrl: string | null): string {
+  const rules = [
+    'You MUST use Chrome DevTools MCP tools (server: chrome-devtools) for any web login, UI verification, or browser testing.',
+    'Do NOT claim you tested a website unless you called chrome-devtools MCP tools in this run.',
+    'Do NOT substitute curl, fetch, or shell scripts for real browser interaction when the task requires UI testing.',
+    'Summarize what you observed from MCP tool results (page snapshots, network, console).',
+  ].join('\n')
+
   if (previewUrl) {
-    return `\n\n[BROWSER]\nA preview is available at ${previewUrl}.\nYou have Chrome DevTools MCP tools available (headless). Use them when the task requires interacting with the app. Summarize what you observed.\n`
+    return `\n\n[BROWSER]\nA preview is available at ${previewUrl}.\n${rules}\n`
   }
-  return `\n\n[BROWSER]\nYou have Chrome DevTools MCP tools available (headless). Start a preview manually if you need to test a local build, or navigate to URLs specified in the task. Summarize what you observed.\n`
+  return `\n\n[BROWSER]\n${rules}\nNavigate to URLs mentioned in the task. Start a preview manually only if you need to test a local build.\n`
+}
+
+/** Approve chrome-devtools in cursor-agent so --approve-mcps can load it for this workspace. */
+export function ensureCursorBrowserMcpApproved(workDir: string): { ok: boolean; message: string } {
+  const cursorPath = process.env.CURSOR_AGENT_PATH || 'cursor-agent'
+  const result = spawnSync(cursorPath, ['mcp', 'enable', MCP_SERVER_ID], {
+    cwd: workDir,
+    encoding: 'utf-8',
+    timeout: 30_000,
+    env: { ...process.env },
+  })
+  const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
+  if (result.status !== 0) {
+    return { ok: false, message: output || 'cursor-agent mcp enable failed' }
+  }
+  return { ok: true, message: output || `Approved MCP server: ${MCP_SERVER_ID}` }
+}
+
+const BROWSER_MCP_TOOL_HINTS = [
+  'chrome-devtools',
+  'chrome_devtools',
+  'navigate_page',
+  'take_screenshot',
+  'take_snapshot',
+  'list_pages',
+  'new_page',
+  'click',
+  'fill',
+  'fill_form',
+  'hover',
+  'press_key',
+  'wait_for',
+]
+
+export function isBrowserMcpTool(toolName: string): boolean {
+  const normalized = toolName.toLowerCase()
+  return BROWSER_MCP_TOOL_HINTS.some((hint) => normalized.includes(hint))
 }
 
 export function buildNoRepositoryBlock(): string {

@@ -4,6 +4,8 @@ import { readFileSync, existsSync } from 'fs'
 export interface AnalyzeOptions {
   /** Working directory for the Cursor session. */
   workdir?: string
+  /** Trust the workspace (skip trust prompts; helps MCP load in headless runs). */
+  trustWorkspace?: boolean
   /** Abort the run early. */
   signal?: AbortSignal
   /** Called whenever a chunk of assistant text arrives. */
@@ -94,7 +96,7 @@ export async function spawnCursorAgent(
   prompt: string,
   options: AnalyzeOptions & { model?: string } = {}
 ): Promise<CursorRun> {
-  const { workdir, signal, onText, onActivity, onTokens, onDebugEvent, onToolUse, onStderr, model: optModel } = options
+  const { workdir, trustWorkspace, signal, onText, onActivity, onTokens, onDebugEvent, onToolUse, onStderr, model: optModel } = options
   const model = optModel || getCursorModel()
 
   const installed = await isCursorInstalled()
@@ -112,6 +114,10 @@ export async function spawnCursorAgent(
     '--output-format', 'stream-json',
     '--stream-partial-output',
   ]
+
+  if (trustWorkspace) {
+    args.push('--trust')
+  }
 
   if (model && model !== 'auto') {
     args.push('--model', model)

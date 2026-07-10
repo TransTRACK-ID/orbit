@@ -160,6 +160,8 @@ import { getDefaultAgentRuntime, resolveEffectiveRuntime } from '~/server/utils/
 import {
   buildBrowserContextBlock,
   buildNoRepositoryBlock,
+  ensureCursorBrowserMcpApproved,
+  isBrowserMcpTool,
   resolvePreviewUrlForAgent,
   setupBrowserMcp,
 } from '~/server/utils/browser-mcp'
@@ -522,6 +524,9 @@ export default defineEventHandler(async (event) => {
 
     const browserEnabled = task.agentAssignee?.browserEnabled ?? false
     const repositoryRequired = task.agentAssignee?.repositoryRequired ?? true
+    await pushAndPersist(
+      `Agent capabilities: browser=${browserEnabled ? 'enabled' : 'disabled'}, repository=${repositoryRequired ? 'required' : 'optional'}`,
+    )
 
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, task.projectId),
@@ -1047,10 +1052,20 @@ export default defineEventHandler(async (event) => {
 
     let opencodeConfigPath: string | undefined
     let browserContextBlock = ''
+    let usedBrowserMcp = false
     if (browserEnabled) {
       try {
         const mcpSetup = setupBrowserMcp(workDir, agentRuntime)
         opencodeConfigPath = mcpSetup.opencodeConfigPath
+        if (mcpSetup.cursorMcpConfigPath) {
+          await pushAndPersist(`Browser MCP config written: ${mcpSetup.cursorMcpConfigPath}`)
+          const approval = ensureCursorBrowserMcpApproved(workDir)
+          if (approval.ok) {
+            await pushAndPersist(`Browser MCP approved for cursor-agent: ${approval.message}`)
+          } else {
+            await pushAndPersist(`Browser MCP approval warning: ${approval.message}`)
+          }
+        }
         await pushAndPersist('Browser MCP configured (chrome-devtools, headless)')
       } catch (mcpErr: any) {
         await pushAndPersist(`Failed to configure browser MCP: ${mcpErr.message}`)
@@ -1076,6 +1091,12 @@ export default defineEventHandler(async (event) => {
       clearInterval(heartbeat)
       clearTimeout(runtimeTimeout)
       entry.exited = true
+
+      if (browserEnabled && !usedBrowserMcp && code === 0) {
+        const warning = 'Browser was enabled but no Chrome DevTools MCP tools were used — results may not reflect real browser testing.'
+        await pushToStreams(entry, JSON.stringify({ step: warning, timestamp: Date.now() }))
+        await persistLog(warning)
+      }
 
       const isCrash = code === null
       const isError = code !== null && code !== 0
@@ -1497,6 +1518,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
       try {
         const cursorRun = await spawnCursorAgent(message, {
           workdir: workDir,
+          trustWorkspace: browserEnabled,
           onText: async (_delta, accumulated) => {
             lastActivity = Date.now()
             hasOutput = true
@@ -1572,6 +1594,15 @@ The status_name should match one of the existing statuses in the project (e.g., 
           onToolUse: (tool, args) => {
             lastActivity = Date.now()
             hasOutput = true
+            if (browserEnabled && isBrowserMcpTool(tool)) {
+              usedBrowserMcp = true
+              const summary = Object.entries(args)
+                .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`)
+                .join(', ')
+              const step = `Browser MCP: ${tool}(${summary})`
+              pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() })).catch(() => {})
+              persistLog(step)
+            }
             if (tool === 'edit' || tool === 'write') {
               editCount++
               const filePath = String(args.path || args.filePath || 'unknown')

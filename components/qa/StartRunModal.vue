@@ -71,7 +71,7 @@ async function submit() {
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     @click.self="emit('close')"
   >
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+    <div class="bg-white dark:bg-surface-100 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
       <div class="px-5 py-4 border-b border-surface-100 flex items-center justify-between">
         <h3 class="text-sm font-semibold">Start QA run</h3>
         <button type="button" class="text-surface-400 hover:text-surface-600" @click="emit('close')">
@@ -84,7 +84,7 @@ async function submit() {
           <button
             type="button"
             class="flex-1 text-xs py-2 rounded-lg border font-semibold"
-            :class="mode === 'plan' ? 'border-surface-900 bg-surface-900 text-white' : 'border-surface-200'"
+            :class="mode === 'plan' ? 'border-surface-900 bg-surface-900 text-white dark:bg-black dark:border-black' : 'border-surface-200 bg-white text-surface-600'"
             @click="mode = 'plan'"
           >
             From plan
@@ -92,7 +92,7 @@ async function submit() {
           <button
             type="button"
             class="flex-1 text-xs py-2 rounded-lg border font-semibold"
-            :class="mode === 'cases' ? 'border-surface-900 bg-surface-900 text-white' : 'border-surface-200'"
+            :class="mode === 'cases' ? 'border-surface-900 bg-surface-900 text-white dark:bg-black dark:border-black' : 'border-surface-200 bg-white text-surface-600'"
             @click="mode = 'cases'"
           >
             Selected cases
@@ -101,7 +101,7 @@ async function submit() {
 
         <div v-if="mode === 'plan'">
           <label class="block text-[10px] font-medium text-surface-500 mb-1">Plan</label>
-          <select v-model="planId" class="w-full text-xs border border-surface-200 rounded-lg px-3 py-2">
+          <select v-model="planId" class="field-input w-full text-xs rounded-lg px-3 py-2">
             <option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }} ({{ p._caseCount || 0 }})</option>
           </select>
         </div>
@@ -119,12 +119,12 @@ async function submit() {
 
         <div>
           <label class="block text-[10px] font-medium text-surface-500 mb-1">Target URL</label>
-          <input v-model="targetUrl" type="url" class="w-full text-xs border border-surface-200 rounded-lg px-3 py-2" />
+          <input v-model="targetUrl" type="url" class="field-input w-full text-xs rounded-lg px-3 py-2" />
         </div>
 
         <div>
           <label class="block text-[10px] font-medium text-surface-500 mb-1">Agent (browser-enabled)</label>
-          <select v-model="agentId" class="w-full text-xs border border-surface-200 rounded-lg px-3 py-2">
+          <select v-model="agentId" class="field-input w-full text-xs rounded-lg px-3 py-2">
             <option :value="null">Manual results only</option>
             <option v-for="a in browserAgents" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
@@ -137,7 +137,7 @@ async function submit() {
         </button>
         <button
           type="button"
-          class="px-3 py-1.5 text-xs rounded-lg bg-surface-900 text-white font-semibold disabled:opacity-50"
+          class="px-3 py-1.5 text-xs rounded-lg bg-surface-900 text-white dark:bg-black font-semibold disabled:opacity-50"
           :disabled="submitting"
           @click="submit"
         >

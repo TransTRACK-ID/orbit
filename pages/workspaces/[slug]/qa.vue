@@ -23,7 +23,7 @@
             :key="tab.id"
             type="button"
             class="px-3 py-1.5 text-xs font-semibold"
-            :class="activeTab === tab.id ? 'bg-surface-900 text-white' : 'bg-white text-surface-600 hover:bg-surface-50'"
+            :class="activeTab === tab.id ? 'bg-surface-900 text-white dark:bg-black' : 'bg-white text-surface-600 hover:bg-surface-50 dark:hover:bg-surface-200'"
             @click="activeTab = tab.id"
           >
             {{ tab.label }}
@@ -75,6 +75,8 @@
           <QaCaseEditor
             :model-value="selectedCase"
             :suites="suites"
+            :saving="savingCase"
+            :saved="caseSaved"
             @save="onSaveCase"
             @remove="onDeleteCase"
           />
@@ -188,6 +190,10 @@ const selectedPlanId = ref<string | null>(null)
 const selectedRunId = ref<string | null>(null)
 const tabLoading = ref(false)
 const showStartRun = ref(false)
+const savingCase = ref(false)
+const caseSaved = ref(false)
+
+const { success: toastSuccess, error: toastError } = useToast()
 
 const selectedCase = computed(() => cases.value.find((c) => c.id === selectedCaseId.value) || null)
 const selectedPlan = computed(() => plans.value.find((p) => p.id === selectedPlanId.value) || null)
@@ -218,6 +224,10 @@ watch(selectedProjectId, async (id) => {
   selectedRun.value = null
   if (!id) return
   await loadProjectData(id)
+})
+
+watch(selectedCaseId, () => {
+  caseSaved.value = false
 })
 
 watch(activeTab, (tab) => {
@@ -279,9 +289,25 @@ async function onCreateCase() {
 }
 
 async function onSaveCase(data: Partial<QaCase>) {
-  if (!selectedCaseId.value) return
-  await updateCase(selectedCaseId.value, data as any)
-  if (selectedProjectId.value) await fetchSuites(selectedProjectId.value)
+  if (!selectedCaseId.value || savingCase.value) return
+  if (!data.title?.trim()) {
+    toastError('Case title is required', 'Cannot save')
+    return
+  }
+
+  savingCase.value = true
+  caseSaved.value = false
+  try {
+    await updateCase(selectedCaseId.value, data as any)
+    if (selectedProjectId.value) await fetchSuites(selectedProjectId.value)
+    toastSuccess('Your changes were saved.', 'Case saved')
+    caseSaved.value = true
+    setTimeout(() => { caseSaved.value = false }, 2000)
+  } catch (err: any) {
+    toastError(err?.data?.statusMessage || err?.data?.message || 'Failed to save case', 'Error')
+  } finally {
+    savingCase.value = false
+  }
 }
 
 async function onDeleteCase(id: string) {

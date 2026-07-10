@@ -19,7 +19,7 @@ const selected = computed({
 <template>
   <select
     v-model="selected"
-    class="text-xs border border-surface-200 rounded-lg px-2.5 py-1.5 bg-white text-surface-800 min-w-[160px]"
+    class="field-input text-xs rounded-lg px-2.5 py-1.5 min-w-[160px]"
   >
     <option :value="null" disabled>Select project</option>
     <option v-for="p in projects" :key="p.id" :value="p.id">

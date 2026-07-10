@@ -368,6 +368,17 @@
     @apply bg-surface-100 border-surface-300;
   }
 
+  .field-input {
+    @apply bg-white text-surface-900 border border-surface-200 placeholder:text-surface-400;
+  }
+
+  .dark .field-input {
+    background-color: var(--surface-100);
+    border-color: var(--surface-300);
+    color: var(--surface-900);
+    color-scheme: dark;
+  }
+
   /* Modal & general modal overrides */
   .dark .modal-overlay {
     @apply bg-black/60;

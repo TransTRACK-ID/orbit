@@ -80,9 +80,9 @@ function submitCreate() {
         v-model="newName"
         type="text"
         placeholder="New suite"
-        class="flex-1 text-xs border border-surface-200 rounded-lg px-2 py-1.5"
+        class="field-input flex-1 text-xs rounded-lg px-2 py-1.5"
       />
-      <button type="submit" class="px-2 py-1.5 rounded-lg bg-surface-900 text-white text-xs">
+      <button type="submit" class="px-2 py-1.5 rounded-lg bg-surface-900 text-white dark:bg-black text-xs">
         <Icon name="lucide:plus" class="w-3 h-3" />
       </button>
     </form>

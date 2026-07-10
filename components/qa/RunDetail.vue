@@ -74,7 +74,7 @@ function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
               :key="s"
               type="button"
               class="text-[10px] px-2 py-1 rounded-md border"
-              :class="rc.status === s ? 'border-surface-900 bg-surface-900 text-white' : 'border-surface-200 text-surface-600'"
+              :class="rc.status === s ? 'border-surface-900 bg-surface-900 text-white dark:bg-black dark:border-black' : 'border-surface-200 text-surface-600'"
               @click="setStatus(rc, s)"
             >
               {{ s }}

@@ -747,9 +747,8 @@
                     </div>
                     <KanbanCommentBody
                       :content="comment.body"
-                      wrapper-class="text-sm text-surface-700 agent-report"
                       :on-agent="true"
-                      :collapse-threshold="220"
+                      :collapse-threshold="280"
                     />
                   </div>
                 </div>
@@ -1639,7 +1638,6 @@ import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Reposito
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { parseMarkdown } from '~/utils/markdown'
-import { formatAgentCommentForDisplay } from '~/utils/agent-comment'
 import { useDebounceFn } from '@vueuse/core'
 import { nextTick, onMounted, onUnmounted } from 'vue'
 
@@ -2109,7 +2107,7 @@ const latestAgentReply = computed(() => {
     const msg = log.message.replace(/^>\s*/, '')
     if (msg.startsWith('[AGENT_REPLY]')) {
       const raw = msg.replace(/^\[AGENT_REPLY\]\s*/, '')
-      return formatAgentCommentForDisplay(raw) || null
+      return raw || null
     }
   }
   return null

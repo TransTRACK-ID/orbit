@@ -25,7 +25,8 @@ Formatting rules (strict — comments are rendered as HTML from markdown):
 - Every section title MUST use \`##\` on its own line: \`## Summary\`, \`## Results\`, \`## Evidence\`
 - Put a blank line after each heading before body text or lists
 - Use \`- \` bullet lists for Results and Evidence (one fact per bullet)
-- Put URLs, emails, versions, and field names in \`inline code\`
-- Put JSON, logs, and console output in fenced \`\`\`json or \`\`\`text blocks — never inline partial JSON
+- Put URLs as plain https:// links (they become clickable automatically)
+- Put emails and short technical values as plain text — do NOT use backticks or inline code
+- Put JSON, logs, and console output in fenced \`\`\`json or \`\`\`text blocks only
 - Keep Summary to 1–2 sentences; put details in Results and Evidence
 - Do NOT use bold-only section titles like **Summary** — always \`## Summary\``

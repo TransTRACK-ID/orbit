@@ -5,7 +5,12 @@
       class="comment-collapse__inner"
       :style="innerStyle"
     >
+      <KanbanAgentReportBody
+        v-if="onAgent"
+        :content="content"
+      />
       <KanbanMarkdownBody
+        v-else
         :content="content"
         :empty-text="emptyText"
         :wrapper-class="mergedWrapperClass"

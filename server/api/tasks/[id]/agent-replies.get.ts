@@ -1,7 +1,6 @@
 import { requireAuth } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
 import { eq, desc, and } from 'drizzle-orm'
-import { formatAgentCommentForDisplay } from '~/utils/agent-comment'
 
 /**
  * Returns persisted agent runtime responses for a task.
@@ -45,7 +44,7 @@ export default defineEventHandler(async (event) => {
 
   return allEntries.map(log => ({
     id: `agent-${log.id}`,
-    body: formatAgentCommentForDisplay((log.newValue as { message: string }).message),
+    body: (log.newValue as { message: string }).message,
     createdAt: log.createdAt,
     agentName: defaultAgentName,
     agentColor: defaultAgentColor,

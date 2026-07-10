@@ -1442,27 +1442,49 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      // Auto-advance to Review on successful completion unless the agent already
-      // moved the task via [ORBIT_STATUS: ...] (e.g. to review/done/blocked).
-      // This was removed when ORBIT_STATUS markers were added, which left tasks
-      // stuck in In Progress whenever the agent omitted the marker.
+      // Honor a late [ORBIT_STATUS: ...] marker from the final agent text, then
+      // auto-advance to Review on successful completion if still unsettled.
+      // Without this fallback, tasks stay stuck in In Progress when the agent
+      // omits the marker (regression after ORBIT_STATUS was introduced).
       if (code === 0 && !wasLoopKill) {
         try {
+          const finalStatusMatch = (rawAgentStreamText || agentReplyContent || '')
+            .match(ORBIT_STATUS_MARKER_RE)
+          if (finalStatusMatch) {
+            const applied = await applyAgentRequestedStatus({
+              db,
+              taskId: id,
+              projectId: task.projectId,
+              currentStatusId: task.statusId,
+              desiredStatusName: finalStatusMatch[1],
+              userId: user.id,
+              push: async (step) => {
+                await pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() }))
+              },
+              persist: persistLog,
+            })
+            if (applied) task.statusId = applied.statusId
+          }
+
           const currentStatus = await db.query.statuses.findFirst({
             where: eq(schema.statuses.id, task.statusId),
           })
           const alreadySettled = !!currentStatus && /review|done|blocked/i.test(currentStatus.name || '')
           if (!alreadySettled) {
-            const reviewStatus = await db.query.statuses.findFirst({
-              where: and(
-                eq(schema.statuses.projectId, task.projectId),
-                ilike(schema.statuses.name, '%review%'),
-              ),
-            })
+            const reviewStatus = await resolveProjectStatusByName(db, task.projectId, 'review')
             if (reviewStatus && task.statusId !== reviewStatus.id) {
+              const oldStatus = currentStatus
               await db.update(schema.tasks)
                 .set({ statusId: reviewStatus.id })
                 .where(eq(schema.tasks.id, id))
+
+              await db.insert(schema.activityLogs).values({
+                taskId: id,
+                userId: user.id,
+                action: 'status_change',
+                oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
+                newValue: { statusId: reviewStatus.id, statusName: reviewStatus.name },
+              })
 
               await db.insert(schema.activityLogs).values({
                 taskId: id,
@@ -1822,62 +1844,29 @@ The status_name should match one of the existing statuses in the project (e.g., 
             lastActivity = Date.now()
             hasOutput = true
             let fullText = accumulated
-            const statusMatch = fullText.match(/\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i)
+            const statusMatch = fullText.match(ORBIT_STATUS_MARKER_RE)
             if (statusMatch) {
-              const desiredStatus = statusMatch[1].trim().toLowerCase()
               try {
-                let targetStatus = await db.query.statuses.findFirst({
-                  where: and(
-                    eq(schema.statuses.projectId, task.projectId),
-                    ilike(schema.statuses.name, desiredStatus),
-                  ),
+                const applied = await applyAgentRequestedStatus({
+                  db,
+                  taskId: id,
+                  projectId: task.projectId,
+                  currentStatusId: task.statusId,
+                  desiredStatusName: statusMatch[1],
+                  userId: user.id,
+                  push: async (step) => {
+                    await pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() }))
+                  },
+                  persist: persistLog,
                 })
-                if (!targetStatus) {
-                  targetStatus = await db.query.statuses.findFirst({
-                    where: and(
-                      eq(schema.statuses.projectId, task.projectId),
-                      ilike(schema.statuses.name, `%${desiredStatus}%`),
-                    ),
-                  })
-                }
-                if (targetStatus && task.statusId !== targetStatus.id) {
-                  const oldStatus = await db.query.statuses.findFirst({
-                    where: eq(schema.statuses.id, task.statusId),
-                  })
-                  await db.update(schema.tasks)
-                    .set({ statusId: targetStatus.id })
-                    .where(eq(schema.tasks.id, id))
-                  await db.insert(schema.activityLogs).values({
-                    taskId: id,
-                    userId: user.id,
-                    action: 'status_change',
-                    oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
-                    newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
-                  })
-                  await pushToStreams(entry, JSON.stringify({
-                    step: `Agent changed status to "${targetStatus.name}"`,
-                    timestamp: Date.now(),
-                  }))
-                  await persistLog(`Agent changed status to "${targetStatus.name}"`)
-                  task.statusId = targetStatus.id
-                } else if (targetStatus) {
-                  await pushToStreams(entry, JSON.stringify({
-                    step: `Status already "${targetStatus.name}" — no change needed`,
-                    timestamp: Date.now(),
-                  }))
-                } else {
-                  await pushToStreams(entry, JSON.stringify({
-                    step: `Status "${desiredStatus}" not found in project`,
-                    timestamp: Date.now(),
-                  }))
-                }
+                if (applied) task.statusId = applied.statusId
               } catch (statusErr: any) {
                 await pushToStreams(entry, JSON.stringify({
                   step: `Failed to change status: ${statusErr.message}`,
                   timestamp: Date.now(),
                 }))
               }
-              fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
+              fullText = fullText.replace(ORBIT_STATUS_MARKER_RE, '').trim()
             }
             const extracted = applyAgentStreamText(fullText)
             const payload: any = { step: 'cursor content', timestamp: Date.now() }
@@ -2176,57 +2165,22 @@ The status_name should match one of the existing statuses in the project (e.g., 
               // so we track the latest text as the agent's reply.
               if (fullText) {
                 // Detect status change markers from the agent
-                const statusMatch = fullText.match(/\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i)
+                const statusMatch = fullText.match(ORBIT_STATUS_MARKER_RE)
                 if (statusMatch) {
-                  const desiredStatus = statusMatch[1].trim().toLowerCase()
                   try {
-                    // Try exact match first
-                    let targetStatus = await db.query.statuses.findFirst({
-                      where: and(
-                        eq(schema.statuses.projectId, task.projectId),
-                        ilike(schema.statuses.name, desiredStatus),
-                      ),
+                    const applied = await applyAgentRequestedStatus({
+                      db,
+                      taskId: id,
+                      projectId: task.projectId,
+                      currentStatusId: task.statusId,
+                      desiredStatusName: statusMatch[1],
+                      userId: user.id,
+                      push: async (step) => {
+                        await pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() }))
+                      },
+                      persist: persistLog,
                     })
-                    // Fallback to partial match
-                    if (!targetStatus) {
-                      targetStatus = await db.query.statuses.findFirst({
-                        where: and(
-                          eq(schema.statuses.projectId, task.projectId),
-                          ilike(schema.statuses.name, `%${desiredStatus}%`),
-                        ),
-                      })
-                    }
-                    if (targetStatus && task.statusId !== targetStatus.id) {
-                      const oldStatus = await db.query.statuses.findFirst({
-                        where: eq(schema.statuses.id, task.statusId),
-                      })
-                      await db.update(schema.tasks)
-                        .set({ statusId: targetStatus.id })
-                        .where(eq(schema.tasks.id, id))
-                      await db.insert(schema.activityLogs).values({
-                        taskId: id,
-                        userId: user.id,
-                        action: 'status_change',
-                        oldValue: { statusId: task.statusId, statusName: oldStatus?.name },
-                        newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
-                      })
-                      await pushToStreams(entry, JSON.stringify({
-                        step: `Agent changed status to "${targetStatus.name}"`,
-                        timestamp: Date.now(),
-                      }))
-                      await persistLog(`Agent changed status to "${targetStatus.name}"`)
-                      task.statusId = targetStatus.id
-                    } else if (targetStatus) {
-                      await pushToStreams(entry, JSON.stringify({
-                        step: `Status already "${targetStatus.name}" — no change needed`,
-                        timestamp: Date.now(),
-                      }))
-                    } else {
-                      await pushToStreams(entry, JSON.stringify({
-                        step: `Status "${desiredStatus}" not found in project`,
-                        timestamp: Date.now(),
-                      }))
-                    }
+                    if (applied) task.statusId = applied.statusId
                   } catch (statusErr: any) {
                     await pushToStreams(entry, JSON.stringify({
                       step: `Failed to change status: ${statusErr.message}`,
@@ -2234,7 +2188,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
                     }))
                   }
                   // Remove the marker from the displayed text
-                  fullText = fullText.replace(/\[ORBIT_STATUS:\s*[a-zA-Z_\- ]+\s*\]/i, '').trim()
+                  fullText = fullText.replace(ORBIT_STATUS_MARKER_RE, '').trim()
                 }
                 applyAgentStreamText(fullText)
               }

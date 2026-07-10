@@ -280,6 +280,25 @@ export function isBrowserMcpTool(toolName: string): boolean {
   return BROWSER_MCP_TOOL_HINTS.some((hint) => normalized.includes(hint))
 }
 
+export function pickPrimaryBrowserTestUrl(urls: string[]): string {
+  return urls.find(u => !/pass\.proton\.me|share\.1password|bitwarden\.com\/vault/i.test(u)) || urls[0] || ''
+}
+
+export function buildBrowserMandatoryRetryPrompt(primaryUrl: string, allUrls: string[] = []): string {
+  const urlHint = primaryUrl || allUrls[0] || 'the application URL from the task'
+  return `[MANDATORY BROWSER RETRY]
+Your previous run finished without calling Chrome DevTools MCP. You MUST use the browser tools now.
+
+Required steps (in order):
+1. mcp_chrome-devtools_navigate_page (or navigate_page) → open ${urlHint}
+2. mcp_chrome-devtools_take_snapshot (or take_snapshot) → read the page
+3. mcp_chrome-devtools_fill / click / press_key → perform login or UI actions
+4. take_snapshot or take_screenshot → capture evidence
+
+Do NOT use curl, wget, or fetch. Do NOT report test results without MCP tool output.
+Password/credential links in the task are for you to read in the browser — not to skip browser testing.`
+}
+
 export function buildNoRepositoryBlock(): string {
   return `\n\n[NO REPOSITORY]\nThis agent is not bound to a repository worktree. Work from the task title and description only. You may browse external URLs mentioned in the task.\n`
 }

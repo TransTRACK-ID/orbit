@@ -24,16 +24,74 @@ export interface AnalyzeOptions {
   onStderr?: (text: string) => void
 }
 
-interface CursorEvent {
-  type: string
-  chatId?: string
-  delta?: string
-  result?: string
-  tool?: string
-  args?: Record<string, unknown>
-  error?: string
-  message?: string
-  tokens?: { input: number; output: number }
+type CursorStreamEvent = Record<string, unknown>
+
+export function extractCursorToolUse(ev: CursorStreamEvent): { tool: string; args: Record<string, unknown> } | null {
+  if (ev.type === 'tool_use') {
+    const tool = typeof ev.tool === 'string' ? ev.tool : 'tool'
+    const args = (ev.args && typeof ev.args === 'object' ? ev.args : {}) as Record<string, unknown>
+    return { tool, args }
+  }
+
+  if (ev.type !== 'tool_call') return null
+  if (ev.subtype !== 'started' && ev.subtype !== 'completed') return null
+
+  const toolCall = ev.tool_call as Record<string, unknown> | undefined
+  if (!toolCall) return null
+
+  const mcp = toolCall.mcpToolCall as Record<string, unknown> | undefined
+  if (mcp) {
+    const mcpArgs = mcp.args as Record<string, unknown> | undefined
+    if (!mcpArgs) return null
+    const toolName = String(
+      mcpArgs.name
+      || (mcpArgs.serverIdentifier && mcpArgs.toolName
+        ? `${mcpArgs.serverIdentifier}-${mcpArgs.toolName}`
+        : '')
+      || mcpArgs.toolName
+      || 'mcp-tool',
+    )
+    const args = (mcpArgs.args && typeof mcpArgs.args === 'object'
+      ? mcpArgs.args
+      : {}) as Record<string, unknown>
+    return { tool: toolName, args }
+  }
+
+  const shell = toolCall.shellToolCall as Record<string, unknown> | undefined
+  if (shell) {
+    const shellArgs = shell.args as Record<string, unknown> | undefined
+    return { tool: 'bash', args: { command: shellArgs?.command || '' } }
+  }
+
+  const edit = toolCall.editToolCall as Record<string, unknown> | undefined
+  if (edit) {
+    const editArgs = edit.args as Record<string, unknown> | undefined
+    return { tool: 'edit', args: editArgs || {} }
+  }
+
+  const write = toolCall.writeToolCall as Record<string, unknown> | undefined
+  if (write) {
+    const writeArgs = write.args as Record<string, unknown> | undefined
+    return { tool: 'write', args: writeArgs || {} }
+  }
+
+  return null
+}
+
+function appendAssistantText(ev: CursorStreamEvent, onAppend: (text: string) => void) {
+  if (ev.type === 'assistant') {
+    const message = ev.message as { content?: Array<{ type?: string; text?: string }> } | undefined
+    const text = message?.content
+      ?.filter(part => part.type === 'text' && part.text)
+      .map(part => part.text)
+      .join('') || ''
+    if (text) onAppend(text)
+    return
+  }
+
+  if (ev.type === 'result' && typeof ev.result === 'string' && ev.result) {
+    onAppend(ev.result)
+  }
 }
 
 export function getCursorPath(): string {
@@ -96,7 +154,7 @@ export interface CursorRun {
 
 export async function spawnCursorAgent(
   prompt: string,
-  options: AnalyzeOptions & { model?: string } = {}
+  options: AnalyzeOptions & { model?: string } = {},
 ): Promise<CursorRun> {
   const {
     workdir,
@@ -116,14 +174,14 @@ export async function spawnCursorAgent(
   const installed = await isCursorInstalled()
   if (!installed) {
     throw new Error(
-      'cursor-agent is not installed on this server. ' +
-      'Install it with: npm install -g cursor-agent, ' +
-      'then authenticate with: cursor-agent login (or set CURSOR_API_KEY env var).'
+      'cursor-agent is not installed on this server. '
+      + 'Install it with: npm install -g cursor-agent, '
+      + 'then authenticate with: cursor-agent login (or set CURSOR_API_KEY env var).',
     )
   }
 
   const args = [
-  // Headless mode — required for --trust and reliable MCP tool injection in CI/Docker.
+    // Headless mode — required for --trust and reliable MCP tool injection in CI/Docker.
     '-p',
     '--force',
     '--approve-mcps',
@@ -143,10 +201,6 @@ export async function spawnCursorAgent(
     args.push('--workspace', workdir)
   }
 
-  // Cursor CLI does not natively read AGENTS.md (OpenCode's instructions file).
-  // It uses .cursorrules / .cursor/rules/*.mdc instead. To keep behavior aligned
-  // with the existing agent instructions, read AGENTS.md from the same path
-  // used by OpenCode and prepend it to the prompt as system instructions.
   const agentsMdPath = process.env.CURSOR_AGENTS_MD_PATH || process.env.AGENTS_MD_PATH || '/root/.config/opencode/AGENTS.md'
   let finalPrompt = prompt
   if (includeAgentsMd) {
@@ -165,72 +219,57 @@ export async function spawnCursorAgent(
   args.push(finalPrompt)
 
   let accumulated = ''
-  let chatId: string | undefined
   const proc = spawn(getCursorPath(), args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd: workdir || process.cwd(),
     env: { ...process.env },
   })
 
-  onDebugEvent?.({ type: 'cursor.spawn', payload: { args, pid: proc.pid } })
+  onDebugEvent?.({ type: 'cursor.spawn', payload: { args, pid: proc.pid ?? null } })
 
   const stderrBuf: string[] = []
   let buffer = ''
   let exitCode: number | null = null
   let stdoutEnded = false
 
-  function processEvent(ev: CursorEvent) {
-    onDebugEvent?.({ type: `cursor.${ev.type}`, payload: ev as Record<string, unknown> })
+  function appendText(text: string, replace = false) {
+    if (!text) return
+    accumulated = replace ? text : accumulated + text
+    onText?.(replace ? '' : text, accumulated)
+  }
 
-    if (typeof ev.result === 'string' && ev.result) {
-      accumulated = ev.result
-      onText?.('', accumulated)
+  function processEvent(ev: CursorStreamEvent) {
+    onDebugEvent?.({ type: `cursor.${String(ev.type)}`, payload: ev })
+
+    if (typeof ev.result === 'string' && ev.result && ev.type !== 'result') {
+      appendText(ev.result, true)
     }
     if (typeof ev.delta === 'string' && ev.delta) {
-      accumulated += ev.delta
-      onText?.(ev.delta, accumulated)
+      appendText(ev.delta)
     }
-    if (typeof ev.message === 'string' && ev.message) {
-      accumulated += ev.message
-      onText?.(ev.message, accumulated)
-    }
-    if (ev.tokens) {
-      onTokens?.(ev.tokens)
+    if (typeof ev.message === 'string' && ev.message && ev.type !== 'assistant') {
+      appendText(ev.message)
     }
 
-    switch (ev.type) {
-      case 'start': {
-        chatId = ev.chatId
-        break
-      }
-      case 'content': {
-        // delta handled above
-        break
-      }
-      case 'tool_use': {
-        const toolName = ev.tool || 'tool'
-        const toolArgs = ev.args || {}
-        const argSummary = Object.entries(toolArgs)
-          .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
-          .join(', ')
-        onActivity?.(`Tool: ${toolName}(${argSummary})`)
-        onToolUse?.(toolName, toolArgs)
-        break
-      }
-      case 'end':
-      case 'complete':
-      case 'finished': {
-        // Final result may be in ev.result (handled above)
-        break
-      }
-      case 'error': {
-        const msg = ev.message || ev.error || 'Cursor agent error'
-        onDebugEvent?.({ type: 'cursor.error', payload: { message: msg } })
-        break
-      }
-      default: {
-        onDebugEvent?.({ type: 'cursor.unhandled', payload: { type: ev.type, keys: Object.keys(ev) } })
-      }
+    const tokens = ev.tokens as { input: number; output: number } | undefined
+    if (tokens) {
+      onTokens?.(tokens)
+    }
+
+    appendAssistantText(ev, text => appendText(text, ev.type === 'result'))
+
+    const toolUse = extractCursorToolUse(ev)
+    if (toolUse) {
+      const argSummary = Object.entries(toolUse.args)
+        .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+        .join(', ')
+      onActivity?.(`Tool: ${toolUse.tool}(${argSummary})`)
+      onToolUse?.(toolUse.tool, toolUse.args)
+    }
+
+    if (ev.type === 'error') {
+      const msg = String(ev.message || ev.error || 'Cursor agent error')
+      onDebugEvent?.({ type: 'cursor.error', payload: { message: msg } })
     }
   }
 
@@ -241,12 +280,11 @@ export async function spawnCursorAgent(
     for (const line of lines) {
       if (!line.trim()) continue
       try {
-        const ev = JSON.parse(line) as CursorEvent
+        const ev = JSON.parse(line) as CursorStreamEvent
         processEvent(ev)
       } catch {
         onDebugEvent?.({ type: 'cursor.raw', payload: { line } })
-        accumulated += line + '\n'
-        onText?.(line + '\n', accumulated)
+        appendText(`${line}\n`)
       }
     }
   }
@@ -258,22 +296,21 @@ export async function spawnCursorAgent(
     for (const line of lines) {
       if (!line.trim()) continue
       try {
-        const ev = JSON.parse(line) as CursorEvent
+        const ev = JSON.parse(line) as CursorStreamEvent
         processEvent(ev)
       } catch {
         onDebugEvent?.({ type: 'cursor.raw', payload: { line } })
-        accumulated += line + '\n'
-        onText?.(line + '\n', accumulated)
+        appendText(`${line}\n`)
       }
     }
   })
 
   proc.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf-8')
-      stderrBuf.push(text)
-      onStderr?.(text)
-      onDebugEvent?.({ type: 'cursor.stderr', payload: { text } })
-    })
+    const text = chunk.toString('utf-8')
+    stderrBuf.push(text)
+    onStderr?.(text)
+    onDebugEvent?.({ type: 'cursor.stderr', payload: { text } })
+  })
 
   const promise = new Promise<string>((resolve, reject) => {
     function checkDone() {

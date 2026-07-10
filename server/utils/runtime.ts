@@ -13,6 +13,8 @@ export type ProcState = {
   isTimeoutKill?: boolean
   /** Set to true when the process has exited (normal, crash, or error) */
   exited?: boolean
+  /** Set to true after a browser-MCP auto-retry has been scheduled */
+  browserRetryIssued?: boolean
 }
 
 export const activeProcesses = new Map<string, ProcState>()

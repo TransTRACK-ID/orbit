@@ -159,11 +159,13 @@ import type { ProcState } from '~/server/utils/runtime'
 import { getDefaultAgentRuntime, resolveEffectiveRuntime } from '~/server/utils/agent-runtime-config'
 import {
   buildBrowserContextBlock,
+  buildBrowserMandatoryRetryPrompt,
   buildNoRepositoryBlock,
   ensureCursorBrowserMcpApproved,
   extractUrlsFromText,
   getChromiumAvailability,
   isBrowserMcpTool,
+  pickPrimaryBrowserTestUrl,
   resolvePreviewUrlForAgent,
   setupBrowserMcp,
   verifyCursorBrowserMcpTools,
@@ -1113,6 +1115,33 @@ export default defineEventHandler(async (event) => {
       clearTimeout(runtimeTimeout)
       entry.exited = true
 
+      const wasLoopKill = entry.isLoopKill
+      const wasTimeoutKill = entry.isTimeoutKill
+
+      if (
+        browserEnabled
+        && !usedBrowserMcp
+        && code === 0
+        && !wasLoopKill
+        && !entry.browserRetryIssued
+        && agentRuntime === 'cursor'
+      ) {
+        entry.browserRetryIssued = true
+        const primaryUrl = pickPrimaryBrowserTestUrl(taskUrls)
+        pendingFeedback.set(id, buildBrowserMandatoryRetryPrompt(primaryUrl, taskUrls))
+        await pushToStreams(entry, JSON.stringify({
+          step: 'Browser MCP not used — auto-retrying with mandatory browser workflow',
+          autoRestart: true,
+          timestamp: Date.now(),
+        }))
+        persistLog('Browser MCP not used — scheduling mandatory browser retry')
+        activeProcesses.delete(id)
+        for (const s of entry.streams) {
+          try { s.close() } catch {}
+        }
+        return
+      }
+
       if (browserEnabled && !usedBrowserMcp && code === 0) {
         const warning = 'Browser was enabled but no Chrome DevTools MCP tools were used — results may not reflect real browser testing.'
         await pushToStreams(entry, JSON.stringify({ step: warning, timestamp: Date.now() }))
@@ -1121,8 +1150,6 @@ export default defineEventHandler(async (event) => {
 
       const isCrash = code === null
       const isError = code !== null && code !== 0
-      const wasLoopKill = entry.isLoopKill
-      const wasTimeoutKill = entry.isTimeoutKill
 
       if (!wasLoopKill && (isCrash || isError)) {
         const crashType = wasTimeoutKill ? 'timeout' : (isCrash ? 'crash' : 'error')
@@ -1408,7 +1435,10 @@ The status_name should match one of the existing statuses in the project (e.g., 
     let attachmentsInjected = false
 
     if (feedback) {
-      if (feedback.includes('[USER MESSAGE]')) {
+      if (feedback.includes('[MANDATORY BROWSER RETRY]')) {
+        await pushAndPersist('Including mandatory browser retry instructions')
+        message = `${browserContextBlock}\n\n${feedback}\n\n${task.title}${task.description ? `\n\n${task.description}` : ''}`
+      } else if (feedback.includes('[USER MESSAGE]')) {
         // Load conversation history so the agent doesn't forget past work
         // when a new opencode process is spawned.
         const historyLogs = await db.query.activityLogs.findMany({

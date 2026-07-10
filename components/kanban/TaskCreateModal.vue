@@ -298,33 +298,35 @@
             <div class="flex flex-col gap-3">
               <!-- Agent options (shown when assignee is an agent) -->
               <div v-if="form.assigneeType === 'agent'" class="bg-surface-50 rounded-lg p-4 flex flex-col gap-3">
-                <div v-if="props.repositories && props.repositories.length > 0">
-                  <label for="task-repo-agent" class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
-                  <select
-                    id="task-repo-agent"
-                    v-model="form.repositoryId"
-                    required
-                    class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
-                  >
-                    <option value="" disabled selected>Select a repository</option>
-                    <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
-                      {{ repo.name }} / {{ repo.defaultBranch }}
-                    </option>
-                  </select>
-                  <p class="text-xs text-surface-500 mt-1">Required for agent code context</p>
-                </div>
-                <div v-else class="p-3 rounded-lg bg-white border border-surface-200">
-                  <p class="text-xs text-surface-600">
-                    No repositories connected.
-                    <NuxtLink
-                      :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
-                      class="text-accent font-medium underline hover:text-accent-hover transition-colors"
+                <template v-if="agentRequiresRepository">
+                  <div v-if="props.repositories && props.repositories.length > 0">
+                    <label for="task-repo-agent" class="block text-xs font-medium text-surface-600 mb-1.5">Repository <span class="text-error-500">*</span></label>
+                    <select
+                      id="task-repo-agent"
+                      v-model="form.repositoryId"
+                      required
+                      class="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
                     >
-                      Connect one
-                    </NuxtLink>
-                    to enable agent features.
-                  </p>
-                </div>
+                      <option value="" disabled selected>Select a repository</option>
+                      <option v-for="repo in props.repositories" :key="repo.id" :value="repo.id">
+                        {{ repo.name }} / {{ repo.defaultBranch }}
+                      </option>
+                    </select>
+                    <p class="text-xs text-surface-500 mt-1">Required for agent code context</p>
+                  </div>
+                  <div v-else class="p-3 rounded-lg bg-white border border-surface-200">
+                    <p class="text-xs text-surface-600">
+                      No repositories connected.
+                      <NuxtLink
+                        :to="`/workspaces/${route.params.slug}/settings?tab=repositories&focus=add-repo`"
+                        class="text-accent font-medium underline hover:text-accent-hover transition-colors"
+                      >
+                        Connect one
+                      </NuxtLink>
+                      to enable agent features.
+                    </p>
+                  </div>
+                </template>
 
                 <div>
                   <label for="task-branch" class="block text-xs font-medium text-surface-600 mb-1.5">Branch Name <span class="text-surface-400 font-normal">(optional)</span></label>
@@ -471,6 +473,16 @@ const uniqueAvailableLabels = computed(() => {
   })
 })
 
+const selectedAgentConfig = computed(() => {
+  if (form.assigneeType !== 'agent' || !form.assigneeId) return null
+  return props.agents.find(a => a.id === form.assigneeId) ?? null
+})
+
+const agentRequiresRepository = computed(() => {
+  if (form.assigneeType !== 'agent') return false
+  return selectedAgentConfig.value?.repositoryRequired !== false
+})
+
 async function ensureDefaultLabels() {
   const existingNames = new Set(availableLabels.value.map((l) => l.name))
   const missing = DEFAULT_LABELS.filter((d) => !existingNames.has(d.name))
@@ -531,6 +543,10 @@ function selectAssignee(id?: string, type?: 'user' | 'agent', name?: string, col
   // Auto-fill or regenerate branch name when assigning an agent
   if (type === 'agent') {
     form.branchName = generateAgentBranchNameForCreate()
+    const agent = props.agents.find(a => a.id === id)
+    if (agent?.repositoryRequired === false) {
+      form.repositoryId = null
+    }
   }
 }
 
@@ -645,7 +661,7 @@ async function handleCreate() {
     error.value = 'Status is required'
     return
   }
-  if (form.assigneeType === 'agent' && props.repositories && props.repositories.length > 0 && !form.repositoryId) {
+  if (agentRequiresRepository.value && props.repositories && props.repositories.length > 0 && !form.repositoryId) {
     error.value = 'Agent requires a repository for code context'
     return
   }

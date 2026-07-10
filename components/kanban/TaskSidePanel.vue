@@ -357,8 +357,8 @@
             </div>
           </div>
 
-          <!-- Repository — visible for agent tasks across all statuses; editable only in backlog -->
-          <div v-if="task.assigneeType === 'agent'" class="mb-6">
+          <!-- Repository — only when the assigned agent requires a worktree; editable only in backlog -->
+          <div v-if="task.assigneeType === 'agent' && agentRequiresRepository" class="mb-6">
             <h5 class="text-xs font-semibold text-surface-500 uppercase mb-2">
               Repository
               <span v-if="isBacklog" class="text-error-500">*</span>
@@ -1827,6 +1827,16 @@ const canStartPreview = computed(() => {
 const isBacklog = computed(() =>
   task.value?.status?.name && /backlog/i.test(task.value.status.name)
 )
+
+const assignedAgent = computed(() => {
+  if (task.value?.assigneeType !== 'agent' || !task.value.assigneeId) return null
+  return props.agents.find(a => a.id === task.value?.assigneeId) ?? null
+})
+
+const agentRequiresRepository = computed(() => {
+  if (task.value?.assigneeType !== 'agent') return false
+  return assignedAgent.value?.repositoryRequired !== false
+})
 
 /** Resolves the repository currently selected on the task, used for read-only display outside backlog */
 const selectedRepository = computed(() =>

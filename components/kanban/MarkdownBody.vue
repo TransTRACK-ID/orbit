@@ -1,5 +1,12 @@
 <template>
+  <p
+    v-if="!content?.trim() && emptyText"
+    class="markdown-body-empty"
+  >
+    {{ emptyText }}
+  </p>
   <div
+    v-else
     ref="root"
     class="markdown-body"
     :class="wrapperClass"
@@ -18,7 +25,10 @@ const props = defineProps<{
 }>()
 
 const root = ref<HTMLElement | null>(null)
-const html = computed(() => parseMarkdown(props.content, { emptyText: props.emptyText }))
+const html = computed(() => {
+  if (!props.content?.trim()) return ''
+  return parseMarkdown(props.content)
+})
 
 useMermaidRender(root, () => props.content)
 </script>

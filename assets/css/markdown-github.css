@@ -5,108 +5,115 @@
   word-wrap: break-word;
 }
 
-.markdown-body :deep(> *:first-child) {
+.markdown-body-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--surface-400, #8e8e93);
+}
+
+.markdown-body > *:first-child {
   margin-top: 0 !important;
 }
 
-.markdown-body :deep(> *:last-child) {
+.markdown-body > *:last-child {
   margin-bottom: 0 !important;
 }
 
-.markdown-body :deep(p) {
+.markdown-body p {
   margin: 0 0 0.75em;
 }
 
-.markdown-body :deep(h1),
-.markdown-body :deep(h2),
-.markdown-body :deep(h3),
-.markdown-body :deep(h4),
-.markdown-body :deep(h5),
-.markdown-body :deep(h6) {
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
   margin: 1.25em 0 0.5em;
   font-weight: 600;
   line-height: 1.25;
 }
 
-.markdown-body :deep(h1) {
+.markdown-body h1 {
   font-size: 1.5em;
   padding-bottom: 0.25em;
   border-bottom: 1px solid var(--surface-200, #e2e8f0);
 }
 
-.markdown-body :deep(h2) {
+.markdown-body h2 {
   font-size: 1.25em;
   padding-bottom: 0.25em;
   border-bottom: 1px solid var(--surface-200, #e2e8f0);
 }
 
-.markdown-body :deep(h3) { font-size: 1.125em; }
-.markdown-body :deep(h4) { font-size: 1em; }
-.markdown-body :deep(h5) { font-size: 0.875em; }
-.markdown-body :deep(h6) { font-size: 0.85em; color: var(--surface-500, #64748b); }
+.markdown-body h3 { font-size: 1.125em; }
+.markdown-body h4 { font-size: 1em; }
+.markdown-body h5 { font-size: 0.875em; }
+.markdown-body h6 { font-size: 0.85em; color: var(--surface-500, #64748b); }
 
-.markdown-body :deep(ul),
-.markdown-body :deep(ol) {
+.markdown-body ul,
+.markdown-body ol {
   margin: 0 0 0.75em;
   padding-left: 1.5em;
 }
 
-.markdown-body :deep(ul) {
+.markdown-body ul {
   list-style-type: disc;
 }
 
-.markdown-body :deep(ol) {
+.markdown-body ol {
   list-style-type: decimal;
 }
 
-.markdown-body :deep(ul ul) {
+.markdown-body ul ul {
   list-style-type: circle;
 }
 
-.markdown-body :deep(ul ul ul) {
+.markdown-body ul ul ul {
   list-style-type: square;
 }
 
-.markdown-body :deep(li) {
+.markdown-body li {
   margin: 0.2em 0;
 }
 
-.markdown-body :deep(li + li) {
+.markdown-body li + li {
   margin-top: 0.15em;
 }
 
-.markdown-body :deep(ul.contains-task-list),
-.markdown-body :deep(ol.contains-task-list) {
+.markdown-body ul.contains-task-list,
+.markdown-body ol.contains-task-list {
   list-style: none;
   padding-left: 0;
 }
 
-.markdown-body :deep(li.task-list-item) {
+.markdown-body li.task-list-item {
   list-style: none;
   display: flex;
   align-items: flex-start;
   gap: 0.4em;
 }
 
-.markdown-body :deep(li.task-list-item input[type='checkbox']) {
+.markdown-body li.task-list-item input[type='checkbox'] {
   margin-top: 0.35em;
   flex-shrink: 0;
 }
 
-.markdown-body :deep(blockquote) {
+.markdown-body blockquote {
   margin: 0 0 0.75em;
   padding: 0 1em;
   border-left: 0.25em solid var(--surface-300, #cbd5e1);
   color: var(--surface-600, #64748b);
 }
 
-.markdown-body :deep(hr) {
+.markdown-body hr {
   margin: 1.25em 0;
   border: 0;
   border-top: 1px solid var(--surface-200, #e2e8f0);
 }
 
-.markdown-body :deep(code) {
+.markdown-body code {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 0.9em;
   background: var(--surface-100, #f1f5f9);
@@ -115,7 +122,7 @@
   border-radius: 4px;
 }
 
-.markdown-body :deep(pre) {
+.markdown-body pre {
   margin: 0 0 0.75em;
   padding: 0.85em 1em;
   overflow-x: auto;
@@ -126,7 +133,7 @@
   border-radius: 8px;
 }
 
-.markdown-body :deep(pre code) {
+.markdown-body pre code {
   background: transparent;
   color: inherit;
   padding: 0;
@@ -134,31 +141,32 @@
   border-radius: 0;
 }
 
-.markdown-body :deep(a) {
-  color: #6366f1;
+.markdown-body a {
+  color: #2563eb;
   text-decoration: underline;
+  text-underline-offset: 2px;
   word-break: break-word;
 }
 
-.markdown-body :deep(a:hover) {
-  color: #4f46e5;
+.markdown-body a:hover {
+  color: #1d4ed8;
 }
 
-.markdown-body :deep(strong) {
+.markdown-body strong {
   font-weight: 600;
 }
 
-.markdown-body :deep(em) {
+.markdown-body em {
   font-style: italic;
 }
 
-.markdown-body :deep(del),
-.markdown-body :deep(s) {
+.markdown-body del,
+.markdown-body s {
   text-decoration: line-through;
   opacity: 0.85;
 }
 
-.markdown-body :deep(img) {
+.markdown-body img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
@@ -166,7 +174,7 @@
   margin: 0.5em 0;
 }
 
-.markdown-body :deep(table) {
+.markdown-body table {
   width: 100%;
   margin: 0 0 0.75em;
   border-collapse: collapse;
@@ -175,96 +183,96 @@
   overflow-x: auto;
 }
 
-.markdown-body :deep(th),
-.markdown-body :deep(td) {
+.markdown-body th,
+.markdown-body td {
   border: 1px solid var(--surface-200, #e2e8f0);
   padding: 0.4em 0.65em;
   text-align: left;
 }
 
-.markdown-body :deep(th) {
+.markdown-body th {
   font-weight: 600;
   background: var(--surface-50, #f8fafc);
 }
 
-.markdown-body :deep(tr:nth-child(even) td) {
+.markdown-body tr:nth-child(even td) {
   background: color-mix(in srgb, var(--surface-50, #f8fafc) 70%, transparent);
 }
 
-.markdown-body :deep(details) {
+.markdown-body details {
   margin: 0.5em 0;
 }
 
-.markdown-body :deep(summary) {
+.markdown-body summary {
   cursor: pointer;
   font-weight: 500;
 }
 
-.markdown-body :deep(.mermaid) {
+.markdown-body .mermaid {
   margin: 0.75em 0;
   overflow-x: auto;
   text-align: center;
 }
 
 /* Dark mode */
-.dark .markdown-body :deep(h1),
-.dark .markdown-body :deep(h2) {
+.dark .markdown-body h1,
+.dark .markdown-body h2 {
   border-bottom-color: var(--surface-700, #334155);
 }
 
-.dark .markdown-body :deep(h6) {
+.dark .markdown-body h6 {
   color: var(--surface-400, #94a3b8);
 }
 
-.dark .markdown-body :deep(blockquote) {
+.dark .markdown-body blockquote {
   border-left-color: var(--surface-600, #475569);
   color: var(--surface-400, #94a3b8);
 }
 
-.dark .markdown-body :deep(hr) {
+.dark .markdown-body hr {
   border-top-color: var(--surface-700, #334155);
 }
 
-.dark .markdown-body :deep(code) {
+.dark .markdown-body code {
   background: var(--surface-800, #1e293b);
   color: var(--surface-100, #f1f5f9);
 }
 
-.dark .markdown-body :deep(pre) {
+.dark .markdown-body pre {
   background: #0b1220;
 }
 
-.dark .markdown-body :deep(a) {
+.dark .markdown-body a {
   color: #a5b4fc;
 }
 
-.dark .markdown-body :deep(a:hover) {
+.dark .markdown-body a:hover {
   color: #c7d2fe;
 }
 
-.dark .markdown-body :deep(img) {
+.dark .markdown-body img {
   border-color: var(--surface-700, #334155);
 }
 
-.dark .markdown-body :deep(th),
-.dark .markdown-body :deep(td) {
+.dark .markdown-body th,
+.dark .markdown-body td {
   border-color: var(--surface-700, #334155);
 }
 
-.dark .markdown-body :deep(th) {
+.dark .markdown-body th {
   background: var(--surface-900, #0f172a);
 }
 
-.dark .markdown-body :deep(tr:nth-child(even) td) {
+.dark .markdown-body tr:nth-child(even td) {
   background: color-mix(in srgb, var(--surface-900, #0f172a) 80%, transparent);
 }
 
 /* Agent reply cards — keep links readable on tinted background */
-.markdown-body.on-agent :deep(a) {
+.markdown-body.on-agent a {
   color: #4f46e5;
 }
 
-.dark .markdown-body.on-agent :deep(a) {
+.dark .markdown-body.on-agent a {
   color: #c7d2fe;
 }
 
@@ -275,7 +283,7 @@
   line-height: 1.55;
 }
 
-.markdown-body.agent-report :deep(h2) {
+.markdown-body.agent-report h2 {
   margin: 1.15rem 0 0.45rem;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--surface-200, #e5e5ea);
@@ -285,43 +293,43 @@
   color: var(--surface-900, #1c1c1e);
 }
 
-.markdown-body.agent-report :deep(h2:first-child),
-.markdown-body.agent-report :deep(> h2:first-child) {
+.markdown-body.agent-report h2:first-child,
+.markdown-body.agent-report > h2:first-child {
   margin-top: 0;
 }
 
-.markdown-body.agent-report :deep(h3) {
+.markdown-body.agent-report h3 {
   margin: 0.9rem 0 0.35rem;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--surface-800, #334155);
 }
 
-.markdown-body.agent-report :deep(p) {
+.markdown-body.agent-report p {
   margin: 0 0 0.65em;
   color: var(--surface-700, #475569);
 }
 
-.markdown-body.agent-report :deep(ul),
-.markdown-body.agent-report :deep(ol) {
+.markdown-body.agent-report ul,
+.markdown-body.agent-report ol {
   margin: 0.2em 0 0.75em;
   padding-left: 1.35em;
 }
 
-.markdown-body.agent-report :deep(ul) {
+.markdown-body.agent-report ul {
   list-style-type: disc;
 }
 
-.markdown-body.agent-report :deep(li) {
+.markdown-body.agent-report li {
   margin: 0.25em 0;
   color: var(--surface-700, #475569);
 }
 
-.markdown-body.agent-report :deep(li > p) {
+.markdown-body.agent-report li > p {
   margin: 0;
 }
 
-.markdown-body.agent-report :deep(code) {
+.markdown-body.agent-report code {
   font-size: 0.85em;
   background: var(--surface-100, #f1f5f9);
   color: var(--surface-800, #1e293b);
@@ -329,7 +337,7 @@
   border-radius: 4px;
 }
 
-.markdown-body.agent-report :deep(pre) {
+.markdown-body.agent-report pre {
   margin: 0.45em 0 0.75em;
   padding: 0.7em 0.85em;
   font-size: 0.8125rem;
@@ -340,38 +348,38 @@
   border-radius: 8px;
 }
 
-.markdown-body.agent-report :deep(pre code) {
+.markdown-body.agent-report pre code {
   background: transparent;
   padding: 0;
   color: inherit;
 }
 
-.markdown-body.agent-report :deep(strong) {
+.markdown-body.agent-report strong {
   font-weight: 600;
   color: var(--surface-800, #334155);
 }
 
-.dark .markdown-body.agent-report :deep(h2) {
+.dark .markdown-body.agent-report h2 {
   color: var(--surface-100, #f1f5f9);
   border-bottom-color: var(--surface-700, #334155);
 }
 
-.dark .markdown-body.agent-report :deep(h3),
-.dark .markdown-body.agent-report :deep(p),
-.dark .markdown-body.agent-report :deep(li) {
+.dark .markdown-body.agent-report h3,
+.dark .markdown-body.agent-report p,
+.dark .markdown-body.agent-report li {
   color: var(--surface-300, #cbd5e1);
 }
 
-.dark .markdown-body.agent-report :deep(strong) {
+.dark .markdown-body.agent-report strong {
   color: var(--surface-200, #e2e8f0);
 }
 
-.dark .markdown-body.agent-report :deep(code) {
+.dark .markdown-body.agent-report code {
   background: var(--surface-800, #1e293b);
   color: var(--surface-100, #f1f5f9);
 }
 
-.dark .markdown-body.agent-report :deep(pre) {
+.dark .markdown-body.agent-report pre {
   background: var(--surface-800, #1e293b);
   color: var(--surface-100, #f1f5f9);
   border-color: var(--surface-700, #334155);

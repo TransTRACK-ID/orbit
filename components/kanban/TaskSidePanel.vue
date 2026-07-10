@@ -453,10 +453,11 @@
                   placeholder="Add a description..."
                   @blur="handleDescriptionBlur"
                 />
-                <div
+                <KanbanMarkdownBody
                   v-else
-                  class="text-sm text-surface-700 min-h-[80px] max-h-[400px] overflow-y-auto markdown-body"
-                  v-html="renderedDescription"
+                  :content="task?.description || ''"
+                  empty-text="No description provided"
+                  wrapper-class="text-sm text-surface-700 min-h-[80px] max-h-[400px] overflow-y-auto"
                 />
               </div>
             </div>
@@ -1637,7 +1638,6 @@
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment } from '~/types'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
-import { parseMarkdown } from '~/utils/markdown'
 import { useDebounceFn } from '@vueuse/core'
 import { nextTick, onMounted, onUnmounted } from 'vue'
 
@@ -2937,12 +2937,6 @@ async function handleFixFeedback() {
     fixingFeedback.value = false
   }
 }
-
-const renderedDescription = computed(() => {
-  const desc = task.value?.description || ''
-  if (!desc.trim()) return '<p class="text-surface-400 italic">No description provided</p>'
-  return parseMarkdown(desc)
-})
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeydown)

@@ -1331,6 +1331,50 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // Auto-advance to Review on successful completion unless the agent already
+      // moved the task via [ORBIT_STATUS: ...] (e.g. to review/done/blocked).
+      // This was removed when ORBIT_STATUS markers were added, which left tasks
+      // stuck in In Progress whenever the agent omitted the marker.
+      if (code === 0 && !wasLoopKill) {
+        try {
+          const currentStatus = await db.query.statuses.findFirst({
+            where: eq(schema.statuses.id, task.statusId),
+          })
+          const alreadySettled = !!currentStatus && /review|done|blocked/i.test(currentStatus.name || '')
+          if (!alreadySettled) {
+            const reviewStatus = await db.query.statuses.findFirst({
+              where: and(
+                eq(schema.statuses.projectId, task.projectId),
+                ilike(schema.statuses.name, '%review%'),
+              ),
+            })
+            if (reviewStatus && task.statusId !== reviewStatus.id) {
+              await db.update(schema.tasks)
+                .set({ statusId: reviewStatus.id })
+                .where(eq(schema.tasks.id, id))
+
+              await db.insert(schema.activityLogs).values({
+                taskId: id,
+                userId: user.id,
+                action: 'agent_completed',
+                newValue: { exitCode: 0, statusId: reviewStatus.id, statusName: reviewStatus.name },
+              })
+
+              await pushToStreams(entry, JSON.stringify({
+                step: `Task status advanced to "${reviewStatus.name}"`,
+                timestamp: Date.now(),
+              }))
+              task.statusId = reviewStatus.id
+            }
+          }
+        } catch (statusErr: any) {
+          await pushToStreams(entry, JSON.stringify({
+            step: `Failed to update task status: ${statusErr.message}`,
+            timestamp: Date.now(),
+          }))
+        }
+      }
+
       if (wasLoopKill) {
         const msg = 'Agent will auto-restart after loop detection'
         await pushToStreams(entry, JSON.stringify({

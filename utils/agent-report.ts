@@ -70,16 +70,57 @@ function isNarrationLine(line: string): boolean {
   return NARRATION_PATTERNS.some(re => re.test(line.trim()))
 }
 
+function stripMarkdownEmphasis(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*\*/g, '')
+    .trim()
+}
+
+function cleanItemValue(value: string): string {
+  return stripMarkdownEmphasis(value.trim())
+}
+
+/** Colon that separates label from value, not a URL scheme (https://). */
+function findKvSplitIndex(text: string): number | null {
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== ':') continue
+    if (i + 1 < text.length && text[i + 1] === '/') continue
+    const before = text.slice(0, i).trimEnd()
+    if (/https?$/i.test(before)) continue
+    if (i + 1 >= text.length) continue
+    return i
+  }
+  return null
+}
+
+function hasLabelValueSeparator(line: string): boolean {
+  const trimmed = line.replace(/^[-*+]\s+/, '').trim()
+  if (/^\*\*[^*]+\*\*:\s*.+/.test(trimmed)) return true
+  return findKvSplitIndex(trimmed) !== null
+}
+
 function parseListItem(line: string): AgentReportListItem {
   const trimmed = line.replace(/^[-*+]\s+/, '').trim()
-  const kv = trimmed.match(/^([^:]+):\s*(.+)$/)
-  if (kv) {
+
+  const boldKv = trimmed.match(/^\*\*([^*]+)\*\*:\s*(.+)$/)
+  if (boldKv) {
     return {
-      label: kv[1].replace(/\*\*/g, '').trim(),
-      value: kv[2].trim(),
+      label: boldKv[1]!.trim(),
+      value: cleanItemValue(boldKv[2]!),
     }
   }
-  return { value: trimmed }
+
+  const splitAt = findKvSplitIndex(trimmed)
+  if (splitAt !== null) {
+    const label = stripMarkdownEmphasis(trimmed.slice(0, splitAt).trim())
+    const value = cleanItemValue(trimmed.slice(splitAt + 1))
+    if (label && value) {
+      return { label, value }
+    }
+  }
+
+  return { value: cleanItemValue(trimmed) }
 }
 
 function splitSentencesToItems(text: string): AgentReportListItem[] {
@@ -99,7 +140,7 @@ function parseSectionBody(body: string, title: string): Omit<AgentReportSection,
   const lines = body.split('\n').map(l => l.trim()).filter(Boolean)
 
   for (const line of lines) {
-    if (/^[-*+]\s/.test(line) || (isListSection && /^[^:]+:\s+.+$/.test(line))) {
+    if (/^[-*+]\s/.test(line) || (isListSection && hasLabelValueSeparator(line))) {
       items.push(parseListItem(line))
       continue
     }
@@ -110,7 +151,7 @@ function parseSectionBody(body: string, title: string): Omit<AgentReportSection,
     }
 
     if (!isNarrationLine(line)) {
-      paragraphs.push(line)
+      paragraphs.push(stripMarkdownEmphasis(line))
     }
   }
 
@@ -256,7 +297,7 @@ export function serializeAgentReportSections(sections: AgentReportSection[]): st
     }
 
     for (const item of section.items) {
-      if (item.label) chunks.push(`- **${item.label}:** ${item.value}`)
+      if (item.label) chunks.push(`- ${item.label}: ${item.value}`)
       else chunks.push(`- ${item.value}`)
     }
 

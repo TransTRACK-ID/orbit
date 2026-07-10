@@ -26,7 +26,7 @@
           class="agent-report-body__list-item"
         >
           <template v-if="item.label">
-            <span class="agent-report-body__label">{{ item.label }}</span>
+            <span class="agent-report-body__label">{{ item.label }}:</span>
             <span v-html="linkify(item.value)" />
           </template>
           <span v-else v-html="linkify(item.value)" />

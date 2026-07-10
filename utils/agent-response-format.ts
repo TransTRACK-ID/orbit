@@ -28,7 +28,7 @@ paste relevant output here
 Formatting rules (strict — comments are rendered as HTML from markdown):
 - Every section title MUST use \`##\` on its own line: \`## Summary\`, \`## Results\`, \`## Evidence\`
 - Put a blank line after each heading before body text or lists
-- Use \`- \` bullet lists for Results and Evidence (one fact per bullet)
+- Use \`- Label: value\` bullets for labeled facts (plain text — do NOT wrap labels in ** bold **)
 - Put URLs as plain https:// links (they become clickable automatically)
 - For screenshots: use \`- Screenshot: <filename>.png\` (filename only, no paths or markdown images)
 - Put emails and short technical values as plain text — do NOT use backticks or inline code

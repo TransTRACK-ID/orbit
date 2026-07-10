@@ -42,9 +42,18 @@ export default defineNitroPlugin(async () => {
       })
 
       if (reviewStatus && task.statusId !== reviewStatus.id) {
+        const oldStatusName = task.status?.name
         await db.update(schema.tasks)
           .set({ statusId: reviewStatus.id })
           .where(eq(schema.tasks.id, task.id))
+
+        await db.insert(schema.activityLogs).values({
+          taskId: task.id,
+          userId: task.reporterId,
+          action: 'status_change',
+          oldValue: { statusId: task.statusId, statusName: oldStatusName },
+          newValue: { statusId: reviewStatus.id, statusName: reviewStatus.name },
+        })
 
         console.log(`[agent-recovery] Task ${task.id} auto-advanced to review (agent_completed log found)`)
       }

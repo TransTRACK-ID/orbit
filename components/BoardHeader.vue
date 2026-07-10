@@ -163,8 +163,9 @@
           </button>
 
           <button
-            data-tooltip-target="new-task"
+            data-orbit-new-task
             class="px-3 py-1.5 rounded-lg border border-surface-200 text-xs font-medium flex items-center gap-1.5 hover:bg-surface-50 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+            title="New Task"
             @click="$emit('createTask')"
           >
             <Icon name="lucide:plus" class="w-3.5 h-3.5" />

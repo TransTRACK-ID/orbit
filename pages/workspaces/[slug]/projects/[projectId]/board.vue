@@ -621,7 +621,7 @@ onMounted(async () => {
   }
 
   // Find the New Task button for tooltip positioning
-  newTaskButtonRef.value = document.querySelector('[data-tooltip-target="new-task"]') as HTMLElement | null
+  newTaskButtonRef.value = document.querySelector('[data-orbit-new-task]') as HTMLElement | null
 })
 
 function handleCreateTask() {

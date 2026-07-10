@@ -3462,6 +3462,10 @@ function formatActivity(log: ActivityLog) {
   switch (log.action) {
     case 'status_change':
       return `moved from "${log.oldValue?.statusName}" to "${log.newValue?.statusName}"`
+    case 'agent_completed':
+      return log.newValue?.statusName
+        ? `completed and moved to "${log.newValue.statusName}"`
+        : 'agent completed'
     case 'assignee_change': {
       const oldType = log.oldValue?.assigneeType
       const newType = log.newValue?.assigneeType

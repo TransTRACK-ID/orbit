@@ -354,5 +354,9 @@ async function onStartRun(payload: {
       await startRuntime(executed.taskId)
     }
   }
+
+  await fetchRuns(selectedProjectId.value)
+  if (workspace.value) await fetchSummary(workspace.value.id)
+  router.replace({ query: { ...route.query, run: run.id } })
 }
 </script>

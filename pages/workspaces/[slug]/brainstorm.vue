@@ -529,6 +529,7 @@ const visibleBrainstorms = computed(() => {
 
 const chatRunningState = ref(false)
 let chatCheckInterval: ReturnType<typeof setInterval> | null = null
+let isSavingReply = false
 
 const currentChatReply = computed(() => {
   if (!currentBrainstorm.value) return ''
@@ -610,9 +611,8 @@ async function loadBrainstorm(id: string) {
 
 function startChatCheck() {
   if (chatCheckInterval) clearInterval(chatCheckInterval)
-  let isSaving = false
   chatCheckInterval = setInterval(async () => {
-    if (!currentBrainstorm.value || isSaving) return
+    if (!currentBrainstorm.value || isSavingReply) return
     const bsId = currentBrainstorm.value.id
     const running = isChatRunning(bsId)
 
@@ -623,11 +623,11 @@ function startChatCheck() {
       clearChatStep(bsId)
 
       if (reply.trim()) {
-        isSaving = true
+        isSavingReply = true
         try {
           await saveAssistantMessage(bsId, reply.trim())
         } finally {
-          isSaving = false
+          isSavingReply = false
         }
       }
     }
@@ -789,9 +789,14 @@ async function handleSend(content: string) {
 
   // Save any in-progress reply before starting a new chat
   const existingReply = getChatReply(bsId)
-  if (existingReply.trim()) {
-    await saveAssistantMessage(bsId, existingReply.trim())
+  if (existingReply.trim() && !isSavingReply) {
     clearChatReply(bsId)
+    isSavingReply = true
+    try {
+      await saveAssistantMessage(bsId, existingReply.trim())
+    } finally {
+      isSavingReply = false
+    }
   }
   clearChatStep(bsId)
 

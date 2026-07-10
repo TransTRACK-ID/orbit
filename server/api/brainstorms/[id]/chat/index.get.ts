@@ -24,8 +24,14 @@ import { GRILLING_RULES, buildGrillChatMessage } from '~/server/utils/grill-prom
 import { canStartGrillAgentTurn } from '~/server/utils/grill-state'
 import { extractGrillDecisionsFromMessages, formatResolvedDecisionsForChat } from '~/utils/grill-decisions'
 import { buildBrainstormAttachmentPrompt } from '~/server/utils/brainstorm-attachments'
+import { processOpencodeLine } from '~/server/utils/opencode-parser'
+import { dedupeRepeatedReportSections } from '~/utils/agent-comment'
 const projectsDir = `${process.env.HOME || '/Users/zeinersyad'}/orbit-projects`
 const MAX_RUNTIME_MS = 10 * 60 * 1000 // 10 minutes max per brainstorm chat
+
+function dedupeAgentReply(text: string): string {
+  return dedupeRepeatedReportSections(text.trim())
+}
 
 function extractRepoName(url: string): string {
   const match = url.match(/\/([^/]+?)(\.git)?$/)
@@ -357,7 +363,8 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
             lastActivity = Date.now()
             hasOutput = true
             const payload: any = { step: 'cursor content', timestamp: Date.now() }
-            if (accumulated.trim()) payload.agentReply = accumulated.trim()
+            const deduped = dedupeAgentReply(accumulated)
+            if (deduped) payload.agentReply = deduped
             await pushToBrainstormStreams(entry, JSON.stringify(payload))
           },
           onActivity: async (activity) => {
@@ -479,6 +486,7 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     let hasOutput = false
     let lastActivity = Date.now()
     let lineBuffer = ''
+    const opencodeAccumulator = { value: '' }
 
     const heartbeat = setInterval(async () => {
       const idle = Math.round((Date.now() - lastActivity) / 1000)
@@ -511,18 +519,17 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
 
     const parseAndPush = async (line: string) => {
         if (!line.trim()) return
+        const beforeLen = opencodeAccumulator.value.length
+        let logMsg = ''
         try {
           const evt = JSON.parse(line)
           const part = evt.part
-          let logMsg = ''
-          let fullText = ''
 
           switch (evt.type) {
             case 'step_start':
               logMsg = 'Step started'
               break
             case 'text':
-              fullText = typeof part === 'string' ? part : part.text || part.content || ''
               logMsg = formatTextEvent(part)
               break
             case 'step_finish':
@@ -542,21 +549,21 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
               }
           }
 
-          if (logMsg || fullText) {
-            hasOutput = true
-            lastActivity = Date.now()
-            const payload: any = { step: logMsg, timestamp: Date.now() }
-            if (fullText) payload.agentReply = fullText.trim()
-            await pushToBrainstormStreams(entry, JSON.stringify(payload))
-          }
+          processOpencodeLine(line.trim(), opencodeAccumulator)
         } catch {
-          lastActivity = Date.now()
+          processOpencodeLine(line.trim(), opencodeAccumulator)
           const raw = line.trim().slice(0, 200)
-          if (raw) {
-            hasOutput = true
-            const msg = `${runtimeLabel} output: ${raw}`
-            await pushToBrainstormStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
-          }
+          if (raw) logMsg = `${runtimeLabel} output: ${raw}`
+        }
+
+        const accumulated = opencodeAccumulator.value.length > beforeLen
+        const deduped = dedupeAgentReply(opencodeAccumulator.value)
+        if (logMsg || accumulated) {
+          hasOutput = true
+          lastActivity = Date.now()
+          const payload: any = { step: logMsg, timestamp: Date.now() }
+          if (deduped) payload.agentReply = deduped
+          await pushToBrainstormStreams(entry, JSON.stringify(payload))
         }
       }
 
@@ -587,6 +594,10 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     })
 
     proc.on('close', async (code, signal) => {
+      if (lineBuffer.trim()) {
+        await parseAndPush(lineBuffer.trim())
+        lineBuffer = ''
+      }
       let msg: string
       if (signal) {
         msg = `Terminated by ${signal}`

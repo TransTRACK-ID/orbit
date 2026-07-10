@@ -1,4 +1,5 @@
 import type { Brainstorm, BrainstormMessage, Task, BrainstormAttachment, BrainstormMode } from '~/types'
+import { dedupeRepeatedReportSections } from '~/utils/agent-comment'
 
 const brainstorms = ref<Brainstorm[]>([])
 const currentBrainstorm = ref<Brainstorm | null>(null)
@@ -107,6 +108,9 @@ export const useBrainstorm = () => {
   }
 
   async function saveAssistantMessage(brainstormId: string, content: string) {
+    const normalized = dedupeRepeatedReportSections(content.trim())
+    if (!normalized) return
+
     try {
       const result = await $fetch<{
         message: BrainstormMessage
@@ -114,7 +118,7 @@ export const useBrainstorm = () => {
         warning?: string
       }>(`/api/brainstorms/${brainstormId}/messages/assistant`, {
         method: 'POST',
-        body: { content },
+        body: { content: normalized },
       })
       messages.value.push(result.message)
       applyBrainstormUpdate(brainstormId, result.brainstorm)
@@ -177,6 +181,7 @@ export const useBrainstorm = () => {
           } else if (!replyBuffer || !replyBuffer.endsWith(next)) {
             replyBuffer += next
           }
+          replyBuffer = dedupeRepeatedReportSections(replyBuffer)
           chatReplies.value = { ...chatReplies.value, [brainstormId]: replyBuffer }
         }
       } catch {}

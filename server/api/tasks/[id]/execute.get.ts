@@ -69,6 +69,20 @@ async function getLatestChangesContext(workDir: string, repoDefaultBranch: strin
 
 const ORBIT_STATUS_MARKER_RE = /\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i
 
+/** Prefer the latest marker when the agent emits multiple status updates. */
+function getLastOrbitStatusMatch(text: string): RegExpMatchArray | null {
+  const globalRe = new RegExp(ORBIT_STATUS_MARKER_RE.source, 'gi')
+  let last: RegExpMatchArray | null = null
+  for (const match of text.matchAll(globalRe)) {
+    last = match
+  }
+  return last
+}
+
+function stripAllOrbitStatusMarkers(text: string): string {
+  return text.replace(new RegExp(ORBIT_STATUS_MARKER_RE.source, 'gi'), '').trim()
+}
+
 /** Resolve a project status from an agent marker like "review" or "in_progress". */
 async function resolveProjectStatusByName(
   db: ReturnType<typeof getDb>,
@@ -1448,8 +1462,9 @@ export default defineEventHandler(async (event) => {
       // omits the marker (regression after ORBIT_STATUS was introduced).
       if (code === 0 && !wasLoopKill) {
         try {
-          const finalStatusMatch = (rawAgentStreamText || agentReplyContent || '')
-            .match(ORBIT_STATUS_MARKER_RE)
+          const finalStatusMatch = getLastOrbitStatusMatch(
+            rawAgentStreamText || agentReplyContent || '',
+          )
           if (finalStatusMatch) {
             const applied = await applyAgentRequestedStatus({
               db,
@@ -1844,7 +1859,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
             lastActivity = Date.now()
             hasOutput = true
             let fullText = accumulated
-            const statusMatch = fullText.match(ORBIT_STATUS_MARKER_RE)
+            const statusMatch = getLastOrbitStatusMatch(fullText)
             if (statusMatch) {
               try {
                 const applied = await applyAgentRequestedStatus({
@@ -1866,7 +1881,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
                   timestamp: Date.now(),
                 }))
               }
-              fullText = fullText.replace(ORBIT_STATUS_MARKER_RE, '').trim()
+              fullText = stripAllOrbitStatusMarkers(fullText)
             }
             const extracted = applyAgentStreamText(fullText)
             const payload: any = { step: 'cursor content', timestamp: Date.now() }
@@ -2165,7 +2180,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
               // so we track the latest text as the agent's reply.
               if (fullText) {
                 // Detect status change markers from the agent
-                const statusMatch = fullText.match(ORBIT_STATUS_MARKER_RE)
+                const statusMatch = getLastOrbitStatusMatch(fullText)
                 if (statusMatch) {
                   try {
                     const applied = await applyAgentRequestedStatus({
@@ -2188,7 +2203,7 @@ The status_name should match one of the existing statuses in the project (e.g., 
                     }))
                   }
                   // Remove the marker from the displayed text
-                  fullText = fullText.replace(ORBIT_STATUS_MARKER_RE, '').trim()
+                  fullText = stripAllOrbitStatusMarkers(fullText)
                 }
                 applyAgentStreamText(fullText)
               }

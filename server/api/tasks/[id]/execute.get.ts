@@ -67,6 +67,117 @@ async function getLatestChangesContext(workDir: string, repoDefaultBranch: strin
   }
 }
 
+const ORBIT_STATUS_MARKER_RE = /\[ORBIT_STATUS:\s*([a-zA-Z_\- ]+)\s*\]/i
+
+/** Resolve a project status from an agent marker like "review" or "in_progress". */
+async function resolveProjectStatusByName(
+  db: ReturnType<typeof getDb>,
+  projectId: string,
+  desiredRaw: string,
+) {
+  const desired = desiredRaw.trim().toLowerCase()
+  if (!desired) return null
+
+  const spaced = desired.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const compact = desired.replace(/[\s_-]+/g, '')
+  const candidates = [...new Set([desired, spaced].filter(Boolean))]
+
+  for (const candidate of candidates) {
+    const exact = await db.query.statuses.findFirst({
+      where: and(
+        eq(schema.statuses.projectId, projectId),
+        ilike(schema.statuses.name, candidate),
+      ),
+    })
+    if (exact) return exact
+  }
+
+  for (const candidate of candidates) {
+    const partial = await db.query.statuses.findFirst({
+      where: and(
+        eq(schema.statuses.projectId, projectId),
+        ilike(schema.statuses.name, `%${candidate}%`),
+      ),
+    })
+    if (partial) return partial
+  }
+
+  // Fuzzy: "in_progress" / "in-progress" → "In Progress"
+  const fuzzyPattern = spaced.replace(/\s+/g, '%')
+  if (fuzzyPattern && fuzzyPattern !== spaced) {
+    const fuzzy = await db.query.statuses.findFirst({
+      where: and(
+        eq(schema.statuses.projectId, projectId),
+        ilike(schema.statuses.name, `%${fuzzyPattern}%`),
+      ),
+    })
+    if (fuzzy) return fuzzy
+  }
+
+  const all = await db.query.statuses.findMany({
+    where: eq(schema.statuses.projectId, projectId),
+  })
+  return all.find((s) => (s.name || '').toLowerCase().replace(/[\s_-]+/g, '') === compact) || null
+}
+
+/** Apply an agent-requested status change and record activity. */
+async function applyAgentRequestedStatus(opts: {
+  db: ReturnType<typeof getDb>
+  taskId: string
+  projectId: string
+  currentStatusId: string
+  desiredStatusName: string
+  userId: string
+  push?: (step: string) => Promise<void>
+  persist?: (step: string) => void
+}): Promise<{ statusId: string, statusName: string } | null> {
+  const {
+    db,
+    taskId,
+    projectId,
+    currentStatusId,
+    desiredStatusName,
+    userId,
+    push,
+    persist,
+  } = opts
+
+  const targetStatus = await resolveProjectStatusByName(db, projectId, desiredStatusName)
+  if (!targetStatus) {
+    const msg = `Status "${desiredStatusName}" not found in project`
+    await push?.(msg)
+    persist?.(msg)
+    return null
+  }
+
+  if (currentStatusId === targetStatus.id) {
+    const msg = `Status already "${targetStatus.name}" — no change needed`
+    await push?.(msg)
+    return { statusId: targetStatus.id, statusName: targetStatus.name }
+  }
+
+  const oldStatus = await db.query.statuses.findFirst({
+    where: eq(schema.statuses.id, currentStatusId),
+  })
+
+  await db.update(schema.tasks)
+    .set({ statusId: targetStatus.id })
+    .where(eq(schema.tasks.id, taskId))
+
+  await db.insert(schema.activityLogs).values({
+    taskId,
+    userId,
+    action: 'status_change',
+    oldValue: { statusId: currentStatusId, statusName: oldStatus?.name },
+    newValue: { statusId: targetStatus.id, statusName: targetStatus.name },
+  })
+
+  const msg = `Agent changed status to "${targetStatus.name}"`
+  await push?.(msg)
+  persist?.(msg)
+  return { statusId: targetStatus.id, statusName: targetStatus.name }
+}
+
 /** Fetch sibling task contexts and build a [SIBLING TASKS CONTEXT] block for the agent */
 async function getSiblingContextBlock(
   taskId: string,

@@ -1,6 +1,7 @@
 <template>
   <div
     ref="root"
+    class="markdown-body"
     :class="wrapperClass"
     v-html="html"
   />

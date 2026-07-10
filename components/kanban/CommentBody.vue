@@ -1,5 +1,5 @@
 <template>
-  <div class="comment-collapse" :class="{ 'is-collapsed': isCollapsed }">
+  <div class="comment-collapse" :class="{ 'is-collapsed': isCollapsed, 'on-agent': onAgent }">
     <div
       ref="bodyRef"
       class="comment-collapse__inner"
@@ -8,7 +8,7 @@
       <KanbanMarkdownBody
         :content="content"
         :empty-text="emptyText"
-        :wrapper-class="wrapperClass"
+        :wrapper-class="mergedWrapperClass"
       />
     </div>
 
@@ -51,13 +51,20 @@ const props = withDefaults(defineProps<{
   content: string
   wrapperClass?: string
   emptyText?: string
+  /** Agent reply card — adjusts collapse fade for purple tint. */
+  onAgent?: boolean
   /** Max height in px before the body collapses. */
   collapseThreshold?: number
 }>(), {
   collapseThreshold: 120,
+  onAgent: false,
 })
 
 const bodyRef = ref<HTMLElement | null>(null)
+
+const mergedWrapperClass = computed(() => {
+  return [props.wrapperClass, props.onAgent ? 'on-agent' : ''].filter(Boolean).join(' ')
+})
 
 /** True natural (scroll) height of the rendered body, tracked live. */
 const naturalHeight = ref(0)

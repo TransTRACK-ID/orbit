@@ -455,7 +455,7 @@
                 />
                 <div
                   v-else
-                  class="text-sm text-surface-700 min-h-[80px] max-h-[400px] overflow-y-auto prose prose-sm max-w-none"
+                  class="text-sm text-surface-700 min-h-[80px] max-h-[400px] overflow-y-auto markdown-body"
                   v-html="renderedDescription"
                 />
               </div>
@@ -723,7 +723,7 @@
                     </div>
                     <KanbanCommentBody
                       :content="comment.body"
-                      wrapper-class="text-sm text-surface-700 leading-relaxed comment-body"
+                      wrapper-class="text-sm text-surface-700"
                     />
                   </div>
                 </div>
@@ -747,8 +747,8 @@
                     </div>
                     <KanbanCommentBody
                       :content="comment.body"
-                      wrapper-class="text-sm text-primary-800 leading-relaxed comment-body"
-                      on-agent
+                      wrapper-class="text-sm text-primary-800"
+                      :on-agent="true"
                     />
                   </div>
                 </div>
@@ -1189,7 +1189,7 @@
                       </div>
                       <KanbanMarkdownBody
                         :content="comment.body"
-                        wrapper-class="text-[11px] text-surface-600 leading-relaxed review-feedback-body comment-body"
+                        wrapper-class="text-[11px] text-surface-600 review-feedback-body"
                       />
                     </div>
                   </div>

@@ -32,6 +32,22 @@ marked.use({
   },
 })
 
+function normalizeMarkdownInput(md: string): string {
+  let text = md.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim()
+  if (!text) return text
+
+  // Unicode bullets → markdown list markers
+  text = text.replace(/^[\t ]*[•●▪◦]\s+/gm, '- ')
+
+  // Blank line before block elements (GFM is picky without these)
+  text = text.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2')
+  text = text.replace(/([^\n])\n([-*+] |\d+\. )/g, '$1\n\n$2')
+  text = text.replace(/([^\n])\n(```)/g, '$1\n\n$2')
+  text = text.replace(/([^\n])\n(>\s)/g, '$1\n\n$2')
+
+  return text
+}
+
 export interface ParseMarkdownOptions {
   /** Returned when input is empty. Defaults to empty string. */
   emptyText?: string
@@ -44,6 +60,6 @@ export interface ParseMarkdownOptions {
 export function parseMarkdown(md: string, options?: ParseMarkdownOptions): string {
   if (!md?.trim()) return options?.emptyText ?? ''
 
-  const normalized = md.replace(/\\n/g, '\n')
+  const normalized = normalizeMarkdownInput(md)
   return marked.parse(normalized, { async: false }) as string
 }

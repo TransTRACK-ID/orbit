@@ -34,7 +34,7 @@
     <div
       v-else
       ref="previewRoot"
-      class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white rounded-lg text-sm min-h-[80px] prose prose-sm max-w-none text-surface-700"
+      class="py-2.5 px-3.5 block w-full border border-surface-200 bg-white rounded-lg text-sm min-h-[80px] markdown-body text-surface-700"
       v-html="rendered"
     />
   </div>

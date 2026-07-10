@@ -173,6 +173,7 @@ import {
 import { getPreviewStatus } from '~/server/utils/preview-orchestrator'
 import { getDiffSummary } from '~/server/utils/git-summary'
 import { generateConventionalCommit } from '~/server/utils/conventional-commit'
+import { AGENT_RESPONSE_MARKDOWN_RULE } from '~/utils/agent-response-format'
 
 function generateCommitMessageFromDiff(diffContent: string, changedFiles: string[]): string {
   return generateConventionalCommit(diffContent, changedFiles)
@@ -1404,12 +1405,7 @@ CRITICAL: You must NEVER read, access, copy, or reveal any files outside the cur
     const databaseRule = `[DATABASE CONSTRAINTS]
 CRITICAL: You do NOT have access to database credentials, .env files, or any database connection. You must NEVER attempt to run database migrations, schema generation, or any database-related CLI commands (such as drizzle-kit generate, drizzle-kit push, db:migrate, prisma migrate, etc.). You must NEVER create or modify files in any migrations/ directory. If a task involves database schema changes, ONLY update the TypeScript schema definition files — do NOT attempt to generate or run migrations. The user will handle all database operations separately.`
 
-    const markdownRule = `[RESPONSE FORMATTING]
-When summarizing changes or showing code in your responses, use proper markdown formatting:
-- Use fenced code blocks (\`\`\`language\n code \n\`\`\`) for multi-line code snippets — NEVER use single backticks for multi-line code.
-- Use inline code (\`code\`) only for short single identifiers, file names, or variable names.
-- Use bullet points and clear headings to organize your summary.
-This ensures your response is readable in the UI.`
+    const markdownRule = AGENT_RESPONSE_MARKDOWN_RULE
 
     const statusRule = `[STATUS CONTROL]
 You have the ability to change the task status at any time during your work. When you have completed a meaningful phase of work or when the task state changes (e.g., moving from implementation to review, or when blocked), emit exactly:

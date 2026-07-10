@@ -70,7 +70,7 @@ export default defineNuxtConfig({
     '~/components',
   ],
 
-  css: ['~/assets/css/main.css'],
+  css: ['~/assets/css/main.css', '~/assets/css/markdown-github.css'],
 
   postcss: {
     plugins: {

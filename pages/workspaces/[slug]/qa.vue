@@ -128,6 +128,7 @@
           <QaRunList
             :runs="runs"
             :selected-id="selectedRunId"
+            @select="onSelectRun"
           />
         </div>
         <div class="flex-1 p-3 min-w-0 overflow-hidden">

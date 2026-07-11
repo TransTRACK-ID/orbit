@@ -1426,6 +1426,7 @@ export default defineEventHandler(async (event) => {
           await applyQaResultsFromAgentReply({
             taskId: id,
             agentReply: agentReplyContent || '',
+            rawAgentReply: rawAgentStreamText || undefined,
             screenshotPaths,
           })
         } catch (qaErr: any) {

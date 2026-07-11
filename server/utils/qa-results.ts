@@ -10,23 +10,58 @@ import type { QaResultPayload, QaRunCaseStatus, QaRunStatus } from '~/types'
 
 const QA_ATTACHMENTS_DIR = path.join(ATTACHMENTS_DIR, 'qa-runs')
 
+function isQaResultPayload(parsed: unknown): parsed is QaResultPayload {
+  if (!parsed || typeof parsed !== 'object') return false
+  const record = parsed as Record<string, unknown>
+  return typeof record.verdict === 'string' && Array.isArray(record.cases)
+}
+
+function tryParseQaResultPayload(jsonText: string): QaResultPayload | null {
+  try {
+    const parsed = JSON.parse(jsonText.trim())
+    return isQaResultPayload(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 export function extractQaResultPayload(rawText: string): QaResultPayload | null {
   if (!rawText?.trim()) return null
 
   // Prefer explicit ```json qa-result fences
   const labeled = /```json\s*qa-result\s*\n([\s\S]*?)```/i.exec(rawText)
   if (labeled) {
-    try {
-      return JSON.parse(labeled[1].trim()) as QaResultPayload
-    } catch {
-      // fall through
+    const payload = tryParseQaResultPayload(labeled[1])
+    if (payload) return payload
+  }
+
+  // Any fenced JSON block that matches the QA result contract
+  const fenceRegex = /```(?:json)?\s*(?:qa-result\s*)?\n([\s\S]*?)```/gi
+  let fenceMatch: RegExpExecArray | null
+  while ((fenceMatch = fenceRegex.exec(rawText)) !== null) {
+    const payload = tryParseQaResultPayload(fenceMatch[1])
+    if (payload) return payload
+  }
+
+  // Scan balanced JSON objects from the end (agents often append qa-result last)
+  const lastBrace = rawText.lastIndexOf('}')
+  if (lastBrace !== -1) {
+    let braceCount = 1
+    for (let i = lastBrace - 1; i >= 0; i--) {
+      if (rawText[i] === '}') braceCount++
+      else if (rawText[i] === '{') braceCount--
+      if (braceCount === 0) {
+        const payload = tryParseQaResultPayload(rawText.slice(i, lastBrace + 1))
+        if (payload) return payload
+        break
+      }
     }
   }
 
   try {
-    const parsed = extractJsonFromAiResponse<any>(rawText)
-    if (parsed && Array.isArray(parsed.cases) && parsed.verdict) {
-      return parsed as QaResultPayload
+    const parsed = extractJsonFromAiResponse<unknown>(rawText)
+    if (isQaResultPayload(parsed)) {
+      return parsed
     }
   } catch {
     // ignore
@@ -159,6 +194,8 @@ export async function applyQaResultPayload(opts: {
 export async function applyQaResultsFromAgentReply(opts: {
   taskId: string
   agentReply: string
+  /** Unformatted agent output — preferred for qa-result JSON extraction */
+  rawAgentReply?: string
   screenshotPaths: string[]
 }) {
   const db = getDb()
@@ -167,9 +204,13 @@ export async function applyQaResultsFromAgentReply(opts: {
   })
   if (!run) return null
 
-  const payload = extractQaResultPayload(opts.agentReply)
+  const sourceText = opts.rawAgentReply?.trim() || opts.agentReply
+  const payload = extractQaResultPayload(sourceText)
+    || (opts.rawAgentReply?.trim() && opts.agentReply.trim() && opts.rawAgentReply !== opts.agentReply
+      ? extractQaResultPayload(opts.agentReply)
+      : null)
   if (!payload) {
-    if (!opts.agentReply.trim()) return null
+    if (!sourceText.trim()) return null
     // Mark run finished based on case states if agent didn't emit structured JSON
     await finishQaRun(run.id, {
       status: 'failed',

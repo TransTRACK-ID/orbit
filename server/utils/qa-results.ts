@@ -1,7 +1,7 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, statSync } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { getDb, schema } from '~/server/database'
 import { ATTACHMENTS_DIR } from '~/server/utils/task-attachment-files'
 import { extractJsonFromAiResponse } from '~/server/utils/parse-ai-json'
@@ -78,6 +78,47 @@ function mimeFromFilename(filename: string): string {
   return 'application/octet-stream'
 }
 
+function lookupScreenshotPath(
+  name: string,
+  screenshotLookup?: Map<string, string>,
+  taskAttachmentLookup?: Map<string, string>,
+): string | undefined {
+  const base = path.basename(name)
+  return screenshotLookup?.get(base)
+    || screenshotLookup?.get(name)
+    || taskAttachmentLookup?.get(base.toLowerCase())
+    || taskAttachmentLookup?.get(name.toLowerCase())
+}
+
+export async function resolveQaAttachmentFile(
+  attachment: {
+    path: string
+    mimeType: string
+    originalName: string
+    runCase?: { run?: { taskId: string | null } | null } | null
+  },
+) {
+  if (existsSync(attachment.path)) {
+    return { path: attachment.path, mimeType: attachment.mimeType }
+  }
+
+  const taskId = attachment.runCase?.run?.taskId
+  if (!taskId) return null
+
+  const db = getDb()
+  const taskAtt = await db.query.taskAttachments.findFirst({
+    where: and(
+      eq(schema.taskAttachments.taskId, taskId),
+      eq(schema.taskAttachments.originalName, attachment.originalName),
+    ),
+  })
+  if (taskAtt && existsSync(taskAtt.path)) {
+    return { path: taskAtt.path, mimeType: taskAtt.mimeType }
+  }
+
+  return null
+}
+
 export async function attachQaEvidenceFromPath(opts: {
   runCaseId: string
   sourcePath: string
@@ -88,6 +129,11 @@ export async function attachQaEvidenceFromPath(opts: {
     throw createError({ statusCode: 400, statusMessage: 'Screenshot file not found' })
   }
 
+  const sizeOnDisk = statSync(opts.sourcePath).size
+  if (sizeOnDisk === 0) {
+    throw createError({ statusCode: 400, statusMessage: 'Screenshot file is empty' })
+  }
+
   const originalName = opts.originalName || path.basename(opts.sourcePath)
   const ext = path.extname(originalName) || '.png'
   const filename = `${randomUUID()}${ext}`
@@ -96,6 +142,9 @@ export async function attachQaEvidenceFromPath(opts: {
   const destPath = path.join(destDir, filename)
   copyFileSync(opts.sourcePath, destPath)
   const size = statSync(destPath).size
+  if (size === 0) {
+    throw createError({ statusCode: 400, statusMessage: 'Screenshot copy produced an empty file' })
+  }
 
   const [row] = await db
     .insert(schema.qaRunAttachments)
@@ -116,6 +165,7 @@ export async function applyQaResultPayload(opts: {
   runId: string
   payload: QaResultPayload
   screenshotLookup?: Map<string, string> // basename -> absolute path
+  taskAttachmentLookup?: Map<string, string> // originalName (lower) -> absolute path
 }) {
   const db = getDb()
   const run = await db.query.qaRuns.findFirst({
@@ -145,17 +195,34 @@ export async function applyQaResultPayload(opts: {
       })
       .where(eq(schema.qaRunCases.id, runCase.id))
 
-    if (opts.screenshotLookup && result.screenshots?.length) {
+    if (result.screenshots?.length) {
+      const existing = await db.query.qaRunAttachments.findMany({
+        where: eq(schema.qaRunAttachments.runCaseId, runCase.id),
+        columns: { originalName: true },
+      })
+      const existingNames = new Set(existing.map((a) => a.originalName.toLowerCase()))
+
       for (const shotName of result.screenshots) {
-        const abs = opts.screenshotLookup.get(path.basename(shotName))
-          || opts.screenshotLookup.get(shotName)
-        if (!abs) continue
+        const originalName = path.basename(shotName)
+        if (existingNames.has(originalName.toLowerCase())) continue
+
+        const abs = lookupScreenshotPath(
+          shotName,
+          opts.screenshotLookup,
+          opts.taskAttachmentLookup,
+        )
+        if (!abs) {
+          console.warn('[qa-results] Screenshot not found for QA evidence:', shotName)
+          continue
+        }
+
         try {
           await attachQaEvidenceFromPath({
             runCaseId: runCase.id,
             sourcePath: abs,
-            originalName: path.basename(shotName),
+            originalName,
           })
+          existingNames.add(originalName.toLowerCase())
         } catch (err) {
           console.error('[qa-results] Failed to attach screenshot:', err)
         }
@@ -224,13 +291,20 @@ export async function applyQaResultsFromAgentReply(opts: {
     screenshotLookup.set(path.basename(p), p)
   }
 
+  const taskAttachments = await db.query.taskAttachments.findMany({
+    where: eq(schema.taskAttachments.taskId, opts.taskId),
+    columns: { originalName: true, path: true },
+  })
+  const taskAttachmentLookup = new Map<string, string>()
+  for (const att of taskAttachments) {
+    taskAttachmentLookup.set(att.originalName.toLowerCase(), att.path)
+    taskAttachmentLookup.set(path.basename(att.originalName).toLowerCase(), att.path)
+  }
+
   return applyQaResultPayload({
     runId: run.id,
     payload,
     screenshotLookup,
+    taskAttachmentLookup,
   })
-}
-
-export function readQaAttachmentBuffer(filePath: string): Buffer {
-  return readFileSync(filePath)
 }

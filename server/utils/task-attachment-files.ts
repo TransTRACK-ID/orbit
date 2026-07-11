@@ -5,7 +5,8 @@ import type { getDb } from '~/server/database'
 import { schema } from '~/server/database'
 
 export const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024 // 10 MB
-export const ATTACHMENTS_DIR = `${process.env.HOME || '/Users/zeinersyad'}/orbit-attachments`
+export const ATTACHMENTS_DIR = process.env.ORBIT_ATTACHMENTS_DIR
+  || `${process.env.HOME || '/Users/zeinersyad'}/orbit-attachments`
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 

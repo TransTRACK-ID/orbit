@@ -1,8 +1,8 @@
 import { requireProjectAccess } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
-import { readQaAttachmentBuffer } from '~/server/utils/qa-results'
+import { resolveQaAttachmentFile } from '~/server/utils/qa-results'
 import { eq } from 'drizzle-orm'
-import { existsSync } from 'fs'
+import { createReadStream } from 'fs'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -23,11 +23,14 @@ export default defineEventHandler(async (event) => {
 
   await requireProjectAccess(event, attachment.runCase.run.projectId)
 
-  if (!existsSync(attachment.path)) {
+  const resolved = await resolveQaAttachmentFile(attachment)
+  if (!resolved) {
     throw createError({ statusCode: 404, statusMessage: 'Attachment file missing' })
   }
 
-  setHeader(event, 'Content-Type', attachment.mimeType)
+  setHeader(event, 'Content-Type', resolved.mimeType)
   setHeader(event, 'Content-Disposition', `inline; filename="${attachment.originalName}"`)
-  return readQaAttachmentBuffer(attachment.path)
+  setHeader(event, 'Cache-Control', 'private, max-age=86400')
+
+  return sendStream(event, createReadStream(resolved.path))
 })

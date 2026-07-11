@@ -119,13 +119,18 @@ function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
               :key="att.id"
               :href="`/api/qa/attachments/${att.id}`"
               target="_blank"
-              class="block w-16 h-16 rounded-lg overflow-hidden border border-surface-200"
+              class="block w-20 rounded-lg overflow-hidden border border-surface-200 bg-surface-50"
+              :title="att.originalName"
             >
               <img
                 :src="`/api/qa/attachments/${att.id}`"
                 :alt="att.originalName"
-                class="w-full h-full object-cover"
+                class="w-full h-16 object-cover object-top"
+                loading="lazy"
               />
+              <span class="block px-1 py-0.5 text-[9px] text-surface-500 truncate border-t border-surface-100">
+                {{ att.originalName }}
+              </span>
             </a>
           </div>
         </div>

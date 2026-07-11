@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col flex-1 min-h-0 overflow-hidden bg-surface-50">
-    <div class="flex items-center gap-3 px-4 sm:px-6 py-3.5 border-b border-surface-200 bg-white flex-shrink-0">
-      <div class="flex items-center gap-2.5 min-w-0">
+    <div class="relative z-20 flex items-center gap-3 px-4 sm:px-6 py-3.5 border-b border-surface-200 bg-white flex-shrink-0">
+      <div class="flex items-center gap-2.5 min-w-0 shrink">
         <div
           class="w-8 h-8 rounded-lg flex items-center justify-center text-white flex-shrink-0"
           style="background: #0EA5E9"
@@ -9,12 +9,12 @@
           <Icon name="lucide:flask-conical" class="w-4 h-4" />
         </div>
         <h2 class="text-sm font-semibold text-surface-900 flex-shrink-0">QA</h2>
-        <span v-if="summary" class="text-xs text-surface-500 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0">
+        <span v-if="summary" class="text-xs text-surface-500 bg-surface-100 px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">
           {{ summary.caseCount }} cases · {{ summary.runCount }} runs
         </span>
       </div>
 
-      <div class="flex items-center gap-2 ml-auto">
+      <div class="flex items-center gap-2 ml-auto flex-shrink-0 overflow-x-auto max-w-[min(100%,42rem)]">
         <QaProjectPicker
           v-model="selectedProjectId"
           :projects="projects"
@@ -37,9 +37,9 @@
 
         <button
           type="button"
-          class="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sky-700 transition-colors"
           :disabled="!selectedProjectId || projectLoading"
-          @click="showStartRun = true"
+          @click="openStartRun"
         >
           <Icon name="lucide:play" class="w-3 h-3" />
           Start run
@@ -213,6 +213,11 @@ const selectedRunId = ref<string | null>(null)
 const pageLoading = ref(true)
 const projectLoading = ref(false)
 const showStartRun = ref(false)
+
+function openStartRun() {
+  if (!selectedProjectId.value || projectLoading.value) return
+  showStartRun.value = true
+}
 
 const creatingSuite = ref(false)
 const deletingSuiteId = ref<string | null>(null)

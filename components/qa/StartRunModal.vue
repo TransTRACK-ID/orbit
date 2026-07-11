@@ -149,11 +149,12 @@ async function submit() {
 </script>
 
 <template>
-  <div
-    v-if="open"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-    @click.self="emit('close')"
-  >
+  <Teleport to="body">
+    <div
+      v-if="open"
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+      @click.self="emit('close')"
+    >
     <div class="bg-white dark:bg-surface-100 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
       <div class="px-5 py-4 border-b border-surface-100 flex items-center justify-between">
         <h3 class="text-sm font-semibold">Start QA run</h3>
@@ -271,5 +272,6 @@ async function submit() {
         </button>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>

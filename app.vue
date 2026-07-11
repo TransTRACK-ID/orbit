@@ -11,7 +11,8 @@
   />
   <div
     v-if="pageLoading"
-    class="fixed inset-0 z-[99] bg-white/5 dark:bg-black/5 cursor-wait"
+    class="fixed inset-0 z-[99] pointer-events-none"
+    aria-hidden="true"
   />
 </template>
 
@@ -27,15 +28,18 @@ onMounted(() => {
   // Delay slightly to avoid flickering on fast transitions
   const router = useRouter()
 
-  router.beforeEach(() => {
+  router.beforeEach((to, from) => {
     if (loadingTimeout) clearTimeout(loadingTimeout)
+    // Query-only updates (e.g. selecting a QA run) should not block the UI.
+    if (to.path === from.path) return
     loadingTimeout = setTimeout(() => {
       pageLoading.value = true
     }, 100)
   })
 
-  router.afterEach(() => {
+  router.afterEach((to, from) => {
     if (loadingTimeout) clearTimeout(loadingTimeout)
+    if (to.path === from.path) return
     // Small delay to ensure page render has started
     loadingTimeout = setTimeout(() => {
       pageLoading.value = false

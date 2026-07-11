@@ -566,6 +566,7 @@ export interface QaRunCase {
   runId: string
   caseId: string | null
   title: string
+  preconditions: string | null
   steps: QaCaseStep[]
   sortOrder: number
   status: QaRunCaseStatus

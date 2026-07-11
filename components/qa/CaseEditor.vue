@@ -136,7 +136,7 @@ function save() {
           v-model="draft.preconditions"
           rows="2"
           class="field-input w-full text-xs rounded-lg px-3 py-2"
-          placeholder="Optional setup notes"
+          placeholder="e.g. Login: user@example.com / password123"
         />
       </div>
 

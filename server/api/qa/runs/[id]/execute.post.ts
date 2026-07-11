@@ -3,7 +3,7 @@ import { getDb, schema } from '~/server/database'
 import { executeQaRunSchema } from '~/server/utils/validation'
 import { buildQaRunTaskDescription, getQaRunDetail } from '~/server/utils/qa-runs'
 import { QA_RESULT_JSON_CONTRACT } from '~/utils/qa-result-format'
-import { and, eq, count, asc } from 'drizzle-orm'
+import { and, eq, count, asc, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { id: runId } = getRouterParams(event)
@@ -44,6 +44,28 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'targetUrl is required to execute a QA run' })
   }
 
+  const sourceCaseIds = (run.runCases || [])
+    .map((rc) => rc.caseId)
+    .filter((id): id is string => !!id)
+  const sourceCases = sourceCaseIds.length
+    ? await db.query.qaCases.findMany({
+        where: inArray(schema.qaCases.id, sourceCaseIds),
+        columns: { id: true, preconditions: true },
+      })
+    : []
+  const preconditionsByCaseId = new Map(
+    sourceCases.map((c) => [c.id, c.preconditions]),
+  )
+
+  const casesForDescription = (run.runCases || []).map((rc) => ({
+    caseId: rc.caseId,
+    title: rc.title,
+    preconditions: rc.preconditions
+      ?? (rc.caseId ? preconditionsByCaseId.get(rc.caseId) : null)
+      ?? null,
+    steps: (rc.steps || []) as any,
+  }))
+
   let taskId = body.taskId || run.taskId
 
   if (!taskId) {
@@ -70,11 +92,7 @@ export default defineEventHandler(async (event) => {
       buildQaRunTaskDescription({
         runId,
         targetUrl,
-        cases: (run.runCases || []).map((rc) => ({
-          caseId: rc.caseId,
-          title: rc.title,
-          steps: (rc.steps || []) as any,
-        })),
+        cases: casesForDescription,
       }),
       '',
       QA_RESULT_JSON_CONTRACT,
@@ -111,11 +129,7 @@ export default defineEventHandler(async (event) => {
       buildQaRunTaskDescription({
         runId,
         targetUrl,
-        cases: (run.runCases || []).map((rc) => ({
-          caseId: rc.caseId,
-          title: rc.title,
-          steps: (rc.steps || []) as any,
-        })),
+        cases: casesForDescription,
       }),
       '',
       QA_RESULT_JSON_CONTRACT,

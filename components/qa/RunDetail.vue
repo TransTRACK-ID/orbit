@@ -95,6 +95,10 @@ function setStatus(rc: QaRunCase, status: QaRunCaseStatus) {
             </button>
           </div>
 
+          <div v-if="rc.preconditions" class="text-xs text-surface-700 bg-surface-50 rounded-lg p-2">
+            <span class="font-semibold text-surface-500">Preconditions:</span> {{ rc.preconditions }}
+          </div>
+
           <div v-if="rc.steps?.length" class="space-y-1">
             <div v-for="step in rc.steps" :key="step.order" class="text-[10px] text-surface-600">
               <span class="font-semibold">{{ step.order }}.</span> {{ step.action }}

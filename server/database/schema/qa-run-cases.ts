@@ -9,6 +9,7 @@ export const qaRunCases = pgTable('qa_run_cases', {
   runId: uuid('run_id').notNull().references(() => qaRuns.id, { onDelete: 'cascade' }),
   caseId: uuid('case_id').references(() => qaCases.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 500 }).notNull(),
+  preconditions: text('preconditions'),
   steps: jsonb('steps').$type<QaCaseStep[]>().notNull().default([]),
   sortOrder: integer('sort_order').notNull().default(0),
   status: varchar('status', { length: 20 }).notNull().default('pending'),

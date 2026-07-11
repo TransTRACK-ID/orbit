@@ -27,6 +27,7 @@ export async function createQaRunWithSnapshot(input: CreateQaRunInput) {
   let casesToSnapshot: Array<{
     id: string
     title: string
+    preconditions: string | null
     steps: QaCaseStep[]
     sortOrder: number
   }> = []
@@ -42,6 +43,7 @@ export async function createQaRunWithSnapshot(input: CreateQaRunInput) {
       .map((pc, idx) => ({
         id: pc.case!.id,
         title: pc.case!.title,
+        preconditions: pc.case!.preconditions ?? null,
         steps: (pc.case!.steps || []) as QaCaseStep[],
         sortOrder: pc.sortOrder ?? idx,
       }))
@@ -60,6 +62,7 @@ export async function createQaRunWithSnapshot(input: CreateQaRunInput) {
         return {
           id: c.id,
           title: c.title,
+          preconditions: c.preconditions ?? null,
           steps: (c.steps || []) as QaCaseStep[],
           sortOrder: idx,
         }
@@ -89,6 +92,7 @@ export async function createQaRunWithSnapshot(input: CreateQaRunInput) {
       runId: run.id,
       caseId: c.id,
       title: c.title,
+      preconditions: c.preconditions,
       steps: c.steps,
       sortOrder: c.sortOrder,
       status: 'pending' as const,
@@ -207,19 +211,40 @@ export async function finishQaRun(
 export function buildQaRunTaskDescription(opts: {
   runId: string
   targetUrl: string | null
-  cases: Array<{ caseId: string | null; title: string; steps: QaCaseStep[] }>
+  cases: Array<{
+    caseId: string | null
+    title: string
+    preconditions?: string | null
+    steps: QaCaseStep[]
+  }>
 }): string {
+  const uniquePreconditions = [
+    ...new Set(
+      opts.cases
+        .map((c) => c.preconditions?.trim())
+        .filter((p): p is string => !!p),
+    ),
+  ]
+
+  const preconditionsBlock = uniquePreconditions.length
+    ? `## Prerequisites\n\n${uniquePreconditions.join('\n\n')}\n\n`
+    : ''
+
   const casesBlock = opts.cases.map((c, idx) => {
     const steps = (c.steps || [])
       .map((s) => `  ${s.order || idx + 1}. Action: ${s.action}\n     Expected: ${s.expected}`)
       .join('\n')
-    return `### Case ${idx + 1}: ${c.title}\n- caseId: ${c.caseId || 'n/a'}\n${steps || '  (no steps)'}`
+    const casePreconditions = c.preconditions?.trim()
+    const preconditionsLine = casePreconditions
+      ? `- Preconditions: ${casePreconditions}\n`
+      : ''
+    return `### Case ${idx + 1}: ${c.title}\n- caseId: ${c.caseId || 'n/a'}\n${preconditionsLine}${steps || '  (no steps)'}`
   }).join('\n\n')
 
   return `QA Run ID: ${opts.runId}
 Target URL: ${opts.targetUrl || '(not set)'}
 
-Execute each case in order using Chrome DevTools MCP. Record results in a fenced \`\`\`json qa-result block (see QA result contract).
+${preconditionsBlock}Execute each case in order using Chrome DevTools MCP. Record results in a fenced \`\`\`json qa-result block (see QA result contract).
 
 ## Cases
 

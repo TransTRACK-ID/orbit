@@ -1,5 +1,6 @@
 import { requireProjectAccess } from '~/server/utils/auth'
 import { getDb, schema } from '~/server/database'
+import { formatQaPlan } from '~/server/utils/qa-plans'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -21,9 +22,5 @@ export default defineEventHandler(async (event) => {
 
   await requireProjectAccess(event, plan.projectId)
 
-  return {
-    ...plan,
-    cases: (plan.planCases || []).map((pc) => pc.case).filter(Boolean),
-    _caseCount: plan.planCases?.length || 0,
-  }
+  return formatQaPlan(plan)
 })

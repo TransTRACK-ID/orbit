@@ -7,12 +7,14 @@ const props = defineProps<{
   saving?: boolean
   saved?: boolean
   deleting?: boolean
+  duplicating?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: QaCase | null]
   save: [value: Partial<QaCase>]
   remove: [id: string]
+  duplicate: []
 }>()
 
 const draft = reactive({
@@ -78,8 +80,18 @@ function save() {
       <h3 class="text-sm font-semibold text-surface-900 flex-1 truncate">Edit case</h3>
       <button
         type="button"
+        class="text-xs text-surface-600 hover:text-surface-900 disabled:opacity-50 flex items-center gap-1"
+        :disabled="duplicating || deleting || saving"
+        @click="emit('duplicate')"
+      >
+        <Icon v-if="duplicating" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
+        <Icon v-else name="lucide:copy" class="w-3 h-3" />
+        {{ duplicating ? 'Duplicating…' : 'Duplicate' }}
+      </button>
+      <button
+        type="button"
         class="text-xs text-red-600 hover:text-red-700 disabled:opacity-50 flex items-center gap-1"
-        :disabled="deleting || saving"
+        :disabled="deleting || saving || duplicating"
         @click="emit('remove', modelValue.id)"
       >
         <Icon v-if="deleting" name="lucide:loader-2" class="w-3 h-3 animate-spin" />
@@ -89,7 +101,7 @@ function save() {
         type="button"
         class="px-3 py-1.5 rounded-lg bg-surface-900 text-white dark:bg-black text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 min-w-[72px] justify-center transition-colors"
         :class="saved ? 'bg-emerald-600 dark:bg-emerald-700' : ''"
-        :disabled="saving"
+        :disabled="saving || duplicating"
         @click="save"
       >
         <Icon v-if="saving" name="lucide:loader-2" class="w-3 h-3 animate-spin" />

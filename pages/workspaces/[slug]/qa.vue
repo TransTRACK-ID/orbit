@@ -89,8 +89,10 @@
             :saving="savingCase"
             :saved="caseSaved"
             :deleting="deletingCaseId === selectedCaseId"
+            :duplicating="duplicatingCase"
             @save="onSaveCase"
             @remove="onDeleteCase"
+            @duplicate="onDuplicateCase"
           />
         </div>
       </template>
@@ -181,6 +183,7 @@ const {
   deleteSuite,
   fetchCases,
   createCase,
+  duplicateCase,
   updateCase,
   deleteCase,
   fetchPlans,
@@ -225,6 +228,7 @@ const creatingCase = ref(false)
 const deletingCaseId = ref<string | null>(null)
 const savingCase = ref(false)
 const caseSaved = ref(false)
+const duplicatingCase = ref(false)
 
 const creatingPlan = ref(false)
 const deletingPlanId = ref<string | null>(null)
@@ -266,12 +270,15 @@ async function loadProjectData(projectId: string) {
   }
 }
 
-watch(selectedProjectId, async (id) => {
-  selectedSuiteId.value = null
-  selectedCaseId.value = null
-  selectedPlanId.value = null
-  selectedRunId.value = null
-  selectedRun.value = null
+watch(selectedProjectId, async (id, prev) => {
+  if (prev != null && prev !== id) {
+    selectedSuiteId.value = null
+    selectedCaseId.value = null
+    selectedPlanId.value = null
+    selectedRunId.value = null
+    selectedRun.value = null
+    router.replace({ query: { ...route.query, plan: undefined, run: undefined } })
+  }
   if (!id) return
   await loadProjectData(id)
 })
@@ -311,22 +318,54 @@ onMounted(async () => {
       fetchAgents(),
       fetchSummary(workspace.value.id),
     ])
-    selectedProjectId.value = projects.value[0]?.id || null
-
     const runParam = route.query.run as string | undefined
+    const planParam = route.query.plan as string | undefined
+    let initialProjectId = projects.value[0]?.id || null
+
     if (runParam) {
-      activeTab.value = 'runs'
-      selectedRunId.value = runParam
       loadingRun.value = true
       try {
         await fetchRun(runParam)
         if (selectedRun.value?.projectId) {
-          selectedProjectId.value = selectedRun.value.projectId
+          initialProjectId = selectedRun.value.projectId
         }
       } catch (err: unknown) {
         toastError(getApiErrorMessage(err, 'Failed to load run'), 'Load error')
       } finally {
         loadingRun.value = false
+      }
+    }
+
+    if (planParam) {
+      try {
+        const plan = await $fetch<QaPlan>(`/api/qa/plans/${planParam}`)
+        if (plan.projectId) {
+          initialProjectId = plan.projectId
+        }
+      } catch (err: unknown) {
+        toastError(getApiErrorMessage(err, 'Failed to load plan'), 'Load error')
+      }
+    }
+
+    selectedProjectId.value = initialProjectId
+
+    if (planParam) {
+      activeTab.value = 'plans'
+      selectedPlanId.value = planParam
+    }
+
+    if (runParam) {
+      activeTab.value = 'runs'
+      selectedRunId.value = runParam
+      if (!selectedRun.value) {
+        loadingRun.value = true
+        try {
+          await fetchRun(runParam)
+        } catch (err: unknown) {
+          toastError(getApiErrorMessage(err, 'Failed to load run'), 'Load error')
+        } finally {
+          loadingRun.value = false
+        }
       }
     }
   } catch (err: unknown) {
@@ -413,6 +452,22 @@ async function onSaveCase(data: Partial<QaCase>) {
   }
 }
 
+async function onDuplicateCase() {
+  if (!selectedCase.value || !selectedProjectId.value || duplicatingCase.value) return
+  duplicatingCase.value = true
+  const sourceTitle = selectedCase.value.title
+  try {
+    const dup = await duplicateCase(selectedCase.value)
+    selectedCaseId.value = dup.id
+    await fetchSuites(selectedProjectId.value)
+    toastSuccess(`Created "${dup.title}" from "${sourceTitle}".`, 'Case duplicated')
+  } catch (err: unknown) {
+    toastError(getApiErrorMessage(err, 'Failed to duplicate case'), 'Error')
+  } finally {
+    duplicatingCase.value = false
+  }
+}
+
 async function onDeleteCase(id: string) {
   if (deletingCaseId.value) return
   deletingCaseId.value = id
@@ -430,6 +485,7 @@ async function onDeleteCase(id: string) {
 
 function onSelectPlan(id: string) {
   selectedPlanId.value = id
+  router.replace({ query: { ...route.query, plan: id, run: undefined } })
 }
 
 async function onCreatePlan() {
@@ -438,6 +494,7 @@ async function onCreatePlan() {
   try {
     const plan = await createPlan(selectedProjectId.value, { name: 'New plan' })
     selectedPlanId.value = plan.id
+    router.replace({ query: { ...route.query, plan: plan.id, run: undefined } })
     toastSuccess('New plan created.', 'Plan created')
   } catch (err: unknown) {
     toastError(getApiErrorMessage(err, 'Failed to create plan'), 'Error')

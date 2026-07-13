@@ -77,6 +77,22 @@ export const useQa = () => {
     return qaCase
   }
 
+  async function duplicateCase(source: QaCase) {
+    const qaCase = await createCase(source.projectId, {
+      title: `${source.title} (copy)`,
+      suiteId: source.suiteId,
+      preconditions: source.preconditions,
+      steps: (source.steps ?? []).map((s) => ({
+        order: s.order,
+        action: s.action,
+        expected: s.expected,
+      })),
+      priority: source.priority,
+      status: source.status,
+    })
+    return qaCase
+  }
+
   async function updateCase(id: string, data: Partial<{
     title: string
     suiteId: string | null
@@ -121,9 +137,8 @@ export const useQa = () => {
       method: 'PATCH',
       body: data,
     })
-    const idx = plans.value.findIndex((p) => p.id === id)
-    if (idx !== -1) plans.value[idx] = { ...plans.value[idx], ...updated }
-    return updated
+    await fetchPlans(updated.projectId)
+    return plans.value.find((p) => p.id === id) ?? updated
   }
 
   async function deletePlan(id: string) {
@@ -136,9 +151,8 @@ export const useQa = () => {
       method: 'PUT',
       body: { caseIds },
     })
-    const idx = plans.value.findIndex((p) => p.id === planId)
-    if (idx !== -1) plans.value[idx] = updated
-    return updated
+    await fetchPlans(updated.projectId)
+    return plans.value.find((p) => p.id === planId) ?? updated
   }
 
   async function fetchRuns(projectId: string) {
@@ -253,6 +267,7 @@ export const useQa = () => {
     deleteSuite,
     fetchCases,
     createCase,
+    duplicateCase,
     updateCase,
     deleteCase,
     fetchPlans,

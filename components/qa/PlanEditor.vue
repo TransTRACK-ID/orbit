@@ -22,8 +22,14 @@ const description = ref('')
 const selectedIds = ref<string[]>([])
 
 watch(
-  () => props.plan,
-  (p) => {
+  () => {
+    const p = props.plan
+    if (!p) return null
+    const caseIds = (p.cases || []).map((c) => c.id).join(',')
+    return `${p.id}:${p.updatedAt}:${caseIds}`
+  },
+  () => {
+    const p = props.plan
     if (!p) return
     name.value = p.name
     description.value = p.description || ''

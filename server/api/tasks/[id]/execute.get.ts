@@ -10,7 +10,8 @@ import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
 import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent'
-import { finalizeAgentTaskSuccess } from '~/server/utils/agent-completion'
+import { advanceAgentTaskToReview } from '~/server/utils/agent-completion'
+import { incrementAgentLoopRestart, resetAgentLoopRestart, MAX_AGENT_LOOP_RESTARTS } from '~/utils/agent-loop-limit'
 
 const execAsync = promisify(exec)
 
@@ -347,8 +348,6 @@ export default defineEventHandler(async (event) => {
   // Read and clear pending feedback (posted separately to avoid oversized URL params)
   const feedback = pendingFeedback.get(id) || ''
   pendingFeedback.delete(id)
-  const isUserMessageRun = feedback.includes('[USER MESSAGE]')
-  const isFixFeedbackRun = feedback.includes('Fix PR Review Feedback')
 
   const db = getDb()
   const task = await db.query.tasks.findFirst({
@@ -1237,7 +1236,11 @@ export default defineEventHandler(async (event) => {
 
       activeProcesses.delete(id)
 
-      if (code === 0 && !wasLoopKill && branchName && repositoryRequired) {
+      if (code === 0 && !wasLoopKill) {
+        resetAgentLoopRestart(id)
+      }
+
+      if (code === 0 && branchName && !wasLoopKill) {
         try {
           try {
             const { stdout: branchLog } = await execAsync('git log --oneline -5', { cwd: workDir })
@@ -1307,6 +1310,29 @@ export default defineEventHandler(async (event) => {
             } catch {}
           }
 
+          try {
+            const baseUrl = `${getRequestProtocol(event)}://${getRequestHost(event)}`
+            const res = await fetch(`${baseUrl}/api/tasks/${id}/pr`, {
+              method: 'POST',
+              headers: { cookie: getRequestHeaders(event).cookie || '' },
+            })
+            if (res.ok) {
+              const prResult = await res.json() as { url: string | null; noChanges?: boolean }
+              if (prResult?.url) {
+                await pushToStreams(entry, JSON.stringify({ step: `Created PR: ${prResult.url}`, timestamp: Date.now() }))
+              } else if (prResult?.noChanges) {
+                await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
+              }
+            } else {
+              const errorBody = await res.text().catch(() => '')
+              const errorMsg = errorBody.slice(0, 400) || `HTTP ${res.status}`
+              await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${errorMsg}`, timestamp: Date.now() }))
+            }
+          } catch (err: any) {
+            const msg = err?.message || String(err)
+            await pushToStreams(entry, JSON.stringify({ step: `Auto-create PR failed: ${msg}`, timestamp: Date.now() }))
+          }
+
           if (agentReplyContent) {
             await pushToStreams(entry, JSON.stringify({ step: 'Agent reply already posted to comments', timestamp: Date.now() }))
           }
@@ -1315,60 +1341,46 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      if (code === 0 && !wasLoopKill && !isUserMessageRun) {
-        try {
-          const completion = await finalizeAgentTaskSuccess(db, event, {
-            taskId: id,
-            projectId: task.projectId,
-            statusId: task.statusId,
-            userId: user.id,
-            agentEnabled: task.agentEnabled,
-            exitCode: code,
-            skipStatusAdvance: isFixFeedbackRun,
-            repositoryRequired,
-            branchName: branchName || task.branchName || undefined,
-          })
-
-          if (completion.prUrl) {
-            await pushToStreams(entry, JSON.stringify({ step: `Created PR: ${completion.prUrl}`, timestamp: Date.now() }))
-            persistLog(`Created PR: ${completion.prUrl}`)
-          } else if (completion.noChanges && repositoryRequired && (branchName || task.branchName)) {
-            await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
-          } else if (completion.prError && repositoryRequired && (branchName || task.branchName)) {
-            const prFailMsg = `Auto-create PR failed: ${completion.prError}`
-            await pushToStreams(entry, JSON.stringify({ step: prFailMsg, timestamp: Date.now() }))
-            persistLog(prFailMsg)
-          }
-
-          if (completion.advancedTo) {
-            const advancedMsg = `Task advanced to "${completion.advancedTo}"`
-            await pushToStreams(entry, JSON.stringify({ step: advancedMsg, timestamp: Date.now() }))
-            persistLog(advancedMsg)
-            const reviewStatus = await db.query.statuses.findFirst({
-              where: and(
-                eq(schema.statuses.projectId, task.projectId),
-                ilike(schema.statuses.name, '%review%'),
-              ),
+      if (wasLoopKill) {
+        const restartCount = incrementAgentLoopRestart(id)
+        if (restartCount >= MAX_AGENT_LOOP_RESTARTS && task.agentEnabled) {
+          resetAgentLoopRestart(id)
+          let msg = `Loop restart limit (${MAX_AGENT_LOOP_RESTARTS}) reached — stopping auto-restart`
+          try {
+            const { advanced, statusName } = await advanceAgentTaskToReview(db, {
+              taskId: id,
+              projectId: task.projectId,
+              currentStatusId: task.statusId,
+              userId: user.id,
             })
-            if (reviewStatus) {
-              task.statusId = reviewStatus.id
+            if (advanced && statusName) {
+              msg = `Loop restart limit (${MAX_AGENT_LOOP_RESTARTS}) reached — task moved to "${statusName}" for human review`
+              task.statusId = (await db.query.statuses.findFirst({
+                where: and(
+                  eq(schema.statuses.projectId, task.projectId),
+                  ilike(schema.statuses.name, '%review%'),
+                ),
+              }))?.id ?? task.statusId
             }
+          } catch (advanceErr: any) {
+            msg = `${msg}. Status advance failed: ${advanceErr?.message || advanceErr}`
           }
-        } catch (completionErr: any) {
-          const msg = `Post-completion handling failed: ${completionErr?.message || completionErr}`
-          await pushToStreams(entry, JSON.stringify({ step: msg, timestamp: Date.now() }))
+          await pushToStreams(entry, JSON.stringify({
+            step: msg,
+            maxRestartsReached: true,
+            timestamp: Date.now(),
+          }))
+          persistLog(msg)
+        } else {
+          const msg = `Agent will auto-restart after loop detection (${restartCount}/${MAX_AGENT_LOOP_RESTARTS})`
+          await pushToStreams(entry, JSON.stringify({
+            step: msg,
+            autoRestart: true,
+            loopRestartCount: restartCount,
+            timestamp: Date.now(),
+          }))
           persistLog(msg)
         }
-      }
-
-      if (wasLoopKill) {
-        const msg = 'Agent will auto-restart after loop detection'
-        await pushToStreams(entry, JSON.stringify({
-          step: msg,
-          autoRestart: true,
-          timestamp: Date.now(),
-        }))
-        persistLog(msg)
       } else {
         if (rawAgentStreamText) {
           const extracted = extractAgentCommentForPersistence(rawAgentStreamText)
@@ -1500,6 +1512,10 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    if (!isAutoRestart) {
+      resetAgentLoopRestart(id)
+    }
+
     await pushAndPersist(`Spawning ${agentRuntime === 'cursor' ? 'cursor-agent' : 'opencode'} for "${task.title}" in ${workDir}...`)
 
     // ── Register agent task context for sibling awareness ──
@@ -1551,10 +1567,12 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
     const qaResultRule = linkedQaRun ? QA_RESULT_JSON_CONTRACT : ''
 
     const statusRule = `[STATUS CONTROL]
-When you finish the task, Orbit will automatically move it to Review and create a PR if needed — you do NOT need to emit a status marker for normal completion.
-You may still change status mid-run when genuinely blocked or needing a different workflow stage. Emit exactly:
+You MUST change the task status by emitting exactly:
 [ORBIT_STATUS: <status_name>]
-The status_name should match one of the existing statuses in the project (e.g., "in_progress", "review", "done", "blocked"). Only use this when the task state has genuinely changed. Do not use this for trivial updates.`
+The status_name must match an existing project status (e.g. "in_progress", "review", "done", "blocked").
+When you have fully completed the task, emit [ORBIT_STATUS: review] before you finish.
+Only use this when the task state has genuinely changed — do not emit it for trivial updates.
+If you repeat the same commands and trigger loop detection, Orbit will auto-restart you up to ${MAX_AGENT_LOOP_RESTARTS} times; after that limit the task is moved to Review for human review.`
 
     const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
     const labelsContext = labels.length > 0

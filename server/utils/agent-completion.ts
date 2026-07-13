@@ -1,28 +1,9 @@
-import type { H3Event } from 'h3'
-import { getRequestHeaders, getRequestHost, getRequestProtocol } from 'h3'
 import { and, eq, ilike } from 'drizzle-orm'
 import { getDb, schema } from '~/server/database'
 
 type Db = ReturnType<typeof getDb>
 
-export async function recordAgentCompleted(
-  db: Db,
-  taskId: string,
-  userId: string,
-  details?: { exitCode?: number | null; prUrl?: string | null },
-) {
-  await db.insert(schema.activityLogs).values({
-    taskId,
-    userId,
-    action: 'agent_completed',
-    newValue: {
-      exitCode: details?.exitCode ?? 0,
-      prUrl: details?.prUrl ?? null,
-      message: 'Agent completed successfully',
-    },
-  })
-}
-
+/** Move an in-progress agent task to Review (loop-limit fallback — not normal completion). */
 export async function advanceAgentTaskToReview(
   db: Db,
   opts: { taskId: string; projectId: string; currentStatusId: string; userId: string },
@@ -63,71 +44,4 @@ export async function advanceAgentTaskToReview(
   })
 
   return { advanced: true, statusId: reviewStatus.id, statusName: reviewStatus.name }
-}
-
-export async function tryCreateTaskPr(
-  event: H3Event,
-  taskId: string,
-): Promise<{ url: string | null; noChanges?: boolean; error?: string }> {
-  try {
-    const baseUrl = `${getRequestProtocol(event)}://${getRequestHost(event)}`
-    const res = await fetch(`${baseUrl}/api/tasks/${taskId}/pr`, {
-      method: 'POST',
-      headers: { cookie: getRequestHeaders(event).cookie || '' },
-    })
-    if (res.ok) {
-      return await res.json() as { url: string | null; noChanges?: boolean }
-    }
-    const errorBody = await res.text().catch(() => '')
-    return { url: null, error: errorBody.slice(0, 400) || `HTTP ${res.status}` }
-  } catch (err: any) {
-    return { url: null, error: err?.message || String(err) }
-  }
-}
-
-export async function finalizeAgentTaskSuccess(
-  db: Db,
-  event: H3Event,
-  opts: {
-    taskId: string
-    projectId: string
-    statusId: string
-    userId: string
-    agentEnabled: boolean
-    exitCode: number
-    skipStatusAdvance?: boolean
-    repositoryRequired?: boolean
-    branchName?: string
-  },
-): Promise<{ prUrl: string | null; noChanges?: boolean; prError?: string; advancedTo?: string }> {
-  let prUrl: string | null = null
-  let noChanges = false
-  let prError: string | undefined
-
-  if (opts.repositoryRequired && opts.branchName) {
-    const prResult = await tryCreateTaskPr(event, opts.taskId)
-    prUrl = prResult.url
-    noChanges = !!prResult.noChanges
-    prError = prResult.error
-  }
-
-  await recordAgentCompleted(db, opts.taskId, opts.userId, {
-    exitCode: opts.exitCode,
-    prUrl,
-  })
-
-  let advancedTo: string | undefined
-  if (opts.agentEnabled && !opts.skipStatusAdvance) {
-    const { advanced, statusName } = await advanceAgentTaskToReview(db, {
-      taskId: opts.taskId,
-      projectId: opts.projectId,
-      currentStatusId: opts.statusId,
-      userId: opts.userId,
-    })
-    if (advanced && statusName) {
-      advancedTo = statusName
-    }
-  }
-
-  return { prUrl, noChanges, prError, advancedTo }
 }

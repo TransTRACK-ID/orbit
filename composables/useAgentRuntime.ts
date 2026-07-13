@@ -8,7 +8,6 @@ const taskRunStates = ref<Record<string, AgentRunState>>({})
 /** Auto-restart tracking to prevent infinite restart loops */
 const autoRestartCounts = new Map<string, number>()
 const pendingRestarts = new Map<string, ReturnType<typeof setTimeout>>()
-const MAX_AUTO_RESTARTS = 3
 
 export const useAgentRuntime = () => {
   const { addLog } = useLog()
@@ -58,19 +57,29 @@ export const useAgentRuntime = () => {
         if (data.step) {
           addLog('Runtime', `> ${data.step}`, taskId)
 
+          if (data.maxRestartsReached) {
+            autoRestartCounts.delete(taskId)
+            taskRunStates.value = { ...taskRunStates.value, [taskId]: 'error' }
+            receivedDone = true
+            stopRuntime(taskId)
+            return
+          }
+
           // Auto-restart on loop detection
           if (data.autoRestart) {
-            const count = (autoRestartCounts.get(taskId) || 0) + 1
-            if (count > MAX_AUTO_RESTARTS) {
-              addLog('Runtime', `[AUTO-RESTART] Max restarts (${MAX_AUTO_RESTARTS}) reached. Stopping.`, taskId)
-              taskRunStates.value = { ...taskRunStates.value, [taskId]: 'crashed' }
+            const count = typeof data.loopRestartCount === 'number'
+              ? data.loopRestartCount
+              : (autoRestartCounts.get(taskId) || 0) + 1
+            if (count >= MAX_AGENT_LOOP_RESTARTS) {
+              addLog('Runtime', `[AUTO-RESTART] Max restarts (${MAX_AGENT_LOOP_RESTARTS}) reached. Stopping.`, taskId)
+              taskRunStates.value = { ...taskRunStates.value, [taskId]: 'error' }
               receivedDone = true
               autoRestartCounts.delete(taskId)
               stopRuntime(taskId)
               return
             }
             autoRestartCounts.set(taskId, count)
-            addLog('Runtime', `[AUTO-RESTART] Loop detected. Restarting (${count}/${MAX_AUTO_RESTARTS})...`, taskId)
+            addLog('Runtime', `[AUTO-RESTART] Loop detected. Restarting (${count}/${MAX_AGENT_LOOP_RESTARTS})...`, taskId)
 
             // Cancel any existing pending restart for this task
             const existing = pendingRestarts.get(taskId)

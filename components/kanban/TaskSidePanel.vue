@@ -2789,42 +2789,23 @@ watch(runtimeLogsForTask, async (logs) => {
       isFixRun = false
     }
 
-    await handleAgentRunCompleted()
+    // Sync UI — status changes are driven by the agent via [ORBIT_STATUS: ...]
+    try {
+      const updated = await fetchTaskDetailComposite(props.taskId)
+      if (updated.task) {
+        task.value = updated.task
+        activityLogs.value = updated.activityLogs
+        emit('updated', updated.task)
+      }
+    } catch {}
   }
 })
 
-async function advanceTaskToReviewIfNeeded() {
-  if (!task.value) return false
-  const reviewStatus = props.statuses.find(s => /review/i.test(s.name))
-  if (!reviewStatus) return false
-  if (/review|done/i.test(task.value.status?.name || '')) return false
-  if (!/progress/i.test(task.value.status?.name || '')) return false
-
-  const oldStatusName = task.value.status?.name || 'In Progress'
-  try {
-    const updated = await updateTaskApi(task.value.id, { statusId: reviewStatus.id })
-    task.value = updated
-    emit('updated', updated)
-    persistLog(props.workspaceId, {
-      entityType: 'task',
-      entityId: props.taskId,
-      entityName: updated.title,
-      action: 'status_change',
-      message: `Moved from "${oldStatusName}" to "${reviewStatus.name}"`,
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function handleAgentRunCompleted() {
-  if (!task.value) return
-
-  await advanceTaskToReviewIfNeeded()
-  await checkExistingPr()
-  await autoCreatePr()
-
+// Refresh when loop-restart limit moves the task to Review
+watch(runtimeLogsForTask, async (logs) => {
+  if (!task.value || logs.length === 0) return
+  const latest = logs[0]
+  if (!latest?.message || !/Loop restart limit/i.test(latest.message)) return
   try {
     const updated = await fetchTaskDetailComposite(props.taskId)
     if (updated.task) {
@@ -2833,7 +2814,7 @@ async function handleAgentRunCompleted() {
       emit('updated', updated.task)
     }
   } catch {}
-}
+})
 
 async function autoCreatePr() {
   if (!task.value || prSkipped.value) return
@@ -3067,7 +3048,14 @@ onMounted(async () => {
 
   // Handle runtime that already completed while the panel was closed.
   if (task.value && !runtimeActive.value && runtimeCompleted.value && !hasAdvanced.value) {
-    await handleAgentRunCompleted()
+    try {
+      const updated = await fetchTaskDetailComposite(props.taskId)
+      if (updated.task) {
+        task.value = updated.task
+        activityLogs.value = updated.activityLogs
+        emit('updated', updated.task)
+      }
+    } catch {}
     hasAdvanced.value = true
   }
 

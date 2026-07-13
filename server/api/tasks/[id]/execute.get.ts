@@ -11,6 +11,7 @@ import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
 import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent'
 import { advanceAgentTaskToReview } from '~/server/utils/agent-completion'
+import { persistAgentDiagnostic } from '~/server/utils/agent-diagnostics'
 import { incrementAgentLoopRestart, resetAgentLoopRestart, MAX_AGENT_LOOP_RESTARTS } from '~/utils/agent-loop-limit'
 
 const execAsync = promisify(exec)
@@ -1224,6 +1225,15 @@ export default defineEventHandler(async (event) => {
             },
           })
         } catch {}
+        if (wasTimeoutKill) {
+          await persistAgentDiagnostic(db, id, user.id, {
+            code: 'runtime_timeout',
+            title: '15-minute time limit hit',
+            message: 'The agent exceeded the 15-minute session limit and was stopped before finishing.',
+            severity: 'warning',
+            meta: { exitCode: code, signal: signal ?? null },
+          })
+        }
         await fireCrashWebhook({
           taskId: id,
           taskTitle: task.title,
@@ -1371,7 +1381,15 @@ export default defineEventHandler(async (event) => {
             timestamp: Date.now(),
           }))
           persistLog(msg)
+          await persistAgentDiagnostic(db, id, user.id, {
+            code: 'loop_limit_reached',
+            title: 'Auto-restart limit reached',
+            message: `After ${MAX_AGENT_LOOP_RESTARTS} command-loop restarts, Orbit stopped the agent and moved this task to Review for manual check.`,
+            severity: 'warning',
+            meta: { maxRestarts: MAX_AGENT_LOOP_RESTARTS, lastCommand: entry.lastLoopCommand?.slice(0, 200) },
+          })
         } else {
+          const loopCmd = entry.lastLoopCommand || 'the same shell command'
           const msg = `Agent will auto-restart after loop detection (${restartCount}/${MAX_AGENT_LOOP_RESTARTS})`
           await pushToStreams(entry, JSON.stringify({
             step: msg,
@@ -1380,6 +1398,13 @@ export default defineEventHandler(async (event) => {
             timestamp: Date.now(),
           }))
           persistLog(msg)
+          await persistAgentDiagnostic(db, id, user.id, {
+            code: 'loop_detected',
+            title: 'Command loop detected',
+            message: `The agent repeated "${loopCmd.slice(0, 100)}" too many times. Orbit is restarting it (attempt ${restartCount} of ${MAX_AGENT_LOOP_RESTARTS}).`,
+            severity: restartCount >= MAX_AGENT_LOOP_RESTARTS - 1 ? 'warning' : 'info',
+            meta: { command: loopCmd.slice(0, 200), restartCount, maxRestarts: MAX_AGENT_LOOP_RESTARTS },
+          })
         }
       } else {
         if (rawAgentStreamText) {
@@ -1402,6 +1427,22 @@ export default defineEventHandler(async (event) => {
           timestamp: Date.now(),
         }))
         persistLog(msg)
+
+        if (code === 0 && !wasLoopKill && task.agentEnabled) {
+          try {
+            const currentStatus = await db.query.statuses.findFirst({
+              where: eq(schema.statuses.id, task.statusId),
+            })
+            if (currentStatus && /progress/i.test(currentStatus.name)) {
+              await persistAgentDiagnostic(db, id, user.id, {
+                code: 'finished_without_status',
+                title: 'Agent finished without updating status',
+                message: 'The agent exited successfully but this task is still In Progress. The agent should emit [ORBIT_STATUS: review] when the work is complete.',
+                severity: 'warning',
+              })
+            }
+          } catch {}
+        }
 
         if (!wasLoopKill) {
           try {
@@ -1888,6 +1929,7 @@ If you repeat the same commands and trigger loop detection, Orbit will auto-rest
             }
             for (const [cmd, count] of counts) {
               if (count >= LOOP_THRESHOLD) {
+                entry.lastLoopCommand = cmd
                 const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
                 await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
                 await persistLog(msg)
@@ -2029,6 +2071,7 @@ If you repeat the same commands and trigger loop detection, Orbit will auto-rest
           }
           for (const [cmd, count] of counts) {
             if (count >= LOOP_THRESHOLD) {
+              entry.lastLoopCommand = cmd
               const msg = `Loop detected: "${cmd.slice(0, 60)}" executed ${count} times in ${LOOP_WINDOW_MS / 1000}s. Auto-restarting...`
               await pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() }))
               await persistLog(msg)

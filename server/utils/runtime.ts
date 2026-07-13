@@ -15,6 +15,8 @@ export type ProcState = {
   exited?: boolean
   /** Set to true after a browser-MCP auto-retry has been scheduled */
   browserRetryIssued?: boolean
+  /** Last bash command that triggered loop detection */
+  lastLoopCommand?: string
 }
 
 export const activeProcesses = new Map<string, ProcState>()

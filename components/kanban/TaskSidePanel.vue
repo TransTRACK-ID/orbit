@@ -807,8 +807,13 @@
             </div>
 
             <div v-if="task?.agentEnabled" class="mt-8 pt-6 border-t border-surface-100 space-y-4">
+              <KanbanAgentRunInsightsPanel
+                :insights="agentRunInsights"
+                :loading="agentInsightsLoading"
+              />
+
               <!-- Premium Agent Status Banners -->
-              
+
               <!-- State 1: Running -->
               <div v-if="runtimeActive" class="relative overflow-hidden rounded-xl border border-primary-200/50 bg-gradient-to-r from-primary-50/70 to-indigo-50/70 p-4 shadow-sm backdrop-blur-md">
                 <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-primary-400/10 blur-xl"></div>
@@ -1653,6 +1658,7 @@
 
 <script setup lang="ts">
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment, QaRun } from '~/types'
+import { buildAgentRunInsights, type AgentDiagnosticEntry, type AgentRunInsights } from '~/utils/agent-diagnostics'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
@@ -2577,6 +2583,36 @@ function formatTimeFromMs(ts: number) {
 
 const runtimeLogsExpanded = ref(false)
 
+const agentInsightsLoading = ref(false)
+const persistedAgentDiagnostics = ref<AgentDiagnosticEntry[]>([])
+
+async function refreshAgentInsights() {
+  if (!task.value?.agentEnabled) {
+    persistedAgentDiagnostics.value = []
+    return
+  }
+  agentInsightsLoading.value = true
+  try {
+    const res = await $fetch<{ insights: AgentRunInsights | null }>(`/api/tasks/${props.taskId}/agent-insights`)
+    persistedAgentDiagnostics.value = res.insights?.diagnostics ?? []
+  } catch {
+    // Keep last known diagnostics on transient failure
+  } finally {
+    agentInsightsLoading.value = false
+  }
+}
+
+const agentRunInsights = computed(() => {
+  if (!task.value?.agentEnabled) return null
+  return buildAgentRunInsights({
+    diagnostics: persistedAgentDiagnostics.value,
+    runtimeMessages: runtimeLogsForTask.value
+      .slice(0, 40)
+      .map(log => log.message.replace(/^>\s*/, '')),
+    taskStatusName: task.value?.status?.name,
+  })
+})
+
 const userActivityLogs = computed(() =>
   activityLogs.value
     .filter(log => log.action !== 'runtime_log' && log.action !== 'agent_reply')
@@ -2644,7 +2680,11 @@ watch(() => props.taskId, () => {
   editingBranchName.value = task.value?.branchName || ''
   branchNameError.value = ''
   latestQaRun.value = null
-  nextTick(() => loadQaRuns())
+  persistedAgentDiagnostics.value = []
+  nextTick(() => {
+    loadQaRuns()
+    void refreshAgentInsights()
+  })
 })
 
 const remotePrUrl = ref('')
@@ -2813,7 +2853,14 @@ watch(runtimeLogsForTask, async (logs) => {
       activityLogs.value = updated.activityLogs
       emit('updated', updated.task)
     }
+    await refreshAgentInsights()
   } catch {}
+})
+
+watch(runtimeActive, (active) => {
+  if (!active && task.value?.agentEnabled) {
+    void refreshAgentInsights()
+  }
 })
 
 async function autoCreatePr() {
@@ -3039,6 +3086,7 @@ onMounted(async () => {
     checkPreview(),
     checkWorktree(),
     loadQaRuns(),
+    refreshAgentInsights(),
   ]).catch(() => {})
 
   // Initialize lastCompletionTimestamp from the most recent "Done" log
@@ -3520,6 +3568,8 @@ function formatActivity(log: ActivityLog) {
     case 'pr_created':
     case 'pr_updated':
       return log.newValue?.url ? log.action.replace(/_/g, ' ') : 'PR creation failed'
+    case 'agent_diagnostic':
+      return String(log.newValue?.title || 'agent diagnostic')
     default:
       return log.action.replace(/_/g, ' ')
   }

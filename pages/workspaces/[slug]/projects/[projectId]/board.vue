@@ -486,9 +486,8 @@ const { startRuntime } = useAgentRuntime()
 const boardAdvancedTaskIds = new Set<string>()
 
 // Watch in-memory runtime logs so we can auto-advance agentic tasks to
-// "Review" when the agent finishes — even when the TaskSidePanel is closed.
-// The panel handles this itself when it's open, so we skip tasks that are
-// currently selected (panel is mounted).
+// "Review" when the agent finishes — fallback when the TaskSidePanel is closed.
+// When the panel is open it handles completion itself (status + PR).
 watch(runtimeLogs, async (logs) => {
   if (!logs.length || !statuses.value.length) return
   const reviewStatus = statuses.value.find(s => /review/i.test(s.name))

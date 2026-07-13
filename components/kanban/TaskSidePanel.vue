@@ -806,12 +806,7 @@
               </button>
             </div>
 
-            <div v-if="task?.agentEnabled" class="mt-8 pt-6 border-t border-surface-100 space-y-4">
-              <KanbanAgentRunInsightsPanel
-                :insights="agentRunInsights"
-                :loading="agentInsightsLoading"
-              />
-
+            <div v-if="showAgentDiagnostics" class="mt-8 pt-6 border-t border-surface-100 space-y-4">
               <!-- Premium Agent Status Banners -->
 
               <!-- State 1: Running -->
@@ -1120,6 +1115,12 @@
                   </button>
                 </div>
               </div>
+
+              <KanbanAgentRunInsightsPanel
+                v-if="showAgentRunDiagnostics"
+                :insights="agentRunInsights"
+                :runtime-logs="runtimeLogsForDisplay"
+              />
             </div>
 
               <!-- Review Feedback Section -->
@@ -1658,7 +1659,8 @@
 
 <script setup lang="ts">
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment, QaRun } from '~/types'
-import { buildAgentRunInsights, type AgentDiagnosticEntry, type AgentRunInsights } from '~/utils/agent-diagnostics'
+import KanbanAgentRunInsightsPanel from '~/components/kanban/AgentRunInsightsPanel.vue'
+import { agentRunHasIssue, buildAgentRunInsights, type AgentDiagnosticEntry, type AgentRunInsights } from '~/utils/agent-diagnostics'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
@@ -2585,16 +2587,27 @@ const runtimeLogsExpanded = ref(false)
 
 const agentInsightsLoading = ref(false)
 const persistedAgentDiagnostics = ref<AgentDiagnosticEntry[]>([])
+const persistedRuntimeLogs = ref<Array<{ id: string; message: string; displayTime: string; timestamp: number }>>([])
 
 async function refreshAgentInsights() {
-  if (!task.value?.agentEnabled) {
+  if (!showAgentDiagnostics.value) {
     persistedAgentDiagnostics.value = []
+    persistedRuntimeLogs.value = []
     return
   }
   agentInsightsLoading.value = true
   try {
-    const res = await $fetch<{ insights: AgentRunInsights | null }>(`/api/tasks/${props.taskId}/agent-insights`)
+    const res = await $fetch<{
+      insights: AgentRunInsights | null
+      runtimeLogs?: Array<{ id: string; message: string; createdAt: string }>
+    }>(`/api/tasks/${props.taskId}/agent-insights`)
     persistedAgentDiagnostics.value = res.insights?.diagnostics ?? []
+    persistedRuntimeLogs.value = (res.runtimeLogs ?? []).map(log => ({
+      id: `db-runtime-${log.id}`,
+      message: log.message.startsWith('>') ? log.message : `> ${log.message}`,
+      displayTime: formatTimeFromMs(new Date(log.createdAt).getTime()),
+      timestamp: new Date(log.createdAt).getTime(),
+    }))
   } catch {
     // Keep last known diagnostics on transient failure
   } finally {
@@ -2602,8 +2615,26 @@ async function refreshAgentInsights() {
   }
 }
 
+const showAgentDiagnostics = computed(() => {
+  if (!task.value) return false
+  if (task.value.agentEnabled) return true
+  return task.value.assigneeType === 'agent' && !!task.value.assignee
+})
+
+const runtimeLogsForDisplay = computed(() => {
+  const merged = new Map<string, { id: string; message: string; displayTime: string; timestamp: number }>()
+  for (const log of persistedRuntimeLogs.value) {
+    merged.set(log.id, log)
+  }
+  for (const log of runtimeLogsForTask.value) {
+    merged.set(log.id, log)
+  }
+  return [...merged.values()]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 80)
+})
 const agentRunInsights = computed(() => {
-  if (!task.value?.agentEnabled) return null
+  if (!showAgentDiagnostics.value) return null
   return buildAgentRunInsights({
     diagnostics: persistedAgentDiagnostics.value,
     runtimeMessages: runtimeLogsForTask.value
@@ -2612,6 +2643,8 @@ const agentRunInsights = computed(() => {
     taskStatusName: task.value?.status?.name,
   })
 })
+
+const showAgentRunDiagnostics = computed(() => agentRunHasIssue(agentRunInsights.value))
 
 const userActivityLogs = computed(() =>
   activityLogs.value
@@ -2858,7 +2891,7 @@ watch(runtimeLogsForTask, async (logs) => {
 })
 
 watch(runtimeActive, (active) => {
-  if (!active && task.value?.agentEnabled) {
+  if (!active && showAgentDiagnostics.value) {
     void refreshAgentInsights()
   }
 })

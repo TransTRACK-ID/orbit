@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
 
   const task = await db.query.tasks.findFirst({
     where: eq(schema.tasks.id, id),
-    columns: { id: true, agentEnabled: true },
+    columns: { id: true, agentEnabled: true, assigneeType: true },
     with: { status: { columns: { name: true } } },
   })
 
@@ -19,8 +19,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
 
-  if (!task.agentEnabled) {
-    return { insights: null }
+  if (!task.agentEnabled && task.assigneeType !== 'agent') {
+    return { insights: null, runtimeLogs: [] }
   }
 
   const logs = await db.query.activityLogs.findMany({
@@ -58,5 +58,15 @@ export default defineEventHandler(async (event) => {
     maxLoopRestarts: MAX_AGENT_LOOP_RESTARTS,
   })
 
-  return { insights }
+  const runtimeLogs = logs
+    .filter(log => log.action === 'runtime_log' && log.newValue?.message)
+    .slice(0, 80)
+    .map(log => ({
+      id: log.id,
+      message: String(log.newValue?.message || ''),
+      createdAt: log.createdAt,
+    }))
+    .reverse()
+
+  return { insights, runtimeLogs }
 })

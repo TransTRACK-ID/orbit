@@ -25,6 +25,7 @@ export interface AgentDiagnosticEntry {
 export interface AgentRunInsights {
   headline: string
   severity: AgentDiagnosticSeverity
+  hasIssue: boolean
   summary: string
   suggestions: string[]
   diagnostics: AgentDiagnosticEntry[]
@@ -279,13 +280,16 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
     summary = latest.message
   }
 
-  if (suggestions.length === 0 && stillInProgress) {
+  if (suggestions.length === 0 && stillInProgress && (severity === 'warning' || severity === 'error')) {
     suggestions.push('When work is done, the agent should emit [ORBIT_STATUS: review] to move this card.')
   }
+
+  const hasIssue = severity === 'warning' || severity === 'error'
 
   return {
     headline,
     severity,
+    hasIssue,
     summary,
     suggestions,
     diagnostics: diagnostics.slice(0, 12),
@@ -300,4 +304,8 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
       stillInProgress,
     },
   }
+}
+
+export function agentRunHasIssue(insights: AgentRunInsights | null | undefined): boolean {
+  return !!insights?.hasIssue
 }

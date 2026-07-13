@@ -86,6 +86,7 @@ const agentIssueSummary = computed(() => {
       v-if="showDiagnostics && agentExecution?.insights"
       :insights="agentExecution.insights"
       :runtime-logs="runtimeLogsForDisplay"
+      :task-title="taskTitle"
     />
 
     <div

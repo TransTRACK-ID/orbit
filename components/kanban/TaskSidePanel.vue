@@ -1120,6 +1120,7 @@
                 v-if="showAgentRunDiagnostics"
                 :insights="agentRunInsights"
                 :runtime-logs="runtimeLogsForDisplay"
+                :task-title="task.title"
               />
             </div>
 

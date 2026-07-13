@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AgentRunInsights } from '~/utils/agent-diagnostics'
+import { formatAgentRunInsightsForCopy } from '~/utils/agent-diagnostics'
 
 export type RuntimeLogLine = {
   id: string
@@ -10,9 +11,12 @@ export type RuntimeLogLine = {
 const props = defineProps<{
   insights: AgentRunInsights | null
   runtimeLogs?: RuntimeLogLine[]
+  taskTitle?: string | null
 }>()
 
 const showDetails = ref(false)
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
 
 const severityStyles = computed(() => {
   switch (props.insights?.severity) {
@@ -72,6 +76,44 @@ const statLine = computed(() => {
 const hasExpandableDetails = computed(() => {
   return (props.insights?.diagnostics.length ?? 0) > 0 || runtimeLogLines.value.length > 0
 })
+
+async function copyDiagnostics() {
+  if (!props.insights) return
+  const text = formatAgentRunInsightsForCopy(props.insights, {
+    taskTitle: props.taskTitle,
+    runtimeLogs: runtimeLogLines.value,
+  })
+  try {
+    await navigator.clipboard.writeText(text)
+    copied.value = true
+    if (copiedTimer) clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch {
+    // Fallback for older browsers or denied permission
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    try {
+      document.execCommand('copy')
+      copied.value = true
+      if (copiedTimer) clearTimeout(copiedTimer)
+      copiedTimer = setTimeout(() => {
+        copied.value = false
+      }, 2000)
+    } finally {
+      document.body.removeChild(textarea)
+    }
+  }
+}
+
+onUnmounted(() => {
+  if (copiedTimer) clearTimeout(copiedTimer)
+})
 </script>
 
 <template>
@@ -110,16 +152,28 @@ const hasExpandableDetails = computed(() => {
       </svg>
 
       <div class="min-w-0 flex-1 space-y-2">
-        <div>
-          <p class="text-sm font-semibold leading-snug" :class="severityStyles.title">
-            {{ insights.headline }}
-          </p>
-          <p class="mt-1 max-w-prose text-xs leading-relaxed" :class="severityStyles.body">
-            {{ insights.summary }}
-          </p>
-          <p v-if="statLine" class="mt-2 text-[11px] font-medium tabular-nums" :class="severityStyles.meta">
-            {{ statLine }}
-          </p>
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold leading-snug" :class="severityStyles.title">
+              {{ insights.headline }}
+            </p>
+            <p class="mt-1 max-w-prose text-xs leading-relaxed" :class="severityStyles.body">
+              {{ insights.summary }}
+            </p>
+            <p v-if="statLine" class="mt-2 text-xs font-medium tabular-nums" :class="severityStyles.meta">
+              {{ statLine }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-surface-200 bg-white/80 px-2 py-1 text-xs font-medium text-surface-600 transition-colors hover:border-surface-300 hover:text-surface-800"
+            :class="copied ? 'border-emerald-200 text-emerald-700' : ''"
+            :aria-label="copied ? 'Copied diagnostics' : 'Copy diagnostics for agent'"
+            @click="copyDiagnostics"
+          >
+            <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="h-3 w-3" />
+            {{ copied ? 'Copied' : 'Copy' }}
+          </button>
         </div>
 
         <ul v-if="insights.suggestions.length" class="space-y-1.5">

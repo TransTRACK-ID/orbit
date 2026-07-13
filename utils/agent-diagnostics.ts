@@ -309,3 +309,84 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
 export function agentRunHasIssue(insights: AgentRunInsights | null | undefined): boolean {
   return !!insights?.hasIssue
 }
+
+export type AgentRunInsightsCopyLogLine = {
+  displayTime?: string
+  message: string
+}
+
+export function formatAgentRunInsightsForCopy(
+  insights: AgentRunInsights,
+  opts?: {
+    taskTitle?: string | null
+    runtimeLogs?: AgentRunInsightsCopyLogLine[]
+    maxLogLines?: number
+  },
+): string {
+  const maxLogLines = opts?.maxLogLines ?? 40
+  const lines: string[] = [
+    '## Agent run diagnostics',
+    '',
+  ]
+
+  if (opts?.taskTitle?.trim()) {
+    lines.push(`Task: ${opts.taskTitle.trim()}`, '')
+  }
+
+  lines.push(
+    `Issue: ${insights.headline}`,
+    `Severity: ${insights.severity}`,
+    '',
+    '### Summary',
+    insights.summary,
+    '',
+  )
+
+  const stats = insights.stats
+  const statParts: string[] = []
+  if (stats.loopRestarts) statParts.push(`${stats.loopRestarts} loop event(s)`)
+  if (stats.timeouts) statParts.push(`${stats.timeouts} timeout(s)`)
+  const failures = stats.errors + stats.crashes
+  if (failures) statParts.push(`${failures} failed run(s)`)
+  if (stats.doneCount && stats.stillInProgress) {
+    statParts.push(`${stats.doneCount} finished session(s) without status change`)
+  }
+  if (statParts.length) {
+    lines.push('### Stats', statParts.join(', '), '')
+  }
+
+  if (insights.suggestions.length) {
+    lines.push('### Suggested next steps')
+    for (const [i, tip] of insights.suggestions.entries()) {
+      lines.push(`${i + 1}. ${tip}`)
+    }
+    lines.push('')
+  }
+
+  if (insights.diagnostics.length) {
+    lines.push('### Recent events')
+    for (const item of insights.diagnostics.slice(0, 12)) {
+      const when = new Date(item.timestamp).toISOString()
+      lines.push(`- [${item.code}] ${item.title} (${when})`)
+      lines.push(`  ${item.message}`)
+    }
+    lines.push('')
+  }
+
+  const logs = opts?.runtimeLogs ?? []
+  if (logs.length) {
+    lines.push('### Runtime log (most recent)')
+    for (const line of logs.slice(-maxLogLines)) {
+      const prefix = line.displayTime ? `[${line.displayTime}] ` : ''
+      lines.push(`${prefix}${line.message}`)
+    }
+    lines.push('')
+  }
+
+  lines.push(
+    '### Request',
+    'Investigate the failures above, identify the root cause, and propose or apply a fix. If the agent timed out or looped, suggest how to narrow the task or adjust the workflow.',
+  )
+
+  return lines.join('\n').trim()
+}

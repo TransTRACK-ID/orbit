@@ -51,90 +51,89 @@
 
         <!-- Active workspace name -->
         <div
-          class="sidebar-item"
-          :class="[{ active: isWorkspaceOverview }, sidebarCollapsed ? 'justify-center px-0' : '']"
+          class="sidebar-item sidebar-item-workspace"
+          :class="[
+            { active: isWorkspaceOverview, 'sidebar-item-parent': isWorkspaceContext && !isWorkspaceOverview },
+            sidebarCollapsed ? 'justify-center px-0' : '',
+          ]"
           :title="sidebarCollapsed ? activeWorkspace.name : undefined"
           @click="navigateTo(`/workspaces/${activeWorkspace.slug}`); closeOnMobile()"
         >
           <div
-            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+            class="sidebar-avatar sidebar-avatar-workspace"
             :style="{ backgroundColor: workspaceColor(activeWorkspace) }"
           >
             <span class="text-xs font-bold">{{ activeWorkspace.name.charAt(0).toUpperCase() }}</span>
           </div>
           <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': isWorkspaceOverview }">{{ activeWorkspace.name }}</span>
-          <span v-if="!sidebarCollapsed" class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ activeWorkspace._count?.projects || 0 }}</span>
+          <span v-if="!sidebarCollapsed" class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold tabular-nums">{{ activeWorkspace._count?.projects || 0 }}</span>
         </div>
 
-        <!-- Projects under active workspace -->
+        <!-- Scoped under active workspace -->
         <div
-          v-for="proj in projects"
-          :key="proj.id"
-          class="sidebar-item"
-          :class="[isProjectActive(proj) ? 'active' : '', sidebarCollapsed ? 'justify-center px-0' : 'pl-8']"
-          :title="sidebarCollapsed ? proj.name : undefined"
-          @click="navigateTo(`/workspaces/${activeWorkspace.slug}/projects/${proj.id}/board`); closeOnMobile()"
+          class="workspace-children"
+          :class="sidebarCollapsed ? 'workspace-children--collapsed' : 'workspace-children--expanded'"
         >
+          <!-- Projects -->
           <div
-            class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
-            :style="{ backgroundColor: proj.color }"
-          >
-            <span class="text-xs font-bold text-white">{{ proj.name.charAt(0) }}</span>
-          </div>
-          <span v-if="!sidebarCollapsed" class="flex-1 min-w-0 truncate text-sm">{{ proj.name }}</span>
-          <span v-if="!sidebarCollapsed" class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold">{{ projOpenCount(proj) }}</span>
-        </div>
-
-        <!-- Empty state -->
-        <div v-if="projects.length === 0 && !projectsLoading && !sidebarCollapsed" class="pl-8 pr-4 py-2 text-xs text-surface-400 italic">
-          No projects yet
-        </div>
-
-        <!-- Workspace tools -->
-        <div class="sidebar-group mt-1">
-          <div
-            class="sidebar-item"
-            :class="[{ active: route.path.includes('/brainstorm') }, sidebarCollapsed ? 'justify-center px-0' : '']"
-            :title="sidebarCollapsed ? 'Brainstorm' : undefined"
-            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/brainstorm`); closeOnMobile()"
+            v-for="proj in projects"
+            :key="proj.id"
+            class="sidebar-item sidebar-item-nested"
+            :class="[isProjectActive(proj) ? 'active' : '', sidebarCollapsed ? 'justify-center px-0' : '']"
+            :title="sidebarCollapsed ? proj.name : undefined"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/projects/${proj.id}/board`); closeOnMobile()"
           >
             <div
-              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
-              :style="{ backgroundColor: route.path.includes('/brainstorm') ? '#7C3AED' : '#94a3b8' }"
+              class="sidebar-avatar sidebar-avatar-project"
+              :style="{ backgroundColor: proj.color }"
             >
-              <Icon name="lucide:lightbulb" class="w-3 h-3" />
+              <span class="text-xs font-bold text-white leading-none">{{ proj.name.charAt(0) }}</span>
             </div>
-            <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/brainstorm') }">Brainstorm</span>
+            <span v-if="!sidebarCollapsed" class="flex-1 min-w-0 truncate text-sm">{{ proj.name }}</span>
+            <span
+              v-if="!sidebarCollapsed && projOpenCount(proj) > 0"
+              class="text-xs text-surface-400 bg-surface-100 px-1.5 py-0.5 rounded-full font-semibold tabular-nums"
+            >{{ projOpenCount(proj) }}</span>
           </div>
 
           <div
-            class="sidebar-item"
-            :class="[{ active: route.path.includes('/reviews') }, sidebarCollapsed ? 'justify-center px-0' : '']"
-            :title="sidebarCollapsed ? 'Reviews' : undefined"
-            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/reviews`); closeOnMobile()"
+            v-if="projects.length === 0 && !projectsLoading && !sidebarCollapsed"
+            class="px-3 py-1.5 text-xs text-surface-400"
           >
-            <div
-              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
-              :style="{ backgroundColor: route.path.includes('/reviews') ? '#22C55E' : '#94a3b8' }"
-            >
-              <Icon name="lucide:git-pull-request" class="w-3 h-3" />
-            </div>
-            <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/reviews') }">Reviews</span>
+            No projects yet
           </div>
 
           <div
-            class="sidebar-item"
-            :class="[{ active: route.path.includes('/qa') }, sidebarCollapsed ? 'justify-center px-0' : '']"
-            :title="sidebarCollapsed ? 'QA' : undefined"
-            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/qa`); closeOnMobile()"
+            v-if="!sidebarCollapsed && projects.length > 0"
+            class="workspace-children-divider"
+            aria-hidden="true"
+          />
+
+          <p
+            v-if="!sidebarCollapsed"
+            class="workspace-children-label"
+          >
+            In this workspace
+          </p>
+
+          <div
+            v-for="tool in workspaceTools"
+            :key="tool.path"
+            class="sidebar-item sidebar-item-nested"
+            :class="[
+              { active: isToolActive(tool.path) },
+              sidebarCollapsed ? 'justify-center px-0' : '',
+            ]"
+            :title="sidebarCollapsed ? tool.label : undefined"
+            @click="navigateTo(`/workspaces/${activeWorkspace.slug}/${tool.path}`); closeOnMobile()"
           >
             <div
-              class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
-              :style="{ backgroundColor: route.path.includes('/qa') ? '#0EA5E9' : '#94a3b8' }"
+              class="sidebar-avatar sidebar-avatar-tool"
+              :class="isToolActive(tool.path) ? 'bg-accent' : 'bg-surface-400'"
             >
-              <Icon name="lucide:flask-conical" class="w-3 h-3" />
+              <Icon :name="tool.icon" class="w-2.5 h-2.5" />
             </div>
-            <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm" :class="{ 'font-semibold': route.path.includes('/qa') }">QA</span>
+            <span v-if="!sidebarCollapsed" class="name flex-1 min-w-0 truncate text-sm">{{ tool.label }}</span>
           </div>
         </div>
       </template>
@@ -153,7 +152,7 @@
           @click="navigateTo(`/workspaces/${ws.slug}`); closeOnMobile()"
         >
           <div
-            class="w-[22px] h-[22px] rounded-md flex items-center justify-center text-white flex-shrink-0"
+            class="sidebar-avatar sidebar-avatar-workspace"
             :style="{ backgroundColor: workspaceColor(ws) }"
           >
             <span class="text-xs font-bold">{{ ws.name.charAt(0).toUpperCase() }}</span>
@@ -208,7 +207,24 @@
 import type { Workspace } from '~/types'
 
 const route = useRoute()
-const router = useRouter()
+
+const workspaceTools = [
+  {
+    label: 'Brainstorm',
+    icon: 'lucide:lightbulb',
+    path: 'brainstorm',
+  },
+  {
+    label: 'Reviews',
+    icon: 'lucide:git-pull-request',
+    path: 'reviews',
+  },
+  {
+    label: 'QA',
+    icon: 'lucide:flask-conical',
+    path: 'qa',
+  },
+] as const
 
 const { workspaces, fetchWorkspaces } = useWorkspace()
 const { agents, fetchAgents } = useAgent()
@@ -235,6 +251,15 @@ const isWorkspaceOverview = computed(() => {
   return route.path === `/workspaces/${activeWorkspace.value.slug}`
 })
 
+const isWorkspaceContext = computed(() => {
+  if (!activeWorkspace.value) return false
+  return route.path.startsWith(`/workspaces/${activeWorkspace.value.slug}`)
+})
+
+function isToolActive(path: string) {
+  return route.path.includes(`/${path}`)
+}
+
 function isProjectActive(proj: any) {
   return route.params.projectId === proj.id && route.path.includes('/board')
 }
@@ -245,9 +270,10 @@ function projOpenCount(proj: any) {
   return total - done
 }
 
+const WORKSPACE_COLOR = '#94a3b8'
+
 function workspaceColor(_ws: Workspace) {
-  // Workspaces don't have their own color; use a neutral slate
-  return '#94a3b8'
+  return WORKSPACE_COLOR
 }
 
 function closeOnMobile() {

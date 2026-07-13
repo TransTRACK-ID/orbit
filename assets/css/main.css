@@ -223,6 +223,52 @@
            select-none;
   }
 
+  .sidebar-item-nested {
+    @apply py-1 border-l-[3px] border-transparent;
+  }
+
+  .workspace-children .sidebar-item-nested:not(.active) {
+    @apply text-surface-500;
+  }
+
+  .workspace-children .sidebar-item {
+    @apply px-3;
+  }
+
+  .sidebar-item-parent:not(.active) {
+    background-color: oklch(62% 0.22 27 / 0.025);
+    @apply text-surface-600;
+  }
+
+  .sidebar-avatar {
+    @apply flex items-center justify-center text-white flex-shrink-0;
+  }
+
+  .sidebar-avatar-workspace {
+    @apply w-[22px] h-[22px] rounded-md;
+  }
+
+  .sidebar-avatar-project,
+  .sidebar-avatar-tool {
+    @apply w-4 h-4 rounded;
+  }
+
+  .workspace-children--collapsed {
+    @apply space-y-0.5;
+  }
+
+  .workspace-children--expanded {
+    @apply mt-0.5 mb-1 ml-3 border-l border-surface-200 pl-0.5;
+  }
+
+  .workspace-children-label {
+    @apply px-3 pt-1 pb-0.5 text-xs text-surface-400;
+  }
+
+  .workspace-children-divider {
+    @apply mx-3 my-1 border-t border-surface-200;
+  }
+
   /* ─── Project Card (prototype style) ─── */
   .project-card {
     @apply bg-white border border-surface-200 rounded-xl p-[18px] cursor-pointer
@@ -410,6 +456,14 @@
 
   .dark .sidebar-item.active {
     background-color: oklch(62% 0.22 27 / 0.15);
+  }
+
+  .dark .sidebar-item-parent:not(.active) {
+    background-color: oklch(62% 0.22 27 / 0.05);
+  }
+
+  .dark .workspace-children--expanded {
+    @apply border-surface-300;
   }
 
   .dark .kanban-card.agentic {

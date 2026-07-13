@@ -1,4 +1,5 @@
 // ─── Auth ───
+import type { AgentRunInsights } from '~/utils/agent-diagnostics'
 export interface AuthUser {
   id: string
   email: string
@@ -577,6 +578,12 @@ export interface QaRunCase {
   attachments?: QaRunAttachment[]
 }
 
+export interface QaRunAgentExecution {
+  insights: AgentRunInsights | null
+  runtimeLogs: Array<{ id: string; message: string; createdAt: string }>
+  task: { id: string; title: string; statusName: string | null } | null
+}
+
 export interface QaRun {
   id: string
   projectId: string
@@ -595,6 +602,7 @@ export interface QaRun {
   agent?: Agent | null
   runCases?: QaRunCase[]
   project?: { id: string; name: string; color: string }
+  agentExecution?: QaRunAgentExecution | null
   _passedCount?: number
   _failedCount?: number
   _totalCount?: number

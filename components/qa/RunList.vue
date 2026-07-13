@@ -40,16 +40,24 @@ function statusClass(status: string) {
         @click="emit('select', r.id)"
       >
         <div class="flex items-center gap-2">
-          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" :class="statusClass(r.status)">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="statusClass(r.status)">
             {{ r.status }}
           </span>
-          <span class="text-[10px] text-surface-500 truncate">
+          <span class="text-xs text-surface-500 truncate">
             {{ r.plan?.name || 'Ad-hoc' }}
           </span>
         </div>
-        <div class="mt-1 text-[10px] text-surface-500">
-          {{ r._passedCount || 0 }}/{{ r._totalCount || 0 }} passed
+        <div class="mt-1 text-xs text-surface-500 flex items-center gap-1.5">
+          <span>{{ r._passedCount || 0 }}/{{ r._totalCount || 0 }} passed</span>
           <span v-if="r.project"> · {{ r.project.name }}</span>
+          <span
+            v-if="r.taskId && (r.status === 'failed' || r.status === 'blocked')"
+            class="inline-flex items-center gap-0.5 text-amber-600"
+            title="Agent execution may need review"
+          >
+            ·
+            <Icon name="lucide:bot" class="w-3 h-3" />
+          </span>
         </div>
       </button>
     </div>

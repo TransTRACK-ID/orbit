@@ -138,7 +138,9 @@
             :run="selectedRun"
             :loading="loadingRun"
             :updating-case-id="updatingRunCaseId"
+            :workspace-slug="slug"
             @update-case="onUpdateRunCase"
+            @refresh="onRefreshRun"
           />
         </div>
       </template>
@@ -578,6 +580,16 @@ async function onUpdateRunCase(id: string, data: { status?: QaRunCaseStatus; act
     toastError(getApiErrorMessage(err, 'Failed to update run case'), 'Error')
   } finally {
     updatingRunCaseId.value = null
+  }
+}
+
+async function onRefreshRun() {
+  if (!selectedRunId.value || loadingRun.value) return
+  try {
+    await fetchRun(selectedRunId.value)
+    if (selectedProjectId.value) await fetchRuns(selectedProjectId.value)
+  } catch {
+    // Ignore transient refresh errors during polling
   }
 }
 

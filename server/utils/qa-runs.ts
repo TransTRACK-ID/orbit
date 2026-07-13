@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { getDb, schema } from '~/server/database'
 import type { QaCaseStep } from '~/server/database/schema/qa-cases'
+import { getAgentInsightsForTask } from '~/server/utils/agent-task-insights'
 
 export type CreateQaRunInput = {
   projectId: string
@@ -131,8 +132,13 @@ export async function getQaRunDetail(runId: string) {
   const passed = run.runCases?.filter((c) => c.status === 'passed').length || 0
   const failed = run.runCases?.filter((c) => c.status === 'failed' || c.status === 'blocked').length || 0
 
+  const agentExecution = run.taskId
+    ? await getAgentInsightsForTask(run.taskId)
+    : null
+
   return {
     ...run,
+    agentExecution,
     _totalCount: total,
     _passedCount: passed,
     _failedCount: failed,

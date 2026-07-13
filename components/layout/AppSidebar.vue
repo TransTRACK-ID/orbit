@@ -256,8 +256,10 @@ const isWorkspaceContext = computed(() => {
   return route.path.startsWith(`/workspaces/${activeWorkspace.value.slug}`)
 })
 
-function isToolActive(path: string) {
-  return route.path.includes(`/${path}`)
+function isToolActive(toolPath: string) {
+  if (!activeWorkspace.value) return false
+  const prefix = `/workspaces/${activeWorkspace.value.slug}/${toolPath}`
+  return route.path === prefix || route.path.startsWith(`${prefix}/`)
 }
 
 function isProjectActive(proj: any) {

@@ -278,9 +278,13 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
   const orphans = diagnostics.filter(d => isOrphanDiagnostic(d)).length
   const crashes = diagnostics.filter(d => d.code === 'agent_crashed' && !isOrphanDiagnostic(d)).length
   const errors = diagnostics.filter(d => d.code === 'agent_error' && !isTimeoutDiagnostic(d)).length
+  const staleWarnings = diagnostics.filter(d =>
+    d.code === 'finished_without_status' && !stillInProgress,
+  ).length
   const doneEntries = diagnostics.filter(d => d.code === 'run_completed')
   const doneCount = doneEntries.length
   const lastDoneAt = doneEntries[0]?.timestamp ?? null
+  const historicalFailures = orphans + crashes + errors + timeouts
 
   let headline = 'No agent issues detected yet'
   let severity: AgentDiagnosticSeverity = 'info'
@@ -288,7 +292,27 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
   const suggestions: string[] = []
 
   const latest = diagnostics[0]
-  if (latest?.code === 'loop_limit_reached') {
+
+  // Task already left In Progress — don't surface stale crashes/timeouts as active failures.
+  if (!stillInProgress && inReviewOrDone) {
+    if (latest?.code === 'status_changed') {
+      headline = 'Task status updated'
+      severity = 'success'
+      summary = latest.message
+    } else if (latest?.code === 'run_completed' || doneCount > 0) {
+      headline = 'Agent completed its last session'
+      severity = 'success'
+      summary = 'The task has left In Progress. Earlier runs may have hit limits or restarts, but there is no open agent issue now.'
+    } else if (historicalFailures > 0 || staleWarnings > 0) {
+      headline = 'Past agent issues resolved'
+      severity = 'success'
+      summary = `The task is now in ${input.taskStatusName || 'Review'}. Earlier agent runs logged problems, but nothing is blocking it now.`
+    } else {
+      headline = 'No open agent issues'
+      severity = 'success'
+      summary = `The task is in ${input.taskStatusName || 'Review'} with no active agent problems.`
+    }
+  } else if (latest?.code === 'loop_limit_reached') {
     headline = 'Agent kept looping — moved to Review'
     severity = 'warning'
     summary = 'The agent hit the auto-restart limit while repeating commands and never finished cleanly. Orbit moved the task to Review so you can verify the work.'
@@ -312,7 +336,7 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
     summary = 'Orbit restarted while the agent was still running. This is not an out-of-memory crash; the session was cut off mid-work.'
     suggestions.push('Re-run the agent when the server is stable (no deploy or container restart during the run).')
     suggestions.push('Check Admin → Diagnostics for stale agent processes and force-stop them before retrying.')
-  } else if (crashes > 0 || errors > 0) {
+  } else if ((crashes > 0 || errors > 0) && stillInProgress) {
     headline = 'Agent runs are failing'
     severity = 'error'
     summary = latest?.message || 'Recent agent sessions ended with errors.'
@@ -400,7 +424,11 @@ export function formatAgentRunInsightsForCopy(
   if (stats.loopRestarts) statParts.push(`${stats.loopRestarts} loop event(s)`)
   if (stats.timeouts) statParts.push(`${stats.timeouts} timeout(s)`)
   const failures = stats.errors + stats.crashes
-  if (failures) statParts.push(`${failures} failed run(s)`)
+  if (failures && stats.stillInProgress) {
+    statParts.push(`${failures} failed run(s)`)
+  } else if (failures) {
+    statParts.push(`${failures} earlier failed run(s) (resolved)`)
+  }
   if (stats.doneCount && stats.stillInProgress) {
     statParts.push(`${stats.doneCount} finished session(s) without status change`)
   }

@@ -20,7 +20,7 @@
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+      <div class="bg-white dark:bg-surface-100 rounded-xl border border-surface-200 shadow-sm p-6">
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div :class="{ 'animate-shake': errors.email }">
             <label class="block text-xs font-medium text-surface-600 mb-1.5">Email</label>

@@ -11,6 +11,8 @@ export type ProcState = {
   isLoopKill?: boolean
   /** Set to true when the process is killed because it exceeded the runtime timeout */
   isTimeoutKill?: boolean
+  /** Set to true when stopped via kill endpoint or superseded by a new agent spawn */
+  isManualKill?: boolean
   /** Set to true when the process has exited (normal, crash, or error) */
   exited?: boolean
   /** Set to true after a browser-MCP auto-retry has been scheduled */

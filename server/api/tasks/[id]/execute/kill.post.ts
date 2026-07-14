@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
   // Kill the process and clean up
   if (entry.heartbeat) clearInterval(entry.heartbeat)
 
+  entry.isManualKill = true
   try { entry.proc.kill('SIGTERM') } catch {}
   setTimeout(() => {
     try { entry.proc.kill('SIGKILL') } catch {}

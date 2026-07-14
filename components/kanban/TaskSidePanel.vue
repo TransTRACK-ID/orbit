@@ -1662,6 +1662,7 @@
 import type { Task, Status, Label, Comment, ActivityLog, ProjectMember, Repository, PrComment, Attachment, QaRun } from '~/types'
 import KanbanAgentRunInsightsPanel from '~/components/kanban/AgentRunInsightsPanel.vue'
 import { agentRunHasIssue, buildAgentRunInsights, type AgentDiagnosticEntry, type AgentRunInsights } from '~/utils/agent-diagnostics'
+import { DEFAULT_AGENT_MAX_RUNTIME_MS, QA_AGENT_MAX_RUNTIME_MS } from '~/utils/agent-runtime-limits'
 import type { Agent } from '~/types'
 import { validateBranchName } from '~/utils/branch-validation'
 import { useDebounceFn } from '@vueuse/core'
@@ -2642,6 +2643,8 @@ const agentRunInsights = computed(() => {
       .slice(0, 40)
       .map(log => log.message.replace(/^>\s*/, '')),
     taskStatusName: task.value?.status?.name,
+    isQaRun: !!latestQaRun.value,
+    maxRuntimeMs: latestQaRun.value ? QA_AGENT_MAX_RUNTIME_MS : DEFAULT_AGENT_MAX_RUNTIME_MS,
   })
 })
 

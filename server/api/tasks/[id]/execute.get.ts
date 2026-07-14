@@ -13,6 +13,12 @@ import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent
 import { advanceAgentTaskToReview } from '~/server/utils/agent-completion'
 import { persistAgentDiagnostic } from '~/server/utils/agent-diagnostics'
 import { incrementAgentLoopRestart, resetAgentLoopRestart, MAX_AGENT_LOOP_RESTARTS } from '~/utils/agent-loop-limit'
+import {
+  DEFAULT_AGENT_MAX_RUNTIME_MS,
+  QA_AGENT_MAX_RUNTIME_MS,
+  SIGTERM_EXIT_CODE,
+  formatAgentMaxRuntimeMinutes,
+} from '~/utils/agent-runtime-limits'
 
 const execAsync = promisify(exec)
 
@@ -329,8 +335,6 @@ function generateHumanSummary(diffContent: string, changedFiles: string[]): stri
 const opencodePath = process.env.OPENCODE_PATH || '/Users/zeinersyad/.opencode/bin/opencode'
 const defaultProjectDir = process.env.PROJECT_DIR || process.cwd()
 
-const MAX_RUNTIME_MS = 15 * 60 * 1000 // 15 minutes max per agent run
-
 async function configureGitAuth(workDir: string, repoUrl: string, platform: string, token?: string | null) {
   if (!token) return
   const authUrl = injectTokenIntoRemoteUrl(repoUrl, platform, token)
@@ -376,6 +380,13 @@ export default defineEventHandler(async (event) => {
   if (!task) {
     throw createError({ statusCode: 404, statusMessage: 'Task not found' })
   }
+
+  const linkedQaRun = await db.query.qaRuns.findFirst({
+    where: eq(schema.qaRuns.taskId, id),
+    columns: { id: true },
+  })
+  const maxRuntimeMs = linkedQaRun ? QA_AGENT_MAX_RUNTIME_MS : DEFAULT_AGENT_MAX_RUNTIME_MS
+  const maxRuntimeMinutes = formatAgentMaxRuntimeMinutes(maxRuntimeMs)
 
   let requestedRuntime = (task.agentAssignee?.runtime as string) || getDefaultAgentRuntime()
   if (requestedRuntime === 'browser-qa') {
@@ -439,6 +450,7 @@ export default defineEventHandler(async (event) => {
         // fall through to spawn a new process with the feedback.
         if (!existing.exited) {
           if (existing.heartbeat) clearInterval(existing.heartbeat)
+          existing.isManualKill = true
           try { existing.proc.kill('SIGTERM') } catch {}
           setTimeout(() => { try { existing.proc.kill('SIGKILL') } catch {} }, 5000)
           for (const s of existing.streams) {
@@ -1169,7 +1181,8 @@ export default defineEventHandler(async (event) => {
       entry.exited = true
 
       const wasLoopKill = entry.isLoopKill
-      const wasTimeoutKill = entry.isTimeoutKill
+      const wasManualKill = entry.isManualKill
+      const wasTimeoutKill = entry.isTimeoutKill || (!wasManualKill && code === SIGTERM_EXIT_CODE)
 
       if (
         browserEnabled
@@ -1204,14 +1217,21 @@ export default defineEventHandler(async (event) => {
       const isCrash = code === null
       const isError = code !== null && code !== 0
 
-      if (!wasLoopKill && (isCrash || isError)) {
+      if (!wasLoopKill && !wasManualKill && (isCrash || isError)) {
         const crashType = wasTimeoutKill ? 'timeout' : (isCrash ? 'crash' : 'error')
         const crashMessage = wasTimeoutKill
-          ? `Agent timed out after ${MAX_RUNTIME_MS / 60000} minutes. The task exceeded the maximum runtime limit.`
+          ? `Agent timed out after ${maxRuntimeMinutes} minutes. The task exceeded the maximum runtime limit.`
           : isCrash
             ? `Agent process was killed unexpectedly (signal: ${signal ?? 'unknown'}). This may indicate OOM or a runtime crash.`
             : `Agent exited with error code ${code}`
-        await pushToStreams(entry, JSON.stringify({ step: crashMessage, autoRestart: true, isCrash, isError: !isCrash, isTimeout: !!wasTimeoutKill, timestamp: Date.now() }))
+        await pushToStreams(entry, JSON.stringify({
+          step: crashMessage,
+          autoRestart: wasLoopKill,
+          isCrash,
+          isError: !isCrash,
+          isTimeout: !!wasTimeoutKill,
+          timestamp: Date.now(),
+        }))
         try {
           await db.insert(schema.activityLogs).values({
             taskId: id,
@@ -1228,8 +1248,8 @@ export default defineEventHandler(async (event) => {
         if (wasTimeoutKill) {
           await persistAgentDiagnostic(db, id, user.id, {
             code: 'runtime_timeout',
-            title: '15-minute time limit hit',
-            message: 'The agent exceeded the 15-minute session limit and was stopped before finishing.',
+            title: `${maxRuntimeMinutes}-minute time limit hit`,
+            message: `The agent exceeded the ${maxRuntimeMinutes}-minute session limit and was stopped before finishing.`,
             severity: 'warning',
             meta: { exitCode: code, signal: signal ?? null },
           })
@@ -1601,10 +1621,6 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
 
     const markdownRule = AGENT_RESPONSE_MARKDOWN_RULE
 
-    const linkedQaRun = await db.query.qaRuns.findFirst({
-      where: (r, { eq: e }) => e(r.taskId, id),
-      columns: { id: true },
-    })
     const qaResultRule = linkedQaRun ? QA_RESULT_JSON_CONTRACT : ''
 
     const statusRule = `[STATUS CONTROL]
@@ -1907,13 +1923,13 @@ If you repeat the same commands and trigger loop detection, Orbit will auto-rest
         const runtimeTimeout = setTimeout(() => {
           if (proc.exitCode === null) {
             entry.isTimeoutKill = true
-            const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
-            pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() })).catch(() => {})
+            const msg = `Runtime timeout reached (${maxRuntimeMinutes} min) — terminating process`
+            pushToStreams(entry, JSON.stringify({ step: msg, isTimeout: true, timestamp: Date.now() })).catch(() => {})
             persistLog(msg)
             try { proc.kill('SIGTERM') } catch {}
             setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
           }
-        }, MAX_RUNTIME_MS)
+        }, maxRuntimeMs)
 
         const heartbeat = setInterval(async () => {
           const idle = Math.round((Date.now() - lastActivity) / 1000)
@@ -2048,13 +2064,13 @@ If you repeat the same commands and trigger loop detection, Orbit will auto-rest
       const runtimeTimeout = setTimeout(() => {
         if (proc.exitCode === null) {
           entry.isTimeoutKill = true
-          const msg = `Runtime timeout reached (${MAX_RUNTIME_MS / 60000} min) — terminating process`
-          pushToStreams(entry, JSON.stringify({ step: msg, autoRestart: true, timestamp: Date.now() })).catch(() => {})
+          const msg = `Runtime timeout reached (${maxRuntimeMinutes} min) — terminating process`
+          pushToStreams(entry, JSON.stringify({ step: msg, isTimeout: true, timestamp: Date.now() })).catch(() => {})
           persistLog(msg)
           try { proc.kill('SIGTERM') } catch {}
           setTimeout(() => { try { proc.kill('SIGKILL') } catch {} }, 5000)
         }
-      }, MAX_RUNTIME_MS)
+      }, maxRuntimeMs)
 
       const heartbeat = setInterval(async () => {
         const idle = Math.round((Date.now() - lastActivity) / 1000)

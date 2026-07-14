@@ -65,6 +65,14 @@ export const useAgentRuntime = () => {
             return
           }
 
+          if (data.isTimeout) {
+            taskRunStates.value = { ...taskRunStates.value, [taskId]: 'error' }
+            receivedDone = true
+            autoRestartCounts.delete(taskId)
+            stopRuntime(taskId)
+            return
+          }
+
           // Auto-restart on loop detection
           if (data.autoRestart) {
             const count = typeof data.loopRestartCount === 'number'

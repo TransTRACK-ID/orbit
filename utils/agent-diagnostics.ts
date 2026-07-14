@@ -1,4 +1,5 @@
 import type { ActivityLog } from '~/types'
+import { SIGTERM_EXIT_CODE, DEFAULT_AGENT_MAX_RUNTIME_MS, QA_AGENT_MAX_RUNTIME_MS, formatAgentMaxRuntimeMinutes } from '~/utils/agent-runtime-limits'
 
 export type AgentDiagnosticSeverity = 'info' | 'warning' | 'error' | 'success'
 
@@ -46,6 +47,44 @@ export interface BuildAgentRunInsightsInput {
   runtimeMessages?: string[]
   taskStatusName?: string | null
   maxLoopRestarts?: number
+  /** Session limit in ms; QA-linked tasks use a longer default. */
+  maxRuntimeMs?: number
+  isQaRun?: boolean
+}
+
+function isOrphanDiagnostic(entry: AgentDiagnosticEntry): boolean {
+  const type = entry.meta?.type
+  const signal = entry.meta?.signal
+  return type === 'orphan'
+    || signal === 'server_restart'
+    || /orphan|server restart/i.test(entry.message)
+}
+
+function isTimeoutDiagnostic(entry: AgentDiagnosticEntry): boolean {
+  if (entry.code === 'runtime_timeout' || entry.meta?.type === 'timeout') return true
+  const exitCode = entry.meta?.exitCode
+  if (exitCode === SIGTERM_EXIT_CODE || exitCode === 143) return true
+  return /timed out|time limit|exit(ed)? with error \(code 143\)|error code 143|runtime timeout reached/i.test(entry.message)
+}
+
+function normalizeDiagnostic(entry: AgentDiagnosticEntry): AgentDiagnosticEntry {
+  if (isOrphanDiagnostic(entry)) {
+    return {
+      ...entry,
+      code: 'agent_crashed',
+      title: 'Interrupted by server restart',
+      severity: 'warning',
+    }
+  }
+  if (isTimeoutDiagnostic(entry)) {
+    return {
+      ...entry,
+      code: 'runtime_timeout',
+      title: entry.title.includes('minute') ? entry.title : 'Session time limit hit',
+      severity: 'warning',
+    }
+  }
+  return entry
 }
 
 function parseRuntimeDiagnostic(message: string, timestamp: number, id: string): AgentDiagnosticEntry | null {
@@ -79,12 +118,12 @@ function parseRuntimeDiagnostic(message: string, timestamp: number, id: string):
     }
   }
 
-  if (/Runtime timeout reached/i.test(text) || /timed out after 15 minutes/i.test(text)) {
+  if (/Runtime timeout reached/i.test(text) || /timed out after \d+ minutes/i.test(text)) {
     return {
       id,
       code: 'runtime_timeout',
-      title: '15-minute time limit hit',
-      message: 'The agent ran longer than 15 minutes in one session and was stopped. It may need a narrower task or a manual continue.',
+      title: 'Session time limit hit',
+      message: 'The agent ran longer than the session limit in one run and was stopped. Large browser QA tasks often need a follow-up run.',
       severity: 'warning',
       timestamp,
     }
@@ -117,12 +156,14 @@ function parseRuntimeDiagnostic(message: string, timestamp: number, id: string):
   }
 
   if (/Agent crashed/i.test(text) || /Agent exited with error/i.test(text)) {
+    const code143 = /\(code 143\)|code 143/i.test(text)
     return {
       id,
-      code: 'agent_error',
-      title: 'Agent run ended unexpectedly',
+      code: code143 ? 'runtime_timeout' : 'agent_error',
+      title: code143 ? 'Session time limit hit' : 'Agent run ended unexpectedly',
       message: text.length > 160 ? `${text.slice(0, 160)}…` : text,
-      severity: 'error',
+      severity: code143 ? 'warning' : 'error',
+      meta: code143 ? { exitCode: SIGTERM_EXIT_CODE, type: 'timeout' } : undefined,
       timestamp,
     }
   }
@@ -216,21 +257,27 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
 
   // De-dupe near-identical entries within 5s
   const diagnostics: AgentDiagnosticEntry[] = []
-  for (const entry of merged) {
+  for (const raw of merged) {
+    const entry = normalizeDiagnostic(raw)
     const dup = diagnostics.find(d =>
-      d.code === entry.code &&
-      Math.abs(d.timestamp - entry.timestamp) < 5000 &&
-      d.title === entry.title,
+      (d.code === entry.code || (isTimeoutDiagnostic(d) && isTimeoutDiagnostic(entry)))
+      && Math.abs(d.timestamp - entry.timestamp) < 5000
+      && (d.title === entry.title || d.message === entry.message),
     )
     if (!dup) diagnostics.push(entry)
   }
 
+  const maxRuntimeMinutes = formatAgentMaxRuntimeMinutes(
+    input.maxRuntimeMs ?? (input.isQaRun ? QA_AGENT_MAX_RUNTIME_MS : DEFAULT_AGENT_MAX_RUNTIME_MS),
+  )
+
   const loopRestarts = diagnostics.filter(d =>
     d.code === 'loop_detected' || d.code === 'loop_limit_reached',
   ).length
-  const timeouts = diagnostics.filter(d => d.code === 'runtime_timeout').length
-  const crashes = diagnostics.filter(d => d.code === 'agent_crashed').length
-  const errors = diagnostics.filter(d => d.code === 'agent_error').length
+  const timeouts = diagnostics.filter(d => isTimeoutDiagnostic(d)).length
+  const orphans = diagnostics.filter(d => isOrphanDiagnostic(d)).length
+  const crashes = diagnostics.filter(d => d.code === 'agent_crashed' && !isOrphanDiagnostic(d)).length
+  const errors = diagnostics.filter(d => d.code === 'agent_error' && !isTimeoutDiagnostic(d)).length
   const doneEntries = diagnostics.filter(d => d.code === 'run_completed')
   const doneCount = doneEntries.length
   const lastDoneAt = doneEntries[0]?.timestamp ?? null
@@ -256,14 +303,20 @@ export function buildAgentRunInsights(input: BuildAgentRunInsightsInput): AgentR
   } else if (timeouts > 0 && stillInProgress) {
     headline = 'Agent keeps timing out'
     severity = 'warning'
-    summary = 'The agent exceeded the 15-minute session limit before finishing. Large browser QA or dev-server tasks often need multiple runs.'
-    suggestions.push('Split the task into smaller steps or ask the agent to finish with [ORBIT_STATUS: review] once verification is done.')
-    suggestions.push('Use Stop, then Run again to continue from the existing worktree.')
+    summary = `The agent exceeded the ${maxRuntimeMinutes}-minute session limit before finishing. Browser QA with many screenshots often needs multiple runs or a shorter test plan.`
+    suggestions.push('Split the QA case into fewer steps, or run again to continue where it left off.')
+    suggestions.push('Use Stop, then Run again. QA-linked tasks get a longer session limit than regular agent tasks.')
+  } else if (orphans > 0 && stillInProgress) {
+    headline = 'Agent was interrupted by a server restart'
+    severity = 'warning'
+    summary = 'Orbit restarted while the agent was still running. This is not an out-of-memory crash; the session was cut off mid-work.'
+    suggestions.push('Re-run the agent when the server is stable (no deploy or container restart during the run).')
+    suggestions.push('Check Admin → Diagnostics for stale agent processes and force-stop them before retrying.')
   } else if (crashes > 0 || errors > 0) {
     headline = 'Agent runs are failing'
     severity = 'error'
     summary = latest?.message || 'Recent agent sessions ended with errors.'
-    suggestions.push('Try Restart Agent. If it keeps failing, check server memory and preview/browser setup.')
+    suggestions.push('Try Restart Agent. If it keeps failing, check preview/browser setup and recent crash logs in Admin.')
   } else if (doneCount > 0 && stillInProgress) {
     headline = 'Agent said Done but status unchanged'
     severity = 'warning'

@@ -7,6 +7,7 @@ import {
   type AgentRunInsights,
 } from '~/utils/agent-diagnostics'
 import { MAX_AGENT_LOOP_RESTARTS } from '~/utils/agent-loop-limit'
+import { QA_AGENT_MAX_RUNTIME_MS, DEFAULT_AGENT_MAX_RUNTIME_MS } from '~/utils/agent-runtime-limits'
 
 export type AgentTaskInsightsResult = {
   insights: AgentRunInsights | null
@@ -66,10 +67,17 @@ export async function getAgentInsightsForTask(taskId: string): Promise<AgentTask
     if (entry) diagnostics.push(entry)
   }
 
+  const linkedQaRun = await db.query.qaRuns.findFirst({
+    where: eq(schema.qaRuns.taskId, taskId),
+    columns: { id: true },
+  })
+
   const insights = buildAgentRunInsights({
     diagnostics,
     taskStatusName: task.status?.name,
     maxLoopRestarts: MAX_AGENT_LOOP_RESTARTS,
+    isQaRun: !!linkedQaRun,
+    maxRuntimeMs: linkedQaRun ? QA_AGENT_MAX_RUNTIME_MS : DEFAULT_AGENT_MAX_RUNTIME_MS,
   })
 
   const runtimeLogs = logs

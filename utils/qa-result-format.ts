@@ -20,4 +20,5 @@ After finishing all cases, include a fenced JSON block labeled \`qa-result\` in 
 Rules:
 - Include every case from the run (use the caseId values provided).
 - Screenshot filenames must match files saved under \`.orbit/screenshots/\`.
-- Do not invent caseIds. Prefer this JSON block as the source of truth for pass/fail.`
+- Do not invent caseIds. Prefer this JSON block as the source of truth for pass/fail.
+- In your final plain-text reply (not only tool output), emit \`[ORBIT_STATUS: review]\` after the qa-result block so the linked board task leaves In Progress.`

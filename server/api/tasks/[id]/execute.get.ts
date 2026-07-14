@@ -10,7 +10,8 @@ import { injectTokenIntoRemoteUrl } from '~/server/utils/git-helpers'
 import { resolveCloneDir, resolveWorktreeDir, projectsDir } from '~/server/utils/worktree-resolver'
 import { fireCrashWebhook } from '~/server/utils/crash-notify'
 import { isCursorInstalled, spawnCursorAgent } from '~/server/utils/cursor-agent'
-import { advanceAgentTaskToReview } from '~/server/utils/agent-completion'
+import { advanceAgentTaskToReview, completeAgentTaskOnSuccess } from '~/server/utils/agent-completion'
+import { applyOrbitStatusFromAgentText } from '~/server/utils/agent-status-from-text'
 import { persistAgentDiagnostic } from '~/server/utils/agent-diagnostics'
 import { incrementAgentLoopRestart, resetAgentLoopRestart, MAX_AGENT_LOOP_RESTARTS } from '~/utils/agent-loop-limit'
 import {
@@ -353,6 +354,10 @@ export default defineEventHandler(async (event) => {
   // Read and clear pending feedback (posted separately to avoid oversized URL params)
   const feedback = pendingFeedback.get(id) || ''
   pendingFeedback.delete(id)
+  const isUserMessageRun = feedback.includes('[USER MESSAGE]')
+  const isFixFeedbackRun = !!feedback
+    && !isUserMessageRun
+    && !feedback.includes('[MANDATORY BROWSER RETRY]')
 
   const db = getDb()
   const task = await db.query.tasks.findFirst({
@@ -525,6 +530,7 @@ export default defineEventHandler(async (event) => {
     let rawAgentStreamText = ''
     const agentScreenshotPaths: string[] = []
     let agentScreenshotAttachments: AgentScreenshotAttachment[] = []
+    let prUrl: string | null = null
 
     function trackAgentScreenshotPath(filePath: string | null) {
       if (!filePath) return
@@ -1349,6 +1355,7 @@ export default defineEventHandler(async (event) => {
             if (res.ok) {
               const prResult = await res.json() as { url: string | null; noChanges?: boolean }
               if (prResult?.url) {
+                prUrl = prResult.url
                 await pushToStreams(entry, JSON.stringify({ step: `Created PR: ${prResult.url}`, timestamp: Date.now() }))
               } else if (prResult?.noChanges) {
                 await pushToStreams(entry, JSON.stringify({ step: 'No changes to create PR from', timestamp: Date.now() }))
@@ -1448,18 +1455,25 @@ export default defineEventHandler(async (event) => {
         }))
         persistLog(msg)
 
-        if (code === 0 && !wasLoopKill && task.agentEnabled) {
+        if (code === 0 && !wasLoopKill && rawAgentStreamText.trim()) {
           try {
-            const currentStatus = await db.query.statuses.findFirst({
-              where: eq(schema.statuses.id, task.statusId),
+            const statusResult = await applyOrbitStatusFromAgentText(db, {
+              taskId: id,
+              projectId: task.projectId,
+              currentStatusId: task.statusId,
+              userId: user.id,
+              text: rawAgentStreamText,
             })
-            if (currentStatus && /progress/i.test(currentStatus.name)) {
-              await persistAgentDiagnostic(db, id, user.id, {
-                code: 'finished_without_status',
-                title: 'Agent finished without updating status',
-                message: 'The agent exited successfully but this task is still In Progress. The agent should emit [ORBIT_STATUS: review] when the work is complete.',
-                severity: 'warning',
-              })
+            if (statusResult.applied && statusResult.statusName) {
+              task.statusId = (await db.query.tasks.findFirst({
+                where: eq(schema.tasks.id, id),
+                columns: { statusId: true },
+              }))?.statusId ?? task.statusId
+              await pushToStreams(entry, JSON.stringify({
+                step: `Agent changed status to "${statusResult.statusName}"`,
+                timestamp: Date.now(),
+              }))
+              await persistLog(`Agent changed status to "${statusResult.statusName}"`)
             }
           } catch {}
         }
@@ -1531,6 +1545,45 @@ export default defineEventHandler(async (event) => {
           })
         } catch (qaErr: any) {
           console.error('[execute.get] Failed to apply QA run results:', qaErr?.message || qaErr)
+        }
+
+        if (code === 0 && !wasLoopKill && task.agentEnabled && !isUserMessageRun && !isFixFeedbackRun) {
+          try {
+            const { advanced, statusName } = await completeAgentTaskOnSuccess(db, {
+              taskId: id,
+              projectId: task.projectId,
+              currentStatusId: task.statusId,
+              userId: user.id,
+              prUrl,
+            })
+            if (advanced && statusName) {
+              task.statusId = (await db.query.tasks.findFirst({
+                where: eq(schema.tasks.id, id),
+                columns: { statusId: true },
+              }))?.statusId ?? task.statusId
+              const step = linkedQaRun
+                ? `QA run complete — task moved to "${statusName}"`
+                : `Agent completed — task moved to "${statusName}"`
+              await pushToStreams(entry, JSON.stringify({ step, timestamp: Date.now() }))
+              await persistLog(step)
+            }
+          } catch {}
+        }
+
+        if (code === 0 && !wasLoopKill && task.agentEnabled) {
+          try {
+            const currentStatus = await db.query.statuses.findFirst({
+              where: eq(schema.statuses.id, task.statusId),
+            })
+            if (currentStatus && /progress/i.test(currentStatus.name)) {
+              await persistAgentDiagnostic(db, id, user.id, {
+                code: 'finished_without_status',
+                title: 'Agent finished without updating status',
+                message: 'The agent exited successfully but this task is still In Progress. The agent should emit [ORBIT_STATUS: review] when the work is complete.',
+                severity: 'warning',
+              })
+            }
+          } catch {}
         }
       }
 
@@ -1627,9 +1680,14 @@ CRITICAL: You do NOT have access to database credentials, .env files, or any dat
 You MUST change the task status by emitting exactly:
 [ORBIT_STATUS: <status_name>]
 The status_name must match an existing project status (e.g. "in_progress", "review", "done", "blocked").
-When you have fully completed the task, emit [ORBIT_STATUS: review] before you finish.
+When you have fully completed the task, emit [ORBIT_STATUS: review] before you finish (optional — Orbit also moves agent tasks to Review automatically after a successful run).
 Only use this when the task state has genuinely changed — do not emit it for trivial updates.
-If you repeat the same commands and trigger loop detection, Orbit will auto-restart you up to ${MAX_AGENT_LOOP_RESTARTS} times; after that limit the task is moved to Review for human review.`
+If you repeat the same commands and trigger loop detection, Orbit will auto-restart you up to ${MAX_AGENT_LOOP_RESTARTS} times; after that limit the task is moved to Review for human review.${browserEnabled ? `
+
+[CRITICAL FOR BROWSER SESSIONS]
+Chrome DevTools MCP (clicks, screenshots, evaluate_script) does NOT update the Kanban card.
+You MUST send a final plain-text reply containing [ORBIT_STATUS: review] when the work is complete.
+Tool-only output without this marker leaves the task stuck In Progress.` : ''}`
 
     const labels = task.taskLabels?.map((tl: any) => tl.label?.name).filter(Boolean) || []
     const labelsContext = labels.length > 0

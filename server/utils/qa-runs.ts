@@ -250,7 +250,7 @@ export function buildQaRunTaskDescription(opts: {
   return `QA Run ID: ${opts.runId}
 Target URL: ${opts.targetUrl || '(not set)'}
 
-${preconditionsBlock}Execute each case in order using Chrome DevTools MCP. Record results in a fenced \`\`\`json qa-result block (see QA result contract).
+${preconditionsBlock}Execute each case in order using Chrome DevTools MCP. Record results in a fenced \`\`\`json qa-result block (see QA result contract). End with a plain-text message that includes \`[ORBIT_STATUS: review]\` so this QA task leaves In Progress.
 
 ## Cases
 

@@ -3,7 +3,7 @@ import { getDb, schema } from '~/server/database'
 
 type Db = ReturnType<typeof getDb>
 
-/** Move an in-progress agent task to Review (loop-limit fallback — not normal completion). */
+/** Move an in-progress agent task to Review. */
 export async function advanceAgentTaskToReview(
   db: Db,
   opts: { taskId: string; projectId: string; currentStatusId: string; userId: string },
@@ -44,4 +44,43 @@ export async function advanceAgentTaskToReview(
   })
 
   return { advanced: true, statusId: reviewStatus.id, statusName: reviewStatus.name }
+}
+
+export async function recordAgentCompleted(
+  db: Db,
+  taskId: string,
+  userId: string,
+  details?: { exitCode?: number | null; prUrl?: string | null },
+) {
+  await db.insert(schema.activityLogs).values({
+    taskId,
+    userId,
+    action: 'agent_completed',
+    newValue: {
+      exitCode: details?.exitCode ?? 0,
+      prUrl: details?.prUrl ?? null,
+      message: 'Agent completed successfully',
+    },
+  })
+}
+
+/** After a successful agent run, move In Progress → Review and log completion. */
+export async function completeAgentTaskOnSuccess(
+  db: Db,
+  opts: {
+    taskId: string
+    projectId: string
+    currentStatusId: string
+    userId: string
+    prUrl?: string | null
+  },
+): Promise<{ advanced: boolean; statusName?: string }> {
+  const { advanced, statusName } = await advanceAgentTaskToReview(db, opts)
+  if (advanced) {
+    await recordAgentCompleted(db, opts.taskId, opts.userId, {
+      exitCode: 0,
+      prUrl: opts.prUrl ?? null,
+    })
+  }
+  return { advanced, statusName }
 }

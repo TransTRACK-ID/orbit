@@ -1,29 +1,33 @@
 import { getDb, schema } from '~/server/database'
-import { eq, and, ilike, desc, gt } from 'drizzle-orm'
-import { fireCrashWebhook } from '~/server/utils/crash-notify'
+import { eq, and, ilike, desc, gt, or } from 'drizzle-orm'
+import { persistAgentDiagnostic } from '~/server/utils/agent-diagnostics'
+import {
+  isOrphanActivityValue,
+  wasAgentActiveAroundServerBoot,
+} from '~/server/utils/agent-orphan-recovery'
+
+const ORPHAN_MESSAGE = 'Agent process was orphaned due to server restart while task was in progress'
 
 export default defineNitroPlugin(async () => {
   const db = getDb()
+  const serverBootAt = new Date(Date.now() - process.uptime() * 1000)
 
-  // Find all "in-progress" statuses across projects
   const inProgressStatuses = await db.query.statuses.findMany({
     where: ilike(schema.statuses.name, '%progress%'),
   })
 
   if (inProgressStatuses.length === 0) return
 
-  const statusIds = inProgressStatuses.map(s => s.id)
+  const statusIds = new Set(inProgressStatuses.map(s => s.id))
 
-  // Find agent-enabled tasks that are currently in-progress
   const tasks = await db.query.tasks.findMany({
     where: eq(schema.tasks.agentEnabled, true),
     with: { status: true },
   })
 
-  const orphanedTasks = tasks.filter(t => statusIds.includes(t.statusId))
+  const orphanedTasks = tasks.filter(t => statusIds.has(t.statusId))
 
   for (const task of orphanedTasks) {
-    // Check if the task has an agent_completed log
     const completedLog = await db.query.activityLogs.findFirst({
       where: and(
         eq(schema.activityLogs.taskId, task.id),
@@ -33,7 +37,6 @@ export default defineNitroPlugin(async () => {
     })
 
     if (completedLog) {
-      // Work is complete but status is wrong — transition to review
       const reviewStatus = await db.query.statuses.findFirst({
         where: and(
           eq(schema.statuses.projectId, task.projectId),
@@ -51,40 +54,47 @@ export default defineNitroPlugin(async () => {
       continue
     }
 
-    // Check for recent runtime activity without completion (orphaned process)
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
-    const mostRecentLog = await db.query.activityLogs.findFirst({
+    const lastRuntimeLog = await db.query.activityLogs.findFirst({
       where: and(
         eq(schema.activityLogs.taskId, task.id),
-        gt(schema.activityLogs.createdAt, thirtyMinutesAgo),
+        eq(schema.activityLogs.action, 'runtime_log'),
       ),
       orderBy: [desc(schema.activityLogs.createdAt)],
     })
 
-    if (mostRecentLog?.action === 'runtime_log') {
-      // Process was likely running and got orphaned by server restart
-      await db.insert(schema.activityLogs).values({
-        taskId: task.id,
-        userId: task.reporterId,
-        action: 'agent_crash',
-        newValue: {
-          exitCode: null,
-          signal: 'server_restart',
-          type: 'orphan',
-          message: 'Agent process was orphaned due to server restart while task was in progress',
-        },
-      })
+    if (!lastRuntimeLog) continue
 
-      await fireCrashWebhook({
-        taskId: task.id,
-        taskTitle: task.title,
-        exitCode: null,
-        signal: 'server_restart',
-        type: 'orphan',
-        message: 'Agent process was orphaned due to server restart while task was in progress',
-      })
+    const lastLogMs = lastRuntimeLog.createdAt.getTime()
+    if (!wasAgentActiveAroundServerBoot(lastLogMs)) continue
 
-      console.log(`[agent-recovery] Task ${task.id} marked as orphaned crash (server restart)`)
+    const existingOrphan = await db.query.activityLogs.findFirst({
+      where: and(
+        eq(schema.activityLogs.taskId, task.id),
+        gt(schema.activityLogs.createdAt, serverBootAt),
+        or(
+          eq(schema.activityLogs.action, 'agent_crash'),
+          eq(schema.activityLogs.action, 'agent_diagnostic'),
+        ),
+      ),
+      orderBy: [desc(schema.activityLogs.createdAt)],
+    })
+
+    if (existingOrphan && isOrphanActivityValue(existingOrphan.newValue as Record<string, unknown>)) {
+      continue
     }
+
+    await persistAgentDiagnostic(db, task.id, task.reporterId, {
+      code: 'agent_crashed',
+      title: 'Interrupted by server restart',
+      message: ORPHAN_MESSAGE,
+      severity: 'warning',
+      meta: {
+        type: 'orphan',
+        signal: 'server_restart',
+        exitCode: null,
+      },
+    })
+
+    console.log(`[agent-recovery] Task ${task.id} marked as orphaned (server restart)`)
   }
 })
